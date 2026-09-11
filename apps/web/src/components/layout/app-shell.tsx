@@ -1,12 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import { useLocale } from 'next-intl';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Topbar } from '@/components/layout/topbar';
 import { Sheet } from '@/components/ui/sheet';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const locale = useLocale();
+
+  // In RTL, sidebar is on the right → mobile sheet opens from right
+  const sheetSide = locale === 'fa' ? 'right' : 'left';
 
   return (
     <div className="flex min-h-screen">
@@ -17,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sheet
         open={mobileNavOpen}
         onOpenChange={setMobileNavOpen}
-        side="left"
+        side={sheetSide}
         className="w-72"
         labelledBy="mobile-nav-label"
       >

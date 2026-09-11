@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth/AuthProvider';
 
-export default function Home() {
+/** Locale-aware entry: redirects to /{locale}/dashboard or /{locale}/login. */
+export default function HomePage() {
   const { status } = useAuth();
   const router = useRouter();
 

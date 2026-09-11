@@ -1,19 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Ship, Activity, LogOut } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
+import { Ship, Activity, LogOut, Languages } from 'lucide-react';
 import type { HealthStatus } from '@shipping/shared';
 import { api } from '@/lib/api/client';
 import { NAV_SECTIONS, type NavItem } from '@/lib/navigation/nav';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { Link, usePathname, useRouter } from '@/i18n/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 function NavRow({ item }: { item: NavItem }) {
   const pathname = usePathname();
+  const t = useTranslations('nav');
   const isActive = !!item.href && pathname === item.href;
   const Icon = item.icon;
 
@@ -33,12 +34,12 @@ function NavRow({ item }: { item: NavItem }) {
         >
           {isActive && (
             <span
-              className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r bg-primary"
+              className="absolute start-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-e bg-primary"
               aria-hidden="true"
             />
           )}
           <Icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden="true" />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{t(item.labelKey)}</span>
         </Link>
       ) : (
         <button
@@ -48,9 +49,9 @@ function NavRow({ item }: { item: NavItem }) {
           title={item.description}
         >
           <Icon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{t(item.labelKey)}</span>
           <Badge variant="outline" className="text-[10px] font-normal">
-            Soon
+            <SoonBadge />
           </Badge>
         </button>
       )}
@@ -58,13 +59,19 @@ function NavRow({ item }: { item: NavItem }) {
   );
 }
 
-function NavGroup({ title, items }: { title: string; items: NavItem[] }) {
+function SoonBadge() {
+  const t = useTranslations('common');
+  return <>{t('soon')}</>;
+}
+
+function NavGroup({ titleKey, items }: { titleKey: string; items: NavItem[] }) {
+  const t = useTranslations('nav');
   return (
     <div className="mb-1">
-      <div className="micro-label px-2.5 pb-1 pt-2 text-muted-foreground">{title}</div>
+      <div className="micro-label px-2.5 pb-1 pt-2 text-muted-foreground">{t(titleKey)}</div>
       <div className="space-y-0.5">
         {items.map((item) => (
-          <NavRow key={item.label} item={item} />
+          <NavRow key={item.labelKey} item={item} />
         ))}
       </div>
     </div>
@@ -74,6 +81,8 @@ function NavGroup({ title, items }: { title: string; items: NavItem[] }) {
 function SystemStatus() {
   const [status, setStatus] = useState<'ok' | 'down' | 'loading'>('loading');
   const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const locale = useLocale();
+  const t = useTranslations('system');
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +92,7 @@ function SystemStatus() {
         if (cancelled) return;
         setStatus(h.status === 'ok' && h.database.status === 'up' ? 'ok' : 'down');
         setCheckedAt(
-          new Date(h.timestamp).toLocaleTimeString([], {
+          new Date(h.timestamp).toLocaleTimeString(locale === 'fa' ? 'fa-IR' : [], {
             hour: '2-digit',
             minute: '2-digit',
           })
@@ -95,7 +104,7 @@ function SystemStatus() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   return (
     <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-2">
@@ -110,10 +119,12 @@ function SystemStatus() {
       />
       <div className="min-w-0 flex-1">
         <div className="text-[11px] font-medium leading-tight text-foreground">
-          System {status === 'ok' ? 'Operational' : status === 'down' ? 'Issue' : 'Checking…'}
+          {status === 'ok' ? t('operational') : status === 'down' ? t('issue') : t('checking')}
         </div>
         {checkedAt && (
-          <div className="text-[10px] leading-tight text-muted-foreground">checked {checkedAt}</div>
+          <div className="text-[10px] leading-tight text-muted-foreground">
+            {t('checkedAt', { time: checkedAt })}
+          </div>
         )}
       </div>
     </div>
@@ -122,6 +133,8 @@ function SystemStatus() {
 
 function SidebarContent() {
   const { user, hasPermission, logout } = useAuth();
+  const tApp = useTranslations('app');
+  const tCommon = useTranslations('common');
 
   const visibleSections = NAV_SECTIONS.map((section) => ({
     ...section,
@@ -141,27 +154,25 @@ function SidebarContent() {
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-card lg:sticky lg:top-0 lg:h-screen">
+    <aside className="flex h-full w-60 shrink-0 flex-col border-e border-border bg-card lg:sticky lg:top-0 lg:h-screen">
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-border px-3.5 py-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shadow-sm">
           <Ship className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
-          <span className="sr-only">Shipping ERP</span>
+          <span className="sr-only">{tApp('name')}</span>
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold leading-tight tracking-tight">
-            Shipping ERP
+            {tApp('name')}
           </div>
-          <div className="truncate text-[10px] text-muted-foreground">
-            Operations &amp; Accounting
-          </div>
+          <div className="truncate text-[10px] text-muted-foreground">{tApp('tagline')}</div>
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="scrollbar-thin flex-1 overflow-y-auto px-2 py-2" aria-label="Main navigation">
         {visibleSections.map((section) => (
-          <NavGroup key={section.title} title={section.title} items={section.items} />
+          <NavGroup key={section.titleKey} titleKey={section.titleKey} items={section.items} />
         ))}
       </nav>
 
@@ -174,7 +185,7 @@ function SidebarContent() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[12px] font-medium leading-tight text-foreground">
-              {user?.fullName || 'Signed in'}
+              {user?.fullName || tCommon('signedIn')}
             </span>
             <span className="block truncate text-[10px] leading-tight text-muted-foreground">
               {user?.email}
@@ -185,8 +196,8 @@ function SidebarContent() {
             size="icon"
             className="h-7 w-7 shrink-0"
             onClick={() => logout()}
-            aria-label="Sign out"
-            title="Sign out"
+            aria-label={tCommon('signOut')}
+            title={tCommon('signOut')}
           >
             <LogOut className="h-4 w-4" aria-hidden="true" />
           </Button>
