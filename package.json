@@ -1,0 +1,51 @@
+{
+  "name": "shipping-erp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shipping Operations & Accounting ERP - Phase 1: Architecture & Project Bootstrap",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --stream run dev",
+    "dev:web": "pnpm --filter @shipping/web dev",
+    "dev:api": "pnpm --filter @shipping/api dev",
+    "build": "pnpm run build -r",
+    "build:web": "pnpm --filter @shipping/web build",
+    "build:api": "pnpm --filter @shipping/api build",
+    "start": "pnpm run start -r",
+    "lint": "pnpm run lint -r",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "test": "pnpm run test -r",
+    "test:watch": "pnpm run test:watch -r",
+    "typecheck": "pnpm run typecheck -r",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:reset": "prisma migrate reset",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "docker:db": "docker compose -f docker/docker-compose.dev.yml up -d",
+    "docker:db:down": "docker compose -f docker/docker-compose.dev.yml down"
+  },
+  "devDependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/bcryptjs": "^2.4.6",
+    "bcryptjs": "^2.4.3",
+    "@types/node": "^20.14.0",
+    "prettier": "^3.3.0",
+    "prisma": "^5.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

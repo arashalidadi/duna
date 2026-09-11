@@ -1,0 +1,3 @@
+# Third-party and local-only files that prettier must not rewrite.
+.opencode/
+session-*.md

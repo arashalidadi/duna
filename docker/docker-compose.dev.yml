@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: shipping_erp_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shipping
+      POSTGRES_PASSWORD: shipping_dev_pass
+      POSTGRES_DB: shipping_erp
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - '5432:5432'
+    volumes:
+      - shipping_erp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U shipping -d shipping_erp']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  shipping_erp_pgdata:
+    driver: local

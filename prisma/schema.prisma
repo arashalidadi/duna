@@ -1,0 +1,719 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// FOUNDATIONAL ENTITIES — PHASE 1
+// ============================================================================
+// These entities establish the architectural foundation. Detailed business
+// entities (Cargo, Inspection, Voyage, Invoice, Payment, etc.) will be added
+// in later phases following the conventions established here.
+//
+// Conventions:
+//   * UUID primary keys (cuid() for ordered, distributed-friendly ids)
+//   * createdAt / updatedAt audit timestamps
+//   * soft deletion via deletedAt (nullable) where appropriate
+//   * explicit status fields
+//   * all timestamps stored in UTC
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// Identity & Access (RBAC foundation — fully implemented in Phase 2)
+// ---------------------------------------------------------------------------
+
+model User {
+  id                   String           @id @default(cuid())
+  email                String           @unique
+  passwordHash         String
+  fullName             String
+  isActive             Boolean          @default(true)
+  lastLoginAt          DateTime?
+  failedLoginAttempts  Int              @default(0)
+  lockedUntil          DateTime?
+  passwordChangedAt    DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  deletedAt            DateTime?
+  roles                UserRole[]
+  refreshTokens        RefreshToken[]
+  inspectionsCreated   Inspection[]      @relation("InspectorCreated")
+  inspectionsApproved  Inspection[]      @relation("InspectorApproved")
+  inspectionsRejected  Inspection[]      @relation("InspectorRejected")
+  voyagesCreated       Voyage[]          @relation("VoyageCreated")
+  loadListsCreated     LoadList[]        @relation("LoadListCreatedBy")
+  loadListsFinalized   LoadList[]        @relation("LoadListFinalizedBy")
+  loadListsCancelled   LoadList[]        @relation("LoadListCancelledBy")
+  actualLoadingsCreated   ActualLoading[]   @relation("ActualLoadingCreatedBy")
+  actualLoadingsCompleted ActualLoading[]   @relation("ActualLoadingCompletedBy")
+  actualLoadingsCancelled ActualLoading[]   @relation("ActualLoadingCancelledBy")
+
+  @@index([email])
+  @@index([isActive])
+}
+
+// Refresh tokens are stored hashed (never plaintext). Rotated on use; the prior
+// token is soft-revoked and linked to its replacement for reuse detection.
+model RefreshToken {
+  id             String     @id @default(cuid())
+  userId         String
+  tokenHash      String     @unique
+  lookupKey      String?    @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  replacedByTokenId String?
+  createdAt      DateTime   @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id        String           @id @default(cuid())
+  code      String           @unique
+  module    String
+  action    String           // create | read | update | delete | approve | ...
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  roles     RolePermission[]
+
+  @@index([module])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+// ---------------------------------------------------------------------------
+// Company & Money
+// ---------------------------------------------------------------------------
+
+model CompanySettings {
+  id                        String   @id @default(cuid())
+  companyName               String
+  legalName                 String?
+  registrationNumber        String?
+  taxNumber                 String?
+  address                   String?
+  city                      String?
+  country                   String?
+  phone                     String?
+  email                     String?
+  website                   String?
+  timezone                  String   @default("Asia/Dubai")
+  defaultCurrency           String   @default("USD")
+  supportedCurrenciesJson   String   @default("[\"USD\",\"AED\"]")
+  createdByUserId           String?
+  updatedByUserId           String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+model Currency {
+  id         String   @id @default(cuid())
+  code       String   @unique // ISO 4217, e.g. USD, AED
+  name       String
+  symbol     String
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Geography: Ports -> Yards
+// ---------------------------------------------------------------------------
+
+model Port {
+  id                String           @id @default(cuid())
+  code              String           @unique // e.g. JEBALI, KHALIFA
+  name              String
+  country           String
+  city              String?
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+  yards             Yard[]
+  cargos            Cargo[]          @relation("CargoPort") // cargo registered at this port
+  cargoDestinations Cargo[]          @relation("DestinationPort") // cargo destined for this port
+  yardInventories   YardInventory[]  // current inventory physically at this port
+  voyageOrigins     Voyage[]         @relation("VoyageOrigin") // voyages departing from this port
+  voyageDestinations Voyage[]        @relation("VoyageDestination") // voyages arriving at this port
+
+  @@index([name])
+  @@index([country])
+  @@index([isActive])
+}
+
+model Yard {
+  id             String          @id @default(cuid())
+  portId         String
+  code           String          @unique
+  name           String
+  address        String?
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  cargos         Cargo[]         // cargo currently assigned to this yard
+  inventories    YardInventory[] // current inventory records held in this yard
+
+  port Port @relation(fields: [portId], references: [id])
+
+  @@index([portId])
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Customers (will have many Cargo records in later phases)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id          String   @id @default(cuid())
+  code        String   @unique // configurable numbering, e.g. CUS-001
+  name        String
+  shortName   String?
+  type        String? // e.g. SHIPPER, CONSIGNEE, AGENT, FREIGHT_FORWARDER
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  country     String?
+  taxId       String?
+  creditLimit Decimal? @db.Decimal(18, 2)
+  currency    String? // ISO 4217
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+  cargos      Cargo[] // all cargo consigned to this customer
+
+  @@index([name])
+  @@index([isActive])
+  @@index([type])
+}
+
+// ---------------------------------------------------------------------------
+// Cargo (operational) — Phase 4
+// ---------------------------------------------------------------------------
+// Cargo is the core operational record. It references Customers, Ports and
+// Yards through real foreign keys (Phase 3 master data) — it never duplicates
+// their names. The lifecycle (status) and the readiness fields (inspection /
+// loading / manifest) are established here; the associated business workflows
+// (Inspection, Load List, Actual Loading, Manifest) belong to later phases and
+// only extend these explicit states.
+//
+// Lifecycle status is an explicit state machine (see docs/workflows.md and
+// ADR-019). Terminals: CANCELLED (and, via later phases, LOADED/DELIVERED).
+// READY additionally requires inspectionStatus = APPROVED.
+//
+// Timezone: all timestamps are UTC (project convention).
+
+model Cargo {
+  id              String           @id @default(cuid())
+  reference       String           @unique // stable, human-friendly, e.g. CRG-XXXXXXXX
+  customerId      String           @map("customerId")
+  portId          String           @map("portId") // port where the cargo is registered / handled
+  yardId          String?          @map("yardId") // current yard assignment (must belong to portId)
+  destinationPortId String?        @map("destinationPortId") // relational destination
+  cargoType       CargoType
+  specification   String?
+  serialNumber    String?          @map("serialNumber")
+  chassisNumber   String?          @map("chassisNumber")
+  vin             String?
+  weight          Decimal?         @db.Decimal(18, 2) // gross weight where applicable
+  weightUnit      WeightUnit?      // KG or MT (documented standard)
+  quantity        Int?             // positive unit count where applicable
+  packages        Int?             // package / naggle count where applicable
+  packageType     String?          // e.g. NAGGLE, BUNDLE, LOOSE
+  arrivalDate     DateTime?        @map("arrivalDate") // UTC
+  arrivalReference String?         @map("arrivalReference") // e.g. B/L or shipping reference
+  inspectionStatus InspectionStatus @default(PENDING) // readiness; workflow in Phase 5
+  loadingStatus   LoadingStatus    @default(NOT_LOADED) // readiness; loading in Phase 8
+  manifestNumber  String?          @map("manifestNumber") // nullable; manifest in Phase 9
+  status          CargoStatus      @default(REGISTERED)
+  comments        String?
+  createdById     String?          @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  port Port @relation("CargoPort", fields: [portId], references: [id])
+  destinationPort Port? @relation("DestinationPort", fields: [destinationPortId], references: [id])
+  yard Yard? @relation(fields: [yardId], references: [id])
+
+  inventory YardInventory? // one current inventory record per cargo (Phase 4 minimal)
+  inspections Inspection[] // completed/pending inspections against this cargo (Phase 5)
+  loadListItems LoadListItem[]
+  actualLoadingItems ActualLoadingItem[]
+
+  // unique index on @unique(reference) covers reference lookups
+  @@index([customerId])
+  @@index([portId])
+  @@index([yardId])
+  @@index([destinationPortId])
+  @@index([status])
+  @@index([inspectionStatus])
+  @@index([cargoType])
+  @@index([serialNumber])
+  @@index([chassisNumber])
+  @@index([vin])
+  @@index([arrivalDate])
+}
+
+// ---------------------------------------------------------------------------
+// Yard Inventory (current state) — Phase 4
+// ---------------------------------------------------------------------------
+// YardInventory records the CURRENT physical presence of a Cargo in a Yard.
+// Exactly one current record exists per Cargo (@@unique cargoId) while it is
+// in the yard; placing creates it, moving updates it, removing deletes it.
+// A cargo that is not currently in any yard has NO inventory record.
+// This satisfies "current inventory determination" and duplicate prevention;
+// full historical movement is deferred (documented in ADR-020 / limitations).
+// portId mirrors yard.portId and is kept in sync by the service for indexed
+// port-level filtering.
+
+model YardInventory {
+  id           String    @id @default(cuid())
+  cargoId      String    @map("cargoId") @unique // one current record per cargo
+  yardId       String    @map("yardId")
+  portId       String    @map("portId") // mirror of yard.portId (kept in sync)
+  status       InventoryStatus @default(IN_YARD)
+  enteredAt    DateTime  @default(now()) @map("enteredAt") // UTC
+  locationLabel String?  @map("locationLabel") // optional zone/row/slot
+  notes        String?   // movement/reason; not a substitute for structured fields
+  createdById  String?   @map("createdById")
+  updatedById  String?   @map("updatedById")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  cargo Cargo @relation(fields: [cargoId], references: [id])
+  yard Yard @relation(fields: [yardId], references: [id])
+  port Port @relation(fields: [portId], references: [id])
+
+  @@index([yardId])
+  @@index([portId])
+  @@index([status])
+  @@index([enteredAt])
+}
+
+// ---------------------------------------------------------------------------
+// Inspection (operational) — Phase 5
+// ---------------------------------------------------------------------------
+// Inspection records the outcome of an inspection of a Cargo. It is a *history*
+// record: an approved/rejected inspection transitions the cargo's current
+// readiness state (Cargo.inspectionStatus) transactionally, but prior inspection
+// records are preserved for traceability. A cargo may have Inspection #1
+// REJECTED then Inspection #2 APPROVED; Cargo.inspectionStatus reflects the
+// latest (authoritative current state), while every Inspection row remains.
+//
+// The current-state authority: Cargo.inspectionStatus (Phase 4 field). The
+// Inspection table is the traceable ledger of how that state was reached.
+// `approve`/`reject` update the Inspection row AND Cargo.inspectionStatus in the
+// same transaction so they can never diverge (ADR-024).
+//
+// Duplicate-pending rule: at most one PENDING inspection per cargo at a time.
+// Enforced in the service layer and backed by a partial unique index on
+// (cargoId) WHERE status = 'PENDING' (added in migration) so concurrent creates
+// are safe.
+//
+// Timezone: inspectionDate and all timestamps are UTC (project convention).
+
+model Inspection {
+  id                String   @id @default(cuid())
+  inspectionNumber  String   @unique // stable, human-friendly, e.g. INS-YYMM-#####
+  cargoId           String   @map("cargoId")
+  status            InspectionStatus @default(PENDING)
+  inspectionDate    DateTime @map("inspectionDate") // UTC
+  inspectorId       String?  @map("inspectorId") // the user recording the inspection
+  inspectorName     String?  @map("inspectorName") // free-text snapshot (external inspectors)
+  findings          String?  // structured free-form findings
+  condition         String?  // physical condition / damage notes
+  verificationNotes String?  @map("verificationNotes") // serial/chassis, qty, weight, documentation
+  remarks           String?
+  rejectionReason   String?  @map("rejectionReason") // required on REJECTED
+
+  approvedById      String?  @map("approvedById")
+  approvedAt        DateTime? @map("approvedAt") // UTC
+  rejectedById      String?  @map("rejectedById")
+  rejectedAt        DateTime? @map("rejectedAt") // UTC
+
+  createdById       String?  @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  cargo Cargo @relation(fields: [cargoId], references: [id])
+  createdBy User? @relation("InspectorCreated", fields: [createdById], references: [id])
+  approvedBy User? @relation("InspectorApproved", fields: [approvedById], references: [id])
+  rejectedBy User? @relation("InspectorRejected", fields: [rejectedById], references: [id])
+
+  @@index([cargoId])
+  @@index([status])
+  @@index([inspectionDate])
+  @@index([inspectorId])
+  @@index([createdById])
+}
+
+// ---------------------------------------------------------------------------
+// Vessel (master data) — Phase 6
+// ---------------------------------------------------------------------------
+// Vessel is the operational master / registry record. A vessel is identified by
+// a unique, stable `code` (master-data convention, mirroring Port/Customer) and
+// optionally by IMO number (unique when supplied). `flag` is a plain country
+// string — consistent with Port.country (no separate Country master table yet).
+//
+// Lifecycle: ACTIVE / INACTIVE via isActive. Deactivation is guarded: a vessel
+// with an unfinished voyage (DRAFT/SCHEDULED/IN_PROGRESS) cannot be deactivated
+// (409); completed historical voyages do not block deactivation and remain
+// readable. Vessels are not hard-deleted while referenced by any voyage.
+//
+// `capacityTeu` is declared master-data stowage capacity (informational only;
+// no slot allocation / utilization logic — that belongs to Load Planning, Phase 7).
+//
+// Timezone: all timestamps UTC (project convention).
+
+model Vessel {
+  id          String     @id @default(cuid())
+  code        String     @unique // stable, unique master-data code, e.g. MV-HORIZON
+  name        String // required vessel name (trimmed / non-blank enforced in service)
+  imo         String?    @unique // 7-digit IMO number; nullable, validated when supplied
+  flag        String // country of registry (plain string, matches Port.country)
+  vesselType  VesselType
+  capacityTeu Int? // declared stowage capacity (TEU), master-data only
+  isActive    Boolean    @default(true)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime? // soft-delete (blocked while voyages reference the vessel)
+
+  voyages Voyage[]
+
+  @@index([code])
+  @@index([name])
+  @@index([flag])
+  @@index([vesselType])
+  @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Voyage (operational) — Phase 6
+// ---------------------------------------------------------------------------
+// Voyage is an operational sailing of a Vessel between an origin and a
+// destination port. It carries the vessel + port relationships that Phase 7
+// (Load Planning) will consume, but NO cargo assignment (that is explicitly
+// Phase 7). The explicit lifecycle (VoyageStatus) is server-enforced.
+//
+// Lifecycle states and transitions (ADR-026):
+//   DRAFT      -> SCHEDULED | CANCELLED
+//   SCHEDULED  -> IN_PROGRESS | CANCELLED
+//   IN_PROGRESS-> COMPLETED
+//   COMPLETED / CANCELLED are terminal (historical).
+// Status changes are dedicated business operations (schedule/start/complete/
+// cancel), never an arbitrary PATCH of the status field.
+//
+// Dates are planned scheduling times, stored in UTC. `plannedDepartureAt` and
+// `plannedArrivalAt` (ETA) are required to SCHEDULE; ordering
+// plannedArrivalAt >= plannedDepartureAt is validated. Actual operation
+// timestamps belong to later phases.
+//
+// A vessel may not have overlapping unfinished voyages (DRAFT/SCHEDULED/
+// IN_PROGRESS) — enforced in the service (403/409 on overlap, ADR-027).
+//
+// Timezone: all timestamps UTC (project convention).
+
+model Voyage {
+  id                 String      @id @default(cuid())
+  voyageNumber       String      @unique // stable, unique, auto VOY-YYMM-#####
+  vesselId           String      @map("vesselId")
+  status             VoyageStatus @default(DRAFT)
+  originPortId       String      @map("originPortId")
+  destinationPortId  String      @map("destinationPortId")
+  plannedDepartureAt DateTime?   @map("plannedDepartureAt") // UTC; required to schedule
+  plannedArrivalAt   DateTime?   @map("plannedArrivalAt") // ETA UTC; required to schedule
+  cancelReason       String?     @map("cancelReason") // required on cancellation
+  notes              String?
+  createdById        String?     @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  vessel Vessel @relation(fields: [vesselId], references: [id])
+  originPort Port @relation("VoyageOrigin", fields: [originPortId], references: [id])
+  destinationPort Port @relation("VoyageDestination", fields: [destinationPortId], references: [id])
+  createdBy User? @relation("VoyageCreated", fields: [createdById], references: [id])
+  loadLists LoadList[]
+
+  @@index([voyageNumber])
+  @@index([vesselId])
+  @@index([status])
+  @@index([originPortId])
+  @@index([destinationPortId])
+  @@index([plannedDepartureAt])
+  @@index([plannedArrivalAt])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 enums
+// ---------------------------------------------------------------------------
+
+// Operational lifecycle. READY additionally requires inspectionStatus=APPROVED.
+enum CargoStatus {
+  REGISTERED
+  AT_YARD
+  READY
+  LOADED // set by later phases; present here as forward-compatible state
+  DELIVERED
+  CANCELLED
+}
+
+// Physical cargo category. Small, controlled set (ADR-022).
+enum CargoType {
+  GENERAL
+  VEHICLE
+  HEAVY_LIFT
+  CONTAINER
+  BULK
+  PROJECT
+}
+
+// Readiness field only — the Inspection workflow is Phase 5. Future rule:
+// Cargo may be added to a Load List only when inspectionStatus = APPROVED.
+enum InspectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Readiness field only — Actual Loading is Phase 8. Established here so future
+// loading operations can update cargo + inventory atomically.
+enum LoadingStatus {
+  NOT_LOADED
+  LOADED
+}
+
+// Standardized weight unit (ADR-023). Mixing units within one cargo is not
+// permitted at the record level.
+enum WeightUnit {
+  KG
+  MT
+}
+
+// Current yard-inventory state.
+enum InventoryStatus {
+  IN_YARD
+  RESERVED
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 enums
+// ---------------------------------------------------------------------------
+
+// Controlled vessel category (ADR-022-style). Only types relevant to the
+// shipping operations are included; the set is an explicit, documented enum.
+enum VesselType {
+  CONTAINER
+  BULK
+  TANKER
+  RORO
+  GENERAL
+  PROJECT
+  OTHER
+}
+
+// Voyage lifecycle (ADR-026). DRAFT -> SCHEDULED -> IN_PROGRESS -> COMPLETED;
+// cancellation allowed from DRAFT and SCHEDULED. COMPLETED / CANCELLED are
+// terminal historical states.
+enum VoyageStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7: Load Planning & Load Lists
+// ---------------------------------------------------------------------------
+// LoadList represents a planned set of cargo for a specific Voyage.
+// It is created in DRAFT state, then FINALIZED (or CANCELLED).
+// A LoadList belongs to one Voyage. It contains LoadListItem records
+// linking to Cargo that has inspectionStatus = APPROVED.
+// Status transitions: DRAFT -> FINALIZED | CANCELLED. FINALIZED and
+// CANCELLED are terminal. FINALIZED blocks ordinary edits.
+enum LoadListStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
+}
+
+// LoadList represents a planned set of cargo for a Voyage.
+// Numbering: LL-YYMM-##### (auto-generated in service).
+// Only DRAFT lists may be edited. FINALIZED/CANCELLED are terminal.
+model LoadList {
+  id             String         @id @default(cuid())
+  loadListNumber String         @unique // auto LL-YYMM-#####
+  voyageId       String         @map("voyageId")
+  status         LoadListStatus @default(DRAFT)
+  notes          String?
+  createdById    String?        @map("createdById")
+  finalizedById  String?        @map("finalizedById")
+  cancelledById  String?        @map("cancelledById")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  finalizedAt    DateTime?      @map("finalizedAt")
+  cancelledAt    DateTime?      @map("cancelledAt")
+  deletedAt      DateTime?
+
+  voyage         Voyage           @relation(fields: [voyageId], references: [id])
+  items         LoadListItem[]
+actualLoading ActualLoading? @relation("ActualLoadingLoadList")
+  createdBy     User?            @relation("LoadListCreatedBy", fields: [createdById], references: [id])
+  finalizedBy    User?           @relation("LoadListFinalizedBy", fields: [finalizedById], references: [id])
+  cancelledBy    User?           @relation("LoadListCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([loadListNumber])
+  @@index([voyageId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+// LoadListItem links a Cargo to a LoadList with planned quantity.
+// A cargo may appear only once per LoadList (enforced by unique constraint).
+// Cargo must have inspectionStatus = APPROVED to be added (enforced in service).
+model LoadListItem {
+  id              String   @id @default(cuid())
+  loadListId      String   @map("loadListId")
+  cargoId         String   @map("cargoId")
+  plannedQuantity Int?     @map("plannedQuantity") // optional; references Cargo.quantity
+  sequence        Int?     // display order within the list
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  loadList        LoadList            @relation(fields: [loadListId], references: [id], onDelete: Cascade)
+  cargo           Cargo               @relation(fields: [cargoId], references: [id])
+  actualLoadingItem ActualLoadingItem? @relation("ActualLoadingItemLoadListItem")
+
+  @@unique([loadListId, cargoId])
+  @@index([loadListId])
+  @@index([cargoId])
+  @@index([sequence])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8: Actual Loading
+// ---------------------------------------------------------------------------
+// ActualLoading represents the executed loading operation for a LoadList.
+// It records what was actually loaded vs planned, with full traceability.
+// Status transitions: NOT_STARTED -> IN_PROGRESS -> COMPLETED | CANCELLED.
+// COMPLETED and CANCELLED are terminal.
+enum ActualLoadingStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Result of loading a single cargo item.
+enum LoadingResult {
+  FULL
+  PARTIAL
+  NOT_LOADED
+}
+
+// ActualLoading represents the executed loading operation for a LoadList.
+// It captures what was actually loaded vs planned, with full traceability.
+model ActualLoading {
+  id             String              @id @default(cuid())
+  actualLoadingNumber String          @unique // auto AL-YYMM-#####
+  loadListId     String              @map("loadListId")
+  status         ActualLoadingStatus @default(NOT_STARTED)
+  notes          String?
+  createdById    String?             @map("createdById")
+  completedById  String?             @map("completedById")
+  cancelledById  String?             @map("cancelledById")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  completedAt    DateTime?           @map("completedAt")
+  cancelledAt    DateTime?           @map("cancelledAt")
+  deletedAt      DateTime?
+
+  loadList      LoadList            @relation("ActualLoadingLoadList", fields: [loadListId], references: [id])
+  items         ActualLoadingItem[]
+  createdBy     User?               @relation("ActualLoadingCreatedBy", fields: [createdById], references: [id])
+  completedBy   User?               @relation("ActualLoadingCompletedBy", fields: [completedById], references: [id])
+  cancelledBy   User?               @relation("ActualLoadingCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([actualLoadingNumber])
+  @@index([loadListId])
+  @@unique([loadListId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+// ActualLoadingItem records the actual loaded quantity for a single cargo item.
+// It links to the LoadListItem (planned) and records actual quantity loaded.
+model ActualLoadingItem {
+  id                   String          @id @default(cuid())
+  actualLoadingId      String          @map("actualLoadingId")
+  loadListItemId       String          @map("loadListItemId") @unique
+  cargoId              String          @map("cargoId")
+  actualQuantity       Int?            @map("actualQuantity")
+  result               LoadingResult   @default(NOT_LOADED)
+  notes                String?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+
+  actualLoading  ActualLoading @relation(fields: [actualLoadingId], references: [id], onDelete: Cascade)
+  loadListItem   LoadListItem  @relation("ActualLoadingItemLoadListItem", fields: [loadListItemId], references: [id], onDelete: Cascade)
+  cargo          Cargo         @relation(fields: [cargoId], references: [id])
+
+  @@unique([actualLoadingId, loadListItemId])
+  @@index([actualLoadingId])
+  @@index([loadListItemId])
+  @@index([cargoId])
+}

@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Shipping ERP design tokens — derived from the ui-ux-pro-max skill
+ * direction: "Minimalism & Swiss Style" + "Data-Dense Dashboard", with an
+ * operational tracking-blue primary, high-contrast neutral canvas and a
+ * legible 4.5:1 status set (status is NEVER conveyed by colour alone).
+ *
+ * Three layers: primitive (implicit) -> semantic (below) -> component.
+ * All UI colours flow through the HSL variables below, mapped to Tailwind
+ * colors in tailwind.config.ts.
+ */
+@layer base {
+  :root {
+    --background: 220 14% 96%;
+    --foreground: 222 20% 13%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 13%;
+    /* Operational tracking blue (skill: trust-blue primary) */
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 47%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 20% 13%;
+    --muted: 218 18% 92%;
+    --muted-foreground: 215 16% 42%;
+    --accent: 217 24% 93%;
+    --accent-foreground: 222 20% 13%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 55% 34%;
+    --success-foreground: 0 0% 100%;
+    --warning: 35 92% 40%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 84% 40%;
+    --info-foreground: 0 0% 100%;
+    --border: 216 16% 84%;
+    --input: 216 16% 84%;
+    --ring: 217 91% 55%;
+    --radius: 0.5rem;
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
+  }
+
+  .dark {
+    --background: 222 18% 8%;
+    --foreground: 210 20% 96%;
+    --card: 222 16% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 16% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 217 91% 62%;
+    --primary-foreground: 222 30% 8%;
+    --secondary: 220 14% 18%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 14% 16%;
+    --muted-foreground: 215 16% 68%;
+    --accent: 217 18% 18%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 70% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 60% 46%;
+    --success-foreground: 152 60% 8%;
+    --warning: 38 92% 52%;
+    --warning-foreground: 38 92% 8%;
+    --info: 199 90% 56%;
+    --info-foreground: 199 90% 8%;
+    --border: 218 16% 20%;
+    --input: 218 16% 20%;
+    --ring: 217 91% 62%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* Dense-operational helpers (skill: density 8/10, tabular financial) */
+  .tabular-nums,
+  .nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Micro label — uppercase section / table header treatment (Swiss hierarchy) */
+  .micro-label {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+@layer components {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  /* Panel — the standard elevated surface (Swiss: hairline + subtle shadow) */
+  .panel {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+  }
+}
+
+/* Restrained motion — respect reduced-motion everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
