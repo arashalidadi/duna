@@ -368,3 +368,40 @@ Actual Loading records what was physically loaded against a Load List. It is the
 
 Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actual Loading's own Load List
 (404/NotFound otherwise).
+
+## ADR-029 — Manifest lifecycle, one-per-voyage at application level, actual-quantity snapshots
+
+**Status:** accepted (Phase 9, 2026-09-12)
+
+- Lifecycle `DRAFT → SUBMITTED → APPROVED`; `DRAFT|SUBMITTED → CANCELLED` with mandatory
+  `cancelReason`; APPROVED/CANCELLED terminal. Header/items editable in DRAFT only.
+- One LIVE manifest per voyage is enforced by the service (`findFirst(voyageId, deletedAt: null)`),
+  NOT by a DB constraint: `@@unique(voyageId)` conflicts with soft-delete (a deleted draft would
+  hold the voyage slot forever — recreate after soft-delete failed with 409 in e2e). Schema keeps
+  `@@index(voyageId)`.
+- Eligible cargo = cargo present in a COMPLETED Actual Loading for the voyage (not already on the
+  manifest). Item `quantity` snapshots `actualLoadingItem.actualQuantity ?? cargo.quantity` —
+  the manifest reflects what was actually loaded.
+- Totals (`totalWeight/totalQuantity/totalPackages`) recomputed server-side from item snapshots on
+  every write.
+- Cost fields accept strings from the UI via `@Transform` coercion; `number | null` union types
+  break `emitDecoratorMetadata` implicit conversion (documented pitfall).
+
+## ADR-030 — B/L issued against APPROVED manifest; one live bill per manifest line
+
+**Status:** accepted (Phase 10, 2026-09-12)
+
+- Legacy duna order is `B/L → Manifest`; the new model issues B/Ls against an APPROVED Manifest
+  (modernized chain: Actual Loading → Manifest → B/L → Invoice). Rationale: the new domain's
+  manifest lines are the authoritative record of what was actually loaded, so documents are cut
+  from them; the legacy `ManifestItem.blNumber` column becomes the link written by `issue`.
+- Lifecycle `DRAFT → ISSUED`; `DRAFT|ISSUED → CANCELLED` (reason mandatory). ISSUED is frozen
+  (cancel only). DRAFT-only header/item edits and soft delete.
+- A manifest line may belong to at most one LIVE (non-cancelled, non-deleted) B/L. Enforced at
+  application level with the same soft-delete rationale as ADR-029; cancellation and soft-delete
+  release the line back to `eligible-items`.
+- `issue` stamps `ManifestItem.blNumber = billNumber` for its lines in one transaction;
+  `cancel` clears the stamp only on rows still stamped with this bill's number.
+- Line snapshots default from the manifest line + cargo (packages/packageType/grossWeight;
+  cargo.specification → goodsDescription, serialNumber → marksAndNumbers) with per-line overrides;
+  totals recomputed server-side from the frozen snapshots.

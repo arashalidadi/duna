@@ -342,6 +342,8 @@ export class CargoService {
     if (row.weight != null) {
       row.weight = (row.weight as unknown as { toString: () => string }).toString() as never;
     }
-    return row;
+    // Derived boolean mirroring the inYard list filter (inventory relation exists).
+    // Kept in sync with the filter `inventory: { isNot: null }` by construction.
+    return { ...row, inYard: row.inventory != null } as unknown as CargoRow;
   }
 }

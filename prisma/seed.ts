@@ -110,6 +110,12 @@ async function main() {
   { code: 'manifest:submit', module: 'manifest', action: 'submit' },
   { code: 'manifest:approve', module: 'manifest', action: 'approve' },
   { code: 'manifest:cancel', module: 'manifest', action: 'cancel' },
+  { code: 'bill:read', module: 'bill', action: 'read' },
+  { code: 'bill:create', module: 'bill', action: 'create' },
+  { code: 'bill:update', module: 'bill', action: 'update' },
+  { code: 'bill:delete', module: 'bill', action: 'delete' },
+  { code: 'bill:issue', module: 'bill', action: 'issue' },
+  { code: 'bill:cancel', module: 'bill', action: 'cancel' },
 ];
 
   const createdPermissions: Record<string, string> = {};

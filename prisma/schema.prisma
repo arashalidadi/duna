@@ -55,6 +55,9 @@ model User {
   manifestsSubmitted      Manifest[]        @relation("ManifestSubmittedBy")
   manifestsApproved       Manifest[]        @relation("ManifestApprovedBy")
   manifestsCancelled      Manifest[]        @relation("ManifestCancelledBy")
+  billsCreated            BillOfLading[]    @relation("BillCreatedBy")
+  billsIssued             BillOfLading[]    @relation("BillIssuedBy")
+  billsCancelled          BillOfLading[]    @relation("BillCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -237,6 +240,8 @@ model Customer {
   manifestsAsShipper   Manifest[] @relation("ManifestShipper")
   manifestsAsConsignee Manifest[] @relation("ManifestConsignee")
   manifestsAsAgent     Manifest[] @relation("ManifestAgent")
+  billsAsShipper     BillOfLading[] @relation("BillShipper")
+  billsAsConsignee   BillOfLading[] @relation("BillConsignee")
 
   @@index([name])
   @@index([isActive])
@@ -298,6 +303,7 @@ model Cargo {
   loadListItems LoadListItem[]
   actualLoadingItems ActualLoadingItem[]
   manifestItems ManifestItem[]
+  billsOfLadingItems BillOfLadingItem[] @relation("BillOfLadingItemCargo")
 
   // unique index on @unique(reference) covers reference lookups
   @@index([customerId])
@@ -494,6 +500,7 @@ model Voyage {
   createdBy User? @relation("VoyageCreated", fields: [createdById], references: [id])
   loadLists LoadList[]
   manifests Manifest[]
+  billsOfLading BillOfLading[] @relation("BillOfLadingVoyage")
 
   @@index([voyageNumber])
   @@index([vesselId])
@@ -801,6 +808,7 @@ model Manifest {
   consignee   Customer?     @relation("ManifestConsignee", fields: [consigneeId], references: [id])
   agent       Customer?     @relation("ManifestAgent", fields: [agentId], references: [id])
   items       ManifestItem[]
+  billsOfLading BillOfLading[] @relation("BillOfLadingManifest")
   createdBy   User?         @relation("ManifestCreatedBy", fields: [createdById], references: [id])
   submittedBy User?         @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
   approvedBy  User?         @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
@@ -842,9 +850,136 @@ model ManifestItem {
   manifest Manifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
   cargo    Cargo    @relation(fields: [cargoId], references: [id])
 
+  billsOfLadingItems BillOfLadingItem[] @relation("BillOfLadingItemManifestItem")
+
   @@unique([manifestId, cargoId])
   @@index([manifestId])
   @@index([cargoId])
   @@index([sequence])
   @@map("manifest_items")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10: Bill of Lading (B/L)
+// ---------------------------------------------------------------------------
+// A Bill of Lading is a transport document issued against an APPROVED Manifest.
+// It groups a subset of the manifest's cargo lines into one legal document
+// (one BL per consignee / cargo lot) with frozen line snapshots — mirrors the
+// legacy duna BL concept. Issuing stamps ManifestItem.blNumber with the BL
+// number (the link the manifest UI already shows).
+// Lifecycle: DRAFT -> ISSUED | CANCELLED; DRAFT -> CANCELLED.
+// ISSUED is frozen; only cancellation remains.
+enum BlStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum BlType {
+  MASTER
+  HOUSE
+}
+
+enum FreightTerms {
+  PREPAID
+  COLLECT
+}
+
+model BillOfLading {
+  id         String   @id @default(cuid())
+  billNumber String   @unique // auto BOL-YYMM-#####
+  manifestId String   @map("manifestId")
+  voyageId   String   @map("voyageId") // denormalized via manifest for queries
+  status     BlStatus @default(DRAFT)
+  billType   BlType   @default(HOUSE)
+
+  // Vessel snapshot copied from the manifest at creation
+  vesselName String  @map("vesselName")
+  vesselImo  String? @map("vesselImo")
+
+  // Parties (defaulted from the manifest, overridable per document)
+  shipperId   String? @map("shipperId")
+  consigneeId String? @map("consigneeId")
+  notifyParty String? @map("notifyParty")
+
+  // Commercial terms
+  freightTerms  FreightTerms? @map("freightTerms")
+  carrierName   String?       @map("carrierName")
+  placeOfIssue  String?       @map("placeOfIssue")
+  dateOfIssue   DateTime?     @map("dateOfIssue")
+  originals     Int? // number of original B/Ls issued
+  freightAmount Decimal?      @db.Decimal(18, 2) @map("freightAmount")
+  currencyCode  String?       @map("currencyCode")
+
+  // Header-level cargo description ("said to contain")
+  goodsDescription String? @map("goodsDescription")
+  shipmentMarks    String? @map("shipmentMarks")
+
+  // Aggregated totals — recomputed server-side from items on every write.
+  totalPackages    Int     @default(0) @map("totalPackages")
+  totalGrossWeight Decimal @default(0) @db.Decimal(18, 3) @map("totalGrossWeight")
+  totalVolume      Decimal @default(0) @db.Decimal(18, 3) @map("totalVolume")
+
+  cancelReason String? @map("cancelReason") // required on cancellation
+  notes        String?
+
+  createdById   String? @map("createdById")
+  issuedById    String? @map("issuedById")
+  cancelledById String? @map("cancelledById")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  issuedAt    DateTime? @map("issuedAt")
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime?
+
+  manifest    Manifest           @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
+  voyage      Voyage             @relation("BillOfLadingVoyage", fields: [voyageId], references: [id])
+  shipper     Customer?          @relation("BillShipper", fields: [shipperId], references: [id])
+  consignee   Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
+  items       BillOfLadingItem[]
+  createdBy   User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
+  issuedBy    User?              @relation("BillIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy User?              @relation("BillCancelledBy", fields: [cancelledById], references: [id])
+
+  // A manifest may hold many BLs; a manifest line may belong to at most one
+  // LIVE (non-deleted, non-cancelled) BL — enforced at application level so
+  // cancellation/soft-delete releases the line back (same pattern as
+  // Manifest.voyageId: soft-delete conflicts with a DB @@unique).
+  @@index([manifestId])
+  @@index([voyageId])
+  @@index([status])
+  @@index([shipperId])
+  @@index([consigneeId])
+  @@index([createdAt])
+  @@index([createdById])
+  @@map("bills_of_lading")
+}
+
+model BillOfLadingItem {
+  id             String @id @default(cuid())
+  billOfLadingId String @map("billOfLadingId")
+  manifestItemId String @map("manifestItemId")
+  cargoId        String @map("cargoId")
+  sequence       Int
+
+  // Frozen snapshot for the printed document (defaults from manifest item)
+  goodsDescription String?  @map("goodsDescription")
+  marksAndNumbers  String?  @map("marksAndNumbers")
+  packages         Int?
+  packageType      String?  @map("packageType")
+  grossWeight      Decimal? @db.Decimal(18, 3) @map("grossWeight")
+  volume           Decimal? @db.Decimal(18, 3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  billOfLading BillOfLading @relation(fields: [billOfLadingId], references: [id], onDelete: Cascade)
+  manifestItem ManifestItem @relation("BillOfLadingItemManifestItem", fields: [manifestItemId], references: [id])
+  cargo        Cargo        @relation("BillOfLadingItemCargo", fields: [cargoId], references: [id])
+
+  @@index([billOfLadingId])
+  @@index([manifestItemId])
+  @@index([cargoId])
+  @@map("bills_of_lading_items")
 }

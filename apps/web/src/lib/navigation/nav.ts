@@ -173,9 +173,11 @@ export const NAV_SECTIONS: NavSection[] = [
       },
       {
         labelKey: 'billOfLading',
+        href: '/bills',
         icon: ScrollText,
-        status: 'planned',
+        status: 'implemented',
         description: 'B/L documents',
+        requiredPermission: 'bill:read',
       },
       {
         labelKey: 'discharge',

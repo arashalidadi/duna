@@ -121,3 +121,22 @@ export type {
   ManifestItemApiResult,
   ManifestEligibleCargo,
 } from './manifest';
+export type {
+  BillStatus,
+  BillType,
+  FreightTerms,
+  BillOfLadingItem,
+  BillOfLading,
+  BillOfLadingDetail,
+  PaginatedBillResult,
+  ListBillQueryDto,
+  CreateBillDto,
+  UpdateBillDto,
+  AddBillItemDto,
+  UpdateBillItemDto,
+  CancelBillDto,
+  BillApiResult,
+  BillItemApiResult,
+  BillEligibleManifestItem,
+  BillManifestOption,
+} from './bill';

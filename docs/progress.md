@@ -2,6 +2,108 @@
 
 ## Completed
 
+### Phase 10 — Bill of Lading (completed)
+
+**Objective met:** full-stack B/L document module — issue transport documents against APPROVED
+Manifests, group a subset of manifest lines per document, freeze line snapshots, and stamp
+`ManifestItem.blNumber` on issue (the link the manifest UI already shows). Continues the legacy
+duna chain `Loading → Manifest → B/L → Invoice` on the new domain model (B/L after manifest —
+deliberate modernization, see ADR-030).
+
+**Design decisions:**
+
+- **ADR-030 — B/L lifecycle + one-live-bill-per-manifest-line.** Server-enforced
+  `DRAFT → ISSUED | CANCELLED` and `ISSUED → CANCELLED` (cancel requires `cancelReason`). B/Ls
+  can only be created against an **APPROVED** manifest (409 otherwise). A manifest line may
+  belong to at most one LIVE (non-cancelled, non-deleted) B/L — enforced at application level
+  (soft-delete + cancel release the line; a DB `@@unique` would block release, same pattern as
+  Manifest.voyageId). `issue` requires ≥1 line, sets `issuedAt/By`, defaults `dateOfIssue`,
+  and stamps `ManifestItem.blNumber = billNumber` in one transaction; `cancel` clears that
+  stamp (only rows still stamped with this bill's number).
+- Totals (`totalPackages/totalGrossWeight/totalVolume`) recomputed server-side from line
+  snapshots on every item write. Line snapshots default from the manifest line (packages,
+  packageType, grossWeight) and cargo (`specification` → goodsDescription, `serialNumber` →
+  marksAndNumbers) with per-line overrides.
+
+**DB/migration:** `prisma/migrations/20260912130959_phase10_bills_of_lading` — `BlStatus`,
+`BlType`, `FreightTerms` enums; `BillOfLading` (unique `billNumber BOL-YYMM-#####`, voyage/party
+snapshot refs, freight fields, soft-delete + audit refs) and `BillOfLadingItem` (manifest-item +
+cargo refs, frozen document snapshots). Applied; `prisma generate` fresh.
+
+**Permissions (+6):** `bill:read/:create/:update/:delete/:issue/:cancel` — seed idempotent,
+ADMIN auto-granted.
+
+**Shared:** `packages/shared/src/bill.ts` — `BillStatus/BillType/FreightTerms`, `BillOfLading(?)`,
+`BillOfLadingDetail`, DTOs, `BillEligibleManifestItem`, `BillApiResult`; exported from `index.ts`.
+
+**Backend:** `apps/api/src/modules/bill/` (dto/service/controller/module) registered in
+`app.module.ts` — `list` (search + status/billType/manifestId/voyageId/shipper/consignee/date
+filters, whitelisted sort), `findById`, `create` (manifest APPROVED guard, snapshot vessel +
+default parties from manifest), `update` (DRAFT-only header, string→number coercion for
+decimal fields), `remove` (soft-delete DRAFT-only, returns detail), items `add/update/remove`
+(DRAFT-only; foreign-line 409, duplicate-live-line 409, totals recompute), `eligible-items`
+(manifest lines not on any live bill), lifecycle `issue`/`cancel` (200 POSTs).
+
+**Frontend:** nav B/L flipped `planned` → `implemented` (`/bills`, `bill:read`). New page
+`/bills`: list (search/status filters, pagination), create dialog (APPROVED manifest picker +
+freight fields), detail dialog (DRAFT-editable header, items table with add/remove,
+totals panel, issue/cancel/delete with confirm + reason). Full i18n `bill` namespace
+(fa/en/ar — 87 leaves each; ar translated from en, never from fa). Permission-gated.
+
+**Tests:** `apps/api/test/bill.e2e-spec.ts` (13 tests): 401/403 RBAC, create guards (reader 403,
+unknown 404, non-APPROVED 409), number format + snapshot, eligible-items, addItem (reader 403,
+foreign line 409, duplicate live line 409, snapshot defaults + totals), updateItem/removeItem
+recompute, header update coercion, issue (permission 403, empty 400, stamps manifest
+`blNumber`, locks editing 409s), cancel (empty reason 400, ISSUED→CANCELLED releases line +
+clears stamp, eligible again, terminal 409s), delete (writer 403, soft-delete, list exclusion,
+re-create), list filters (status/billType/search).
+**Full e2e suite green: 10 suites, 150/150 tests.**
+
+**Verification:** api/web/shared typechecks clean; live smoke via web proxy green
+(`/fa/bills` 200, login + `/bills` list through `:3000` proxy); 2 demo bills seeded
+(`BOL-2609-00001` ISSUED, `BOL-2609-00002` DRAFT) via `scripts/seed-bill-demo.mjs`.
+
+### Phase 9 — Manifest (completed)
+
+**Objective met:** full-stack Manifest module — the official cargo list per voyage built from
+COMPLETED Actual Loading, preserving legacy duna manifest semantics (one per voyage, vessel
+snapshot, shipper/consignee/agent parties, cost breakdown, server-computed totals).
+
+**Design decisions:**
+
+- **ADR-029 — Manifest lifecycle + one-per-voyage (application-level).** `DRAFT → SUBMITTED →
+  APPROVED`, `DRAFT|SUBMITTED → CANCELLED` (reason required); APPROVED/CANCELLED terminal.
+  One LIVE manifest per voyage enforced via `findFirst(voyageId, deletedAt: null)` — DB
+  `@@unique(voyageId)` would conflict with soft-delete (deleted draft would hold the voyage
+  slot forever); `@@index(voyageId)` + service guard is authoritative.
+- Only cargo from a COMPLETED Actual Loading on the manifest's voyage is eligible
+  (`eligible-cargo` endpoint); item `quantity` snapshots the ACTUAL loaded quantity
+  (`actualQuantity ?? cargo.quantity`), not the nominal cargo quantity.
+- Totals recomputed server-side from item snapshots on every write; costs validated with
+  string→number `@Transform` coercion (union `number | null` breaks `emitDecoratorMetadata`
+  implicit conversion).
+
+**DB/migrations:** `20260911224819_phase9_manifest` (tables) + `20260912002614_manifest_voyage_
+unique_softdelete` (`@@unique(voyageId)` → `@@index(voyageId)`). Permissions (+7):
+`manifest:read/:create/:update/:delete/:submit/:approve/:cancel`.
+
+**Shared:** `packages/shared/src/manifest.ts` (177 lines) + exports. **Backend:**
+`apps/api/src/modules/manifest/` (dto 257 / service 650 / controller / module) registered in
+`app.module.ts`; `eligible-cargo` returns flat `{...cargo, actualLoadingItemId}` matching the
+shared type; delete endpoints return 200+body (client `api.del` throws on empty body).
+
+**Frontend:** nav Manifest → `implemented` (`/manifest`, `manifest:read`); page `/manifest`
+(list/search/filters/pagination, create dialog, detail dialog with items + costs + lifecycle
+buttons); i18n `manifest` namespace fa/en/ar (104 leaves each). **Tests:** 13 e2e tests; full
+suite green at time of delivery. Demo: 3 manifests (`MAN-2609-00001..3`) via
+`scripts/seed-manifest-demo.mjs` (full chain cargo→inspection→load list→actual loading).
+
+**Ops fix:** apps/api config factory now searches upward for the repo-root `.env`
+(`nest start --watch` runs with cwd=apps/api) — root `pnpm dev` reliably starts both web and
+api now (was the root cause of the "ApiError: Request failed" dashboard outage).
+Also fixed: `Cargo.normalize` now returns derived `inYard` (inventory relation) mirroring the
+`inYard` list filter — contract bug surfaced by the demo data (cargo-inventory e2e).
+
 ### Phase 7 — Load Planning / Load Lists (completed)
 
 **Objective met:** full-stack Load Planning — stowage of approved cargo onto a voyage through DRAFT →
@@ -716,6 +818,8 @@ This is a pre-existing test isolation issue unrelated to runtime changes.
 - Voyage state machine + reference lifecycle (ADR-026)
 - Single-vessel no-overlap scheduling + vessel lifecycle guard (ADR-027)
 - Actual Loading lifecycle + one-per-load-list + loadout integration (ADR-028)
+- Manifest lifecycle + one-per-voyage app-level + actual-quantity snapshot (ADR-029)
+- B/L lifecycle + one-live-bill-per-manifest-line + blNumber stamping (ADR-030)
 
 ## Pending Requirements
 

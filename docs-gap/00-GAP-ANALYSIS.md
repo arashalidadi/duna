@@ -18,8 +18,8 @@
 | Yard | Operations | implemented | yards | Yard |
 | Port | Operations | implemented | ports | Port |
 | **Manifest & B/L** | | | | |
-| B/L | Operations | planned | — | — |
-| Manifest | Operations | planned | — | — |
+| B/L | Operations | planned | bill (Phase 10 in progress) | BillOfLading |
+| Manifest | Operations | **implemented** | manifest | Manifest, ManifestItem |
 | Shipper | (in Cargo?) | ? | cargo | Cargo (has shipperId) |
 | Agent | Commercial | planned | — | — |
 | Consignee | (in Cargo?) | ? | cargo | Cargo (has consigneeId) |
