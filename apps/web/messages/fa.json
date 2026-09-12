@@ -61,7 +61,15 @@
     "customers": "مشتریان",
     "ports": "بندرها",
     "yards": "حیاط‌ها",
-    "reports": "گزارش‌ها"
+    "reports": "گزارش‌ها",
+    "port": "port",
+    "yard": "yard",
+    "vessel": "vessel",
+    "invoice": "invoice",
+    "quotation": "quotation",
+    "proforma": "proforma",
+    "loadList": "loadList",
+    "voyage": "voyage"
   },
   "login": {
     "title": "ورود",
@@ -104,5 +112,146 @@
   },
   "auth": {
     "redirectingHome": "در حال انتقال…"
+  },
+  "manifest": {
+    "title": "مانیفست‌ها",
+    "subtitle": "مانیفست رسمی بارِ هر سفر را از بارگیری‌های تکمیل‌شده بسازید، سپس ارسال و تأیید کنید.",
+    "register": "دفتر مانیفست‌ها",
+    "registerHint": "مانیفست‌های رسمی بار — یک مانیفست به ازای هر سفر.",
+    "searchPlaceholder": "جستجوی شماره مانیفست، شماره سفر، نام کشتی",
+    "allStatuses": "همه وضعیت‌ها",
+    "allVoyages": "همه سفرها",
+    "new": "مانیفست جدید",
+    "loading": "در حال بارگذاری…",
+    "createdFrom": "از",
+    "createdTo": "تا",
+    "empty": {
+      "title": "مانیفستی یافت نشد",
+      "description": "جستجو یا فیلتر دیگری را امتحان کنید، یا برای سفری که بارگیری تکمیل‌شده دارد مانیفست بسازید."
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "SUBMITTED": "ارسال‌شده",
+      "APPROVED": "تأییدشده",
+      "CANCELLED": "لغوشده"
+    },
+    "table": {
+      "no": "شماره",
+      "voyage": "سفر / کشتی",
+      "route": "مسیر",
+      "status": "وضعیت",
+      "items": "قلم‌ها",
+      "totalWeight": "وزن کل",
+      "created": "تاریخ ایجاد",
+      "actions": "عملیات"
+    },
+    "create": {
+      "title": "مانیفست جدید",
+      "description": "سفر موردنظر را انتخاب کنید. کشتی، مسیر و بنادر از سفر برداشت می‌شوند.",
+      "voyage": "سفر *",
+      "selectVoyage": "انتخاب سفر…",
+      "noVoyages": "سفری موجود نیست.",
+      "shipper": "فرستنده",
+      "consignee": "گیرنده",
+      "agent": "کارگزار",
+      "selectCustomer": "هیچ‌کدام",
+      "notifyParty": "طرف اطلاع‌رسانی",
+      "descriptionField": "توضیحات",
+      "notes": "یادداشت‌ها",
+      "submit": "ایجاد مانیفست",
+      "errorVoyage": "یک سفر انتخاب کنید."
+    },
+    "detail": {
+      "draftHint": "پیش‌نویس — قابل ویرایش. بار را اضافه و سپس ارسال کنید.",
+      "submittedHint": "ارسال‌شده — در انتظار تأیید.",
+      "immutable": "مانیفست تأییدشده یا لغوشده قابل ویرایش نیست.",
+      "cancelReason": "دلیل لغو",
+      "submittedAt": "تاریخ ارسال",
+      "approvedAt": "تاریخ تأیید",
+      "parties": "طرف‌ها",
+      "costs": "هزینه‌ها",
+      "gasCost": "هزینه سوخت",
+      "lashingCost": "هزینه مهاربندی",
+      "shipperCost": "هزینه فرستنده",
+      "podCost": "هزینه بندر تخلیه",
+      "polCost": "هزینه بندر بارگیری",
+      "currency": "واحد پول",
+      "totalWeight": "وزن کل",
+      "totalQuantity": "تعداد کل",
+      "totalPackages": "تعداد بسته‌ها"
+    },
+    "items": {
+      "title": "قلم‌های مانیفست",
+      "addTitle": "افزودن بار به مانیفست",
+      "selectEligible": "انتخاب بار…",
+      "eligibleEmpty": "بار مجازی وجود ندارد. ابتدا بارگیری واقعی این سفر را تکمیل کنید.",
+      "addLabel": "افزودن بار",
+      "blNumber": "شماره B/L",
+      "empty": "هنوز قلمی نیست. بارهای بارگیری‌شده را برای ساخت مانیفست بیفزایید.",
+      "seq": "ردیف",
+      "cargo": "بار",
+      "weight": "وزن",
+      "quantity": "تعداد",
+      "packages": "بسته‌ها",
+      "notes": "یادداشت",
+      "remove": "حذف",
+      "actions": "عملیات"
+    },
+    "actions": {
+      "view": "مشاهده",
+      "submit": "ارسال",
+      "approve": "تأیید",
+      "cancel": "لغو",
+      "delete": "حذف",
+      "close": "بستن",
+      "save": "ذخیره"
+    },
+    "confirm": {
+      "submitTitle": "ارسال مانیفست",
+      "submitBody": "مانیفست {no} برای تأیید ارسال شود؟ پس از ارسال، فقط‌خواندنی می‌شود.",
+      "approveTitle": "تأیید مانیفست",
+      "approveBody": "مانیفست {no} تأیید شود؟ مانیفست تأییدشده قطعی و غیرقابل‌ویرایش است.",
+      "cancelTitle": "لغو مانیفست",
+      "cancelBody": "مانیفست {no} لغو شود؟ ذکر دلیل الزامی است. مانیفست لغوشده غیرقابل‌ویرایش است.",
+      "deleteTitle": "حذف مانیفست",
+      "deleteBody": "پیش‌نویس {no} حذف شود؟ مانیفست و قلم‌های آن به‌صورت نرم حذف می‌شوند.",
+      "reason": "دلیل لغو *",
+      "keep": "نگه داشتن",
+      "confirmSubmit": "ارسال",
+      "confirmApprove": "تأیید",
+      "confirmCancel": "لغو مانیفست",
+      "confirmDelete": "حذف"
+    },
+    "errors": {
+      "loadList": "بارگذاری مانیفست‌ها ناموفق بود",
+      "loadDetail": "بارگذاری مانیفست ناموفق بود",
+      "create": "ایجاد مانیفست ناموفق بود",
+      "save": "ذخیره ناموفق بود",
+      "addItem": "افزودن بار ناموفق بود",
+      "removeItem": "حذف قلم ناموفق بود",
+      "submit": "ارسال ناموفق بود",
+      "approve": "تأیید ناموفق بود",
+      "cancel": "لغو ناموفق بود",
+      "delete": "حذف ناموفق بود",
+      "reasonRequired": "دلیل لغو الزامی است.",
+      "blOrNotes": "برای ذخیره، شماره B/L یا یادداشت وارد کنید."
+    }
+  },
+  "roles": {
+    "page": {
+      "title": "صفحه نقش‌ها",
+      "description": "مدیریت نقش‌ها و دسترسی‌ها"
+    },
+    "create": {
+      "title": "ایجاد نقش",
+      "description": "یک نقش جدید با دسترسی‌ها بسازید"
+    },
+    "edit": {
+      "title": "ویرایش نقش",
+      "description": "نام و دسترسی‌های نقش را ویرایش کنید"
+    },
+    "permission": "دسترسی",
+    "status": "وضعیت",
+    "actions": "عملیات"
   }
 }

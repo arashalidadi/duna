@@ -102,6 +102,14 @@ async function main() {
   { code: 'actual_loading:delete', module: 'actual_loading', action: 'delete' },
   { code: 'actual_loading:complete', module: 'actual_loading', action: 'complete' },
   { code: 'actual_loading:cancel', module: 'actual_loading', action: 'cancel' },
+  // Manifest (Phase 9)
+  { code: 'manifest:read', module: 'manifest', action: 'read' },
+  { code: 'manifest:create', module: 'manifest', action: 'create' },
+  { code: 'manifest:update', module: 'manifest', action: 'update' },
+  { code: 'manifest:delete', module: 'manifest', action: 'delete' },
+  { code: 'manifest:submit', module: 'manifest', action: 'submit' },
+  { code: 'manifest:approve', module: 'manifest', action: 'approve' },
+  { code: 'manifest:cancel', module: 'manifest', action: 'cancel' },
 ];
 
   const createdPermissions: Record<string, string> = {};

@@ -61,7 +61,15 @@
     "customers": "Customers",
     "ports": "Ports",
     "yards": "Yards",
-    "reports": "Reports"
+    "reports": "Reports",
+    "port": "port",
+    "yard": "yard",
+    "vessel": "vessel",
+    "invoice": "invoice",
+    "quotation": "quotation",
+    "proforma": "proforma",
+    "loadList": "loadList",
+    "voyage": "voyage"
   },
   "login": {
     "title": "Sign In",
@@ -104,5 +112,146 @@
   },
   "auth": {
     "redirectingHome": "Redirecting…"
+  },
+  "manifest": {
+    "title": "Manifests",
+    "subtitle": "Build the official cargo manifest for a voyage from completed loadings, then submit and approve it.",
+    "register": "Manifest register",
+    "registerHint": "Official cargo manifests. One manifest per voyage.",
+    "searchPlaceholder": "Search manifest no., voyage no., vessel name",
+    "allStatuses": "All statuses",
+    "allVoyages": "All voyages",
+    "new": "New manifest",
+    "loading": "Loading…",
+    "createdFrom": "From",
+    "createdTo": "To",
+    "empty": {
+      "title": "No manifests found",
+      "description": "Try a different search or filter, or create a manifest for a voyage with completed loadings."
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled"
+    },
+    "table": {
+      "no": "No.",
+      "voyage": "Voyage / Vessel",
+      "route": "Route",
+      "status": "Status",
+      "items": "Items",
+      "totalWeight": "Total weight",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "create": {
+      "title": "New manifest",
+      "description": "Select the voyage to manifest. Vessel, route and ports are snapshotted from the voyage.",
+      "voyage": "Voyage *",
+      "selectVoyage": "Select voyage…",
+      "noVoyages": "No voyages available.",
+      "shipper": "Shipper",
+      "consignee": "Consignee",
+      "agent": "Agent",
+      "selectCustomer": "None",
+      "notifyParty": "Notify party",
+      "descriptionField": "Description",
+      "notes": "Notes",
+      "submit": "Create manifest",
+      "errorVoyage": "Select a voyage."
+    },
+    "detail": {
+      "draftHint": "Draft — editable. Add cargo, then submit.",
+      "submittedHint": "Submitted — awaiting approval.",
+      "immutable": "Approved or cancelled manifests are immutable.",
+      "cancelReason": "Cancellation reason",
+      "submittedAt": "Submitted",
+      "approvedAt": "Approved",
+      "parties": "Parties",
+      "costs": "Costs",
+      "gasCost": "Gas cost",
+      "lashingCost": "Lashing cost",
+      "shipperCost": "Shipper cost",
+      "podCost": "POD cost",
+      "polCost": "POL cost",
+      "currency": "Currency",
+      "totalWeight": "Total weight",
+      "totalQuantity": "Total quantity",
+      "totalPackages": "Total packages"
+    },
+    "items": {
+      "title": "Manifest items",
+      "addTitle": "Add cargo to manifest",
+      "selectEligible": "Select cargo…",
+      "eligibleEmpty": "No eligible cargo. Complete an actual loading for this voyage first.",
+      "addLabel": "Add cargo",
+      "blNumber": "B/L number",
+      "empty": "No items yet. Add loaded cargo to build the manifest.",
+      "seq": "#",
+      "cargo": "Cargo",
+      "weight": "Weight",
+      "quantity": "Qty",
+      "packages": "Pkgs",
+      "notes": "Notes",
+      "remove": "Remove",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View",
+      "submit": "Submit",
+      "approve": "Approve",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "close": "Close",
+      "save": "Save"
+    },
+    "confirm": {
+      "submitTitle": "Submit manifest",
+      "submitBody": "Submit {no} for approval? After submission the manifest becomes read-only.",
+      "approveTitle": "Approve manifest",
+      "approveBody": "Approve {no}? Approved manifests are final and immutable.",
+      "cancelTitle": "Cancel manifest",
+      "cancelBody": "Cancel {no}? A reason is required. Cancelled manifests are immutable.",
+      "deleteTitle": "Delete manifest",
+      "deleteBody": "Delete draft {no}? The manifest and its items will be soft-deleted.",
+      "reason": "Cancellation reason *",
+      "keep": "Keep",
+      "confirmSubmit": "Submit",
+      "confirmApprove": "Approve",
+      "confirmCancel": "Cancel manifest",
+      "confirmDelete": "Delete"
+    },
+    "errors": {
+      "loadList": "Failed to load manifests",
+      "loadDetail": "Failed to load manifest",
+      "create": "Failed to create manifest",
+      "save": "Failed to save",
+      "addItem": "Failed to add cargo",
+      "removeItem": "Failed to remove item",
+      "submit": "Failed to submit",
+      "approve": "Failed to approve",
+      "cancel": "Failed to cancel",
+      "delete": "Failed to delete",
+      "reasonRequired": "A cancellation reason is required.",
+      "blOrNotes": "Enter a B/L number or notes to save."
+    }
+  },
+  "roles": {
+    "page": {
+      "title": "Roles page",
+      "description": "Manage roles and permissions"
+    },
+    "create": {
+      "title": "Create role",
+      "description": "Create a new role"
+    },
+    "edit": {
+      "title": "Edit role",
+      "description": "Edit role details"
+    },
+    "permission": "Permission",
+    "status": "Status",
+    "actions": "Actions"
   }
 }

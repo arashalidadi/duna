@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { PaginatedResult, RoleListItem, UserListItem } from '@shipping/shared';
 import { Users, Plus, KeyRound, Power, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';

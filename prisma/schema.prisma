@@ -51,6 +51,10 @@ model User {
   actualLoadingsCreated   ActualLoading[]   @relation("ActualLoadingCreatedBy")
   actualLoadingsCompleted ActualLoading[]   @relation("ActualLoadingCompletedBy")
   actualLoadingsCancelled ActualLoading[]   @relation("ActualLoadingCancelledBy")
+  manifestsCreated        Manifest[]        @relation("ManifestCreatedBy")
+  manifestsSubmitted      Manifest[]        @relation("ManifestSubmittedBy")
+  manifestsApproved       Manifest[]        @relation("ManifestApprovedBy")
+  manifestsCancelled      Manifest[]        @relation("ManifestCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -179,6 +183,8 @@ model Port {
   yardInventories   YardInventory[]  // current inventory physically at this port
   voyageOrigins     Voyage[]         @relation("VoyageOrigin") // voyages departing from this port
   voyageDestinations Voyage[]        @relation("VoyageDestination") // voyages arriving at this port
+  manifestsAsPol     Manifest[]      @relation("ManifestPol") // manifests loaded at this port
+  manifestsAsPod     Manifest[]      @relation("ManifestPod") // manifests discharged at this port
 
   @@index([name])
   @@index([country])
@@ -228,6 +234,9 @@ model Customer {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
   cargos      Cargo[] // all cargo consigned to this customer
+  manifestsAsShipper   Manifest[] @relation("ManifestShipper")
+  manifestsAsConsignee Manifest[] @relation("ManifestConsignee")
+  manifestsAsAgent     Manifest[] @relation("ManifestAgent")
 
   @@index([name])
   @@index([isActive])
@@ -288,6 +297,7 @@ model Cargo {
   inspections Inspection[] // completed/pending inspections against this cargo (Phase 5)
   loadListItems LoadListItem[]
   actualLoadingItems ActualLoadingItem[]
+  manifestItems ManifestItem[]
 
   // unique index on @unique(reference) covers reference lookups
   @@index([customerId])
@@ -483,6 +493,7 @@ model Voyage {
   destinationPort Port @relation("VoyageDestination", fields: [destinationPortId], references: [id])
   createdBy User? @relation("VoyageCreated", fields: [createdById], references: [id])
   loadLists LoadList[]
+  manifests Manifest[]
 
   @@index([voyageNumber])
   @@index([vesselId])
@@ -716,4 +727,124 @@ model ActualLoadingItem {
   @@index([actualLoadingId])
   @@index([loadListItemId])
   @@index([cargoId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 9: Manifest (cargo manifest per voyage)
+// ---------------------------------------------------------------------------
+// A Manifest is the official cargo list for a voyage, built from cargo that
+// was actually loaded (Phase 8 COMPLETED Actual Loading). It preserves the
+// legacy duna manifest semantics (number per voyage, vessel/voyage snapshot,
+// shipper/consignee/agent, cost breakdown, aggregated totals) on top of the
+// new domain model. Totals are server-computed from items (legacy: SUM of BLs).
+// Lifecycle: DRAFT -> SUBMITTED -> APPROVED | CANCELLED; DRAFT -> CANCELLED.
+// APPROVED and CANCELLED are terminal.
+enum ManifestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+model Manifest {
+  id             String         @id @default(cuid())
+  manifestNumber String         @unique // auto MAN-YYMM-#####
+  voyageId       String         @map("voyageId")
+  status         ManifestStatus @default(DRAFT)
+
+  // Voyage/vessel snapshot (legacy stored vessel/voyage as strings)
+  vesselName String  @map("vesselName")
+  vesselImo  String? @map("vesselImo")
+  polPortId  String  @map("polPortId") // port of loading (snapshot from voyage origin)
+  podPortId  String  @map("podPortId") // port of discharge (snapshot from voyage destination)
+
+  // Parties (legacy shipper/consignee/agent models -> unified Customer CRM)
+  shipperId   String? @map("shipperId")
+  consigneeId String? @map("consigneeId")
+  agentId     String? @map("agentId")
+
+  notifyParty String? @map("notifyParty") // legacy notify_party
+  description String? // legacy descr
+
+  // Cost breakdown (legacy decimals)
+  gasCost     Decimal? @db.Decimal(18, 2) @map("gasCost")
+  lashingCost Decimal? @db.Decimal(18, 2) @map("lashingCost")
+  shipperCost Decimal? @db.Decimal(18, 2) @map("shipperCost")
+  podCost     Decimal? @db.Decimal(18, 2) @map("podCost")
+  polCost     Decimal? @db.Decimal(18, 2) @map("polCost")
+  currencyCode String? @map("currencyCode")
+
+  // Aggregated totals — recomputed server-side from items on every write.
+  totalWeight   Decimal @default(0) @db.Decimal(18, 3) @map("totalWeight")
+  totalQuantity Int     @default(0) @map("totalQuantity")
+  totalPackages Int     @default(0) @map("totalPackages")
+
+  cancelReason String? @map("cancelReason") // required on cancellation
+  notes        String?
+
+  createdById   String? @map("createdById")
+  submittedById String? @map("submittedById")
+  approvedById  String? @map("approvedById")
+  cancelledById String? @map("cancelledById")
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  submittedAt  DateTime?   @map("submittedAt")
+  approvedAt   DateTime?   @map("approvedAt")
+  cancelledAt  DateTime?   @map("cancelledAt")
+  deletedAt    DateTime?
+
+  voyage      Voyage        @relation(fields: [voyageId], references: [id])
+  polPort     Port          @relation("ManifestPol", fields: [polPortId], references: [id])
+  podPort     Port          @relation("ManifestPod", fields: [podPortId], references: [id])
+  shipper     Customer?     @relation("ManifestShipper", fields: [shipperId], references: [id])
+  consignee   Customer?     @relation("ManifestConsignee", fields: [consigneeId], references: [id])
+  agent       Customer?     @relation("ManifestAgent", fields: [agentId], references: [id])
+  items       ManifestItem[]
+  createdBy   User?         @relation("ManifestCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?         @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?         @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
+  cancelledBy User?         @relation("ManifestCancelledBy", fields: [cancelledById], references: [id])
+
+  // One LIVE manifest per voyage is enforced at the application level
+  // (service checks voyageId + deletedAt IS NULL). A DB-level @@unique would
+  // conflict with soft-delete: a deleted draft would block the voyage forever.
+  @@index([voyageId])
+  @@index([manifestNumber])
+  @@index([status])
+  @@index([polPortId])
+  @@index([podPortId])
+  @@index([shipperId])
+  @@index([consigneeId])
+  @@index([createdAt])
+  @@index([createdById])
+  @@map("manifests")
+}
+
+model ManifestItem {
+  id          String  @id @default(cuid())
+  manifestId  String  @map("manifestId")
+  cargoId     String  @map("cargoId")
+  sequence    Int
+  blNumber    String? @map("blNumber") // legacy B/L number; filled by the future B/L module
+  // Cargo snapshot at time of manifesting (manifest is a legal document — frozen values)
+  weight      Decimal? @db.Decimal(18, 3)
+  quantity    Int?
+  packages    Int?
+  packageType String?  @map("packageType")
+  notes       String?
+
+  actualLoadingItemId String? @unique @map("actualLoadingItemId") // traceability to Phase 8
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  manifest Manifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+  cargo    Cargo    @relation(fields: [cargoId], references: [id])
+
+  @@unique([manifestId, cargoId])
+  @@index([manifestId])
+  @@index([cargoId])
+  @@index([sequence])
+  @@map("manifest_items")
 }

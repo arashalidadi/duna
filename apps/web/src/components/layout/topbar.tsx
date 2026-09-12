@@ -17,6 +17,8 @@ function LanguageSwitcher() {
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations('topbar');
+  // Cycle through locales: fa -> en -> ar -> fa
+  const nextLocale = locale === 'fa' ? 'en' : locale === 'en' ? 'ar' : 'fa'
 
   function switchTo(next: string) {
     router.replace(pathname, { locale: next });
@@ -27,12 +29,12 @@ function LanguageSwitcher() {
       variant="ghost"
       size="sm"
       className="h-8 gap-1.5 px-2 text-xs"
-      onClick={() => switchTo(locale === 'fa' ? 'en' : 'fa')}
+      onClick={() => switchTo(nextLocale)}
       aria-label={t('language')}
-      title={locale === 'fa' ? t('switchToEnglish') : t('switchToPersian')}
+      title={nextLocale === "fa" ? t("switchToPersian") : nextLocale === "en" ? t("switchToEnglish") : t("switchToArabic")}
     >
       <Languages className="h-4 w-4" aria-hidden="true" />
-      <span>{locale === 'fa' ? 'EN' : 'فا'}</span>
+      <span>{nextLocale === "fa" ? "fa" : nextLocale === "en" ? "EN" : "أر"}</span>
     </Button>
   );
 }
@@ -41,6 +43,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   const locale = useLocale();
   const { user, logout } = useAuth();
   const t = useTranslations('common');
+  // Cycle through locales: fa -> en -> ar -> fa
+  const nextLocale = locale === 'fa' ? 'en' : locale === 'en' ? 'ar' : 'fa'
   const tTopbar = useTranslations('topbar');
 
   const initials = user?.fullName

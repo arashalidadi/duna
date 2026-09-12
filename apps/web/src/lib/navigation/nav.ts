@@ -163,7 +163,14 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'Voyage management',
         requiredPermission: 'voyage:read',
       },
-      { labelKey: 'manifest', icon: FileText, status: 'planned', description: 'Cargo manifest' },
+      {
+        labelKey: 'manifest',
+        href: '/manifest',
+        icon: FileText,
+        status: 'implemented',
+        description: 'Cargo manifest',
+        requiredPermission: 'manifest:read',
+      },
       {
         labelKey: 'billOfLading',
         icon: ScrollText,
