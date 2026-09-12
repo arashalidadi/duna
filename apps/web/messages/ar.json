@@ -71,7 +71,9 @@
     "payments": "پرداخت‌ها",
     "release": "آزادسازی",
     "agents": "نمایندگان",
-    "reports": "گزارش‌ها"
+    "reports": "گزارش‌ها",
+    "vouchers": "السندات",
+    "ledger": "الدفاتر"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -381,6 +383,131 @@
       "removeItem": {
         "title": "إزالة هذا البند؟",
         "description": "سيُعاد حساب المجاميع."
+      }
+    }
+  },
+  "voucher": {
+    "page": {
+      "title": "السندات",
+      "description": "سندات القبض والدفع"
+    },
+    "list": {
+      "title": "سجل السندات",
+      "subtitle": "المستندات المالية المسجلة للعملاء والفواتير",
+      "search": "بحث برقم أو مرجع أو وصف",
+      "allTypes": "كل الأنواع",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا سندات بعد",
+        "description": "سجّل أول سند قبض أو دفع."
+      }
+    },
+    "type": {
+      "RECEIPT": "قبض",
+      "PAYMENT": "دفع"
+    },
+    "status": {
+      "POSTED": "مُسجّل",
+      "CANCELLED": "ملغى"
+    },
+    "method": {
+      "CASH": "نقدي",
+      "BANK_TRANSFER": "حوالة بنكية",
+      "CHEQUE": "شيك",
+      "OTHER": "أخرى"
+    },
+    "fields": {
+      "voucherNumber": "رقم السند",
+      "type": "النوع",
+      "customer": "العميل",
+      "invoice": "الفاتورة",
+      "amount": "المبلغ",
+      "currencyCode": "العملة",
+      "method": "الطريقة",
+      "reference": "المرجع",
+      "description": "الوصف",
+      "note": "ملاحظة",
+      "voucherDate": "تاريخ القيمة",
+      "status": "الحالة",
+      "cancelReason": "سبب الإلغاء"
+    },
+    "actions": {
+      "create": "سند جديد",
+      "save": "حفظ",
+      "cancelVoucher": "إلغاء السند",
+      "cancelling": "جارٍ الإلغاء…"
+    },
+    "create": {
+      "title": "إنشاء سند",
+      "description": "قبض (دخول مال) أو دفع (استرداد). اربط فاتورة لتسويتها.",
+      "selectCustomer": "اختر العميل",
+      "noInvoice": "بدون فاتورة (مستقل)",
+      "creating": "جارٍ الإنشاء…",
+      "errors": {
+        "customerRequired": "اختيار العميل إلزامي",
+        "amountRequired": "يجب أن يكون المبلغ موجبًا"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "إلغاء هذا السند؟",
+        "description": "يُعكس أثره على الفاتورة؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا السند؟"
+      },
+      "delete": {
+        "title": "حذف هذا السند الملغى؟",
+        "description": "يُحذف الصف الملغى نهائيًا."
+      }
+    }
+  },
+  "ledger": {
+    "page": {
+      "title": "الدفاتر",
+      "description": "كشوف حساب العملاء — الفواتير والتسويات"
+    },
+    "filters": {
+      "title": "مرشحات كشف الحساب",
+      "description": "اختر عميلاً؛ اختياريًا عملة وفترة زمنية."
+    },
+    "fields": {
+      "customer": "العميل",
+      "currency": "العملة",
+      "fromDate": "من",
+      "toDate": "إلى"
+    },
+    "selectCustomer": "اختر عميلاً لبناء كشف الحساب",
+    "allCurrencies": "كل العملات",
+    "actions": {
+      "run": "بناء كشف الحساب",
+      "print": "طباعة"
+    },
+    "columns": {
+      "date": "التاريخ",
+      "kind": "النوع",
+      "document": "المستند",
+      "description": "الوصف",
+      "debit": "مدين",
+      "credit": "دائن",
+      "balance": "الرصيد"
+    },
+    "kind": {
+      "invoice": "فاتورة",
+      "voucher": "سند",
+      "balance": "رصيد"
+    },
+    "statement": {
+      "title": "كشف حساب — {customer}",
+      "subtitle": "{count} قيدًا في الفترة",
+      "opening": "رصيد افتتاحي",
+      "period": "خلال الفترة",
+      "closing": "رصيد ختامي"
+    },
+    "list": {
+      "loading": "جارٍ بناء كشف الحساب…",
+      "empty": {
+        "title": "لا قيود",
+        "description": "لا فواتير أو سندات تطابق هذه المرشحات."
       }
     }
   }

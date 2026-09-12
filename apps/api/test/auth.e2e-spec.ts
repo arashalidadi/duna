@@ -290,7 +290,7 @@ describe('Auth & RBAC (e2e)', () => {
     it('lists roles with user counts and permissions', async () => {
       const s = await adminServer();
       const res = await request(app.getHttpServer())
-        .get('/api/v1/roles')
+        .get('/api/v1/roles?pageSize=100')
         .set('Authorization', `Bearer ${s.accessToken}`)
         .expect(200);
       const roles = res.body.data.data as { code: string; userCount: number }[];

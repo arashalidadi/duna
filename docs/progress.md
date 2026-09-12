@@ -2,6 +2,21 @@
 
 ## Completed
 
+### Phase 12 — Vouchers & Ledger (completed)
+
+**Objective met:** the finance settlement chain — receipts/payments against invoices + derived customer statements.
+
+- Prisma: `Voucher` (+ `VoucherType`, `VoucherMethod`), migration `20260912190203_phase12_vouchers`; 6 permissions (`voucher:read/create/update/delete/cancel`, `ledger:read`)
+- Model: RECEIPT (+) / PAYMENT (−, refund); optional ISSUED-invoice link with same-currency guard; standalone deposits allowed; per-type numbering `RCP-YYMM-#####` / `PMT-YYMM-#####`
+- `Invoice.paidAmount` recomputed from live vouchers on every create/update/cancel/delete — never incremented blindly; cancel = reversal with reason (POSTED->CANCELLED terminal), delete only after cancel
+- Ledger = derived (no table): `GET /ledger/customers` — customer statement (ISSUED invoices = debit, POSTED vouchers = credit) with opening/running/closing balance, currency + date-window + kind filters
+- NestJS: `modules/voucher` + `modules/ledger`; API typecheck clean
+- e2e: 13 tests (`voucher.e2e-spec.ts`) — RBAC, settlement, DRAFT-invoice 409, currency mismatch 409, standalone numbering, filters, amount-edit recompute, cancel/second-cancel 409, delete gating, statement math, window/opening collapse
+- Web: `/vouchers` (list + filters + create + detail + cancel-with-reason + delete) and `/ledger` (customer statement with debit/credit/balance columns) — fa/en/ar, nav `vouchers` + `ledger` activated
+- i18n: `voucher` (47 leaves) + `ledger` (30 leaves) namespaces x 3 locales (`scripts/merge-voucher-i18n.py`)
+- Demo: `scripts/seed-voucher-demo.mjs` — 4 vouchers (2 receipts 60%+20% incl. backdated cheque, 1 refund, 1 standalone cash deposit); invoice paid 135/294; statement closing 1,898.25 USD
+- Side-fix: purged 30 leaked AL* test roles/users from failed e2e runs (had pushed OPERATIONS off page 1 of role list); auth spec hardened with `?pageSize=100`
+
 ### Phase 11 — Invoice (completed)
 
 **Objective met:** full-stack customer billing documents — the accounting chain entry point.

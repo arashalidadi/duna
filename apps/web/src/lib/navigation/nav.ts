@@ -1,28 +1,4 @@
-import {
-  LayoutDashboard,
-  Container,
-  Warehouse,
-  ScanSearch,
-  ClipboardList,
-  ListChecks,
-  Ship,
-  Anchor,
-  FileText,
-  ScrollText,
-  PackageOpen,
-  Truck,
-  Users,
-  CreditCard,
-  FileCheck,
-  UserCircle,
-  BarChart3,
-  ShieldCheck,
-  KeyRound,
-  LockKeyhole,
-  Building2,
-  MapPin,
-  type LucideIcon,
-} from 'lucide-react';
+import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -200,7 +176,22 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'Billing & invoicing',
         requiredPermission: 'invoice:read',
       },
-      { labelKey: 'payments', icon: CreditCard, status: 'planned', description: 'Customer payments' },
+      {
+        labelKey: 'vouchers',
+        href: '/vouchers',
+        icon: CreditCard,
+        status: 'implemented',
+        description: 'Receipt & payment vouchers',
+        requiredPermission: 'voucher:read',
+      },
+      {
+        labelKey: 'ledger',
+        href: '/ledger',
+        icon: BookOpen,
+        status: 'implemented',
+        description: 'Customer statements / ledger',
+        requiredPermission: 'ledger:read',
+      },
       { labelKey: 'release', icon: FileCheck, status: 'planned', description: 'Release orders' },
       { labelKey: 'agents', icon: UserCircle, status: 'planned', description: 'Agent portal' },
     ],

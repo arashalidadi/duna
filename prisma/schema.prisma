@@ -60,6 +60,8 @@ model User {
   billsCancelled          BillOfLading[]    @relation("BillCancelledBy")
   invoicesCreated        Invoice[]          @relation("InvoiceCreatedBy")
   invoicesIssued         Invoice[]          @relation("InvoiceIssuedBy")
+  vouchersCreated        Voucher[]         @relation("VoucherCreatedBy")
+  vouchersCancelled      Voucher[]         @relation("VoucherCancelledBy")
   invoicesCancelled      Invoice[]          @relation("InvoiceCancelledBy")
 
   @@index([email])
@@ -246,6 +248,7 @@ model Customer {
   billsAsShipper     BillOfLading[] @relation("BillShipper")
   billsAsConsignee   BillOfLading[] @relation("BillConsignee")
   invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
+  vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
   @@index([name])
   @@index([isActive])
@@ -1056,6 +1059,7 @@ model Invoice {
   billOfLading BillOfLading?  @relation("InvoiceBill", fields: [billOfLadingId], references: [id])
   voyage       Voyage?        @relation("InvoiceVoyage", fields: [voyageId], references: [id])
   items        InvoiceItem[]
+  vouchers     Voucher[]     @relation("VoucherInvoice")
   createdBy    User?          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   issuedBy     User?          @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
   cancelledBy  User?          @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
@@ -1091,4 +1095,71 @@ model InvoiceItem {
   @@index([invoiceId])
   @@index([sequence])
   @@map("invoice_items")
+}
+
+// ─── Phase 12: Finance — vouchers (receipt/payment) + derived ledger ──────────
+// Modernized legacy Fin (fins): a voucher is a directly-POSTED money document
+// against a customer, optionally settling an invoice. RECEIPT increases the
+// invoice paidAmount, PAYMENT decreases it (refund); cancel/delete recomputes
+// paidAmount from live vouchers. The ledger/statement is derived (no table):
+// customer statement = ISSUED invoices (charge) + POSTED vouchers (settlement).
+enum VoucherType {
+  RECEIPT // money in from customer (legacy "Received")
+  PAYMENT // money out to customer: refund/credit (legacy "Sales/Payment")
+}
+
+enum VoucherMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  OTHER
+}
+
+enum VoucherStatus {
+  POSTED
+  CANCELLED
+}
+
+model Voucher {
+  id            String         @id @default(cuid())
+  voucherNumber String         @unique // auto RCP-YYMM-##### / PMT-YYMM-##### per type
+  type          VoucherType
+  status        VoucherStatus  @default(POSTED)
+  customerId    String         @map("customerId") // counterparty (legacy user_id)
+  invoiceId     String?        @map("invoiceId") // optional settlement document
+  voyageId      String?        @map("voyageId") // denormalized from invoice (fast filters, no FK)
+
+  amount        Decimal        @db.Decimal(18, 2) // always positive; sign comes from type
+  currencyCode  String         @default("USD") @map("currencyCode") // must match invoice currency when linked
+  exchangeRate  Decimal        @default(1) @db.Decimal(10, 4)
+  method        VoucherMethod  @default(BANK_TRANSFER)
+  reference     String? // cheque / transfer trace number
+  description   String? // ledger line description
+  note          String?
+  voucherDate   DateTime       @map("voucherDate") // value date (legacy fromdate)
+
+  cancelReason  String?        @map("cancelReason") // required on cancellation
+
+  createdById   String?        @map("createdById")
+  cancelledById String?        @map("cancelledById")
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  cancelledAt  DateTime?       @map("cancelledAt")
+  deletedAt    DateTime?
+
+  customer     Customer?       @relation("VoucherCustomer", fields: [customerId], references: [id])
+  invoice      Invoice?        @relation("VoucherInvoice", fields: [invoiceId], references: [id])
+  createdBy    User?           @relation("VoucherCreatedBy", fields: [createdById], references: [id])
+  cancelledBy  User?           @relation("VoucherCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([customerId])
+  @@index([invoiceId])
+  @@index([voyageId])
+  @@index([type])
+  @@index([status])
+  @@index([voucherDate])
+  @@index([createdAt])
+  @@index([createdById])
+  @@map("vouchers")
 }

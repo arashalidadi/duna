@@ -417,3 +417,21 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 
 **Consequences.** (1) SUM(amount) is a single-column aggregate — cheap reporting. (2) Header totals are derived data; a future recalculation job can rebuild them from lines. (3) `paidAmount` is owned by Phase 12 (receipt/payment vouchers) — Invoice service only reads it; `unpaid`/`overdue` are derived filters, not stored states.
 
+
+---
+
+## ADR-032: Vouchers recompute-focused; ledger derived, no table
+
+**Date:** 2026-09-12 | **Status:** Accepted
+
+**Context.** Legacy Fin was a single payment table (invoice_id NOT NULL, Payment/Received types) with paid amounts inferred; the "ledger" was a separate report page. Questions: real column vs computed paidAmount, and whether the ledger needs its own table.
+
+**Decision.**
+1. `Voucher` carries `type: RECEIPT | PAYMENT` and a nullable `invoiceId` (deposits/advances without invoice allowed). Linking requires an ISSUED invoice in the same currency (409 otherwise).
+2. `Invoice.paidAmount` is a cache column **recomputed from the sum of live (non-cancelled) linked vouchers** on every create/update/cancel/delete — never incremented; edits and cancellations self-correct.
+3. **No ledger table:** the customer statement is derived by merging ISSUED invoices (debit) and POSTED vouchers (credit) with opening/running/closing balances, ordered by date, with currency/window/kind filters.
+4. POSTED vouchers stay editable (common cash-entry fixes), unlike frozen ISSUED invoices; cancel (with reason) is the only exit from POSTED; delete only after cancel — audit first.
+5. Numbering split by type: RCP-YYMM-##### / PMT-YYMM-#####.
+
+**Consequences.** Financial truth lives in the vouchers; paidAmount can always be rebuilt from source. The ledger needs no migration and can never disagree with documents. Editing a voucher triggers a single recompute per affected invoice. ADR-031's invoice totals remain the charge side of every statement.
+

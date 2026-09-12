@@ -69,7 +69,9 @@
     "quotation": "quotation",
     "proforma": "proforma",
     "loadList": "loadList",
-    "voyage": "voyage"
+    "voyage": "voyage",
+    "vouchers": "حواله‌ها",
+    "ledger": "دفتر"
   },
   "login": {
     "title": "ورود",
@@ -358,6 +360,131 @@
       "removeItem": {
         "title": "این ردیف برداشته شود؟",
         "description": "جمع‌ها دوباره محاسبه می‌شوند."
+      }
+    }
+  },
+  "voucher": {
+    "page": {
+      "title": "حواله‌ها",
+      "description": "رسید و پرداخت"
+    },
+    "list": {
+      "title": "دفتر حواله",
+      "subtitle": "اسناد مالی ثبت‌شده برای مشتریان و فاکتورها",
+      "search": "جستجو با شماره، ارجاع یا توضیحات",
+      "allTypes": "همه انواع",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "هنوز حواله‌ای نیست",
+        "description": "اولین رسید یا پرداخت را ثبت کنید."
+      }
+    },
+    "type": {
+      "RECEIPT": "رسید",
+      "PAYMENT": "پرداخت"
+    },
+    "status": {
+      "POSTED": "ثبت‌شده",
+      "CANCELLED": "لغوشده"
+    },
+    "method": {
+      "CASH": "نقدی",
+      "BANK_TRANSFER": "انتقال بانکی",
+      "CHEQUE": "چک",
+      "OTHER": "سایر"
+    },
+    "fields": {
+      "voucherNumber": "شماره حواله",
+      "type": "نوع",
+      "customer": "مشتری",
+      "invoice": "فاکتور",
+      "amount": "مبلغ",
+      "currencyCode": "واحد پول",
+      "method": "روش",
+      "reference": "ارجاع",
+      "description": "توضیحات",
+      "note": "یادداشت",
+      "voucherDate": "تاریخ ارزش",
+      "status": "وضعیت",
+      "cancelReason": "دلیل لغو"
+    },
+    "actions": {
+      "create": "حواله جدید",
+      "save": "ذخیره",
+      "cancelVoucher": "لغو حواله",
+      "cancelling": "در حال لغو…"
+    },
+    "create": {
+      "title": "ساخت حواله",
+      "description": "رسید (ورود پول) یا پرداخت (بازگشت). با اتصال فاکتور، تسویه می‌شود.",
+      "selectCustomer": "انتخاب مشتری",
+      "noInvoice": "بدون فاکتور (مستقل)",
+      "creating": "در حال ساخت…",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است",
+        "amountRequired": "مبلغ باید مثبت باشد"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "این حواله لغو شود؟",
+        "description": "اثر آن روی فاکتور برمی‌گردد؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟"
+      },
+      "delete": {
+        "title": "این حواله لغوشده حذف شود؟",
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
+      }
+    }
+  },
+  "ledger": {
+    "page": {
+      "title": "دفتر",
+      "description": "صورت‌حساب مشتری — فاکتورها و تسویه‌ها"
+    },
+    "filters": {
+      "title": "فیلترهای صورت‌حساب",
+      "description": "یک مشتری انتخاب کنید؛ اختیاری: واحد پول و بازه تاریخ."
+    },
+    "fields": {
+      "customer": "مشتری",
+      "currency": "واحد پول",
+      "fromDate": "از",
+      "toDate": "تا"
+    },
+    "selectCustomer": "برای ساخت صورت‌حساب یک مشتری انتخاب کنید",
+    "allCurrencies": "همه واحدها",
+    "actions": {
+      "run": "ساخت صورت‌حساب",
+      "print": "چاپ"
+    },
+    "columns": {
+      "date": "تاریخ",
+      "kind": "نوع",
+      "document": "سند",
+      "description": "توضیحات",
+      "debit": "بدهکار",
+      "credit": "بستانکار",
+      "balance": "مانده"
+    },
+    "kind": {
+      "invoice": "فاکتور",
+      "voucher": "حواله",
+      "balance": "مانده"
+    },
+    "statement": {
+      "title": "صورت‌حساب — {customer}",
+      "subtitle": "{count} ردیف در بازه",
+      "opening": "مانده ابتدای دوره",
+      "period": "در بازه",
+      "closing": "مانده پایان دوره"
+    },
+    "list": {
+      "loading": "در حال ساخت صورت‌حساب…",
+      "empty": {
+        "title": "ردیفی نیست",
+        "description": "فاکتور یا حواله‌ای با این فیلترها نیست."
       }
     }
   }

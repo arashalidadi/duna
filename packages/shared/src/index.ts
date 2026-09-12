@@ -154,3 +154,14 @@ export type {
   CancelInvoiceDto,
   InvoiceApiResult,
 } from './invoice';
+export type {
+  VoucherType,
+  VoucherMethod,
+  VoucherStatus,
+  Voucher,
+  LedgerEntry,
+  LedgerSummary,
+  CreateVoucherDto,
+  UpdateVoucherDto,
+  VoucherListResult,
+} from './voucher';
