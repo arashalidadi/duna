@@ -114,8 +114,8 @@ export default function VouchersPage() {
     void (async () => {
       try {
         const [c, i] = await Promise.all([
-          api.get<PaginatedResult<CustomerListItem>>('/customers?pageSize=200'),
-          api.get<PaginatedResult<Invoice>>('/invoices?status=ISSUED&pageSize=200'),
+          api.get<PaginatedResult<CustomerListItem>>('/customers?pageSize=100'),
+          api.get<PaginatedResult<Invoice>>('/invoices?status=ISSUED&pageSize=100'),
         ]);
         setCustomers(c.data);
         setInvoices(i.data);

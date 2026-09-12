@@ -2,6 +2,22 @@
 
 ## Completed
 
+### Phase 13 — Delivery Orders & Release Orders (completed)
+
+**Objective met:** the cargo hand-over chain closer — D/O (who physically receives cargo) and
+R/O (permission to leave the yard/port) against ISSUED B/Ls, with the "no money, no cargo" hold.
+
+- Prisma: `DeliveryOrder`, `ReleaseOrder` (+ `DeliveryOrderStatus`), migration `phase13_delivery_release_orders`; 12 permissions (`delivery:read/create/update/delete/cancel`, `release:read/create/update/delete/cancel`, `release:override`)
+- Both documents issued directly (no DRAFT: `ISSUED → CANCELLED` only, cancel requires reason; delete only after cancel); numbering `DO-YYMM-#####` / `RO-YYMM-#####`; one active D/O (or R/O) per B/L enforced app-level (409)
+- R/O money rule (ADR-033): all ISSUED invoices on the B/L must be fully paid; zero invoices = allowed; breach = 409 listing outstanding. Authorized override (`release:override` perm + mandatory reason) stamps `financialOverride` + reason for audit
+- Endpoints: D/O + R/O CRUD/cancel + `GET /release-orders/eligibility?billOfLadingId=` (live canRelease / needsOverride / billed / paid / outstanding used by the create dialog)
+- NestJS: `modules/delivery-release` (2 controllers, 1 service, 1 module); API typecheck clean
+- e2e: 10 tests (`delivery-release.e2e-spec.ts`) — full fixture chain to ISSUED B/L + invoice, RBAC rows, DRAFT-B/L 409, duplicate-active 409, money-rule 409 + override-reason 403/409 paths, override success, settle-then-release, cancel/delete gating; **full suite 13 suites, 184/184 green**
+- Web: `/delivery-orders` + `/release-orders` (fa/en/ar, RTL) — create dialog with live eligibility card, force+reason override flow, cancel-with-reason, delete-after-cancel; nav `delivery` + `release` activated
+- i18n: `deliveryOrder` (35 leaves) + `releaseOrder` (45 leaves) namespaces x 3 locales (`scripts/merge-delivery-release-i18n.py`)
+- Demo: `scripts/seed-delivery-release-demo.mjs` — happy path (DO-2609-00001 + RO-2609-00001 settled on BOL-2609-00001) + override path (BOL-2609-00002 issued, blocked 409 outstanding 2189.25, RO-2609-00002 force+reason, DO-2609-00002); 2 D/O + 2 R/O
+- Smoke: all 6 locale/page combinations 200 with SSR translations
+
 ### Phase 12 — Vouchers & Ledger (completed)
 
 **Objective met:** the finance settlement chain — receipts/payments against invoices + derived customer statements.
@@ -849,6 +865,8 @@ This is a pre-existing test isolation issue unrelated to runtime changes.
 - Actual Loading lifecycle + one-per-load-list + loadout integration (ADR-028)
 - Manifest lifecycle + one-per-voyage app-level + actual-quantity snapshot (ADR-029)
 - B/L lifecycle + one-live-bill-per-manifest-line + blNumber stamping (ADR-030)
+- Voucher-recomputed paidAmount; derived ledger, no table (ADR-032)
+- D/O+R/O issued directly; release holds on unpaid invoices, override permission (ADR-033)
 
 ## Pending Requirements
 
@@ -857,7 +875,7 @@ This is a pre-existing test isolation issue unrelated to runtime changes.
   by Actual Loading completion (LOADED) and Delivery (future).
 - Manifest, Bill of Lading (Phase 9).
 - Jobs, Job Costing, Invoices, Payments, Customer Ledger.
-- Release Orders, Delivery Orders, Discharge, Agent Portal.
+- Discharge, Agent Portal.
 - Reports, Voyage P&L.
 - Configurable numbering service and document templates.
 - Audit log implementation.

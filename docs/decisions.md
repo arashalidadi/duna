@@ -435,3 +435,20 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 
 **Consequences.** Financial truth lives in the vouchers; paidAmount can always be rebuilt from source. The ledger needs no migration and can never disagree with documents. Editing a voucher triggers a single recompute per affected invoice. ADR-031's invoice totals remain the charge side of every statement.
 
+---
+
+## ADR-033: Delivery/Release Orders issued directly; release holds on unpaid invoices
+
+**Date:** 2026-09-12 | **Status:** Accepted
+
+**Context.** Legacy DeliveryOrder/ReleaseOrder were thin rows off a B/L with no lifecycle and no tie to money. For the rebuild two questions arose: do these documents need a DRAFT stage, and should cargo release require settlement?
+
+**Decision.**
+1. D/O and R/O are two models in one module (`delivery-release`), **issued directly** — no DRAFT: the only transition is `ISSUED -> CANCELLED` (reason required, rows kept for audit; delete only after cancel).
+2. **One active D/O (resp. R/O) per B/L**, enforced at service level (409) — a cancelled row frees the B/L for a fresh document.
+3. D/O requires the B/L to be **ISSUED** (409 otherwise); numbering `DO-YYMM-#####` / `RO-YYMM-#####` shared sequence shape with the rest of the suite.
+4. **"No money, no cargo" (R/O):** every ISSUED invoice anchored to the B/L must be fully paid (`paidAmount >= totalAmount`); a B/L with zero invoices releases freely. Breach -> 409 naming the outstanding total.
+5. Authorized escape hatch: `release:override` permission + mandatory `overrideReason` stamps `financialOverride = true` and keeps the reason on the row for audit. Permission violation -> **403** (not 409); missing reason with force -> 400.
+6. `GET /release-orders/eligibility?billOfLadingId=` exposes canRelease / needsOverride / billed / paid / outstanding so the UI can warn before submit — the create dialog shows the settlement card and reveals the force+reason flow only when blocked.
+
+**Consequences.** The ops chain (Manifest -> B/L -> Invoice -> Vouchers -> Release) is closed end-to-end on one rule: cargo leaves only against settled invoices or a recorded, permission-checked exception. D/O stays purely operational (no financial rule). Deleting requires cancel-first everywhere, keeping the audit trail intact.

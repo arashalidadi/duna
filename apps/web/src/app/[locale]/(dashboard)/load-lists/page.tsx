@@ -226,7 +226,7 @@ export default function LoadListsPage() {
     try {
       const detail = await api.get<LoadListDetail>(`/load-lists/${loadListId}`);
       if (!detail.voyage) return;
-      const res = await api.get<PaginatedResult<CargoEligibleItem>>(`/load-lists/eligible-cargo?voyageId=${detail.voyage.id}&eligibleOnly=true&pageSize=200`);
+      const res = await api.get<PaginatedResult<CargoEligibleItem>>(`/load-lists/eligible-cargo?voyageId=${detail.voyage.id}&eligibleOnly=true&pageSize=100`);
       setEligibleCargo(res.data);
     } catch {
       setEligibleCargo([]);

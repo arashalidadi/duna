@@ -165,3 +165,15 @@ export type {
   UpdateVoucherDto,
   VoucherListResult,
 } from './voucher';
+export type {
+  DeliveryReleaseStatus,
+  DeliveryOrder,
+  ReleaseOrder,
+  CreateDeliveryOrderDto,
+  UpdateDeliveryOrderDto,
+  CreateReleaseOrderDto,
+  UpdateReleaseOrderDto,
+  DeliveryOrderListResult,
+  ReleaseOrderListResult,
+  ReleaseEligibility,
+} from './delivery-release';

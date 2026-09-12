@@ -60,7 +60,7 @@ export default function LedgerPage() {
 
   useEffect(() => {
     api
-      .get<PaginatedResult<CustomerListItem>>('/customers?pageSize=200')
+      .get<PaginatedResult<CustomerListItem>>('/customers?pageSize=100')
       .then((res) => setCustomers(res.data))
       .catch(() => setCustomers([]))
       .finally(() => setInitializing(false));

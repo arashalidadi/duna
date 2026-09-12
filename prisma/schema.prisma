@@ -61,6 +61,10 @@ model User {
   invoicesCreated        Invoice[]          @relation("InvoiceCreatedBy")
   invoicesIssued         Invoice[]          @relation("InvoiceIssuedBy")
   vouchersCreated        Voucher[]         @relation("VoucherCreatedBy")
+  deliveryOrdersCreated  DeliveryOrder[]  @relation("DeliveryOrderCreatedBy")
+  deliveryOrdersCancelled DeliveryOrder[] @relation("DeliveryOrderCancelledBy")
+  releaseOrdersCreated   ReleaseOrder[]   @relation("ReleaseOrderCreatedBy")
+  releaseOrdersCancelled ReleaseOrder[]   @relation("ReleaseOrderCancelledBy")
   vouchersCancelled      Voucher[]         @relation("VoucherCancelledBy")
   invoicesCancelled      Invoice[]          @relation("InvoiceCancelledBy")
 
@@ -248,6 +252,7 @@ model Customer {
   billsAsShipper     BillOfLading[] @relation("BillShipper")
   billsAsConsignee   BillOfLading[] @relation("BillConsignee")
   invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
+  deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
   vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
   @@index([name])
@@ -948,6 +953,8 @@ model BillOfLading {
   consignee   Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
   items       BillOfLadingItem[]
   invoices   Invoice[] @relation("InvoiceBill")
+  deliveryOrders DeliveryOrder[] @relation("DeliveryOrderBill")
+  releaseOrders  ReleaseOrder[]  @relation("ReleaseOrderBill")
   createdBy   User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
   issuedBy    User?              @relation("BillIssuedBy", fields: [issuedById], references: [id])
   cancelledBy User?              @relation("BillCancelledBy", fields: [cancelledById], references: [id])
@@ -1162,4 +1169,72 @@ model Voucher {
   @@index([createdAt])
   @@index([createdById])
   @@map("vouchers")
+}
+
+// ─── Phase 13: Delivery Order (D/O) & Release Order (R/O) ────────────────────
+// Modernized legacy DeliveryOrder/ReleaseOrder. D/O = cargo hand-over permit
+// against a B/L (recipient pickup); R/O = gate/customs release permit. The
+// money rule: an R/O requires the linked invoice(s) fully paid unless an
+// authorized override with reason is recorded ("no money, no cargo").
+enum DeliveryOrderStatus {
+  ISSUED
+  CANCELLED
+}
+
+model DeliveryOrder {
+  id          String              @id @default(cuid())
+  docNumber   String              @unique // DO-YYMM-#####
+  billOfLadingId String            @map("billOfLadingId")
+  status      DeliveryOrderStatus  @default(ISSUED)
+  issueDate   DateTime            @default(now()) @map("issueDate")
+  /// Name/ID of the party physically receiving the cargo (legacy recipient).
+  recipient   String
+  recipientId String?              @map("recipientId") // optional customer link
+  vehiclePlate String?             @map("vehiclePlate")
+  notes       String?
+  cancelReason String?             @map("cancelReason")
+  cancelledById String?            @map("cancelledById")
+  cancelledAt DateTime?           @map("cancelledAt")
+  createdById String              @map("createdById")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  billOfLading BillOfLading        @relation("DeliveryOrderBill", fields: [billOfLadingId], references: [id])
+  recipientCustomer Customer?      @relation("DeliveryOrderRecipient", fields: [recipientId], references: [id])
+  createdBy    User                @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledBy  User?               @relation("DeliveryOrderCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([billOfLadingId])
+  @@index([status])
+  @@index([issueDate])
+  @@map("delivery_orders")
+}
+
+model ReleaseOrder {
+  id          String              @id @default(cuid())
+  docNumber   String              @unique // RO-YYMM-#####
+  billOfLadingId String            @map("billOfLadingId")
+  status      DeliveryOrderStatus  @default(ISSUED)
+  releaseDate DateTime            @default(now()) @map("releaseDate")
+  /// True when issued despite unpaid invoices — requires reason (audit).
+  financialOverride Boolean       @default(false) @map("financialOverride")
+  overrideReason   String?         @map("overrideReason")
+  notes       String?
+  cancelReason String?             @map("cancelReason")
+  cancelledById String?            @map("cancelledById")
+  cancelledAt DateTime?           @map("cancelledAt")
+  createdById String              @map("createdById")
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  billOfLading BillOfLading        @relation("ReleaseOrderBill", fields: [billOfLadingId], references: [id])
+  createdBy    User                @relation("ReleaseOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledBy  User?               @relation("ReleaseOrderCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([billOfLadingId])
+  @@index([status])
+  @@index([releaseDate])
+  @@map("release_orders")
 }

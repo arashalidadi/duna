@@ -16,11 +16,28 @@
     "delete": "حذف",
     "edit": "ویرایش",
     "create": "ایجاد",
-    "actions": "عملیات",
+    "actions": {
+      "save": "ذخیره",
+      "cancel": "انصراف",
+      "delete": "حذف",
+      "search": "جستجو",
+      "create": "ایجاد",
+      "edit": "ویرایش"
+    },
     "confirm": "تأیید",
     "back": "بازگشت",
     "workspace": "فضای کاری",
-    "notifications": "اعلان‌ها"
+    "notifications": "اعلان‌ها",
+    "list": {
+      "total": "مجموع",
+      "loading": "در حال بارگذاری…"
+    },
+    "errors": {
+      "generic": "خطایی رخ داد. دوباره تلاش کنید."
+    },
+    "nav": {
+      "home": "خانه"
+    }
   },
   "system": {
     "operational": "سیستم فعال",
@@ -56,7 +73,7 @@
     "jobs": "کارها",
     "invoices": "فاکتورها",
     "payments": "پرداخت‌ها",
-    "release": "آزادسازی",
+    "release": "مجوز ترخیص کالا",
     "agents": "نمایندگان",
     "customers": "مشتریان",
     "ports": "بندرها",
@@ -71,7 +88,8 @@
     "loadList": "loadList",
     "voyage": "voyage",
     "vouchers": "حواله‌ها",
-    "ledger": "دفتر"
+    "ledger": "دفتر",
+    "delivery": "حواله تحویل کالا"
   },
   "login": {
     "title": "ورود",
@@ -486,6 +504,138 @@
         "title": "ردیفی نیست",
         "description": "فاکتور یا حواله‌ای با این فیلترها نیست."
       }
+    }
+  },
+  "deliveryOrder": {
+    "page": {
+      "title": "حواله تحویل کالا",
+      "description": "مجوز تحویل بار بر اساس بارنامه (D/O)"
+    },
+    "list": {
+      "title": "دفتر حواله تحویل",
+      "subtitle": "حواله‌های صادرشده؛ یک حواله فعال برای هر بارنامه",
+      "search": "جستجو با شماره، تحویل‌گیرنده یا پلاک",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "حواله تحویلی نیست",
+        "description": "برای یک بارنامه صادرشده، اولین حواله تحویل را ثبت کنید."
+      }
+    },
+    "status": {
+      "ISSUED": "صادرشده",
+      "CANCELLED": "لغوشده"
+    },
+    "fields": {
+      "docNumber": "شماره حواله",
+      "bill": "بارنامه",
+      "recipient": "تحویل‌گیرنده",
+      "vehiclePlate": "پلاک خودرو",
+      "issueDate": "تاریخ صدور",
+      "notes": "یادداشت",
+      "status": "وضعیت",
+      "cancelReason": "دلیل لغو"
+    },
+    "actions": {
+      "create": "حواله جدید",
+      "cancelOrder": "لغو حواله",
+      "cancelling": "در حال لغو…"
+    },
+    "create": {
+      "title": "ساخت حواله تحویل",
+      "description": "بارنامه باید صادرشده باشد؛ یک حواله فعال برای هر بارنامه.",
+      "selectBill": "انتخاب بارنامه",
+      "recipientPlaceholder": "چه کسی بار را تحویل می‌گیرد؟",
+      "creating": "در حال ساخت…",
+      "errors": {
+        "billRequired": "انتخاب بارنامه الزامی است",
+        "recipientRequired": "تحویل‌گیرنده الزامی است"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "این حواله لغو شود؟",
+        "description": "بارنامه دوباره قابل تحویل می‌شود؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟"
+      },
+      "delete": {
+        "title": "این حواله لغوشده حذف شود؟",
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
+      }
+    },
+    "detail": {
+      "headerTitle": "حواله تحویل"
+    }
+  },
+  "releaseOrder": {
+    "page": {
+      "title": "مجوز ترخیص کالا",
+      "description": "مجوز خروج بار بر اساس بارنامه (R/O) — تسویه‌شده یا با تأیید ویژه"
+    },
+    "list": {
+      "title": "دفتر مجوز ترخیص",
+      "subtitle": "یک مجوز فعال برای هر بارنامه؛ قاعده مالی اجرا می‌شود",
+      "search": "جستجو با شماره یا یادداشت",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "مجوز ترخیصی نیست",
+        "description": "پس از تسویه فاکتورهای بارنامه، مجوز صادر کنید."
+      }
+    },
+    "status": {
+      "ISSUED": "صادرشده",
+      "CANCELLED": "لغوشده"
+    },
+    "fields": {
+      "docNumber": "شماره مجوز",
+      "bill": "بارنامه",
+      "releaseDate": "تاریخ ترخیص",
+      "financial": "مالی",
+      "override": "تأیید ویژه",
+      "settled": "تسویه‌شده",
+      "invoicesTotal": "فاکتورشده",
+      "invoicesPaid": "پرداخت‌شده",
+      "overrideReason": "دلیل تأیید ویژه",
+      "notes": "یادداشت",
+      "status": "وضعیت",
+      "cancelReason": "دلیل لغو"
+    },
+    "actions": {
+      "create": "مجوز جدید",
+      "cancelOrder": "لغو مجوز",
+      "view": "مشاهده"
+    },
+    "create": {
+      "title": "ساخت مجوز ترخیص",
+      "description": "همه فاکتورهای صادرشده بارنامه باید تسویه باشند، یا با تأیید ویژه صادر شود.",
+      "selectBill": "انتخاب بارنامه",
+      "creating": "در حال ساخت…",
+      "checkingEligibility": "بررسی تسویه…",
+      "blockedTitle": "مانده بدهی",
+      "readyTitle": "آماده ترخیص",
+      "eligibilityLine": "فاکتورشده {total} — پرداخت‌شده {paid} — مانده {outstanding}",
+      "blockedNeedsForce": "فاکتورها پرداخت‌نشده‌اند: یا تسویه کنید، یا گزینه تأیید ویژه را با دلیل فعال کنید.",
+      "forceOverride": "عبور از الزام پرداخت (ثبت برای ممیزی)",
+      "overrideReasonPlaceholder": "چرا با وجود مانده بدهی ترخیص شود؟",
+      "errors": {
+        "billRequired": "انتخاب بارنامه الزامی است",
+        "overrideReasonRequired": "دلیل تأیید ویژه الزامی است"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "این مجوز لغو شود؟",
+        "description": "بارنامه دوباره قابل ترخیص می‌شود؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این مجوز لغو می‌شود؟"
+      },
+      "delete": {
+        "title": "این مجوز لغوشده حذف شود؟",
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
+      }
+    },
+    "detail": {
+      "headerTitle": "مجوز ترخیص"
     }
   }
 }

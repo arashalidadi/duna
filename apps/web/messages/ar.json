@@ -21,10 +21,27 @@
     "unavailable": "غير متاح",
     "soon": "به‌زودی",
     "active": "فعال",
-    "actions": "عملیات",
+    "actions": {
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "delete": "حذف",
+      "search": "بحث",
+      "create": "إنشاء",
+      "edit": "تعديل"
+    },
     "confirm": "تأیید",
     "workspace": "فضای کاری",
-    "notifications": "اعلان‌ها"
+    "notifications": "اعلان‌ها",
+    "list": {
+      "total": "المجموع",
+      "loading": "جارٍ التحميل…"
+    },
+    "errors": {
+      "generic": "حدث خطأ. حاول مجددًا."
+    },
+    "nav": {
+      "home": "الرئيسية"
+    }
   },
   "nav": {
     "overview": "نظرة عامة",
@@ -69,11 +86,12 @@
     "deliveryOrders": "دستور تحویل",
     "jobs": "کارها",
     "payments": "پرداخت‌ها",
-    "release": "آزادسازی",
+    "release": "أوامر الإفراج",
     "agents": "نمایندگان",
     "reports": "گزارش‌ها",
     "vouchers": "السندات",
-    "ledger": "الدفاتر"
+    "ledger": "الدفاتر",
+    "delivery": "أوامر التسليم"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -509,6 +527,138 @@
         "title": "لا قيود",
         "description": "لا فواتير أو سندات تطابق هذه المرشحات."
       }
+    }
+  },
+  "deliveryOrder": {
+    "page": {
+      "title": "أوامر التسليم",
+      "description": "تصاريح تسليم البضاعة مقابل بوليصات الشحن (D/O)"
+    },
+    "list": {
+      "title": "سجل أوامر التسليم",
+      "subtitle": "أوامر صادرة؛ أمر واحد نشط لكل بوليصة",
+      "search": "بحث برقم أو مستلم أو لوحة",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا أوامر تسليم",
+        "description": "أصدر أول أمر تسليم مقابل بوليصة صادرة."
+      }
+    },
+    "status": {
+      "ISSUED": "صادر",
+      "CANCELLED": "ملغى"
+    },
+    "fields": {
+      "docNumber": "رقم الأمر",
+      "bill": "البوليصة",
+      "recipient": "المستلم",
+      "vehiclePlate": "لوحة المركبة",
+      "issueDate": "تاريخ الإصدار",
+      "notes": "ملاحظات",
+      "status": "الحالة",
+      "cancelReason": "سبب الإلغاء"
+    },
+    "actions": {
+      "create": "أمر جديد",
+      "cancelOrder": "إلغاء الأمر",
+      "cancelling": "جارٍ الإلغاء…"
+    },
+    "create": {
+      "title": "إنشاء أمر تسليم",
+      "description": "يجب أن تكون البوليصة صادرة؛ أمر واحد نشط لكل بوليصة.",
+      "selectBill": "اختر البوليصة",
+      "recipientPlaceholder": "من يستلم البضاعة؟",
+      "creating": "جارٍ الإنشاء…",
+      "errors": {
+        "billRequired": "اختيار البوليصة إلزامي",
+        "recipientRequired": "المستلم إلزامي"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "إلغاء هذا الأمر؟",
+        "description": "تصبح البوليصة قابلة للتسليم مجددًا؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟"
+      },
+      "delete": {
+        "title": "حذف هذا الأمر الملغى؟",
+        "description": "يُحذف الصف الملغى نهائيًا."
+      }
+    },
+    "detail": {
+      "headerTitle": "أمر تسليم"
+    }
+  },
+  "releaseOrder": {
+    "page": {
+      "title": "أوامر الإفراج",
+      "description": "تصاريح إفراج البضاعة مقابل بوليصات الشحن (R/O) — مسددة أو بتجاوز معتمد"
+    },
+    "list": {
+      "title": "سجل أوامر الإفراج",
+      "subtitle": "أمر إفراج واحد نشط لكل بوليصة؛ مع تطبيق قاعدة المال",
+      "search": "بحث برقم أو ملاحظات",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا أوامر إفراج",
+        "description": "أصدر أمر إفراج بعد تسوية فواتير البوليصة."
+      }
+    },
+    "status": {
+      "ISSUED": "صادر",
+      "CANCELLED": "ملغى"
+    },
+    "fields": {
+      "docNumber": "رقم الأمر",
+      "bill": "البوليصة",
+      "releaseDate": "تاريخ الإفراج",
+      "financial": "المالية",
+      "override": "تجاوز معتمد",
+      "settled": "مسدد",
+      "invoicesTotal": "مُفوتر",
+      "invoicesPaid": "مدفوع",
+      "overrideReason": "سبب التجاوز",
+      "notes": "ملاحظات",
+      "status": "الحالة",
+      "cancelReason": "سبب الإلغاء"
+    },
+    "actions": {
+      "create": "أمر جديد",
+      "cancelOrder": "إلغاء الأمر",
+      "view": "عرض"
+    },
+    "create": {
+      "title": "إنشاء أمر إفراج",
+      "description": "يتطلب سداد كل الفواتير الصادرة على البوليصة، أو تجاوزًا معتمدًا.",
+      "selectBill": "اختر البوليصة",
+      "creating": "جارٍ الإنشاء…",
+      "checkingEligibility": "جارٍ فحص التسوية…",
+      "blockedTitle": "رصيد مستحق",
+      "readyTitle": "جاهز للإفراج",
+      "eligibilityLine": "مُفوتر {total} — مدفوع {paid} — مستحق {outstanding}",
+      "blockedNeedsForce": "فواتير غير مسددة: إما أن تسدد، أو فعّل التجاوز مع السبب.",
+      "forceOverride": "تجاوز شرط السداد (مُدقَّق)",
+      "overrideReasonPlaceholder": "لماذا الإفراج رغم الرصيد المستحق؟",
+      "errors": {
+        "billRequired": "اختيار البوليصة إلزامي",
+        "overrideReasonRequired": "سبب التجاوز إلزامي"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "إلغاء هذا الأمر؟",
+        "description": "تصبح البوليصة قابلة للإفراج مجددًا؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟"
+      },
+      "delete": {
+        "title": "حذف هذا الأمر الملغى؟",
+        "description": "يُحذف الصف الملغى نهائيًا."
+      }
+    },
+    "detail": {
+      "headerTitle": "أمر إفراج"
     }
   }
 }

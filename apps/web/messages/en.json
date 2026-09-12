@@ -16,11 +16,28 @@
     "delete": "Delete",
     "edit": "Edit",
     "create": "Create",
-    "actions": "Actions",
+    "actions": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "search": "Search",
+      "create": "Create",
+      "edit": "Edit"
+    },
     "confirm": "Confirm",
     "back": "Back",
     "workspace": "Workspace",
-    "notifications": "Notifications"
+    "notifications": "Notifications",
+    "list": {
+      "total": "Total",
+      "loading": "Loading…"
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again."
+    },
+    "nav": {
+      "home": "Home"
+    }
   },
   "system": {
     "operational": "System Operational",
@@ -56,7 +73,7 @@
     "jobs": "Jobs",
     "invoices": "Invoices",
     "payments": "Payments",
-    "release": "Release",
+    "release": "Release Orders",
     "agents": "Agents",
     "customers": "Customers",
     "ports": "Ports",
@@ -71,7 +88,8 @@
     "loadList": "loadList",
     "voyage": "voyage",
     "vouchers": "Vouchers",
-    "ledger": "Ledger"
+    "ledger": "Ledger",
+    "delivery": "Delivery Orders"
   },
   "login": {
     "title": "Sign In",
@@ -486,6 +504,138 @@
         "title": "No entries",
         "description": "No invoices or vouchers match these filters."
       }
+    }
+  },
+  "deliveryOrder": {
+    "page": {
+      "title": "Delivery Orders",
+      "description": "Cargo hand-over permits against B/Ls (D/O)"
+    },
+    "list": {
+      "title": "D/O register",
+      "subtitle": "Issued delivery orders; one active per B/L",
+      "search": "Search by number, recipient or plate",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No delivery orders",
+        "description": "Issue the first delivery order against an ISSUED B/L."
+      }
+    },
+    "status": {
+      "ISSUED": "Issued",
+      "CANCELLED": "Cancelled"
+    },
+    "fields": {
+      "docNumber": "D/O No.",
+      "bill": "B/L",
+      "recipient": "Recipient",
+      "vehiclePlate": "Vehicle plate",
+      "issueDate": "Issue date",
+      "notes": "Notes",
+      "status": "Status",
+      "cancelReason": "Cancellation reason"
+    },
+    "actions": {
+      "create": "New D/O",
+      "cancelOrder": "Cancel D/O",
+      "cancelling": "Cancelling…"
+    },
+    "create": {
+      "title": "Create delivery order",
+      "description": "The B/L must be ISSUED; one active D/O per B/L.",
+      "selectBill": "Select B/L",
+      "recipientPlaceholder": "Who receives the cargo?",
+      "creating": "Creating…",
+      "errors": {
+        "billRequired": "A B/L is required",
+        "recipientRequired": "Recipient is required"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "Cancel this D/O?",
+        "description": "The B/L becomes deliverable again; the row stays for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this D/O cancelled?"
+      },
+      "delete": {
+        "title": "Delete this cancelled D/O?",
+        "description": "Removes the cancelled row permanently."
+      }
+    },
+    "detail": {
+      "headerTitle": "Delivery order"
+    }
+  },
+  "releaseOrder": {
+    "page": {
+      "title": "Release Orders",
+      "description": "Cargo release permits against B/Ls (R/O) — settled or authorized override"
+    },
+    "list": {
+      "title": "R/O register",
+      "subtitle": "One active release per B/L; money rule enforced",
+      "search": "Search by number or notes",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No release orders",
+        "description": "Issue a release once the B/L invoices are settled."
+      }
+    },
+    "status": {
+      "ISSUED": "Issued",
+      "CANCELLED": "Cancelled"
+    },
+    "fields": {
+      "docNumber": "R/O No.",
+      "bill": "B/L",
+      "releaseDate": "Release date",
+      "financial": "Financial",
+      "override": "Override",
+      "settled": "Settled",
+      "invoicesTotal": "Invoiced",
+      "invoicesPaid": "Paid",
+      "overrideReason": "Override reason",
+      "notes": "Notes",
+      "status": "Status",
+      "cancelReason": "Cancellation reason"
+    },
+    "actions": {
+      "create": "New R/O",
+      "cancelOrder": "Cancel R/O",
+      "view": "View"
+    },
+    "create": {
+      "title": "Create release order",
+      "description": "Requires every ISSUED invoice on the B/L to be fully paid, or an authorized override.",
+      "selectBill": "Select B/L",
+      "creating": "Creating…",
+      "checkingEligibility": "Checking settlement…",
+      "blockedTitle": "Outstanding balance",
+      "readyTitle": "Ready to release",
+      "eligibilityLine": "Invoiced {total} — paid {paid} — outstanding {outstanding}",
+      "blockedNeedsForce": "Invoices unpaid: tick the override box and give a reason, or settle first.",
+      "forceOverride": "Override the payment requirement (audited)",
+      "overrideReasonPlaceholder": "Why release despite the outstanding balance?",
+      "errors": {
+        "billRequired": "A B/L is required",
+        "overrideReasonRequired": "An override reason is required"
+      }
+    },
+    "confirm": {
+      "cancel": {
+        "title": "Cancel this R/O?",
+        "description": "The B/L becomes releasable again; the row stays for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this R/O cancelled?"
+      },
+      "delete": {
+        "title": "Delete this cancelled R/O?",
+        "description": "Removes the cancelled row permanently."
+      }
+    },
+    "detail": {
+      "headerTitle": "Release order"
     }
   }
 }
