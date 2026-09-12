@@ -140,3 +140,17 @@ export type {
   BillEligibleManifestItem,
   BillManifestOption,
 } from './bill';
+export type {
+  InvoiceStatus,
+  InvoiceItem,
+  Invoice,
+  InvoiceDetail,
+  PaginatedInvoiceResult,
+  ListInvoiceQueryDto,
+  CreateInvoiceDto,
+  UpdateInvoiceDto,
+  AddInvoiceItemDto,
+  UpdateInvoiceItemDto,
+  CancelInvoiceDto,
+  InvoiceApiResult,
+} from './invoice';

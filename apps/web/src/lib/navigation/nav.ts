@@ -192,7 +192,14 @@ export const NAV_SECTIONS: NavSection[] = [
     titleKey: 'commercial',
     items: [
       { labelKey: 'jobs', icon: ClipboardList, status: 'planned', description: 'Job costing' },
-      { labelKey: 'invoices', icon: FileCheck, status: 'planned', description: 'Billing & invoicing' },
+      {
+        labelKey: 'invoices',
+        href: '/invoices',
+        icon: FileCheck,
+        status: 'implemented',
+        description: 'Billing & invoicing',
+        requiredPermission: 'invoice:read',
+      },
       { labelKey: 'payments', icon: CreditCard, status: 'planned', description: 'Customer payments' },
       { labelKey: 'release', icon: FileCheck, status: 'planned', description: 'Release orders' },
       { labelKey: 'agents', icon: UserCircle, status: 'planned', description: 'Agent portal' },

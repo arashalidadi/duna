@@ -405,3 +405,15 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 - Line snapshots default from the manifest line + cargo (packages/packageType/grossWeight;
   cargo.specification → goodsDescription, serialNumber → marksAndNumbers) with per-line overrides;
   totals recomputed server-side from the frozen snapshots.
+---
+
+## ADR-031: Invoice line model — quantity x unitPrice with server-maintained amount
+
+**Date:** 2026-09-12 | **Status:** Accepted
+
+**Context.** Legacy `duna` InvoiceItem had only `description + amount` — no quantity/unit price. Real invoices need qty x price; naive `amount`-only lines lose audit fidelity and make price changes unauditable.
+
+**Decision.** InvoiceItem stores `description`, `quantity` (int, >=1), `unitPrice` Decimal(18,2) and `amount` (= quantity x unitPrice, maintained server-side on every line write). Header stores `subtotal` (SUM(amount)), `taxRate`, `discountAmount`, `taxAmount` (= (subtotal - discount) x taxRate%), `totalAmount` (= subtotal - discount + tax) — recomputed atomically in one service helper after any header or line mutation. Clients never send totals.
+
+**Consequences.** (1) SUM(amount) is a single-column aggregate — cheap reporting. (2) Header totals are derived data; a future recalculation job can rebuild them from lines. (3) `paidAmount` is owned by Phase 12 (receipt/payment vouchers) — Invoice service only reads it; `unpaid`/`overdue` are derived filters, not stored states.
+

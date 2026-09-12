@@ -58,6 +58,9 @@ model User {
   billsCreated            BillOfLading[]    @relation("BillCreatedBy")
   billsIssued             BillOfLading[]    @relation("BillIssuedBy")
   billsCancelled          BillOfLading[]    @relation("BillCancelledBy")
+  invoicesCreated        Invoice[]          @relation("InvoiceCreatedBy")
+  invoicesIssued         Invoice[]          @relation("InvoiceIssuedBy")
+  invoicesCancelled      Invoice[]          @relation("InvoiceCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -242,6 +245,7 @@ model Customer {
   manifestsAsAgent     Manifest[] @relation("ManifestAgent")
   billsAsShipper     BillOfLading[] @relation("BillShipper")
   billsAsConsignee   BillOfLading[] @relation("BillConsignee")
+  invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
 
   @@index([name])
   @@index([isActive])
@@ -501,6 +505,7 @@ model Voyage {
   loadLists LoadList[]
   manifests Manifest[]
   billsOfLading BillOfLading[] @relation("BillOfLadingVoyage")
+  invoices      Invoice[]     @relation("InvoiceVoyage")
 
   @@index([voyageNumber])
   @@index([vesselId])
@@ -809,6 +814,7 @@ model Manifest {
   agent       Customer?     @relation("ManifestAgent", fields: [agentId], references: [id])
   items       ManifestItem[]
   billsOfLading BillOfLading[] @relation("BillOfLadingManifest")
+  invoices Invoice[] @relation("InvoiceManifest")
   createdBy   User?         @relation("ManifestCreatedBy", fields: [createdById], references: [id])
   submittedBy User?         @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
   approvedBy  User?         @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
@@ -938,6 +944,7 @@ model BillOfLading {
   shipper     Customer?          @relation("BillShipper", fields: [shipperId], references: [id])
   consignee   Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
   items       BillOfLadingItem[]
+  invoices   Invoice[] @relation("InvoiceBill")
   createdBy   User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
   issuedBy    User?              @relation("BillIssuedBy", fields: [issuedById], references: [id])
   cancelledBy User?              @relation("BillCancelledBy", fields: [cancelledById], references: [id])
@@ -982,4 +989,106 @@ model BillOfLadingItem {
   @@index([manifestItemId])
   @@index([cargoId])
   @@map("bills_of_lading_items")
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11: Invoice (فاکتور)
+// ---------------------------------------------------------------------------
+// An Invoice is issued to a customer (bill-to), optionally anchored to the
+// shipping documents that justify it (Manifest and/or B/L — both optional,
+// mirroring the legacy duna invoice which linked to bl/manifest optionally).
+// Lines are free-form description + amount (legacy `items` table shape).
+// Lifecycle: DRAFT -> ISSUED | CANCELLED; DRAFT -> CANCELLED.
+// ISSUED is frozen (cancel only). `paidAmount` is maintained by the
+// finance module (Phase 12 vouchers/Fin); PAID is derived at read time
+// (paidAmount >= totalAmount), not a stored status — legacy stored
+// PAID/UNPAID but mutated it through Fin records anyway.
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique // auto INV-YYMM-#####
+  customerId    String        @map("customerId") // bill-to counterparty
+  status        InvoiceStatus @default(DRAFT)
+
+  // Optional document anchors (legacy bl_id / manifest_id)
+  manifestId     String? @map("manifestId")
+  billOfLadingId String? @map("billOfLadingId")
+  // Denormalized from bill/manifest for fast list filters (nullable).
+  voyageId       String? @map("voyageId")
+
+  title       String? // legacy title (free heading on the printed invoice)
+  description String? // legacy todescr (to-description)
+
+  currencyCode String @default("USD") @map("currencyCode") // ISO 4217
+  issueDate    DateTime? @map("issueDate")
+  dueDate      DateTime? @map("dueDate")
+
+  // Money — subtotal recomputed from items (SUM line amount = qty x unit price),
+  // then totalAmount = subtotal - discountAmount + taxAmount. paidAmount is
+  // maintained by the finance module (Phase 12).
+  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
+  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
+  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
+  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
+  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
+  paidAmount     Decimal @default(0) @db.Decimal(18, 2) @map("paidAmount")
+
+  cancelReason String? @map("cancelReason") // required on cancellation
+  notes        String?
+
+  createdById   String? @map("createdById")
+  issuedById    String? @map("issuedById")
+  cancelledById String? @map("cancelledById")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  issuedAt    DateTime? @map("issuedAt")
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime?
+
+  customer     Customer?      @relation("InvoiceCustomer", fields: [customerId], references: [id])
+  manifest     Manifest?      @relation("InvoiceManifest", fields: [manifestId], references: [id])
+  billOfLading BillOfLading?  @relation("InvoiceBill", fields: [billOfLadingId], references: [id])
+  voyage       Voyage?        @relation("InvoiceVoyage", fields: [voyageId], references: [id])
+  items        InvoiceItem[]
+  createdBy    User?          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  issuedBy     User?          @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy  User?          @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([customerId])
+  @@index([manifestId])
+  @@index([billOfLadingId])
+  @@index([voyageId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([dueDate])
+  @@index([createdAt])
+  @@index([createdById])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String @id @default(cuid())
+  invoiceId   String @map("invoiceId")
+  sequence    Int
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  // Line total = quantity * unitPrice, maintained server-side on every write.
+  amount      Decimal @default(0) @db.Decimal(18, 2)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([sequence])
+  @@map("invoice_items")
 }

@@ -276,5 +276,112 @@
     "permission": "الصلاحية",
     "status": "الحالة",
     "actions": "الإجراءات"
+  },
+  "invoice": {
+    "page": {
+      "title": "الفواتير",
+      "description": "مستندات فوترة العملاء"
+    },
+    "list": {
+      "title": "الفواتير",
+      "search": "بحث برقم أو عنوان أو عميل",
+      "allStatuses": "كل الحالات",
+      "allPayments": "مدفوعة وغير مدفوعة",
+      "unpaid": "غير المدفوعة فقط",
+      "allDue": "أي تاريخ استحقاق",
+      "overdue": "المتأخرة فقط",
+      "empty": {
+        "title": "لا فواتير بعد",
+        "description": "أنشئ أول فاتورة لعميل."
+      }
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "ISSUED": "صادرة",
+      "CANCELLED": "ملغاة"
+    },
+    "fields": {
+      "invoiceNumber": "رقم الفاتورة",
+      "customer": "العميل",
+      "title": "العنوان",
+      "description": "الوصف",
+      "status": "الحالة",
+      "currencyCode": "العملة",
+      "issueDate": "تاريخ الإصدار",
+      "dueDate": "تاريخ الاستحقاق",
+      "subtotal": "المجموع الفرعي",
+      "taxRate": "نسبة الضريبة ٪",
+      "taxAmount": "الضريبة",
+      "discountAmount": "الخصم",
+      "totalAmount": "الإجمالي",
+      "paidAmount": "المدفوع",
+      "manifest": "المانيفست",
+      "bill": "بوليصة الشحن",
+      "notes": "ملاحظات"
+    },
+    "detail": {
+      "headerTitle": "ترويسة الفاتورة",
+      "loading": "جارٍ التحميل…",
+      "saving": "جارٍ الحفظ…",
+      "paid": "مدفوعة",
+      "unpaid": "غير مدفوعة"
+    },
+    "actions": {
+      "create": "فاتورة جديدة",
+      "save": "حفظ",
+      "close": "إغلاق",
+      "issue": "إصدار",
+      "cancel": "إلغاء الفاتورة",
+      "delete": "حذف"
+    },
+    "create": {
+      "title": "إنشاء فاتورة",
+      "description": "اختر عميلاً؛ اختياري: ربط بمانيفست أو بوليصة.",
+      "selectCustomer": "اختر العميل",
+      "selectManifest": "بدون مانيفست",
+      "selectBill": "بدون بوليصة",
+      "noAnchor": "الروابط اختيارية.",
+      "creating": "جارٍ الإنشاء…",
+      "errors": {
+        "customerRequired": "اختيار العميل إلزامي"
+      }
+    },
+    "items": {
+      "title": "بنود الفاتورة",
+      "empty": "لا بنود بعد.",
+      "add": "إضافة بند",
+      "addTitle": "إضافة بند فاتورة",
+      "addDescription": "الوصف والكمية وسعر الوحدة؛ يُحسب مبلغ البند.",
+      "description": "الوصف",
+      "quantity": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "amount": "المبلغ",
+      "remove": "إزالة",
+      "saveAll": "حفظ التغييرات",
+      "adding": "جارٍ الإضافة…",
+      "errors": {
+        "lineRequired": "الوصف وسعر وحدة موجب إلزاميان"
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "إصدار الفاتورة؟",
+        "description": "الفواتير الصادرة مقفلة وتدخل سجل المدفوعات."
+      },
+      "cancel": {
+        "title": "إلغاء الفاتورة؟",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة؟",
+        "description": "الفواتير الملغاة نهائية وتبقى للتدقيق."
+      },
+      "delete": {
+        "title": "حذف هذه المسودة؟",
+        "description": "حذف ناعم؛ لن تظهر مجددًا."
+      },
+      "removeItem": {
+        "title": "إزالة هذا البند؟",
+        "description": "سيُعاد حساب المجاميع."
+      }
+    }
   }
 }

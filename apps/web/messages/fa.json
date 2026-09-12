@@ -253,5 +253,112 @@
     "permission": "دسترسی",
     "status": "وضعیت",
     "actions": "عملیات"
+  },
+  "invoice": {
+    "page": {
+      "title": "فاکتورها",
+      "description": "اسناد فاکتور مشتری"
+    },
+    "list": {
+      "title": "فاکتورها",
+      "search": "جستجو با شماره، عنوان یا مشتری",
+      "allStatuses": "همه وضعیت‌ها",
+      "allPayments": "پرداخت‌شده و پرداخت‌نشده",
+      "unpaid": "فقط پرداخت‌نشده",
+      "allDue": "هر سررسیدی",
+      "overdue": "فقط معوق",
+      "empty": {
+        "title": "هنوز فاکتوری نیست",
+        "description": "اولین فاکتور را برای یک مشتری بسازید."
+      }
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "ISSUED": "صادرشده",
+      "CANCELLED": "لغوشده"
+    },
+    "fields": {
+      "invoiceNumber": "شماره فاکتور",
+      "customer": "مشتری",
+      "title": "عنوان",
+      "description": "توضیحات",
+      "status": "وضعیت",
+      "currencyCode": "واحد پول",
+      "issueDate": "تاریخ صدور",
+      "dueDate": "تاریخ سررسید",
+      "subtotal": "جمع جزء",
+      "taxRate": "نرخ مالیات ٪",
+      "taxAmount": "مالیات",
+      "discountAmount": "تخفیف",
+      "totalAmount": "مبلغ کل",
+      "paidAmount": "پرداخت‌شده",
+      "manifest": "مانیفست",
+      "bill": "بارنامه",
+      "notes": "یادداشت‌ها"
+    },
+    "detail": {
+      "headerTitle": "سربرگ فاکتور",
+      "loading": "در حال بارگذاری…",
+      "saving": "در حال ذخیره…",
+      "paid": "پرداخت‌شده",
+      "unpaid": "پرداخت‌نشده"
+    },
+    "actions": {
+      "create": "فاکتور جدید",
+      "save": "ذخیره",
+      "close": "بستن",
+      "issue": "صدور",
+      "cancel": "لغو فاکتور",
+      "delete": "حذف"
+    },
+    "create": {
+      "title": "ساخت فاکتور",
+      "description": "یک مشتری انتخاب کنید؛ اختیاری: اتصال به مانیفست یا بارنامه.",
+      "selectCustomer": "انتخاب مشتری",
+      "selectManifest": "بدون مانیفست",
+      "selectBill": "بدون بارنامه",
+      "noAnchor": "اتصال‌ها اختیاری هستند.",
+      "creating": "در حال ساخت…",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است"
+      }
+    },
+    "items": {
+      "title": "ردیف‌های فاکتور",
+      "empty": "هنوز ردیفی نیست.",
+      "add": "افزودن ردیف",
+      "addTitle": "افزودن ردیف فاکتور",
+      "addDescription": "شرح، تعداد و نرخ واحد؛ مبلغ ردیف محاسبه می‌شود.",
+      "description": "شرح",
+      "quantity": "تعداد",
+      "unitPrice": "نرخ واحد",
+      "amount": "مبلغ",
+      "remove": "برداشتن",
+      "saveAll": "ذخیره تغییرات",
+      "adding": "در حال افزودن…",
+      "errors": {
+        "lineRequired": "شرح و نرخ واحد مثبت الزامی است"
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "صادر شود؟",
+        "description": "فاکتور صادرشده قفل می‌شود و وارد دفتر پرداخت می‌گردد."
+      },
+      "cancel": {
+        "title": "فاکتور لغو شود؟",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این فاکتور لغو می‌شود؟",
+        "description": "فاکتور لغوشده بازگشت‌ناپذیر است و برای ممیزی می‌ماند."
+      },
+      "delete": {
+        "title": "این فاکتور پیش‌نویس حذف شود؟",
+        "description": "حذف نرم؛ دیگر نمایش داده نمی‌شود."
+      },
+      "removeItem": {
+        "title": "این ردیف برداشته شود؟",
+        "description": "جمع‌ها دوباره محاسبه می‌شوند."
+      }
+    }
   }
 }

@@ -2,6 +2,20 @@
 
 ## Completed
 
+### Phase 11 — Invoice (completed)
+
+**Objective met:** full-stack customer billing documents — the accounting chain entry point.
+
+- Prisma: `InvoiceStatus`, `Invoice`, `InvoiceItem` (+ 3 micro-migrations: `phase11_invoices`, `phase11_invoice_totals`, `phase11_invoice_voyage`); title nullable, denormalized voyageId for ops cross-listing
+- Shared types `packages/shared/src/invoice.ts`
+- NestJS `invoice` module: 6 permissions seeded; INV-YYMM-##### numbering; lifecycle DRAFT -> ISSUED -> CANCELLED (ISSUED frozen, cancel reason kept for audit)
+- Line model: description x quantity x unitPrice -> amount maintained server-side; header subtotal / taxRate / taxAmount / discountAmount / totalAmount recomputed on every write
+- Filters: `unpaid` (paidAmount < totalAmount on ISSUED), `overdue` (ISSUED + past dueDate + unpaid); optional anchors: customer (required), manifest / billOfLading (optional)
+- `/invoices` page (fa/en/ar, RTL): list + status/payment/due filters, create, detail with header edit + line CRUD, totals card, issue/cancel/delete
+- Demo seed `scripts/seed-invoice-demo.mjs`: INV-2609-00001 ISSUED (3 lines, B/L anchor, tax+discount), INV-2609-00002 ISSUED overdue, INV-2609-00003 DRAFT
+- Tests: 11 new e2e; **full suite 161/161 green**; smoke: filters + detail + 3 locales 200 via proxy
+- Note: `paidAmount` stays 0 until Phase 12 (receipt/payment vouchers) writes it
+
 ### Phase 10 — Bill of Lading (completed)
 
 **Objective met:** full-stack B/L document module — issue transport documents against APPROVED

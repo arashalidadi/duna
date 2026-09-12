@@ -253,5 +253,112 @@
     "permission": "Permission",
     "status": "Status",
     "actions": "Actions"
+  },
+  "invoice": {
+    "page": {
+      "title": "Invoices",
+      "description": "Customer billing documents"
+    },
+    "list": {
+      "title": "Invoices",
+      "search": "Search by number, title or customer",
+      "allStatuses": "All statuses",
+      "allPayments": "Paid + unpaid",
+      "unpaid": "Unpaid only",
+      "allDue": "Any due date",
+      "overdue": "Overdue only",
+      "empty": {
+        "title": "No invoices yet",
+        "description": "Create the first invoice for a customer."
+      }
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "ISSUED": "Issued",
+      "CANCELLED": "Cancelled"
+    },
+    "fields": {
+      "invoiceNumber": "Invoice No.",
+      "customer": "Customer",
+      "title": "Title",
+      "description": "Description",
+      "status": "Status",
+      "currencyCode": "Currency",
+      "issueDate": "Issue date",
+      "dueDate": "Due date",
+      "subtotal": "Subtotal",
+      "taxRate": "Tax rate %",
+      "taxAmount": "Tax",
+      "discountAmount": "Discount",
+      "totalAmount": "Total",
+      "paidAmount": "Paid",
+      "manifest": "Manifest",
+      "bill": "B/L",
+      "notes": "Notes"
+    },
+    "detail": {
+      "headerTitle": "Invoice header",
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "paid": "Paid",
+      "unpaid": "Unpaid"
+    },
+    "actions": {
+      "create": "New invoice",
+      "save": "Save",
+      "close": "Close",
+      "issue": "Issue",
+      "cancel": "Cancel invoice",
+      "delete": "Delete"
+    },
+    "create": {
+      "title": "Create invoice",
+      "description": "Pick a customer; optionally anchor to a manifest or B/L.",
+      "selectCustomer": "Select customer",
+      "selectManifest": "No manifest",
+      "selectBill": "No B/L",
+      "noAnchor": "Anchor links are optional.",
+      "creating": "Creating…",
+      "errors": {
+        "customerRequired": "A customer is required"
+      }
+    },
+    "items": {
+      "title": "Invoice lines",
+      "empty": "No lines yet.",
+      "add": "Add line",
+      "addTitle": "Add invoice line",
+      "addDescription": "Description, quantity and unit price; the line amount is computed.",
+      "description": "Description",
+      "quantity": "Qty",
+      "unitPrice": "Unit price",
+      "amount": "Amount",
+      "remove": "Remove",
+      "saveAll": "Save changes",
+      "adding": "Adding…",
+      "errors": {
+        "lineRequired": "Description and a positive unit price are required"
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "Issue invoice?",
+        "description": "Issued invoices are locked and enter the payment ledger."
+      },
+      "cancel": {
+        "title": "Cancel invoice?",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this invoice cancelled?",
+        "description": "Cancelled invoices are terminal and stay for audit."
+      },
+      "delete": {
+        "title": "Delete this draft invoice?",
+        "description": "Soft-deleted; never shown again."
+      },
+      "removeItem": {
+        "title": "Remove this line?",
+        "description": "Totals will be recalculated."
+      }
+    }
   }
 }
