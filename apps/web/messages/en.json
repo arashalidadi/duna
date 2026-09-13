@@ -96,7 +96,8 @@
     "employees": "Employees",
     "salaryRecords": "Salary Records",
     "correspondence": "Correspondence",
-    "letters": "Letters"
+    "letters": "Letters",
+    "discharges": "Discharge"
   },
   "login": {
     "title": "Sign In",
@@ -1181,6 +1182,97 @@
         "title": "Delete job",
         "description": "Delete {number}? Only DRAFT jobs can be deleted."
       }
+    }
+  },
+  "discharge": {
+    "page": {
+      "title": "Discharge",
+      "description": "Unloading at the destination port — mirrors what was actually loaded"
+    },
+    "actions": {
+      "create": "New Discharge",
+      "view": "View",
+      "start": "Start unloading",
+      "complete": "Complete",
+      "cancel": "Cancel discharge",
+      "delete": "Delete"
+    },
+    "status": {
+      "NOT_STARTED": "Not started",
+      "IN_PROGRESS": "In progress",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "fields": {
+      "number": "Discharge #",
+      "loading": "Actual loading",
+      "voyage": "Voyage",
+      "vessel": "Vessel",
+      "status": "Status",
+      "lines": "Lines",
+      "expected": "Expected",
+      "discharged": "Discharged",
+      "notes": "Notes",
+      "pod": "Destination port"
+    },
+    "list": {
+      "search": "Discharge #, loading, voyage, vessel…",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No discharges yet",
+        "description": "Create a discharge when a completed loading arrives at the destination port."
+      }
+    },
+    "create": {
+      "title": "New Discharge",
+      "description": "Pre-populates expected lines from what was actually loaded.",
+      "loadingLabel": "Actual loading (completed)",
+      "loadingPlaceholder": "— select —",
+      "noLoadings": "No completed actual loadings available for discharge.",
+      "errors": {
+        "loadingRequired": "Select an actual loading"
+      }
+    },
+    "items": {
+      "cargo": "Cargo",
+      "result": {
+        "FULL": "Full",
+        "PARTIAL": "Partial",
+        "NOT_DISCHARGED": "Not discharged"
+      },
+      "expected": "Expected",
+      "discharged": "Discharged",
+      "totals": "Totals",
+      "errors": {
+        "nonnegative": "Quantity must be a non-negative integer",
+        "exceeds": "Discharged quantity exceeds expected ({expected})"
+      }
+    },
+    "detail": {
+      "title": "Discharge",
+      "createdOn": "Created",
+      "completedOn": "Completed on",
+      "cancelledOn": "Cancelled on"
+    },
+    "confirm": {
+      "start": {
+        "title": "Start unloading",
+        "description": "Start unloading {number}? Lines stay editable while in progress."
+      },
+      "complete": {
+        "title": "Complete discharge",
+        "description": "Complete {number}? Fully discharged cargo becomes DELIVERED; shortfalls stay open for claims."
+      },
+      "delete": {
+        "title": "Delete discharge",
+        "description": "Delete {number}? Only unstarted/in-progress discharges can be deleted."
+      }
+    },
+    "cancel": {
+      "title": "Cancel discharge",
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. berth reassigned"
     }
   }
 }

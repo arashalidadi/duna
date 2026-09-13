@@ -183,3 +183,4 @@ export * from './employee';
 export * from './salary';
 export * from './letter';
 export * from './job';
+export * from './discharge';

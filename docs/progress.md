@@ -1,6 +1,16 @@
 # Progress
 
 ## Completed
+### Phase 19 — Discharge (unloading at destination, mirror of Actual Loading) (completed)
+
+- **Model:** `Discharge` (auto `DIS-YYMM-#####`, `@@unique([actualLoadingId])` — one per completed loading, status NOT_STARTED/IN_PROGRESS/COMPLETED/CANCELLED, actor+time stamps for complete/cancel, notes, soft delete) + `DischargeItem` (`@@unique([dischargeId, actualLoadingItemId])`, cargoId, `expectedQuantity` snapshot from the recorded loading, `dischargeQuantity`, result NOT_DISCHARGED/FULL/PARTIAL, notes). Migration `20260913200811_phase19_discharge`.
+- **Lifecycle (ADR-039):** create only from a **COMPLETED Actual Loading** (409 otherwise); what was actually loaded is what should arrive — lines pre-populate with `expectedQuantity` = loaded quantity (NOT_LOADED lines are excluded; empty loading → 400). NOT_STARTED → start → IN_PROGRESS → complete (FULL lines flip `cargo.status → DELIVERED`, the documented LOADED→DELIVERED edge; shortfall lines stay put and remain visible as PARTIAL/NOT_DISCHARGED). CANCELLED requires a reason; terminal states freeze lines (update 409). Quantity above expected → 400.
+- **API:** `/discharges` CRUD + start/complete/cancel + per-line `PUT items/:itemId`; list filters search (discharge/AL/voyage/vessel/destination-port) + status + voyageId + customerId + createdFrom/To; list rows carry computed expectedTotal/dischargedTotal/partialCount; 6 permissions `discharge:*` seeded, ADMIN auto-grant.
+- **E2E:** `discharge.e2e-spec.ts` 21 tests (RBAC matrix, source gating, pre-population + totals, one-per-loading unique, over-quantity 400, start-first complete guard, DELIVERED flip on FULL lines, PARTIAL keeps prior status, cancel freeze, second-discharge-after-terminal re-create guard, filters, detail, tagged cleanup). 21/21 green.
+- **Web:** `/discharges` — filters, list with expected/discharged/partial column + status badge, create dialog picking a COMPLETED loading not yet discharged, detail dialog with per-line quantity editor (clamped to expected), start/complete/cancel/delete actions, totals strip, audit stamps. nav **Operations** group, PackageMinus icon, `discharge:read` gate. i18n `discharge` (55 keys) + nav ×3 via `scripts/merge-discharge-i18n.py`; web tsc clean.
+- **Demo seed:** `scripts/seed-discharge-demo.mjs` — 3 discharges over the demo loadings: full discharge to DELIVERED (2 lines), completed shortfall (7 of 8 → PARTIAL), fresh NOT_STARTED (IN_YARD cargo untouched); idempotent guard.
+- **Smoke:** fa/en/ar `/discharges` all 200, zero raw keys.
+
 ### Phase 18 — Jobs & Job Costing (completed)
 
 - **Model:** `Job` (auto `JOB-YYMM-#####`, title, jobType free-text VarChar(60), optional customer/voyage links, currencyCode default USD, status DRAFT/OPEN/COMPLETED/CANCELLED, openingDate, completedBy/At, cancelledBy/At + cancelReason, notes, soft delete) + `JobCostItem` (kind INCOME|COST, category, description, amount Decimal, itemDate, notes). Migrations `phase18_jobs` + jobType add-column.

@@ -102,6 +102,12 @@ async function main() {
   { code: 'actual_loading:delete', module: 'actual_loading', action: 'delete' },
   { code: 'actual_loading:complete', module: 'actual_loading', action: 'complete' },
   { code: 'actual_loading:cancel', module: 'actual_loading', action: 'cancel' },
+  { code: 'discharge:read', module: 'discharge', action: 'read' },
+  { code: 'discharge:create', module: 'discharge', action: 'create' },
+  { code: 'discharge:update', module: 'discharge', action: 'update' },
+  { code: 'discharge:delete', module: 'discharge', action: 'delete' },
+  { code: 'discharge:complete', module: 'discharge', action: 'complete' },
+  { code: 'discharge:cancel', module: 'discharge', action: 'cancel' },
   // Manifest (Phase 9)
   { code: 'manifest:read', module: 'manifest', action: 'read' },
   { code: 'manifest:create', module: 'manifest', action: 'create' },

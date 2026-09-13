@@ -27,65 +27,68 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id                   String           @id @default(cuid())
-  email                String           @unique
-  passwordHash         String
-  fullName             String
-  isActive             Boolean          @default(true)
-  lastLoginAt          DateTime?
-  failedLoginAttempts  Int              @default(0)
-  lockedUntil          DateTime?
-  passwordChangedAt    DateTime?
-  createdAt            DateTime         @default(now())
-  updatedAt            DateTime         @updatedAt
-  deletedAt            DateTime?
-  roles                UserRole[]
-  refreshTokens        RefreshToken[]
-  inspectionsCreated   Inspection[]      @relation("InspectorCreated")
-  inspectionsApproved  Inspection[]      @relation("InspectorApproved")
-  inspectionsRejected  Inspection[]      @relation("InspectorRejected")
-  voyagesCreated       Voyage[]          @relation("VoyageCreated")
-  loadListsCreated     LoadList[]        @relation("LoadListCreatedBy")
-  loadListsFinalized   LoadList[]        @relation("LoadListFinalizedBy")
-  loadListsCancelled   LoadList[]        @relation("LoadListCancelledBy")
-  actualLoadingsCreated   ActualLoading[]   @relation("ActualLoadingCreatedBy")
-  actualLoadingsCompleted ActualLoading[]   @relation("ActualLoadingCompletedBy")
-  actualLoadingsCancelled ActualLoading[]   @relation("ActualLoadingCancelledBy")
-  manifestsCreated        Manifest[]        @relation("ManifestCreatedBy")
-  manifestsSubmitted      Manifest[]        @relation("ManifestSubmittedBy")
-  manifestsApproved       Manifest[]        @relation("ManifestApprovedBy")
-  manifestsCancelled      Manifest[]        @relation("ManifestCancelledBy")
-  billsCreated            BillOfLading[]    @relation("BillCreatedBy")
-  billsIssued             BillOfLading[]    @relation("BillIssuedBy")
-  billsCancelled          BillOfLading[]    @relation("BillCancelledBy")
-  invoicesCreated        Invoice[]          @relation("InvoiceCreatedBy")
-  invoicesIssued         Invoice[]          @relation("InvoiceIssuedBy")
-  vouchersCreated        Voucher[]         @relation("VoucherCreatedBy")
-  deliveryOrdersCreated  DeliveryOrder[]  @relation("DeliveryOrderCreatedBy")
+  id                      String          @id @default(cuid())
+  email                   String          @unique
+  passwordHash            String
+  fullName                String
+  isActive                Boolean         @default(true)
+  lastLoginAt             DateTime?
+  failedLoginAttempts     Int             @default(0)
+  lockedUntil             DateTime?
+  passwordChangedAt       DateTime?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  deletedAt               DateTime?
+  roles                   UserRole[]
+  refreshTokens           RefreshToken[]
+  inspectionsCreated      Inspection[]    @relation("InspectorCreated")
+  inspectionsApproved     Inspection[]    @relation("InspectorApproved")
+  inspectionsRejected     Inspection[]    @relation("InspectorRejected")
+  voyagesCreated          Voyage[]        @relation("VoyageCreated")
+  loadListsCreated        LoadList[]      @relation("LoadListCreatedBy")
+  loadListsFinalized      LoadList[]      @relation("LoadListFinalizedBy")
+  loadListsCancelled      LoadList[]      @relation("LoadListCancelledBy")
+  actualLoadingsCreated   ActualLoading[] @relation("ActualLoadingCreatedBy")
+  actualLoadingsCompleted ActualLoading[] @relation("ActualLoadingCompletedBy")
+  actualLoadingsCancelled ActualLoading[] @relation("ActualLoadingCancelledBy")
+  dischargesCreated       Discharge[]     @relation("DischargeCreatedBy")
+  dischargesCompleted     Discharge[]     @relation("DischargeCompletedBy")
+  dischargesCancelled     Discharge[]     @relation("DischargeCancelledBy")
+  manifestsCreated        Manifest[]      @relation("ManifestCreatedBy")
+  manifestsSubmitted      Manifest[]      @relation("ManifestSubmittedBy")
+  manifestsApproved       Manifest[]      @relation("ManifestApprovedBy")
+  manifestsCancelled      Manifest[]      @relation("ManifestCancelledBy")
+  billsCreated            BillOfLading[]  @relation("BillCreatedBy")
+  billsIssued             BillOfLading[]  @relation("BillIssuedBy")
+  billsCancelled          BillOfLading[]  @relation("BillCancelledBy")
+  invoicesCreated         Invoice[]       @relation("InvoiceCreatedBy")
+  invoicesIssued          Invoice[]       @relation("InvoiceIssuedBy")
+  vouchersCreated         Voucher[]       @relation("VoucherCreatedBy")
+  deliveryOrdersCreated   DeliveryOrder[] @relation("DeliveryOrderCreatedBy")
   deliveryOrdersCancelled DeliveryOrder[] @relation("DeliveryOrderCancelledBy")
-  releaseOrdersCreated   ReleaseOrder[]   @relation("ReleaseOrderCreatedBy")
-  releaseOrdersCancelled ReleaseOrder[]   @relation("ReleaseOrderCancelledBy")
-  vouchersCancelled      Voucher[]         @relation("VoucherCancelledBy")
-  invoicesCancelled      Invoice[]          @relation("InvoiceCancelledBy")
-  proformasCreated        Proforma[]        @relation("ProformaCreatedBy")
-  proformasIssued         Proforma[]        @relation("ProformaIssuedBy")
-  proformasCancelled      Proforma[]        @relation("ProformaCancelledBy")
-  quotationsCreated       Quotation[]       @relation("QuotationCreatedBy")
-  quotationsSent          Quotation[]       @relation("QuotationSentBy")
-  quotationsAccepted      Quotation[]       @relation("QuotationAcceptedBy")
-  quotationsRejected      Quotation[]       @relation("QuotationRejectedBy")
-  quotationsCancelled     Quotation[]       @relation("QuotationCancelledBy")
-  employeesCreated        Employee[]       @relation("EmployeeCreatedBy")
-  salaryRecordsCreated    SalaryRecord[]   @relation("SalaryCreatedBy")
-  salaryRecordsApproved   SalaryRecord[]   @relation("SalaryApprovedBy")
-  salaryRecordsPaid       SalaryRecord[]   @relation("SalaryPaidBy")
-  salaryRecordsCancelled  SalaryRecord[]   @relation("SalaryCancelledBy")
-  lettersCreated      Letter[] @relation("LetterCreatedBy")
-  lettersSent         Letter[] @relation("LetterSentBy")
-  lettersArchived     Letter[] @relation("LetterArchivedBy")
-  jobsCreated          Job[]          @relation("JobCreatedBy")
-  jobsCompleted        Job[]          @relation("JobCompletedBy")
-  jobsCancelled        Job[]          @relation("JobCancelledBy")
+  releaseOrdersCreated    ReleaseOrder[]  @relation("ReleaseOrderCreatedBy")
+  releaseOrdersCancelled  ReleaseOrder[]  @relation("ReleaseOrderCancelledBy")
+  vouchersCancelled       Voucher[]       @relation("VoucherCancelledBy")
+  invoicesCancelled       Invoice[]       @relation("InvoiceCancelledBy")
+  proformasCreated        Proforma[]      @relation("ProformaCreatedBy")
+  proformasIssued         Proforma[]      @relation("ProformaIssuedBy")
+  proformasCancelled      Proforma[]      @relation("ProformaCancelledBy")
+  quotationsCreated       Quotation[]     @relation("QuotationCreatedBy")
+  quotationsSent          Quotation[]     @relation("QuotationSentBy")
+  quotationsAccepted      Quotation[]     @relation("QuotationAcceptedBy")
+  quotationsRejected      Quotation[]     @relation("QuotationRejectedBy")
+  quotationsCancelled     Quotation[]     @relation("QuotationCancelledBy")
+  employeesCreated        Employee[]      @relation("EmployeeCreatedBy")
+  salaryRecordsCreated    SalaryRecord[]  @relation("SalaryCreatedBy")
+  salaryRecordsApproved   SalaryRecord[]  @relation("SalaryApprovedBy")
+  salaryRecordsPaid       SalaryRecord[]  @relation("SalaryPaidBy")
+  salaryRecordsCancelled  SalaryRecord[]  @relation("SalaryCancelledBy")
+  lettersCreated          Letter[]        @relation("LetterCreatedBy")
+  lettersSent             Letter[]        @relation("LetterSentBy")
+  lettersArchived         Letter[]        @relation("LetterArchivedBy")
+  jobsCreated             Job[]           @relation("JobCreatedBy")
+  jobsCompleted           Job[]           @relation("JobCompletedBy")
+  jobsCancelled           Job[]           @relation("JobCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -94,14 +97,14 @@ model User {
 // Refresh tokens are stored hashed (never plaintext). Rotated on use; the prior
 // token is soft-revoked and linked to its replacement for reuse detection.
 model RefreshToken {
-  id             String     @id @default(cuid())
-  userId         String
-  tokenHash      String     @unique
-  lookupKey      String?    @unique
-  expiresAt      DateTime
-  revokedAt      DateTime?
+  id                String    @id @default(cuid())
+  userId            String
+  tokenHash         String    @unique
+  lookupKey         String?   @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
   replacedByTokenId String?
-  createdAt      DateTime   @default(now())
+  createdAt         DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -126,7 +129,7 @@ model Permission {
   id        String           @id @default(cuid())
   code      String           @unique
   module    String
-  action    String           // create | read | update | delete | approve | ...
+  action    String // create | read | update | delete | approve | ...
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
   roles     RolePermission[]
@@ -161,35 +164,35 @@ model UserRole {
 // ---------------------------------------------------------------------------
 
 model CompanySettings {
-  id                        String   @id @default(cuid())
-  companyName               String
-  legalName                 String?
-  registrationNumber        String?
-  taxNumber                 String?
-  address                   String?
-  city                      String?
-  country                   String?
-  phone                     String?
-  email                     String?
-  website                   String?
-  timezone                  String   @default("Asia/Dubai")
-  defaultCurrency           String   @default("USD")
-  supportedCurrenciesJson   String   @default("[\"USD\",\"AED\"]")
-  createdByUserId           String?
-  updatedByUserId           String?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  companyName             String
+  legalName               String?
+  registrationNumber      String?
+  taxNumber               String?
+  address                 String?
+  city                    String?
+  country                 String?
+  phone                   String?
+  email                   String?
+  website                 String?
+  timezone                String   @default("Asia/Dubai")
+  defaultCurrency         String   @default("USD")
+  supportedCurrenciesJson String   @default("[\"USD\",\"AED\"]")
+  createdByUserId         String?
+  updatedByUserId         String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model Currency {
-  id         String   @id @default(cuid())
-  code       String   @unique // ISO 4217, e.g. USD, AED
-  name       String
-  symbol     String
-  isActive   Boolean  @default(true)
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  code      String   @unique // ISO 4217, e.g. USD, AED
+  name      String
+  symbol    String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isActive])
 }
@@ -199,20 +202,20 @@ model Currency {
 // ---------------------------------------------------------------------------
 
 model Port {
-  id                String           @id @default(cuid())
-  code              String           @unique // e.g. JEBALI, KHALIFA
-  name              String
-  country           String
-  city              String?
-  isActive          Boolean          @default(true)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  deletedAt         DateTime?
-  yards             Yard[]
-  cargos            Cargo[]          @relation("CargoPort") // cargo registered at this port
-  cargoDestinations Cargo[]          @relation("DestinationPort") // cargo destined for this port
-  yardInventories   YardInventory[]  // current inventory physically at this port
-  voyageOrigins     Voyage[]         @relation("VoyageOrigin") // voyages departing from this port
+  id                 String          @id @default(cuid())
+  code               String          @unique // e.g. JEBALI, KHALIFA
+  name               String
+  country            String
+  city               String?
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  deletedAt          DateTime?
+  yards              Yard[]
+  cargos             Cargo[]         @relation("CargoPort") // cargo registered at this port
+  cargoDestinations  Cargo[]         @relation("DestinationPort") // cargo destined for this port
+  yardInventories    YardInventory[] // current inventory physically at this port
+  voyageOrigins      Voyage[]        @relation("VoyageOrigin") // voyages departing from this port
   voyageDestinations Voyage[]        @relation("VoyageDestination") // voyages arriving at this port
   manifestsAsPol     Manifest[]      @relation("ManifestPol") // manifests loaded at this port
   manifestsAsPod     Manifest[]      @relation("ManifestPod") // manifests discharged at this port
@@ -223,17 +226,17 @@ model Port {
 }
 
 model Yard {
-  id             String          @id @default(cuid())
-  portId         String
-  code           String          @unique
-  name           String
-  address        String?
-  isActive       Boolean         @default(true)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  deletedAt      DateTime?
-  cargos         Cargo[]         // cargo currently assigned to this yard
-  inventories    YardInventory[] // current inventory records held in this yard
+  id          String          @id @default(cuid())
+  portId      String
+  code        String          @unique
+  name        String
+  address     String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?
+  cargos      Cargo[] // cargo currently assigned to this yard
+  inventories YardInventory[] // current inventory records held in this yard
 
   port Port @relation(fields: [portId], references: [id])
 
@@ -246,37 +249,37 @@ model Yard {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id          String   @id @default(cuid())
-  code        String   @unique // configurable numbering, e.g. CUS-001
-  name        String
-  shortName   String?
-  type        String? // e.g. SHIPPER, CONSIGNEE, AGENT, FREIGHT_FORWARDER
-  contactName String?
-  phone       String?
-  email       String?
-  address     String?
-  country     String?
-  taxId       String?
-  creditLimit Decimal? @db.Decimal(18, 2)
-  currency    String? // ISO 4217
-  isActive    Boolean  @default(true)
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
-  cargos      Cargo[] // all cargo consigned to this customer
-  manifestsAsShipper   Manifest[] @relation("ManifestShipper")
-  manifestsAsConsignee Manifest[] @relation("ManifestConsignee")
-  manifestsAsAgent     Manifest[] @relation("ManifestAgent")
-  billsAsShipper     BillOfLading[] @relation("BillShipper")
-  billsAsConsignee   BillOfLading[] @relation("BillConsignee")
-  invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
-  proformasIssuedTo  Proforma[]  @relation("ProformaCustomer")
-  quotationsIssuedTo Quotation[] @relation("QuotationCustomer")
-  letters               Letter[] @relation("LetterCustomer")
-  jobs                  Job[]          @relation("JobCustomer")
+  id                     String          @id @default(cuid())
+  code                   String          @unique // configurable numbering, e.g. CUS-001
+  name                   String
+  shortName              String?
+  type                   String? // e.g. SHIPPER, CONSIGNEE, AGENT, FREIGHT_FORWARDER
+  contactName            String?
+  phone                  String?
+  email                  String?
+  address                String?
+  country                String?
+  taxId                  String?
+  creditLimit            Decimal?        @db.Decimal(18, 2)
+  currency               String? // ISO 4217
+  isActive               Boolean         @default(true)
+  notes                  String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  deletedAt              DateTime?
+  cargos                 Cargo[] // all cargo consigned to this customer
+  manifestsAsShipper     Manifest[]      @relation("ManifestShipper")
+  manifestsAsConsignee   Manifest[]      @relation("ManifestConsignee")
+  manifestsAsAgent       Manifest[]      @relation("ManifestAgent")
+  billsAsShipper         BillOfLading[]  @relation("BillShipper")
+  billsAsConsignee       BillOfLading[]  @relation("BillConsignee")
+  invoicesIssuedTo       Invoice[]       @relation("InvoiceCustomer")
+  proformasIssuedTo      Proforma[]      @relation("ProformaCustomer")
+  quotationsIssuedTo     Quotation[]     @relation("QuotationCustomer")
+  letters                Letter[]        @relation("LetterCustomer")
+  jobs                   Job[]           @relation("JobCustomer")
   deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
-  vouchersReceived  Voucher[]     @relation("VoucherCustomer")
+  vouchersReceived       Voucher[]       @relation("VoucherCustomer")
 
   @@index([name])
   @@index([isActive])
@@ -300,45 +303,46 @@ model Customer {
 // Timezone: all timestamps are UTC (project convention).
 
 model Cargo {
-  id              String           @id @default(cuid())
-  reference       String           @unique // stable, human-friendly, e.g. CRG-XXXXXXXX
-  customerId      String           @map("customerId")
-  portId          String           @map("portId") // port where the cargo is registered / handled
-  yardId          String?          @map("yardId") // current yard assignment (must belong to portId)
-  destinationPortId String?        @map("destinationPortId") // relational destination
-  cargoType       CargoType
-  specification   String?
-  serialNumber    String?          @map("serialNumber")
-  chassisNumber   String?          @map("chassisNumber")
-  vin             String?
-  weight          Decimal?         @db.Decimal(18, 2) // gross weight where applicable
-  weightUnit      WeightUnit?      // KG or MT (documented standard)
-  quantity        Int?             // positive unit count where applicable
-  packages        Int?             // package / naggle count where applicable
-  packageType     String?          // e.g. NAGGLE, BUNDLE, LOOSE
-  arrivalDate     DateTime?        @map("arrivalDate") // UTC
-  arrivalReference String?         @map("arrivalReference") // e.g. B/L or shipping reference
-  inspectionStatus InspectionStatus @default(PENDING) // readiness; workflow in Phase 5
-  loadingStatus   LoadingStatus    @default(NOT_LOADED) // readiness; loading in Phase 8
-  manifestNumber  String?          @map("manifestNumber") // nullable; manifest in Phase 9
-  status          CargoStatus      @default(REGISTERED)
-  comments        String?
-  createdById     String?          @map("createdById") // audit-readiness (full audit in Phase 19)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  deletedAt       DateTime?
+  id                String           @id @default(cuid())
+  reference         String           @unique // stable, human-friendly, e.g. CRG-XXXXXXXX
+  customerId        String           @map("customerId")
+  portId            String           @map("portId") // port where the cargo is registered / handled
+  yardId            String?          @map("yardId") // current yard assignment (must belong to portId)
+  destinationPortId String?          @map("destinationPortId") // relational destination
+  cargoType         CargoType
+  specification     String?
+  serialNumber      String?          @map("serialNumber")
+  chassisNumber     String?          @map("chassisNumber")
+  vin               String?
+  weight            Decimal?         @db.Decimal(18, 2) // gross weight where applicable
+  weightUnit        WeightUnit? // KG or MT (documented standard)
+  quantity          Int? // positive unit count where applicable
+  packages          Int? // package / naggle count where applicable
+  packageType       String? // e.g. NAGGLE, BUNDLE, LOOSE
+  arrivalDate       DateTime?        @map("arrivalDate") // UTC
+  arrivalReference  String?          @map("arrivalReference") // e.g. B/L or shipping reference
+  inspectionStatus  InspectionStatus @default(PENDING) // readiness; workflow in Phase 5
+  loadingStatus     LoadingStatus    @default(NOT_LOADED) // readiness; loading in Phase 8
+  manifestNumber    String?          @map("manifestNumber") // nullable; manifest in Phase 9
+  status            CargoStatus      @default(REGISTERED)
+  comments          String?
+  createdById       String?          @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
 
-  customer Customer @relation(fields: [customerId], references: [id])
-  port Port @relation("CargoPort", fields: [portId], references: [id])
-  destinationPort Port? @relation("DestinationPort", fields: [destinationPortId], references: [id])
-  yard Yard? @relation(fields: [yardId], references: [id])
+  customer        Customer @relation(fields: [customerId], references: [id])
+  port            Port     @relation("CargoPort", fields: [portId], references: [id])
+  destinationPort Port?    @relation("DestinationPort", fields: [destinationPortId], references: [id])
+  yard            Yard?    @relation(fields: [yardId], references: [id])
 
-  inventory YardInventory? // one current inventory record per cargo (Phase 4 minimal)
-  inspections Inspection[] // completed/pending inspections against this cargo (Phase 5)
-  loadListItems LoadListItem[]
+  inventory          YardInventory? // one current inventory record per cargo (Phase 4 minimal)
+  dischargeItems     DischargeItem[]
+  inspections        Inspection[] // completed/pending inspections against this cargo (Phase 5)
+  loadListItems      LoadListItem[]
   actualLoadingItems ActualLoadingItem[]
-  manifestItems ManifestItem[]
-  billsOfLadingItems BillOfLadingItem[] @relation("BillOfLadingItemCargo")
+  manifestItems      ManifestItem[]
+  billsOfLadingItems BillOfLadingItem[]  @relation("BillOfLadingItemCargo")
 
   // unique index on @unique(reference) covers reference lookups
   @@index([customerId])
@@ -367,22 +371,22 @@ model Cargo {
 // port-level filtering.
 
 model YardInventory {
-  id           String    @id @default(cuid())
-  cargoId      String    @map("cargoId") @unique // one current record per cargo
-  yardId       String    @map("yardId")
-  portId       String    @map("portId") // mirror of yard.portId (kept in sync)
-  status       InventoryStatus @default(IN_YARD)
-  enteredAt    DateTime  @default(now()) @map("enteredAt") // UTC
-  locationLabel String?  @map("locationLabel") // optional zone/row/slot
-  notes        String?   // movement/reason; not a substitute for structured fields
-  createdById  String?   @map("createdById")
-  updatedById  String?   @map("updatedById")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id            String          @id @default(cuid())
+  cargoId       String          @unique @map("cargoId") // one current record per cargo
+  yardId        String          @map("yardId")
+  portId        String          @map("portId") // mirror of yard.portId (kept in sync)
+  status        InventoryStatus @default(IN_YARD)
+  enteredAt     DateTime        @default(now()) @map("enteredAt") // UTC
+  locationLabel String?         @map("locationLabel") // optional zone/row/slot
+  notes         String? // movement/reason; not a substitute for structured fields
+  createdById   String?         @map("createdById")
+  updatedById   String?         @map("updatedById")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   cargo Cargo @relation(fields: [cargoId], references: [id])
-  yard Yard @relation(fields: [yardId], references: [id])
-  port Port @relation(fields: [portId], references: [id])
+  yard  Yard  @relation(fields: [yardId], references: [id])
+  port  Port  @relation(fields: [portId], references: [id])
 
   @@index([yardId])
   @@index([portId])
@@ -413,30 +417,30 @@ model YardInventory {
 // Timezone: inspectionDate and all timestamps are UTC (project convention).
 
 model Inspection {
-  id                String   @id @default(cuid())
-  inspectionNumber  String   @unique // stable, human-friendly, e.g. INS-YYMM-#####
-  cargoId           String   @map("cargoId")
+  id                String           @id @default(cuid())
+  inspectionNumber  String           @unique // stable, human-friendly, e.g. INS-YYMM-#####
+  cargoId           String           @map("cargoId")
   status            InspectionStatus @default(PENDING)
-  inspectionDate    DateTime @map("inspectionDate") // UTC
-  inspectorId       String?  @map("inspectorId") // the user recording the inspection
-  inspectorName     String?  @map("inspectorName") // free-text snapshot (external inspectors)
-  findings          String?  // structured free-form findings
-  condition         String?  // physical condition / damage notes
-  verificationNotes String?  @map("verificationNotes") // serial/chassis, qty, weight, documentation
+  inspectionDate    DateTime         @map("inspectionDate") // UTC
+  inspectorId       String?          @map("inspectorId") // the user recording the inspection
+  inspectorName     String?          @map("inspectorName") // free-text snapshot (external inspectors)
+  findings          String? // structured free-form findings
+  condition         String? // physical condition / damage notes
+  verificationNotes String?          @map("verificationNotes") // serial/chassis, qty, weight, documentation
   remarks           String?
-  rejectionReason   String?  @map("rejectionReason") // required on REJECTED
+  rejectionReason   String?          @map("rejectionReason") // required on REJECTED
 
-  approvedById      String?  @map("approvedById")
-  approvedAt        DateTime? @map("approvedAt") // UTC
-  rejectedById      String?  @map("rejectedById")
-  rejectedAt        DateTime? @map("rejectedAt") // UTC
+  approvedById String?   @map("approvedById")
+  approvedAt   DateTime? @map("approvedAt") // UTC
+  rejectedById String?   @map("rejectedById")
+  rejectedAt   DateTime? @map("rejectedAt") // UTC
 
-  createdById       String?  @map("createdById") // audit-readiness (full audit in Phase 19)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdById String?  @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  cargo Cargo @relation(fields: [cargoId], references: [id])
-  createdBy User? @relation("InspectorCreated", fields: [createdById], references: [id])
+  cargo      Cargo @relation(fields: [cargoId], references: [id])
+  createdBy  User? @relation("InspectorCreated", fields: [createdById], references: [id])
   approvedBy User? @relation("InspectorApproved", fields: [approvedById], references: [id])
   rejectedBy User? @relation("InspectorRejected", fields: [rejectedById], references: [id])
 
@@ -515,28 +519,29 @@ model Vessel {
 // Timezone: all timestamps UTC (project convention).
 
 model Voyage {
-  id                 String      @id @default(cuid())
-  voyageNumber       String      @unique // stable, unique, auto VOY-YYMM-#####
-  vesselId           String      @map("vesselId")
+  id                 String       @id @default(cuid())
+  voyageNumber       String       @unique // stable, unique, auto VOY-YYMM-#####
+  vesselId           String       @map("vesselId")
   status             VoyageStatus @default(DRAFT)
-  originPortId       String      @map("originPortId")
-  destinationPortId  String      @map("destinationPortId")
-  plannedDepartureAt DateTime?   @map("plannedDepartureAt") // UTC; required to schedule
-  plannedArrivalAt   DateTime?   @map("plannedArrivalAt") // ETA UTC; required to schedule
-  cancelReason       String?     @map("cancelReason") // required on cancellation
+  originPortId       String       @map("originPortId")
+  destinationPortId  String       @map("destinationPortId")
+  plannedDepartureAt DateTime?    @map("plannedDepartureAt") // UTC; required to schedule
+  plannedArrivalAt   DateTime?    @map("plannedArrivalAt") // ETA UTC; required to schedule
+  cancelReason       String?      @map("cancelReason") // required on cancellation
   notes              String?
-  createdById        String?     @map("createdById") // audit-readiness (full audit in Phase 19)
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  createdById        String?      @map("createdById") // audit-readiness (full audit in Phase 19)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
 
-  vessel Vessel @relation(fields: [vesselId], references: [id])
-  originPort Port @relation("VoyageOrigin", fields: [originPortId], references: [id])
-  destinationPort Port @relation("VoyageDestination", fields: [destinationPortId], references: [id])
-  createdBy User? @relation("VoyageCreated", fields: [createdById], references: [id])
-  loadLists LoadList[]
-  manifests Manifest[]
-  billsOfLading BillOfLading[] @relation("BillOfLadingVoyage")
-  invoices      Invoice[]     @relation("InvoiceVoyage")
+  vessel          Vessel         @relation(fields: [vesselId], references: [id])
+  originPort      Port           @relation("VoyageOrigin", fields: [originPortId], references: [id])
+  destinationPort Port           @relation("VoyageDestination", fields: [destinationPortId], references: [id])
+  createdBy       User?          @relation("VoyageCreated", fields: [createdById], references: [id])
+  loadLists       LoadList[]
+  manifests       Manifest[]
+  billsOfLading   BillOfLading[] @relation("BillOfLadingVoyage")
+  invoices        Invoice[]      @relation("InvoiceVoyage")
+  jobs            Job[]          @relation("JobVoyage")
 
   @@index([voyageNumber])
   @@index([vesselId])
@@ -546,7 +551,6 @@ model Voyage {
   @@index([plannedDepartureAt])
   @@index([plannedArrivalAt])
   @@index([createdAt])
-  jobs                  Job[]          @relation("JobVoyage")
 }
 
 // ---------------------------------------------------------------------------
@@ -661,12 +665,12 @@ model LoadList {
   cancelledAt    DateTime?      @map("cancelledAt")
   deletedAt      DateTime?
 
-  voyage         Voyage           @relation(fields: [voyageId], references: [id])
+  voyage        Voyage         @relation(fields: [voyageId], references: [id])
   items         LoadListItem[]
-actualLoading ActualLoading? @relation("ActualLoadingLoadList")
-  createdBy     User?            @relation("LoadListCreatedBy", fields: [createdById], references: [id])
-  finalizedBy    User?           @relation("LoadListFinalizedBy", fields: [finalizedById], references: [id])
-  cancelledBy    User?           @relation("LoadListCancelledBy", fields: [cancelledById], references: [id])
+  actualLoading ActualLoading? @relation("ActualLoadingLoadList")
+  createdBy     User?          @relation("LoadListCreatedBy", fields: [createdById], references: [id])
+  finalizedBy   User?          @relation("LoadListFinalizedBy", fields: [finalizedById], references: [id])
+  cancelledBy   User?          @relation("LoadListCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([loadListNumber])
   @@index([voyageId])
@@ -683,13 +687,13 @@ model LoadListItem {
   loadListId      String   @map("loadListId")
   cargoId         String   @map("cargoId")
   plannedQuantity Int?     @map("plannedQuantity") // optional; references Cargo.quantity
-  sequence        Int?     // display order within the list
+  sequence        Int? // display order within the list
   notes           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  loadList        LoadList            @relation(fields: [loadListId], references: [id], onDelete: Cascade)
-  cargo           Cargo               @relation(fields: [cargoId], references: [id])
+  loadList          LoadList           @relation(fields: [loadListId], references: [id], onDelete: Cascade)
+  cargo             Cargo              @relation(fields: [cargoId], references: [id])
   actualLoadingItem ActualLoadingItem? @relation("ActualLoadingItemLoadListItem")
 
   @@unique([loadListId, cargoId])
@@ -712,6 +716,19 @@ enum ActualLoadingStatus {
   CANCELLED
 }
 
+enum DischargeStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum DischargeResult {
+  NOT_DISCHARGED
+  FULL
+  PARTIAL
+}
+
 // Result of loading a single cargo item.
 enum LoadingResult {
   FULL
@@ -722,29 +739,30 @@ enum LoadingResult {
 // ActualLoading represents the executed loading operation for a LoadList.
 // It captures what was actually loaded vs planned, with full traceability.
 model ActualLoading {
-  id             String              @id @default(cuid())
-  actualLoadingNumber String          @unique // auto AL-YYMM-#####
-  loadListId     String              @map("loadListId")
-  status         ActualLoadingStatus @default(NOT_STARTED)
-  notes          String?
-  createdById    String?             @map("createdById")
-  completedById  String?             @map("completedById")
-  cancelledById  String?             @map("cancelledById")
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  completedAt    DateTime?           @map("completedAt")
-  cancelledAt    DateTime?           @map("cancelledAt")
-  deletedAt      DateTime?
+  id                  String              @id @default(cuid())
+  actualLoadingNumber String              @unique // auto AL-YYMM-#####
+  loadListId          String              @map("loadListId")
+  status              ActualLoadingStatus @default(NOT_STARTED)
+  notes               String?
+  createdById         String?             @map("createdById")
+  completedById       String?             @map("completedById")
+  cancelledById       String?             @map("cancelledById")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  completedAt         DateTime?           @map("completedAt")
+  cancelledAt         DateTime?           @map("cancelledAt")
+  deletedAt           DateTime?
 
-  loadList      LoadList            @relation("ActualLoadingLoadList", fields: [loadListId], references: [id])
-  items         ActualLoadingItem[]
-  createdBy     User?               @relation("ActualLoadingCreatedBy", fields: [createdById], references: [id])
-  completedBy   User?               @relation("ActualLoadingCompletedBy", fields: [completedById], references: [id])
-  cancelledBy   User?               @relation("ActualLoadingCancelledBy", fields: [cancelledById], references: [id])
+  loadList    LoadList            @relation("ActualLoadingLoadList", fields: [loadListId], references: [id])
+  discharge   Discharge?          @relation("DischargeActualLoading")
+  items       ActualLoadingItem[]
+  createdBy   User?               @relation("ActualLoadingCreatedBy", fields: [createdById], references: [id])
+  completedBy User?               @relation("ActualLoadingCompletedBy", fields: [completedById], references: [id])
+  cancelledBy User?               @relation("ActualLoadingCancelledBy", fields: [cancelledById], references: [id])
 
+  @@unique([loadListId])
   @@index([actualLoadingNumber])
   @@index([loadListId])
-  @@unique([loadListId])
   @@index([status])
   @@index([createdAt])
   @@index([createdById])
@@ -753,24 +771,75 @@ model ActualLoading {
 // ActualLoadingItem records the actual loaded quantity for a single cargo item.
 // It links to the LoadListItem (planned) and records actual quantity loaded.
 model ActualLoadingItem {
-  id                   String          @id @default(cuid())
-  actualLoadingId      String          @map("actualLoadingId")
-  loadListItemId       String          @map("loadListItemId") @unique
-  cargoId              String          @map("cargoId")
-  actualQuantity       Int?            @map("actualQuantity")
-  result               LoadingResult   @default(NOT_LOADED)
-  notes                String?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  id              String        @id @default(cuid())
+  actualLoadingId String        @map("actualLoadingId")
+  loadListItemId  String        @unique @map("loadListItemId")
+  cargoId         String        @map("cargoId")
+  actualQuantity  Int?          @map("actualQuantity")
+  result          LoadingResult @default(NOT_LOADED)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  actualLoading  ActualLoading @relation(fields: [actualLoadingId], references: [id], onDelete: Cascade)
-  loadListItem   LoadListItem  @relation("ActualLoadingItemLoadListItem", fields: [loadListItemId], references: [id], onDelete: Cascade)
-  cargo          Cargo         @relation(fields: [cargoId], references: [id])
+  actualLoading ActualLoading  @relation(fields: [actualLoadingId], references: [id], onDelete: Cascade)
+  loadListItem  LoadListItem   @relation("ActualLoadingItemLoadListItem", fields: [loadListItemId], references: [id], onDelete: Cascade)
+  dischargeItem DischargeItem? @relation("DischargeItemSource")
+  cargo         Cargo          @relation(fields: [cargoId], references: [id])
 
   @@unique([actualLoadingId, loadListItemId])
   @@index([actualLoadingId])
   @@index([loadListItemId])
   @@index([cargoId])
+}
+
+/// Phase 19 — discharge (unloading) at the port of destination. Mirror of Actual
+/// Loading: what was physically loaded at POL must be physically discharged at POD.
+model Discharge {
+  id              String          @id @default(cuid())
+  dischargeNumber String          @unique // auto DIS-YYMM-#####
+  actualLoadingId String          @unique @map("actualLoadingId") // one live discharge per completed loading
+  status          DischargeStatus @default(NOT_STARTED)
+  notes           String?
+  createdById     String?         @map("createdById")
+  completedById   String?         @map("completedById")
+  cancelledById   String?         @map("cancelledById")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  completedAt     DateTime?       @map("completedAt")
+  cancelledAt     DateTime?       @map("cancelledAt")
+  deletedAt       DateTime?
+
+  actualLoading ActualLoading   @relation("DischargeActualLoading", fields: [actualLoadingId], references: [id])
+  items         DischargeItem[]
+  createdBy     User?           @relation("DischargeCreatedBy", fields: [createdById], references: [id])
+  completedBy   User?           @relation("DischargeCompletedBy", fields: [completedById], references: [id])
+  cancelledBy   User?           @relation("DischargeCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([dischargeNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@index([createdById])
+}
+
+model DischargeItem {
+  id                  String          @id @default(cuid())
+  dischargeId         String          @map("dischargeId")
+  actualLoadingItemId String          @unique @map("actualLoadingItemId") // the loaded line this discharges
+  cargoId             String          @map("cargoId")
+  expectedQuantity    Int?            @map("expectedQuantity") // snapshot of loaded quantity
+  dischargeQuantity   Int?            @map("dischargeQuantity")
+  result              DischargeResult @default(NOT_DISCHARGED)
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  discharge         Discharge         @relation(fields: [dischargeId], references: [id], onDelete: Cascade)
+  actualLoadingItem ActualLoadingItem @relation("DischargeItemSource", fields: [actualLoadingItemId], references: [id], onDelete: Cascade)
+  cargo             Cargo             @relation(fields: [cargoId], references: [id])
+
+  @@index([dischargeId])
+  @@index([cargoId])
+  @@index([actualLoadingItemId])
 }
 
 // ---------------------------------------------------------------------------
@@ -811,15 +880,15 @@ model Manifest {
   description String? // legacy descr
 
   // Cost breakdown (legacy decimals)
-  gasCost     Decimal? @db.Decimal(18, 2) @map("gasCost")
-  lashingCost Decimal? @db.Decimal(18, 2) @map("lashingCost")
-  shipperCost Decimal? @db.Decimal(18, 2) @map("shipperCost")
-  podCost     Decimal? @db.Decimal(18, 2) @map("podCost")
-  polCost     Decimal? @db.Decimal(18, 2) @map("polCost")
-  currencyCode String? @map("currencyCode")
+  gasCost      Decimal? @map("gasCost") @db.Decimal(18, 2)
+  lashingCost  Decimal? @map("lashingCost") @db.Decimal(18, 2)
+  shipperCost  Decimal? @map("shipperCost") @db.Decimal(18, 2)
+  podCost      Decimal? @map("podCost") @db.Decimal(18, 2)
+  polCost      Decimal? @map("polCost") @db.Decimal(18, 2)
+  currencyCode String?  @map("currencyCode")
 
   // Aggregated totals — recomputed server-side from items on every write.
-  totalWeight   Decimal @default(0) @db.Decimal(18, 3) @map("totalWeight")
+  totalWeight   Decimal @default(0) @map("totalWeight") @db.Decimal(18, 3)
   totalQuantity Int     @default(0) @map("totalQuantity")
   totalPackages Int     @default(0) @map("totalPackages")
 
@@ -831,26 +900,26 @@ model Manifest {
   approvedById  String? @map("approvedById")
   cancelledById String? @map("cancelledById")
 
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  submittedAt  DateTime?   @map("submittedAt")
-  approvedAt   DateTime?   @map("approvedAt")
-  cancelledAt  DateTime?   @map("cancelledAt")
-  deletedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  submittedAt DateTime? @map("submittedAt")
+  approvedAt  DateTime? @map("approvedAt")
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime?
 
-  voyage      Voyage        @relation(fields: [voyageId], references: [id])
-  polPort     Port          @relation("ManifestPol", fields: [polPortId], references: [id])
-  podPort     Port          @relation("ManifestPod", fields: [podPortId], references: [id])
-  shipper     Customer?     @relation("ManifestShipper", fields: [shipperId], references: [id])
-  consignee   Customer?     @relation("ManifestConsignee", fields: [consigneeId], references: [id])
-  agent       Customer?     @relation("ManifestAgent", fields: [agentId], references: [id])
-  items       ManifestItem[]
+  voyage        Voyage         @relation(fields: [voyageId], references: [id])
+  polPort       Port           @relation("ManifestPol", fields: [polPortId], references: [id])
+  podPort       Port           @relation("ManifestPod", fields: [podPortId], references: [id])
+  shipper       Customer?      @relation("ManifestShipper", fields: [shipperId], references: [id])
+  consignee     Customer?      @relation("ManifestConsignee", fields: [consigneeId], references: [id])
+  agent         Customer?      @relation("ManifestAgent", fields: [agentId], references: [id])
+  items         ManifestItem[]
   billsOfLading BillOfLading[] @relation("BillOfLadingManifest")
-  invoices Invoice[] @relation("InvoiceManifest")
-  createdBy   User?         @relation("ManifestCreatedBy", fields: [createdById], references: [id])
-  submittedBy User?         @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
-  approvedBy  User?         @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
-  cancelledBy User?         @relation("ManifestCancelledBy", fields: [cancelledById], references: [id])
+  invoices      Invoice[]      @relation("InvoiceManifest")
+  createdBy     User?          @relation("ManifestCreatedBy", fields: [createdById], references: [id])
+  submittedBy   User?          @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy    User?          @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
+  cancelledBy   User?          @relation("ManifestCancelledBy", fields: [cancelledById], references: [id])
 
   // One LIVE manifest per voyage is enforced at the application level
   // (service checks voyageId + deletedAt IS NULL). A DB-level @@unique would
@@ -868,11 +937,11 @@ model Manifest {
 }
 
 model ManifestItem {
-  id          String  @id @default(cuid())
-  manifestId  String  @map("manifestId")
-  cargoId     String  @map("cargoId")
+  id          String   @id @default(cuid())
+  manifestId  String   @map("manifestId")
+  cargoId     String   @map("cargoId")
   sequence    Int
-  blNumber    String? @map("blNumber") // legacy B/L number; filled by the future B/L module
+  blNumber    String?  @map("blNumber") // legacy B/L number; filled by the future B/L module
   // Cargo snapshot at time of manifesting (manifest is a legal document — frozen values)
   weight      Decimal? @db.Decimal(18, 3)
   quantity    Int?
@@ -946,7 +1015,7 @@ model BillOfLading {
   placeOfIssue  String?       @map("placeOfIssue")
   dateOfIssue   DateTime?     @map("dateOfIssue")
   originals     Int? // number of original B/Ls issued
-  freightAmount Decimal?      @db.Decimal(18, 2) @map("freightAmount")
+  freightAmount Decimal?      @map("freightAmount") @db.Decimal(18, 2)
   currencyCode  String?       @map("currencyCode")
 
   // Header-level cargo description ("said to contain")
@@ -955,8 +1024,8 @@ model BillOfLading {
 
   // Aggregated totals — recomputed server-side from items on every write.
   totalPackages    Int     @default(0) @map("totalPackages")
-  totalGrossWeight Decimal @default(0) @db.Decimal(18, 3) @map("totalGrossWeight")
-  totalVolume      Decimal @default(0) @db.Decimal(18, 3) @map("totalVolume")
+  totalGrossWeight Decimal @default(0) @map("totalGrossWeight") @db.Decimal(18, 3)
+  totalVolume      Decimal @default(0) @map("totalVolume") @db.Decimal(18, 3)
 
   cancelReason String? @map("cancelReason") // required on cancellation
   notes        String?
@@ -971,17 +1040,17 @@ model BillOfLading {
   cancelledAt DateTime? @map("cancelledAt")
   deletedAt   DateTime?
 
-  manifest    Manifest           @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
-  voyage      Voyage             @relation("BillOfLadingVoyage", fields: [voyageId], references: [id])
-  shipper     Customer?          @relation("BillShipper", fields: [shipperId], references: [id])
-  consignee   Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
-  items       BillOfLadingItem[]
-  invoices   Invoice[] @relation("InvoiceBill")
-  deliveryOrders DeliveryOrder[] @relation("DeliveryOrderBill")
-  releaseOrders  ReleaseOrder[]  @relation("ReleaseOrderBill")
-  createdBy   User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
-  issuedBy    User?              @relation("BillIssuedBy", fields: [issuedById], references: [id])
-  cancelledBy User?              @relation("BillCancelledBy", fields: [cancelledById], references: [id])
+  manifest       Manifest           @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
+  voyage         Voyage             @relation("BillOfLadingVoyage", fields: [voyageId], references: [id])
+  shipper        Customer?          @relation("BillShipper", fields: [shipperId], references: [id])
+  consignee      Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
+  items          BillOfLadingItem[]
+  invoices       Invoice[]          @relation("InvoiceBill")
+  deliveryOrders DeliveryOrder[]    @relation("DeliveryOrderBill")
+  releaseOrders  ReleaseOrder[]     @relation("ReleaseOrderBill")
+  createdBy      User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
+  issuedBy       User?              @relation("BillIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy    User?              @relation("BillCancelledBy", fields: [cancelledById], references: [id])
 
   // A manifest may hold many BLs; a manifest line may belong to at most one
   // LIVE (non-deleted, non-cancelled) BL — enforced at application level so
@@ -1009,7 +1078,7 @@ model BillOfLadingItem {
   marksAndNumbers  String?  @map("marksAndNumbers")
   packages         Int?
   packageType      String?  @map("packageType")
-  grossWeight      Decimal? @db.Decimal(18, 3) @map("grossWeight")
+  grossWeight      Decimal? @map("grossWeight") @db.Decimal(18, 3)
   volume           Decimal? @db.Decimal(18, 3)
 
   createdAt DateTime @default(now())
@@ -1058,19 +1127,19 @@ model Invoice {
   title       String? // legacy title (free heading on the printed invoice)
   description String? // legacy todescr (to-description)
 
-  currencyCode String @default("USD") @map("currencyCode") // ISO 4217
+  currencyCode String    @default("USD") @map("currencyCode") // ISO 4217
   issueDate    DateTime? @map("issueDate")
   dueDate      DateTime? @map("dueDate")
 
   // Money — subtotal recomputed from items (SUM line amount = qty x unit price),
   // then totalAmount = subtotal - discountAmount + taxAmount. paidAmount is
   // maintained by the finance module (Phase 12).
-  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
-  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
-  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
-  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
-  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
-  paidAmount     Decimal @default(0) @db.Decimal(18, 2) @map("paidAmount")
+  subtotal       Decimal @default(0) @map("subtotal") @db.Decimal(18, 2)
+  taxRate        Decimal @default(0) @map("taxRate") @db.Decimal(5, 2) // percent 0..100
+  taxAmount      Decimal @default(0) @map("taxAmount") @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @map("discountAmount") @db.Decimal(18, 2)
+  totalAmount    Decimal @default(0) @map("totalAmount") @db.Decimal(18, 2)
+  paidAmount     Decimal @default(0) @map("paidAmount") @db.Decimal(18, 2)
 
   cancelReason String? @map("cancelReason") // required on cancellation
   notes        String?
@@ -1085,16 +1154,16 @@ model Invoice {
   cancelledAt DateTime? @map("cancelledAt")
   deletedAt   DateTime?
 
-  customer     Customer?      @relation("InvoiceCustomer", fields: [customerId], references: [id])
-  manifest     Manifest?      @relation("InvoiceManifest", fields: [manifestId], references: [id])
-  billOfLading BillOfLading?  @relation("InvoiceBill", fields: [billOfLadingId], references: [id])
-  voyage       Voyage?        @relation("InvoiceVoyage", fields: [voyageId], references: [id])
-  items        InvoiceItem[]
-  convertedProforma Proforma?  @relation("ProformaConvertedInvoice")
-  vouchers     Voucher[]     @relation("VoucherInvoice")
-  createdBy    User?          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
-  issuedBy     User?          @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
-  cancelledBy  User?          @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
+  customer          Customer?     @relation("InvoiceCustomer", fields: [customerId], references: [id])
+  manifest          Manifest?     @relation("InvoiceManifest", fields: [manifestId], references: [id])
+  billOfLading      BillOfLading? @relation("InvoiceBill", fields: [billOfLadingId], references: [id])
+  voyage            Voyage?       @relation("InvoiceVoyage", fields: [voyageId], references: [id])
+  items             InvoiceItem[]
+  convertedProforma Proforma?     @relation("ProformaConvertedInvoice")
+  vouchers          Voucher[]     @relation("VoucherInvoice")
+  createdBy         User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  issuedBy          User?         @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy       User?         @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([customerId])
   @@index([manifestId])
@@ -1109,12 +1178,12 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String @id @default(cuid())
-  invoiceId   String @map("invoiceId")
+  id          String  @id @default(cuid())
+  invoiceId   String  @map("invoiceId")
   sequence    Int
   description String?
   quantity    Int     @default(1)
-  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  unitPrice   Decimal @default(0) @map("unitPrice") @db.Decimal(18, 2)
   // Line total = quantity * unitPrice, maintained server-side on every write.
   amount      Decimal @default(0) @db.Decimal(18, 2)
   notes       String?
@@ -1141,26 +1210,26 @@ enum ProformaStatus {
 }
 
 model Proforma {
-  id              String         @id @default(cuid())
-  proformaNumber  String         @unique // auto PRF-YYMM-#####
-  customerId      String         @map("customerId") // bill-to counterparty
-  status          ProformaStatus @default(DRAFT)
+  id             String         @id @default(cuid())
+  proformaNumber String         @unique // auto PRF-YYMM-#####
+  customerId     String         @map("customerId") // bill-to counterparty
+  status         ProformaStatus @default(DRAFT)
 
   title       String? // free heading on the printed quote
   description String?
 
-  currencyCode String  @default("USD") @map("currencyCode") // ISO 4217
+  currencyCode String    @default("USD") @map("currencyCode") // ISO 4217
   issueDate    DateTime? @map("issueDate")
   validUntil   DateTime? @map("validUntil") // quote expiry (proforma-specific)
 
   // Same math as Invoice: subtotal = SUM(items.amount),
   // taxAmount = (subtotal - discountAmount) * taxRate / 100,
   // totalAmount = subtotal - discountAmount + taxAmount.
-  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
-  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
-  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
-  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
-  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
+  subtotal       Decimal @default(0) @map("subtotal") @db.Decimal(18, 2)
+  taxRate        Decimal @default(0) @map("taxRate") @db.Decimal(5, 2) // percent 0..100
+  taxAmount      Decimal @default(0) @map("taxAmount") @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @map("discountAmount") @db.Decimal(18, 2)
+  totalAmount    Decimal @default(0) @map("totalAmount") @db.Decimal(18, 2)
 
   // One-time conversion link (ADR-034): set to the created invoice's id.
   linkedInvoiceId String? @unique @map("linkedInvoiceId")
@@ -1178,13 +1247,13 @@ model Proforma {
   cancelledAt DateTime? @map("cancelledAt")
   deletedAt   DateTime? @map("deletedAt")
 
-  customer    Customer?     @relation("ProformaCustomer", fields: [customerId], references: [id])
-  invoice     Invoice?      @relation("ProformaConvertedInvoice", fields: [linkedInvoiceId], references: [id])
-  quotation   Quotation?    @relation("QuotationConvertedProforma")
+  customer    Customer?      @relation("ProformaCustomer", fields: [customerId], references: [id])
+  invoice     Invoice?       @relation("ProformaConvertedInvoice", fields: [linkedInvoiceId], references: [id])
+  quotation   Quotation?     @relation("QuotationConvertedProforma")
   items       ProformaItem[]
-  createdBy   User?         @relation("ProformaCreatedBy", fields: [createdById], references: [id])
-  issuedBy    User?         @relation("ProformaIssuedBy", fields: [issuedById], references: [id])
-  cancelledBy User?         @relation("ProformaCancelledBy", fields: [cancelledById], references: [id])
+  createdBy   User?          @relation("ProformaCreatedBy", fields: [createdById], references: [id])
+  issuedBy    User?          @relation("ProformaIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy User?          @relation("ProformaCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([customerId])
   @@index([status])
@@ -1194,12 +1263,12 @@ model Proforma {
 }
 
 model ProformaItem {
-  id          String @id @default(cuid())
-  proformaId  String @map("proformaId")
+  id          String  @id @default(cuid())
+  proformaId  String  @map("proformaId")
   sequence    Int
   description String?
   quantity    Int     @default(1)
-  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  unitPrice   Decimal @default(0) @map("unitPrice") @db.Decimal(18, 2)
   amount      Decimal @default(0) @db.Decimal(18, 2) // qty * unitPrice, server-side
 
   createdAt DateTime @default(now())
@@ -1242,41 +1311,41 @@ model Quotation {
   // Same math as Invoice: subtotal = SUM(items.amount),
   // taxAmount = (subtotal - discountAmount) * taxRate / 100,
   // totalAmount = subtotal - discountAmount + taxAmount.
-  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
-  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
-  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
-  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
-  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
+  subtotal       Decimal @default(0) @map("subtotal") @db.Decimal(18, 2)
+  taxRate        Decimal @default(0) @map("taxRate") @db.Decimal(5, 2) // percent 0..100
+  taxAmount      Decimal @default(0) @map("taxAmount") @db.Decimal(18, 2)
+  discountAmount Decimal @default(0) @map("discountAmount") @db.Decimal(18, 2)
+  totalAmount    Decimal @default(0) @map("totalAmount") @db.Decimal(18, 2)
 
   // One-time conversion link (ADR-035): set to the created proforma's id.
   linkedProformaId String? @unique @map("linkedProformaId")
 
-  rejectReason  String? @map("rejectReason")  // required on rejection
-  cancelReason  String? @map("cancelReason")  // required on cancellation
-  notes         String?
+  rejectReason String? @map("rejectReason") // required on rejection
+  cancelReason String? @map("cancelReason") // required on cancellation
+  notes        String?
 
-  createdById    String? @map("createdById")
-  sentById       String? @map("sentById")
-  acceptedById   String? @map("acceptedById")
-  rejectedById   String? @map("rejectedById")
-  cancelledById  String? @map("cancelledById")
+  createdById   String? @map("createdById")
+  sentById      String? @map("sentById")
+  acceptedById  String? @map("acceptedById")
+  rejectedById  String? @map("rejectedById")
+  cancelledById String? @map("cancelledById")
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sentAt       DateTime? @map("sentAt")
-  acceptedAt   DateTime? @map("acceptedAt")
-  rejectedAt   DateTime? @map("rejectedAt")
-  cancelledAt  DateTime? @map("cancelledAt")
-  deletedAt    DateTime? @map("deletedAt")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  sentAt      DateTime? @map("sentAt")
+  acceptedAt  DateTime? @map("acceptedAt")
+  rejectedAt  DateTime? @map("rejectedAt")
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime? @map("deletedAt")
 
-  customer    Customer?   @relation("QuotationCustomer", fields: [customerId], references: [id])
-  proforma    Proforma?   @relation("QuotationConvertedProforma", fields: [linkedProformaId], references: [id])
+  customer    Customer?       @relation("QuotationCustomer", fields: [customerId], references: [id])
+  proforma    Proforma?       @relation("QuotationConvertedProforma", fields: [linkedProformaId], references: [id])
   items       QuotationItem[]
-  createdBy   User?       @relation("QuotationCreatedBy", fields: [createdById], references: [id])
-  sentBy      User?       @relation("QuotationSentBy", fields: [sentById], references: [id])
-  acceptedBy  User?       @relation("QuotationAcceptedBy", fields: [acceptedById], references: [id])
-  rejectedBy  User?       @relation("QuotationRejectedBy", fields: [rejectedById], references: [id])
-  cancelledBy User?       @relation("QuotationCancelledBy", fields: [cancelledById], references: [id])
+  createdBy   User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  sentBy      User?           @relation("QuotationSentBy", fields: [sentById], references: [id])
+  acceptedBy  User?           @relation("QuotationAcceptedBy", fields: [acceptedById], references: [id])
+  rejectedBy  User?           @relation("QuotationRejectedBy", fields: [rejectedById], references: [id])
+  cancelledBy User?           @relation("QuotationCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([customerId])
   @@index([status])
@@ -1291,7 +1360,7 @@ model QuotationItem {
   sequence    Int
   description String?
   quantity    Int     @default(1)
-  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  unitPrice   Decimal @default(0) @map("unitPrice") @db.Decimal(18, 2)
   // Line total = quantity * unitPrice, maintained server-side on every write.
   amount      Decimal @default(0) @db.Decimal(18, 2)
   notes       String?
@@ -1323,70 +1392,70 @@ enum SalaryStatus {
 }
 
 model Employee {
-  id     String         @id @default(cuid())
-  code   String         @unique // auto EMP-##### (server-generated when omitted)
-  name   String
-  nationalId String?    @map("nationalId")
-  position String?
-  phone  String?
-  email  String?
-  hireDate DateTime?    @db.Date @map("hireDate")
-  baseSalary Decimal      @default(0) @db.Decimal(18, 2) @map("baseSalary")
-  currencyCode String     @default("USD") @map("currencyCode")
-  status EmployeeStatus   @default(ACTIVE)
-  notes  String?
+  id           String         @id @default(cuid())
+  code         String         @unique // auto EMP-##### (server-generated when omitted)
+  name         String
+  nationalId   String?        @map("nationalId")
+  position     String?
+  phone        String?
+  email        String?
+  hireDate     DateTime?      @map("hireDate") @db.Date
+  baseSalary   Decimal        @default(0) @map("baseSalary") @db.Decimal(18, 2)
+  currencyCode String         @default("USD") @map("currencyCode")
+  status       EmployeeStatus @default(ACTIVE)
+  notes        String?
 
-  createdById String?    @map("createdById")
-  createdBy   User?      @relation("EmployeeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String? @map("createdById")
+  createdBy   User?   @relation("EmployeeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   salaryRecords SalaryRecord[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? @map("deletedAt")
 
   @@map("employees")
 }
 
 model SalaryRecord {
-  id           String       @id @default(cuid())
-  recordNumber String       @unique // SAL-YYMM-#####
-  employeeId   String       @map("employeeId")
-  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  recordNumber String   @unique // SAL-YYMM-#####
+  employeeId   String   @map("employeeId")
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  year         Int
-  month        Int          // 1..12
-  status       SalaryStatus @default(DRAFT)
+  year   Int
+  month  Int // 1..12
+  status SalaryStatus @default(DRAFT)
 
-  base         Decimal      @default(0) @db.Decimal(18, 2)
-  additions    Decimal      @default(0) @db.Decimal(18, 2) // bonus/OT/allowances
-  deductions   Decimal      @default(0) @db.Decimal(18, 2) // insurance/tax/advances
-  net          Decimal      @default(0) @db.Decimal(18, 2) // base + additions - deductions, server-computed
-  currencyCode String       @default("USD") @map("currencyCode")
+  base         Decimal @default(0) @db.Decimal(18, 2)
+  additions    Decimal @default(0) @db.Decimal(18, 2) // bonus/OT/allowances
+  deductions   Decimal @default(0) @db.Decimal(18, 2) // insurance/tax/advances
+  net          Decimal @default(0) @db.Decimal(18, 2) // base + additions - deductions, server-computed
+  currencyCode String  @default("USD") @map("currencyCode")
 
   // Payment trace lives on the record itself; Voucher/ledger stays customer-only (ADR-036).
   paymentMethod VoucherMethod? @map("paymentMethod")
   paymentRef    String?        @map("paymentRef") // bank transfer / receipt trace
 
-  approvedById  String?  @map("approvedById")
-  approvedBy    User?    @relation("SalaryApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvedAt    DateTime? @map("approvedAt")
+  approvedById String?   @map("approvedById")
+  approvedBy   User?     @relation("SalaryApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime? @map("approvedAt")
 
-  paidById      String?  @map("paidById")
-  paidBy        User?    @relation("SalaryPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
-  paidAt        DateTime? @map("paidAt")
+  paidById String?   @map("paidById")
+  paidBy   User?     @relation("SalaryPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  paidAt   DateTime? @map("paidAt")
 
-  cancelledById String?  @map("cancelledById")
-  cancelledBy   User?    @relation("SalaryCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledById String?   @map("cancelledById")
+  cancelledBy   User?     @relation("SalaryCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   cancelledAt   DateTime? @map("cancelledAt")
   cancelReason  String?   @map("cancelReason")
 
-  notes String?
+  notes       String?
   createdById String? @map("createdById")
   createdBy   User?   @relation("SalaryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? @map("deletedAt")
 
   @@unique([employeeId, year, month]) // one payslip per employee per month
@@ -1394,7 +1463,6 @@ model SalaryRecord {
   @@index([status])
   @@map("salary_records")
 }
-
 
 // ─── Phase 12: Finance — vouchers (receipt/payment) + derived ledger ──────────
 // Modernized legacy Fin (fins): a voucher is a directly-POSTED money document
@@ -1420,37 +1488,37 @@ enum VoucherStatus {
 }
 
 model Voucher {
-  id            String         @id @default(cuid())
-  voucherNumber String         @unique // auto RCP-YYMM-##### / PMT-YYMM-##### per type
+  id            String        @id @default(cuid())
+  voucherNumber String        @unique // auto RCP-YYMM-##### / PMT-YYMM-##### per type
   type          VoucherType
-  status        VoucherStatus  @default(POSTED)
-  customerId    String         @map("customerId") // counterparty (legacy user_id)
-  invoiceId     String?        @map("invoiceId") // optional settlement document
-  voyageId      String?        @map("voyageId") // denormalized from invoice (fast filters, no FK)
+  status        VoucherStatus @default(POSTED)
+  customerId    String        @map("customerId") // counterparty (legacy user_id)
+  invoiceId     String?       @map("invoiceId") // optional settlement document
+  voyageId      String?       @map("voyageId") // denormalized from invoice (fast filters, no FK)
 
-  amount        Decimal        @db.Decimal(18, 2) // always positive; sign comes from type
-  currencyCode  String         @default("USD") @map("currencyCode") // must match invoice currency when linked
-  exchangeRate  Decimal        @default(1) @db.Decimal(10, 4)
-  method        VoucherMethod  @default(BANK_TRANSFER)
-  reference     String? // cheque / transfer trace number
-  description   String? // ledger line description
-  note          String?
-  voucherDate   DateTime       @map("voucherDate") // value date (legacy fromdate)
+  amount       Decimal       @db.Decimal(18, 2) // always positive; sign comes from type
+  currencyCode String        @default("USD") @map("currencyCode") // must match invoice currency when linked
+  exchangeRate Decimal       @default(1) @db.Decimal(10, 4)
+  method       VoucherMethod @default(BANK_TRANSFER)
+  reference    String? // cheque / transfer trace number
+  description  String? // ledger line description
+  note         String?
+  voucherDate  DateTime      @map("voucherDate") // value date (legacy fromdate)
 
-  cancelReason  String?        @map("cancelReason") // required on cancellation
+  cancelReason String? @map("cancelReason") // required on cancellation
 
-  createdById   String?        @map("createdById")
-  cancelledById String?        @map("cancelledById")
+  createdById   String? @map("createdById")
+  cancelledById String? @map("cancelledById")
 
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  cancelledAt  DateTime?       @map("cancelledAt")
-  deletedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime?
 
-  customer     Customer?       @relation("VoucherCustomer", fields: [customerId], references: [id])
-  invoice      Invoice?        @relation("VoucherInvoice", fields: [invoiceId], references: [id])
-  createdBy    User?           @relation("VoucherCreatedBy", fields: [createdById], references: [id])
-  cancelledBy  User?           @relation("VoucherCancelledBy", fields: [cancelledById], references: [id])
+  customer    Customer? @relation("VoucherCustomer", fields: [customerId], references: [id])
+  invoice     Invoice?  @relation("VoucherInvoice", fields: [invoiceId], references: [id])
+  createdBy   User?     @relation("VoucherCreatedBy", fields: [createdById], references: [id])
+  cancelledBy User?     @relation("VoucherCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([customerId])
   @@index([invoiceId])
@@ -1474,28 +1542,28 @@ enum DeliveryOrderStatus {
 }
 
 model DeliveryOrder {
-  id          String              @id @default(cuid())
-  docNumber   String              @unique // DO-YYMM-#####
-  billOfLadingId String            @map("billOfLadingId")
-  status      DeliveryOrderStatus  @default(ISSUED)
-  issueDate   DateTime            @default(now()) @map("issueDate")
+  id             String              @id @default(cuid())
+  docNumber      String              @unique // DO-YYMM-#####
+  billOfLadingId String              @map("billOfLadingId")
+  status         DeliveryOrderStatus @default(ISSUED)
+  issueDate      DateTime            @default(now()) @map("issueDate")
   /// Name/ID of the party physically receiving the cargo (legacy recipient).
-  recipient   String
-  recipientId String?              @map("recipientId") // optional customer link
-  vehiclePlate String?             @map("vehiclePlate")
-  notes       String?
-  cancelReason String?             @map("cancelReason")
-  cancelledById String?            @map("cancelledById")
-  cancelledAt DateTime?           @map("cancelledAt")
-  createdById String              @map("createdById")
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  deletedAt   DateTime?
+  recipient      String
+  recipientId    String?             @map("recipientId") // optional customer link
+  vehiclePlate   String?             @map("vehiclePlate")
+  notes          String?
+  cancelReason   String?             @map("cancelReason")
+  cancelledById  String?             @map("cancelledById")
+  cancelledAt    DateTime?           @map("cancelledAt")
+  createdById    String              @map("createdById")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  deletedAt      DateTime?
 
-  billOfLading BillOfLading        @relation("DeliveryOrderBill", fields: [billOfLadingId], references: [id])
-  recipientCustomer Customer?      @relation("DeliveryOrderRecipient", fields: [recipientId], references: [id])
-  createdBy    User                @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id])
-  cancelledBy  User?               @relation("DeliveryOrderCancelledBy", fields: [cancelledById], references: [id])
+  billOfLading      BillOfLading @relation("DeliveryOrderBill", fields: [billOfLadingId], references: [id])
+  recipientCustomer Customer?    @relation("DeliveryOrderRecipient", fields: [recipientId], references: [id])
+  createdBy         User         @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledBy       User?        @relation("DeliveryOrderCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([billOfLadingId])
   @@index([status])
@@ -1504,26 +1572,26 @@ model DeliveryOrder {
 }
 
 model ReleaseOrder {
-  id          String              @id @default(cuid())
-  docNumber   String              @unique // RO-YYMM-#####
-  billOfLadingId String            @map("billOfLadingId")
-  status      DeliveryOrderStatus  @default(ISSUED)
-  releaseDate DateTime            @default(now()) @map("releaseDate")
+  id                String              @id @default(cuid())
+  docNumber         String              @unique // RO-YYMM-#####
+  billOfLadingId    String              @map("billOfLadingId")
+  status            DeliveryOrderStatus @default(ISSUED)
+  releaseDate       DateTime            @default(now()) @map("releaseDate")
   /// True when issued despite unpaid invoices — requires reason (audit).
-  financialOverride Boolean       @default(false) @map("financialOverride")
-  overrideReason   String?         @map("overrideReason")
-  notes       String?
-  cancelReason String?             @map("cancelReason")
-  cancelledById String?            @map("cancelledById")
-  cancelledAt DateTime?           @map("cancelledAt")
-  createdById String              @map("createdById")
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  deletedAt   DateTime?
+  financialOverride Boolean             @default(false) @map("financialOverride")
+  overrideReason    String?             @map("overrideReason")
+  notes             String?
+  cancelReason      String?             @map("cancelReason")
+  cancelledById     String?             @map("cancelledById")
+  cancelledAt       DateTime?           @map("cancelledAt")
+  createdById       String              @map("createdById")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  deletedAt         DateTime?
 
-  billOfLading BillOfLading        @relation("ReleaseOrderBill", fields: [billOfLadingId], references: [id])
-  createdBy    User                @relation("ReleaseOrderCreatedBy", fields: [createdById], references: [id])
-  cancelledBy  User?               @relation("ReleaseOrderCancelledBy", fields: [cancelledById], references: [id])
+  billOfLading BillOfLading @relation("ReleaseOrderBill", fields: [billOfLadingId], references: [id])
+  createdBy    User         @relation("ReleaseOrderCreatedBy", fields: [createdById], references: [id])
+  cancelledBy  User?        @relation("ReleaseOrderCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([billOfLadingId])
   @@index([status])
@@ -1549,27 +1617,27 @@ enum LetterStatus {
 /// multiple replies; editing content is DRAFT-only. No file attachments yet
 /// (notes carry the reference), no per-agent portal coupling until Phase 20.
 model Letter {
-  id            String          @id @default(cuid())
-  letterNumber  String          @unique @map("letterNumber") // LET-YYMM-#####
-  direction     LetterDirection
-  status        LetterStatus    @default(DRAFT)
-  letterDate    DateTime        @map("letterDate")
-  subject       String          @db.VarChar(255)
-  body          String?         @db.Text
-  refNumber     String?         @map("refNumber") @db.VarChar(100)
-  fromContact   String?         @map("fromContact") @db.VarChar(160)
-  toContact     String?         @map("toContact") @db.VarChar(160)
-  customerId    String?         @map("customerId")
-  replyToId     String?         @map("replyToId")
-  notes         String?         @db.VarChar(500)
-  sentById      String?         @map("sentById")
-  sentAt        DateTime?       @map("sentAt")
-  archivedById  String?         @map("archivedById")
-  archivedAt    DateTime?       @map("archivedAt")
-  createdById   String?         @map("createdById")
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  deletedAt     DateTime?       @map("deletedAt")
+  id           String          @id @default(cuid())
+  letterNumber String          @unique @map("letterNumber") // LET-YYMM-#####
+  direction    LetterDirection
+  status       LetterStatus    @default(DRAFT)
+  letterDate   DateTime        @map("letterDate")
+  subject      String          @db.VarChar(255)
+  body         String?         @db.Text
+  refNumber    String?         @map("refNumber") @db.VarChar(100)
+  fromContact  String?         @map("fromContact") @db.VarChar(160)
+  toContact    String?         @map("toContact") @db.VarChar(160)
+  customerId   String?         @map("customerId")
+  replyToId    String?         @map("replyToId")
+  notes        String?         @db.VarChar(500)
+  sentById     String?         @map("sentById")
+  sentAt       DateTime?       @map("sentAt")
+  archivedById String?         @map("archivedById")
+  archivedAt   DateTime?       @map("archivedAt")
+  createdById  String?         @map("createdById")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  deletedAt    DateTime?       @map("deletedAt")
 
   customer   Customer? @relation("LetterCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   replyTo    Letter?   @relation("LetterReply", fields: [replyToId], references: [id], onDelete: SetNull)
@@ -1602,33 +1670,33 @@ enum JobItemKind {
 /// shipment (port call, transport, clearance); cost/income lines are tracked in
 /// the job currency. profit = sum(INCOME) - sum(COST), computed server-side.
 model Job {
-  id            String     @id @default(cuid())
-  jobNumber     String     @unique @map("jobNumber") // JOB-YYMM-#####
-  title         String     @db.VarChar(255)
-  description   String?    @db.Text
-  customerId    String?    @map("customerId")
-  voyageId      String?    @map("voyageId")
-  jobType       String?    @map("jobType") @db.VarChar(60)
-  status        JobStatus  @default(DRAFT)
-  currencyCode  String     @default("USD") @map("currencyCode") @db.VarChar(3)
-  openingDate   DateTime   @default(now()) @map("openingDate")
-  completedAt   DateTime?  @map("completedAt")
-  completedById String?    @map("completedById")
-  cancelledAt   DateTime?  @map("cancelledAt")
-  cancelledById String?    @map("cancelledById")
-  cancelReason  String?    @map("cancelReason") @db.VarChar(500)
-  notes         String?    @db.VarChar(500)
-  createdById   String?    @map("createdById")
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime?  @map("deletedAt")
+  id            String    @id @default(cuid())
+  jobNumber     String    @unique @map("jobNumber") // JOB-YYMM-#####
+  title         String    @db.VarChar(255)
+  description   String?   @db.Text
+  customerId    String?   @map("customerId")
+  voyageId      String?   @map("voyageId")
+  jobType       String?   @map("jobType") @db.VarChar(60)
+  status        JobStatus @default(DRAFT)
+  currencyCode  String    @default("USD") @map("currencyCode") @db.VarChar(3)
+  openingDate   DateTime  @default(now()) @map("openingDate")
+  completedAt   DateTime? @map("completedAt")
+  completedById String?   @map("completedById")
+  cancelledAt   DateTime? @map("cancelledAt")
+  cancelledById String?   @map("cancelledById")
+  cancelReason  String?   @map("cancelReason") @db.VarChar(500)
+  notes         String?   @db.VarChar(500)
+  createdById   String?   @map("createdById")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? @map("deletedAt")
 
-  customer    Customer?      @relation("JobCustomer", fields: [customerId], references: [id], onDelete: SetNull)
-  voyage      Voyage?        @relation("JobVoyage", fields: [voyageId], references: [id], onDelete: SetNull)
+  customer    Customer?     @relation("JobCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  voyage      Voyage?       @relation("JobVoyage", fields: [voyageId], references: [id], onDelete: SetNull)
   items       JobCostItem[] @relation("JobItems")
-  createdBy   User?          @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  completedBy User?          @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
-  cancelledBy User?          @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  createdBy   User?         @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedBy User?         @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  cancelledBy User?         @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([customerId])
@@ -1638,15 +1706,15 @@ model Job {
 }
 
 model JobCostItem {
-  id          String       @id @default(cuid())
-  jobId       String       @map("jobId")
+  id          String      @id @default(cuid())
+  jobId       String      @map("jobId")
   kind        JobItemKind
-  category    String?      @db.VarChar(60)
-  description String       @db.VarChar(255)
-  amount      Decimal      @db.Decimal(18, 2)
-  itemDate    DateTime?    @map("itemDate")
-  notes       String?      @db.VarChar(255)
-  createdAt   DateTime     @default(now())
+  category    String?     @db.VarChar(60)
+  description String      @db.VarChar(255)
+  amount      Decimal     @db.Decimal(18, 2)
+  itemDate    DateTime?   @map("itemDate")
+  notes       String?     @db.VarChar(255)
+  createdAt   DateTime    @default(now())
 
   job Job @relation("JobItems", fields: [jobId], references: [id], onDelete: Cascade)
 

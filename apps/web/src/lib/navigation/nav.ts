@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, Briefcase, type LucideIcon } from 'lucide-react';
+import { PackageMinus, Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, Briefcase, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -130,6 +130,14 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented',
         description: 'Record actual loading',
         requiredPermission: 'actual_loading:read',
+      },
+      {
+        labelKey: 'discharges',
+        href: '/discharges',
+        icon: PackageMinus,
+        status: 'implemented',
+        description: 'Record unloading at destination',
+        requiredPermission: 'discharge:read',
       },
       {
         labelKey: 'vessels',

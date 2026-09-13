@@ -19,6 +19,7 @@ import { VesselsModule } from './modules/vessels/vessels.module';
 import { VoyagesModule } from './modules/voyages/voyages.module';
 import { LoadPlanningModule } from './modules/load-planning/load-planning.module';
 import { ActualLoadingModule } from './modules/actual-loading/actual-loading.module';
+import { DischargeModule } from './modules/discharge/discharge.module';
 import { ManifestModule } from './modules/manifest/manifest.module';
 import { BillModule } from './modules/bill/bill.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
@@ -56,6 +57,7 @@ import { AppController } from './app.controller';
     VoyagesModule,
     LoadPlanningModule,
     ActualLoadingModule,
+    DischargeModule,
     ManifestModule,
     BillModule,
     InvoiceModule,

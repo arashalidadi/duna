@@ -96,7 +96,8 @@
     "employees": "الموظفون",
     "salaryRecords": "قسائم الرواتب",
     "correspondence": "المراسلات",
-    "letters": "الرسائل"
+    "letters": "الرسائل",
+    "discharges": "التفريغ"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -1202,6 +1203,97 @@
         "title": "حذف الخدمة",
         "description": "حذف {number}؟ يمكن حذف مسودات الخدمات فقط."
       }
+    }
+  },
+  "discharge": {
+    "page": {
+      "title": "التفريغ",
+      "description": "تفريغ البضاعة في ميناء الوصول — مرآة التحميل الفعلي"
+    },
+    "actions": {
+      "create": "تفريغ جديد",
+      "view": "عرض",
+      "start": "بدء التفريغ",
+      "complete": "إنجاز",
+      "cancel": "إلغاء التفريغ",
+      "delete": "حذف"
+    },
+    "status": {
+      "NOT_STARTED": "لم يبدأ",
+      "IN_PROGRESS": "قيد التنفيذ",
+      "COMPLETED": "منجز",
+      "CANCELLED": "ملغى"
+    },
+    "fields": {
+      "number": "رقم التفريغ",
+      "loading": "التحميل الفعلي",
+      "voyage": "الرحلة",
+      "vessel": "السفينة",
+      "status": "الحالة",
+      "lines": "البنود",
+      "expected": "المتوقع",
+      "discharged": "المفرَّغ",
+      "notes": "ملاحظات",
+      "pod": "ميناء الوصول"
+    },
+    "list": {
+      "search": "رقم التفريغ أو التحميل أو الرحلة أو السفينة…",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا عمليات تفريغ",
+        "description": "أنشئ تفريغًا عند وصول تحميل منجز إلى ميناء الوصول."
+      }
+    },
+    "create": {
+      "title": "تفريغ جديد",
+      "description": "تُملأ البنود المتوقعة تلقائيًا مما حُمّل فعليًا.",
+      "loadingLabel": "التحميل الفعلي (منجز)",
+      "loadingPlaceholder": "— اختر —",
+      "noLoadings": "لا تحميلات فعلية منجزة متاحة للتفريغ.",
+      "errors": {
+        "loadingRequired": "اختيار التحميل مطلوب"
+      }
+    },
+    "items": {
+      "cargo": "البضاعة",
+      "result": {
+        "FULL": "كامل",
+        "PARTIAL": "جزئي",
+        "NOT_DISCHARGED": "غير مفرَّغ"
+      },
+      "expected": "المتوقع",
+      "discharged": "المفرَّغ",
+      "totals": "الإجماليات",
+      "errors": {
+        "nonnegative": "يجب أن يكون العدد عددًا صحيحًا غير سالب",
+        "exceeds": "العدد المفرَّغ يتجاوز المتوقع ({expected})"
+      }
+    },
+    "detail": {
+      "title": "التفريغ",
+      "createdOn": "تاريخ الإنشاء",
+      "completedOn": "تاريخ الإنجاز",
+      "cancelledOn": "تاريخ الإلغاء"
+    },
+    "confirm": {
+      "start": {
+        "title": "بدء التفريغ",
+        "description": "بدء تفريغ {number}؟ تبقى البنود قابلة للتعديل أثناء التنفيذ."
+      },
+      "complete": {
+        "title": "إنجاز التفريغ",
+        "description": "إنجاز تفريغ {number}؟ البضائع المفرَّغة بالكامل تصبح \"تم التسليم\"؛ والنواقص تبقى لمتابعة المطالبات."
+      },
+      "delete": {
+        "title": "حذف التفريغ",
+        "description": "حذف تفريغ {number}؟ يمكن حذف عمليات التفريغ غير المبدوءة/قيد التنفيذ فقط."
+      }
+    },
+    "cancel": {
+      "title": "إلغاء التفريغ",
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: تغيير الرصيف"
     }
   }
 }
