@@ -484,3 +484,16 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 4. Zero financial effect: quotations (like proformas) cannot receive vouchers, never touch the ledger, and are invisible to the R/O release hold.
 
 **Consequences.** The chain Quote → Proforma → Invoice gives each negotiation stage its own document and number, auditable both ways (`quotation.linkedProformaId` ⇔ `proforma.quotation`). Rejected/expired quotes stay queryable for win-rate reporting. The per-stage permission gates (sales sends, ops accepts, finance converts) add two endpoints over the proforma design but keep every hand-off explicit.
+
+---
+
+## ADR-036: Salaries are self-contained documents; no voucher/ledger posting on pay()
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Context:** Phase 16 (Employees & Payroll). A natural expectation was that paying a payslip posts an expense voucher into the ledger, mirroring how invoice payments create receipt vouchers (ADR-032/034).
+**Decision.**
+1. `SalaryRecord.pay` records only the payment fact on the payslip itself: `paymentMethod` (CASH/BANK_TRANSFER/CHEQUE/OTHER), optional `paymentRef`, and `paidBy/At` audit stamps. No `Voucher` row is created and no customer ledger entry is touched.
+2. The reason is structural, not cosmetic: `Voucher` requires a `customerId` — it is a **customer-centric** instrument by design (ADR-032), so posting payroll through it would mix employee payments into customer receivables, corrupting aging and release-hold logic (ADR-033).
+3. Payslips therefore carry their own audit trail end-to-end, and the payroll list stays a complete money record (`base + additions − deductions = net`, server-computed, frozen on APPROVED).
+**Consequences.** Real expense accounting for salaries (supplier/expenses module with debit vouchers, cash/bank accounts, and month-end payroll journal) is deferred to a dedicated future phase; when it lands, it will link to payslips by `paymentRef`-style FKs rather than reusing `Voucher.customerId`. A `@@unique(employeeId, year, month)` prevents double-paying a period, and cancel preserves the reason for audit while DRAFT-only delete keeps drafts disposable.

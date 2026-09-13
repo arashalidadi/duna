@@ -91,7 +91,10 @@
     "reports": "گزارش‌ها",
     "vouchers": "السندات",
     "ledger": "الدفاتر",
-    "delivery": "أوامر التسليم"
+    "delivery": "أوامر التسليم",
+    "people": "الموظفون والرواتب",
+    "employees": "الموظفون",
+    "salaryRecords": "قسائم الرواتب"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -858,6 +861,156 @@
         "reason": "سبب الإلغاء",
         "reasonPlaceholder": "مثال: استُبدل بغيره"
       }
+    }
+  },
+  "employee": {
+    "page": {
+      "title": "الموظفون",
+      "description": "بيانات الموارد البشرية — الموظفون والرواتب الأساسية والحالة"
+    },
+    "actions": {
+      "create": "موظف جديد",
+      "edit": "تعديل",
+      "delete": "حذف"
+    },
+    "fields": {
+      "code": "الرمز",
+      "name": "الاسم",
+      "nationalId": "الرقم الوطني",
+      "position": "المنصب",
+      "phone": "الهاتف",
+      "email": "البريد الإلكتروني",
+      "hireDate": "تاريخ التعيين",
+      "baseSalary": "الراتب الأساسي",
+      "currency": "العملة",
+      "status": "الحالة",
+      "notes": "ملاحظات",
+      "salaryRecordsCount": "قسائم الرواتب"
+    },
+    "status": {
+      "ACTIVE": "نشط",
+      "INACTIVE": "غير نشط"
+    },
+    "list": {
+      "title": "قائمة الموظفين",
+      "subtitle": "بحث وإدارة بيانات الموظفين",
+      "search": "بحث...",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا يوجد موظفون",
+        "description": "أنشئ أول موظف لبدء مسير الرواتب."
+      }
+    },
+    "form": {
+      "title": "إنشاء موظف",
+      "editTitle": "تعديل الموظف",
+      "description": "الراتب الأساسي والعملة يحددان افتراضيات قسيمة الراتب.",
+      "saving": "جارٍ الحفظ...",
+      "codePlaceholder": "تلقائي (EMP-#####)",
+      "errors": {
+        "nameRequired": "الاسم مطلوب"
+      }
+    },
+    "confirm": {
+      "delete": {
+        "title": "حذف الموظف",
+        "description": "حذف {name}؟ لا يمكن التراجع عن هذا الإجراء."
+      }
+    }
+  },
+  "salary": {
+    "page": {
+      "title": "قسائم الرواتب",
+      "description": "قسائم شهرية — مسودة، اعتماد، دفع"
+    },
+    "actions": {
+      "create": "قسيمة جديدة",
+      "approve": "اعتماد",
+      "pay": "دفع",
+      "cancel": "إلغاء",
+      "cancelling": "جارٍ الإلغاء...",
+      "delete": "حذف",
+      "view": "عرض"
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "APPROVED": "معتمدة",
+      "PAID": "مدفوعة",
+      "CANCELLED": "ملغاة"
+    },
+    "list": {
+      "title": "القسائم",
+      "subtitle": "تصفية حسب الفترة والموظف والحالة",
+      "search": "بحث...",
+      "allStatuses": "كل الحالات",
+      "allYears": "كل السنوات",
+      "allMonths": "كل الأشهر",
+      "allEmployees": "كل الموظفين",
+      "empty": {
+        "title": "لا توجد قسائم",
+        "description": "أنشئ أول قسيمة لبدء مسير الرواتب."
+      }
+    },
+    "fields": {
+      "number": "الرقم",
+      "employee": "الموظف",
+      "period": "الفترة",
+      "base": "الأساسي",
+      "additions": "الإضافات",
+      "deductions": "الاستقطاعات",
+      "net": "الصافي",
+      "currency": "العملة",
+      "status": "الحالة",
+      "notes": "ملاحظات",
+      "year": "السنة",
+      "month": "الشهر",
+      "paymentMethod": "طريقة الدفع",
+      "paymentRef": "مرجع الدفع",
+      "cancelReason": "سبب الإلغاء"
+    },
+    "method": {
+      "CASH": "نقدي",
+      "BANK_TRANSFER": "تحويل بنكي",
+      "CHEQUE": "شيك",
+      "OTHER": "أخرى"
+    },
+    "create": {
+      "title": "إنشاء قسيمة",
+      "description": "يُفترض الأساسي والعملة من ملف الموظف.",
+      "creating": "جارٍ الإنشاء...",
+      "selectEmployee": "اختر الموظف...",
+      "errors": {
+        "employeeRequired": "اختيار الموظف مطلوب"
+      }
+    },
+    "confirm": {
+      "approve": {
+        "title": "اعتماد القسيمة",
+        "description": "اعتماد {number} بصافي {net}؟ لن تكون قابلة للتعديل بعد الاعتماد."
+      },
+      "delete": {
+        "title": "حذف القسيمة",
+        "description": "حذف {number}؟ يمكن حذف المسودات فقط."
+      }
+    },
+    "pay": {
+      "title": "تسجيل الدفع",
+      "description": "يُسجَّل واقِع الدفع على القسيمة.",
+      "paying": "جارٍ التسجيل...",
+      "referencePlaceholder": "مثال: TRF-12345"
+    },
+    "cancel": {
+      "title": "إلغاء القسيمة",
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: ترك العمل"
+    },
+    "detail": {
+      "title": "قسيمة الراتب",
+      "approvedOn": "تاريخ الاعتماد",
+      "paidOn": "تاريخ الدفع",
+      "cancelledOn": "تاريخ الإلغاء",
+      "createdAt": "تاريخ الإنشاء"
     }
   }
 }

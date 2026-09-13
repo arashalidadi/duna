@@ -91,7 +91,10 @@
     "ledger": "Ledger",
     "delivery": "Delivery Orders",
     "proformas": "Proforma Invoices",
-    "quotations": "Quotations"
+    "quotations": "Quotations",
+    "people": "People & Payroll",
+    "employees": "Employees",
+    "salaryRecords": "Salary Records"
   },
   "login": {
     "title": "Sign In",
@@ -837,6 +840,156 @@
         "reason": "Cancel reason",
         "reasonPlaceholder": "e.g. Superseded"
       }
+    }
+  },
+  "employee": {
+    "page": {
+      "title": "Employees",
+      "description": "HR master data — staff, base salaries and status"
+    },
+    "actions": {
+      "create": "New Employee",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "fields": {
+      "code": "Code",
+      "name": "Name",
+      "nationalId": "National ID",
+      "position": "Position",
+      "phone": "Phone",
+      "email": "Email",
+      "hireDate": "Hire Date",
+      "baseSalary": "Base Salary",
+      "currency": "Currency",
+      "status": "Status",
+      "notes": "Notes",
+      "salaryRecordsCount": "Payslips"
+    },
+    "status": {
+      "ACTIVE": "Active",
+      "INACTIVE": "Inactive"
+    },
+    "list": {
+      "title": "Employee List",
+      "subtitle": "Search and manage staff records",
+      "search": "Search...",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No employees yet",
+        "description": "Create the first employee to start payroll."
+      }
+    },
+    "form": {
+      "title": "Create Employee",
+      "editTitle": "Edit Employee",
+      "description": "Base salary and currency drive payslip defaults.",
+      "saving": "Saving...",
+      "codePlaceholder": "Auto (EMP-#####)",
+      "errors": {
+        "nameRequired": "Name is required"
+      }
+    },
+    "confirm": {
+      "delete": {
+        "title": "Delete employee",
+        "description": "Delete {name}? This cannot be undone."
+      }
+    }
+  },
+  "salary": {
+    "page": {
+      "title": "Salary Records",
+      "description": "Monthly payslips — draft, approve, pay"
+    },
+    "actions": {
+      "create": "New Payslip",
+      "approve": "Approve",
+      "pay": "Pay",
+      "cancel": "Cancel",
+      "cancelling": "Cancelling...",
+      "delete": "Delete",
+      "view": "View"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "APPROVED": "Approved",
+      "PAID": "Paid",
+      "CANCELLED": "Cancelled"
+    },
+    "list": {
+      "title": "Payslips",
+      "subtitle": "Filter by period, employee and status",
+      "search": "Search...",
+      "allStatuses": "All statuses",
+      "allYears": "All years",
+      "allMonths": "All months",
+      "allEmployees": "All employees",
+      "empty": {
+        "title": "No payslips yet",
+        "description": "Create the first payslip to start payroll."
+      }
+    },
+    "fields": {
+      "number": "Number",
+      "employee": "Employee",
+      "period": "Period",
+      "base": "Base",
+      "additions": "Additions",
+      "deductions": "Deductions",
+      "net": "Net pay",
+      "currency": "Currency",
+      "status": "Status",
+      "notes": "Notes",
+      "year": "Year",
+      "month": "Month",
+      "paymentMethod": "Payment method",
+      "paymentRef": "Payment reference",
+      "cancelReason": "Cancel reason"
+    },
+    "method": {
+      "CASH": "Cash",
+      "BANK_TRANSFER": "Bank transfer",
+      "CHEQUE": "Cheque",
+      "OTHER": "Other"
+    },
+    "create": {
+      "title": "Create Payslip",
+      "description": "Base and currency default to the employee's.",
+      "creating": "Creating...",
+      "selectEmployee": "Select employee...",
+      "errors": {
+        "employeeRequired": "Employee is required"
+      }
+    },
+    "confirm": {
+      "approve": {
+        "title": "Approve payslip",
+        "description": "Approve {number} with net {net}? It will be frozen."
+      },
+      "delete": {
+        "title": "Delete payslip",
+        "description": "Delete {number}? Only DRAFT payslips can be deleted."
+      }
+    },
+    "pay": {
+      "title": "Record payment",
+      "description": "Records the payment fact on the payslip.",
+      "paying": "Recording...",
+      "referencePlaceholder": "e.g. TRF-12345"
+    },
+    "cancel": {
+      "title": "Cancel payslip",
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. left the company"
+    },
+    "detail": {
+      "title": "Payslip",
+      "approvedOn": "Approved on",
+      "paidOn": "Paid on",
+      "cancelledOn": "Cancelled on",
+      "createdAt": "Created"
     }
   }
 }

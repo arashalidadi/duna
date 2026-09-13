@@ -1,6 +1,19 @@
 # Progress
 
 ## Completed
+### Phase 16 — Employees & Salary/Payroll (completed)
+
+- **Employee master data:** `Employee` model (code auto `EMP-#####`, nationalId unique-optional, position, contact, hireDate, baseSalary + currency default, status ACTIVE/INACTIVE, soft delete). Deleting an employee with payslips is blocked 409.
+- **Payslip lifecycle:** `SalaryRecord` (number `SAL-YYMM-#####`, `@@unique(employeeId, year, month)` → duplicate period 409). `DRAFT → APPROVED (approve) → PAID (pay with paymentMethod CASH/BANK_TRANSFER/CHEQUE/OTHER + optional paymentRef)`; `DRAFT|APPROVED → CANCELLED` with required reason; PAID terminal; delete DRAFT-only. All transitions stamp actor+time (`approvedBy/At`, `paidBy/At`, `cancelledBy/At`).
+- **Math server-computed:** `net = base + additions − deductions`; base prefilled from the employee's baseSalary when a payslip is created with the employee's period empty; negative net rejected 400.
+- **Self-contained payout (ADR-036):** pay() records the payment fact on the payslip only — no voucher/ledger posting, because `Voucher.customerId` is customer-centric (ADR-032) and posting salaries to the customer ledger would contaminate receivables and break multi-currency aggregation. `paymentMethod`/`paymentRef`/`paidAt` carry the audit trail; voucher integration deferred.
+- **Shared types:** `Employee/ListResult`, `SalaryRecord/ListResult` with `employee` nested ref and `createdByName`.
+- **API:** `/employees` (CRUD, list filters search/status) + `/salary-records` (list filters search/status/year/month/employeeId + approve/pay/cancel lifecycle). 11 new permissions (`employee:*` 4, `salary:*` 7) seeded; role grants via matrix.
+- **E2E:** `salary.e2e-spec.ts` 9 tests (auto-code, 422, duplicate period 409, approve/pay audit + method, cancel-with-reason + audit, employee delete guard, filters, pagination cap). **Full suite 16 suites, 213/213 green.**
+- **Web:** `/employees` (list + create/edit dialog + delete guard messaging, status filter, pagination) and `/salary-records` (filters search/status/year/month/employee; approve/pay-with-method/cancel-with-reason/delete actions; create dialog with employee select prefilling base+currency and live net card; detail dialog with math breakdown + audit timestamps). New nav group **People & Payroll**. i18n `employee` (33 keys) + `salary` (63 keys) + 3 nav keys × fa/en/ar via `scripts/merge-salary-i18n.py`.
+- **Demo seed:** `scripts/seed-salary-demo.mjs` — 3 employees (USD/IRR) + 6 payslips spanning DRAFT/APPROVED/PAID/CANCELLED incl. additions/deductions math; idempotent.
+- **Typechecks:** api/web tsc 0 errors; smoke fa/en/ar both routes 200 with translated nav/page titles, zero raw keys.
+
 
 ### Phase 15 — Quotations (completed)
 

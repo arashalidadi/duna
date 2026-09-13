@@ -91,7 +91,10 @@
     "ledger": "دفتر",
     "delivery": "حواله تحویل کالا",
     "proformas": "پیش‌فاکتورها",
-    "quotations": "استعلام‌بها"
+    "quotations": "استعلام‌بها",
+    "people": "کارکنان و حقوق",
+    "employees": "کارکنان",
+    "salaryRecords": "فیش‌های حقوقی"
   },
   "login": {
     "title": "ورود",
@@ -837,6 +840,156 @@
         "reason": "دلیل لغو",
         "reasonPlaceholder": "مثلاً: جایگزین شد"
       }
+    }
+  },
+  "employee": {
+    "page": {
+      "title": "کارکنان",
+      "description": "اطلاعات پایه منابع انسانی — پرسنل، حقوق پایه و وضعیت"
+    },
+    "actions": {
+      "create": "کارمند جدید",
+      "edit": "ویرایش",
+      "delete": "حذف"
+    },
+    "fields": {
+      "code": "کد",
+      "name": "نام",
+      "nationalId": "کد ملی",
+      "position": "سمت",
+      "phone": "تلفن",
+      "email": "ایمیل",
+      "hireDate": "تاریخ استخدام",
+      "baseSalary": "حقوق پایه",
+      "currency": "واحد پول",
+      "status": "وضعیت",
+      "notes": "یادداشت",
+      "salaryRecordsCount": "فیش‌های حقوقی"
+    },
+    "status": {
+      "ACTIVE": "فعال",
+      "INACTIVE": "غیرفعال"
+    },
+    "list": {
+      "title": "فهرست کارکنان",
+      "subtitle": "جستجو و مدیریت پرسنل",
+      "search": "جستجو...",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "کارمندی ثبت نشده است",
+        "description": "برای شروع چرخه حقوق، اولین کارمند را ثبت کنید."
+      }
+    },
+    "form": {
+      "title": "ایجاد کارمند",
+      "editTitle": "ویرایش کارمند",
+      "description": "حقوق پایه و واحد پول، پیش‌فرض فیش حقوقی را تعیین می‌کنند.",
+      "saving": "در حال ذخیره...",
+      "codePlaceholder": "خودکار (EMP-#####)",
+      "errors": {
+        "nameRequired": "نام الزامی است"
+      }
+    },
+    "confirm": {
+      "delete": {
+        "title": "حذف کارمند",
+        "description": "«{name}» حذف شود؟ این عمل قابل بازگشت نیست."
+      }
+    }
+  },
+  "salary": {
+    "page": {
+      "title": "فیش‌های حقوقی",
+      "description": "فیش ماهانه — پیش‌نویس، تأیید، پرداخت"
+    },
+    "actions": {
+      "create": "فیش جدید",
+      "approve": "تأیید",
+      "pay": "پرداخت",
+      "cancel": "لغو",
+      "cancelling": "در حال لغو...",
+      "delete": "حذف",
+      "view": "مشاهده"
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "APPROVED": "تأییدشده",
+      "PAID": "پرداخت‌شده",
+      "CANCELLED": "لغوشده"
+    },
+    "list": {
+      "title": "فیش‌های حقوقی",
+      "subtitle": "فیلتر بر اساس دوره، کارمند و وضعیت",
+      "search": "جستجو...",
+      "allStatuses": "همه وضعیت‌ها",
+      "allYears": "همه سال‌ها",
+      "allMonths": "همه ماه‌ها",
+      "allEmployees": "همه کارکنان",
+      "empty": {
+        "title": "فیشی ثبت نشده است",
+        "description": "برای شروع چرخه حقوق، اولین فیش را ثبت کنید."
+      }
+    },
+    "fields": {
+      "number": "شماره",
+      "employee": "کارمند",
+      "period": "دوره",
+      "base": "پایه",
+      "additions": "افزودنی‌ها",
+      "deductions": "کسورات",
+      "net": "خالص پرداختی",
+      "currency": "واحد پول",
+      "status": "وضعیت",
+      "notes": "یادداشت",
+      "year": "سال",
+      "month": "ماه",
+      "paymentMethod": "روش پرداخت",
+      "paymentRef": "مرجع پرداخت",
+      "cancelReason": "دلیل لغو"
+    },
+    "method": {
+      "CASH": "نقدی",
+      "BANK_TRANSFER": "انتقال بانکی",
+      "CHEQUE": "چک",
+      "OTHER": "سایر"
+    },
+    "create": {
+      "title": "ایجاد فیش حقوقی",
+      "description": "پایه و واحد پول از پروفایل کارمند پیش‌فرض می‌شوند.",
+      "creating": "در حال ایجاد...",
+      "selectEmployee": "انتخاب کارمند...",
+      "errors": {
+        "employeeRequired": "انتخاب کارمند الزامی است"
+      }
+    },
+    "confirm": {
+      "approve": {
+        "title": "تأیید فیش",
+        "description": "فیش {number} با خالص {net} تأیید شود؟ پس از تأیید قابل ویرایش نیست."
+      },
+      "delete": {
+        "title": "حذف فیش",
+        "description": "فیش {number} حذف شود؟ فقط فیش‌های پیش‌نویس قابل حذف‌اند."
+      }
+    },
+    "pay": {
+      "title": "ثبت پرداخت",
+      "description": "ماهیت پرداخت روی فیش ثبت می‌شود.",
+      "paying": "در حال ثبت...",
+      "referencePlaceholder": "مثلاً TRF-12345"
+    },
+    "cancel": {
+      "title": "لغو فیش",
+      "description": "دلیل لغو را وارد کنید (حسابرسی).",
+      "reason": "دلیل لغو",
+      "reasonPlaceholder": "مثلاً: ترک کار"
+    },
+    "detail": {
+      "title": "فیش حقوقی",
+      "approvedOn": "تاریخ تأیید",
+      "paidOn": "تاریخ پرداخت",
+      "cancelledOn": "تاریخ لغو",
+      "createdAt": "تاریخ ایجاد"
     }
   }
 }

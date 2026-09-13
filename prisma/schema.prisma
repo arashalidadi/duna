@@ -75,6 +75,11 @@ model User {
   quotationsAccepted      Quotation[]       @relation("QuotationAcceptedBy")
   quotationsRejected      Quotation[]       @relation("QuotationRejectedBy")
   quotationsCancelled     Quotation[]       @relation("QuotationCancelledBy")
+  employeesCreated        Employee[]       @relation("EmployeeCreatedBy")
+  salaryRecordsCreated    SalaryRecord[]   @relation("SalaryCreatedBy")
+  salaryRecordsApproved   SalaryRecord[]   @relation("SalaryApprovedBy")
+  salaryRecordsPaid       SalaryRecord[]   @relation("SalaryPaidBy")
+  salaryRecordsCancelled  SalaryRecord[]   @relation("SalaryCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -1291,6 +1296,96 @@ model QuotationItem {
   @@index([sequence])
   @@map("quotation_items")
 }
+
+// ===========================================================================
+// Phase 16 — HR & Payroll (ADR-036)
+// ===========================================================================
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SalaryStatus {
+  DRAFT
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model Employee {
+  id     String         @id @default(cuid())
+  code   String         @unique // auto EMP-##### (server-generated when omitted)
+  name   String
+  nationalId String?    @map("nationalId")
+  position String?
+  phone  String?
+  email  String?
+  hireDate DateTime?    @db.Date @map("hireDate")
+  baseSalary Decimal      @default(0) @db.Decimal(18, 2) @map("baseSalary")
+  currencyCode String     @default("USD") @map("currencyCode")
+  status EmployeeStatus   @default(ACTIVE)
+  notes  String?
+
+  createdById String?    @map("createdById")
+  createdBy   User?      @relation("EmployeeCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  salaryRecords SalaryRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? @map("deletedAt")
+
+  @@map("employees")
+}
+
+model SalaryRecord {
+  id           String       @id @default(cuid())
+  recordNumber String       @unique // SAL-YYMM-#####
+  employeeId   String       @map("employeeId")
+  employee     Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  year         Int
+  month        Int          // 1..12
+  status       SalaryStatus @default(DRAFT)
+
+  base         Decimal      @default(0) @db.Decimal(18, 2)
+  additions    Decimal      @default(0) @db.Decimal(18, 2) // bonus/OT/allowances
+  deductions   Decimal      @default(0) @db.Decimal(18, 2) // insurance/tax/advances
+  net          Decimal      @default(0) @db.Decimal(18, 2) // base + additions - deductions, server-computed
+  currencyCode String       @default("USD") @map("currencyCode")
+
+  // Payment trace lives on the record itself; Voucher/ledger stays customer-only (ADR-036).
+  paymentMethod VoucherMethod? @map("paymentMethod")
+  paymentRef    String?        @map("paymentRef") // bank transfer / receipt trace
+
+  approvedById  String?  @map("approvedById")
+  approvedBy    User?    @relation("SalaryApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt    DateTime? @map("approvedAt")
+
+  paidById      String?  @map("paidById")
+  paidBy        User?    @relation("SalaryPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  paidAt        DateTime? @map("paidAt")
+
+  cancelledById String?  @map("cancelledById")
+  cancelledBy   User?    @relation("SalaryCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledAt   DateTime? @map("cancelledAt")
+  cancelReason  String?   @map("cancelReason")
+
+  notes String?
+  createdById String? @map("createdById")
+  createdBy   User?   @relation("SalaryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? @map("deletedAt")
+
+  @@unique([employeeId, year, month]) // one payslip per employee per month
+  @@index([year, month])
+  @@index([status])
+  @@map("salary_records")
+}
+
 
 // ─── Phase 12: Finance — vouchers (receipt/payment) + derived ledger ──────────
 // Modernized legacy Fin (fins): a voucher is a directly-POSTED money document

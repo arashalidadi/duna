@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
+import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -225,6 +225,27 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredPermission: 'release:read',
       },
       { labelKey: 'agents', icon: UserCircle, status: 'planned', description: 'Agent portal' },
+    ],
+  },
+  {
+    titleKey: 'people',
+    items: [
+      {
+        labelKey: 'employees',
+        href: '/employees',
+        icon: UserCircle,
+        status: 'implemented',
+        description: 'Employee master data',
+        requiredPermission: 'employee:read',
+      },
+      {
+        labelKey: 'salaryRecords',
+        href: '/salary-records',
+        icon: Banknote,
+        status: 'implemented',
+        description: 'Monthly payslips (draft/approve/pay)',
+        requiredPermission: 'salary:read',
+      },
     ],
   },
   {
