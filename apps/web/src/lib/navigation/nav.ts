@@ -169,6 +169,14 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { labelKey: 'jobs', icon: ClipboardList, status: 'planned', description: 'Job costing' },
       {
+        labelKey: 'proformas',
+        href: '/proformas',
+        icon: FileText,
+        status: 'implemented',
+        description: 'Proforma invoices (quotes)',
+        requiredPermission: 'proforma:read',
+      },
+      {
         labelKey: 'invoices',
         href: '/invoices',
         icon: FileCheck,

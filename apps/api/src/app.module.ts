@@ -24,6 +24,7 @@ import { BillModule } from './modules/bill/bill.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
 import { VoucherModule } from './modules/voucher/voucher.module';
 import { DeliveryReleaseModule } from './modules/delivery-release/delivery-release.module';
+import { ProformaModule } from './modules/proforma/proforma.module';
 import { JwtAuthGuard } from './common/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/auth/guards/permissions.guard';
 import { AppController } from './app.controller';
@@ -56,6 +57,7 @@ import { AppController } from './app.controller';
     InvoiceModule,
     VoucherModule,
     DeliveryReleaseModule,
+    ProformaModule,
   ],
   controllers: [AppController],
   providers: [

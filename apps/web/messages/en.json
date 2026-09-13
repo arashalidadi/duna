@@ -89,7 +89,8 @@
     "voyage": "voyage",
     "vouchers": "Vouchers",
     "ledger": "Ledger",
-    "delivery": "Delivery Orders"
+    "delivery": "Delivery Orders",
+    "proformas": "Proforma Invoices"
   },
   "login": {
     "title": "Sign In",
@@ -636,6 +637,99 @@
     },
     "detail": {
       "headerTitle": "Release order"
+    }
+  },
+  "proforma": {
+    "page": {
+      "title": "Proforma Invoices",
+      "description": "Quotes and pre-invoices — convert into real invoices with one click."
+    },
+    "list": {
+      "title": "Proforma list",
+      "subtitle": "DRAFT proformas are editable; issuing freezes them for conversion.",
+      "search": "Search by number, title or customer",
+      "allStatuses": "All statuses",
+      "unconvertedOnly": "Unconverted only",
+      "empty": {
+        "title": "No proforma invoices",
+        "description": "Create your first quote to get started."
+      }
+    },
+    "fields": {
+      "number": "Number",
+      "title": "Title",
+      "customer": "Customer",
+      "status": "Status",
+      "currency": "Currency",
+      "issueDate": "Issue date",
+      "validUntil": "Valid until",
+      "total": "Total",
+      "discount": "Discount",
+      "taxRate": "Tax rate %",
+      "description": "Description",
+      "notes": "Notes",
+      "cancelReason": "Cancellation reason",
+      "convertedTo": "Converted to"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "ISSUED": "Issued",
+      "CANCELLED": "Cancelled"
+    },
+    "actions": {
+      "create": "New proforma",
+      "issue": "Issue",
+      "convert": "Convert to invoice",
+      "cancelOrder": "Cancel proforma",
+      "cancelling": "Cancelling…"
+    },
+    "totals": {
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "total": "Total"
+    },
+    "create": {
+      "title": "New proforma invoice",
+      "description": "Add lines and optional tax/discount — totals are computed automatically.",
+      "selectCustomer": "Select customer…",
+      "titlePlaceholder": "e.g. Freight quote — MV Ali / voyage 12",
+      "itemsTitle": "Lines",
+      "addItem": "Add line",
+      "itemDescription": "Description",
+      "qty": "Qty",
+      "unitPrice": "Unit price",
+      "creating": "Creating…",
+      "errors": {
+        "customerRequired": "A customer is required",
+        "itemsRequired": "Add at least one line"
+      }
+    },
+    "detail": {
+      "title": "Proforma details",
+      "items": "Lines",
+      "lineTotal": "Amount",
+      "convertedBadge": "Converted"
+    },
+    "convert": {
+      "title": "Convert to invoice",
+      "description": "This creates a DRAFT invoice with the same lines and totals.",
+      "body": "The proforma will be marked as converted. This can only be done once.",
+      "converting": "Converting…",
+      "resultTitle": "Invoice created",
+      "resultLine": "Draft invoice {number} was created from this proforma.",
+      "resultHint": "Review it on the invoices page, then issue it."
+    },
+    "confirm": {
+      "issue": {
+        "title": "Issue proforma?",
+        "description": "After issuing, lines and header are frozen."
+      },
+      "cancel": {
+        "title": "Cancel proforma?",
+        "description": "A cancelled proforma is terminal and can be deleted afterwards.",
+        "reason": "Reason",
+        "reasonPlaceholder": "Why is this proforma being cancelled?"
+      }
     }
   }
 }

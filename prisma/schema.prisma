@@ -67,6 +67,9 @@ model User {
   releaseOrdersCancelled ReleaseOrder[]   @relation("ReleaseOrderCancelledBy")
   vouchersCancelled      Voucher[]         @relation("VoucherCancelledBy")
   invoicesCancelled      Invoice[]          @relation("InvoiceCancelledBy")
+  proformasCreated        Proforma[]        @relation("ProformaCreatedBy")
+  proformasIssued         Proforma[]        @relation("ProformaIssuedBy")
+  proformasCancelled      Proforma[]        @relation("ProformaCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -252,6 +255,7 @@ model Customer {
   billsAsShipper     BillOfLading[] @relation("BillShipper")
   billsAsConsignee   BillOfLading[] @relation("BillConsignee")
   invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
+  proformasIssuedTo  Proforma[]  @relation("ProformaCustomer")
   deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
   vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
@@ -1066,6 +1070,7 @@ model Invoice {
   billOfLading BillOfLading?  @relation("InvoiceBill", fields: [billOfLadingId], references: [id])
   voyage       Voyage?        @relation("InvoiceVoyage", fields: [voyageId], references: [id])
   items        InvoiceItem[]
+  convertedProforma Proforma?  @relation("ProformaConvertedInvoice")
   vouchers     Voucher[]     @relation("VoucherInvoice")
   createdBy    User?          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   issuedBy     User?          @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
@@ -1102,6 +1107,88 @@ model InvoiceItem {
   @@index([invoiceId])
   @@index([sequence])
   @@map("invoice_items")
+}
+
+// ─── Phase 14: Proforma invoices (quotes) ─────────────────────────────────────
+// A proforma is a pre-invoice money document: same line/totals math as Invoice
+// but zero financial effect (no paidAmount, vouchers cannot link). It can be
+// converted ONCE into a real DRAFT invoice (linkedInvoiceId guard), copying
+// header + items; the proforma then remains ISSUED as the quote of record.
+enum ProformaStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+model Proforma {
+  id              String         @id @default(cuid())
+  proformaNumber  String         @unique // auto PRF-YYMM-#####
+  customerId      String         @map("customerId") // bill-to counterparty
+  status          ProformaStatus @default(DRAFT)
+
+  title       String? // free heading on the printed quote
+  description String?
+
+  currencyCode String  @default("USD") @map("currencyCode") // ISO 4217
+  issueDate    DateTime? @map("issueDate")
+  validUntil   DateTime? @map("validUntil") // quote expiry (proforma-specific)
+
+  // Same math as Invoice: subtotal = SUM(items.amount),
+  // taxAmount = (subtotal - discountAmount) * taxRate / 100,
+  // totalAmount = subtotal - discountAmount + taxAmount.
+  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
+  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
+  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
+  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
+  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
+
+  // One-time conversion link (ADR-034): set to the created invoice's id.
+  linkedInvoiceId String? @unique @map("linkedInvoiceId")
+
+  cancelReason String? @map("cancelReason") // required on cancellation
+  notes        String?
+
+  createdById   String? @map("createdById")
+  issuedById    String? @map("issuedById")
+  cancelledById String? @map("cancelledById")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  issuedAt    DateTime? @map("issuedAt")
+  cancelledAt DateTime? @map("cancelledAt")
+  deletedAt   DateTime? @map("deletedAt")
+
+  customer    Customer?     @relation("ProformaCustomer", fields: [customerId], references: [id])
+  invoice     Invoice?      @relation("ProformaConvertedInvoice", fields: [linkedInvoiceId], references: [id])
+  items       ProformaItem[]
+  createdBy   User?         @relation("ProformaCreatedBy", fields: [createdById], references: [id])
+  issuedBy    User?         @relation("ProformaIssuedBy", fields: [issuedById], references: [id])
+  cancelledBy User?         @relation("ProformaCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([createdAt])
+  @@map("proformas")
+}
+
+model ProformaItem {
+  id          String @id @default(cuid())
+  proformaId  String @map("proformaId")
+  sequence    Int
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  amount      Decimal @default(0) @db.Decimal(18, 2) // qty * unitPrice, server-side
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  proforma Proforma @relation(fields: [proformaId], references: [id], onDelete: Cascade)
+
+  @@index([proformaId])
+  @@index([sequence])
+  @@map("proforma_items")
 }
 
 // ─── Phase 12: Finance — vouchers (receipt/payment) + derived ledger ──────────

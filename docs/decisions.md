@@ -452,3 +452,20 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 6. `GET /release-orders/eligibility?billOfLadingId=` exposes canRelease / needsOverride / billed / paid / outstanding so the UI can warn before submit — the create dialog shows the settlement card and reveals the force+reason flow only when blocked.
 
 **Consequences.** The ops chain (Manifest -> B/L -> Invoice -> Vouchers -> Release) is closed end-to-end on one rule: cargo leaves only against settled invoices or a recorded, permission-checked exception. D/O stays purely operational (no financial rule). Deleting requires cancel-first everywhere, keeping the audit trail intact.
+
+---
+
+## ADR-034: Proforma mirrors Invoice math; one-time conversion via linkedInvoiceId
+
+**Date:** 2026-09-13 | **Status:** Accepted
+
+**Context.** The roadmap adds proforma invoices (quotes) with no legacy counterpart. Two questions: repeat the Invoice line/totals model or simplify, and how a quote becomes a real invoice without double-charging.
+
+**Decision.**
+1. `Proforma` + `ProformaItem` mirror the Invoice header/line structure (same `quantity × unitPrice` lines, same subtotal/tax/discount/total math, same PRF-YYMM-##### numbering) — quotes and bills stay visually and mathematically consistent.
+2. Zero financial effect: no paidAmount column, vouchers cannot link to a proforma, ledger ignores it entirely.
+3. `validUntil` replaces `dueDate` — a quote expires; a bill falls due.
+4. **One-time conversion:** `POST /proformas/:id/convert` (permission `proforma:convert`) copies header + items into a new DRAFT invoice (its own INV number, totals recomputed server-side) and stamps `proforma.linkedInvoiceId` (unique index = the guard; a second convert 409s). Allowed from DRAFT or ISSUED; never from CANCELLED.
+5. The created invoice is a normal DRAFT invoice — the standard edit/issue/voucher chain applies to it unchanged; the proforma stays ISSUED as the quote of record (both numbers visible in each UI).
+
+**Consequences.** Conversion is auditable from both sides (proforma.linkedInvoiceId ⇄ invoice.convertedProforma). The money pipeline (vouchers, ledger, release hold) only ever sees real invoices — quotes cannot leak into accounting. One migration, no changes to existing tables beyond a nullable unique FK.

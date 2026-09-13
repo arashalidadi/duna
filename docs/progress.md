@@ -2,6 +2,24 @@
 
 ## Completed
 
+### Phase 14 — Proforma Invoices (completed)
+
+**Objective met:** full-stack quote module — proforma documents with the same
+line/totals math as Invoice but zero financial effect, and one-time conversion
+into a real DRAFT invoice.
+
+- Prisma: `Proforma`, `ProformaItem` (+ `ProformaStatus`), migration `20260912233657_phase14_proforma`; `linkedInvoiceId` unique FK to invoices (one-time conversion guard); 7 permissions (`proforma:read/create/update/delete/issue/cancel/convert`)
+- Same money math as Invoice: `subtotal = SUM(items.amount)`, `taxAmount = (subtotal − discount) × taxRate/100`, `totalAmount = subtotal − discount + taxAmount` — recomputed on every write; `validUntil` quote expiry (proforma-specific)
+- Lifecycle `DRAFT → ISSUED | CANCELLED` (cancel requires reason, terminal); DRAFT-only header/line edits + delete; issue freezes the document
+- **Convert (ADR-034):** `POST /proformas/:id/convert` — allowed from DRAFT or ISSUED, never CANCELLED; copies header + items into a new DRAFT invoice with its own `INV-YYMM-#####` number and recomputed totals; stamps `linkedInvoiceId` (second attempt 409)
+- Endpoints mirror Invoice: list (search/status/customer/unconverted filters), CRUD, item add/update/remove, issue, cancel, convert
+- NestJS: `modules/proforma` (dto/service/controller/module); API typecheck clean
+- e2e: 9 tests — RBAC rows, inline-items create + totals math, line CRUD recompute, issue + frozen-after-issue, convert (403 w/o perm, copied lines/totals verified), re-convert 409, unconverted filter, cancel terminal, empty-issue 400, delete perm gating; tag-scoped Prisma cleanup in afterAll (no leaked roles/users/customers — the Phase 12 leak lesson); **full suite 14 suites, 193/193 green**
+- Web: `/proformas` page (fa/en/ar, RTL) — list + filters + unconverted toggle, create dialog with inline line editor + live totals card, detail with lines table, issue/convert/cancel flows, convert result dialog; nav `proformas` activated
+- i18n: `proforma` namespace 63 leaves x 3 locales (`scripts/merge-proforma-i18n.py`)
+- Demo: `scripts/seed-proforma-demo.mjs` — PRF-2609-00001 ISSUED → converted to INV-2609-00008 (DRAFT), PRF-2609-00002 ISSUED unconverted, PRF-2609-00003 DRAFT AED; purge utility run to clear earlier e2e residue
+- Smoke: `/proformas` 200 in fa/en/ar with SSR translations
+
 ### Phase 13 — Delivery Orders & Release Orders (completed)
 
 **Objective met:** the cargo hand-over chain closer — D/O (who physically receives cargo) and
@@ -867,6 +885,7 @@ This is a pre-existing test isolation issue unrelated to runtime changes.
 - B/L lifecycle + one-live-bill-per-manifest-line + blNumber stamping (ADR-030)
 - Voucher-recomputed paidAmount; derived ledger, no table (ADR-032)
 - D/O+R/O issued directly; release holds on unpaid invoices, override permission (ADR-033)
+- Proforma mirrors Invoice math; one-time convert stamps linkedInvoiceId (ADR-034)
 
 ## Pending Requirements
 
