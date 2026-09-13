@@ -71,7 +71,7 @@
     "vessels": "السفن",
     "manifests": "بوليصات الشحن",
     "invoices": "الفواتير",
-    "quotations": "الاقتباسات",
+    "quotations": "عروض الأسعار",
     "proformas": "الفواتير الأولية",
     "loadLists": "قوائم التحميل",
     "inspections": "الفحوصات",
@@ -751,6 +751,112 @@
         "description": "الإلغاء نهائي ويمكن الحذف بعده.",
         "reason": "السبب",
         "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة الأولية؟"
+      }
+    }
+  },
+  "quotation": {
+    "page": {
+      "title": "عروض الأسعار",
+      "description": "عروض أسعار مُرسلة إلى العملاء — قابلة للتحويل إلى فواتير أولية"
+    },
+    "actions": {
+      "create": "عرض سعر جديد",
+      "send": "إرسال",
+      "accept": "قبول",
+      "reject": "رفض",
+      "convert": "تحويل",
+      "cancelling": "جارٍ الإلغاء...",
+      "rejecting": "جارٍ الرفض..."
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "SENT": "مُرسل",
+      "ACCEPTED": "مقبول",
+      "REJECTED": "مرفوض",
+      "CANCELLED": "ملغي"
+    },
+    "list": {
+      "title": "قائمة عروض الأسعار",
+      "subtitle": "بحث وتصفية وإدارة عروض الأسعار",
+      "search": "بحث...",
+      "allStatuses": "كل الحالات",
+      "convertibleOnly": "القابلة للتحويل فقط",
+      "empty": {
+        "title": "لا توجد عروض أسعار",
+        "description": "أنشئ عرض سعر للبدء."
+      }
+    },
+    "fields": {
+      "number": "الرقم",
+      "customer": "العميل",
+      "issueDate": "تاريخ الإرسال",
+      "validUntil": "صالح حتى",
+      "total": "الإجمالي",
+      "status": "الحالة",
+      "currency": "العملة",
+      "title": "العنوان",
+      "taxRate": "نسبة الضريبة %",
+      "discount": "الخصم",
+      "notes": "ملاحظات",
+      "description": "الوصف",
+      "cancelReason": "سبب الإلغاء",
+      "rejectReason": "سبب الرفض",
+      "convertedTo": "حُوّل إلى"
+    },
+    "create": {
+      "title": "إنشاء عرض سعر",
+      "description": "أدخل الرأس والبنود؛ تُحتسب الإجماليات تلقائياً.",
+      "creating": "جارٍ الإنشاء...",
+      "selectCustomer": "اختر العميل...",
+      "itemsTitle": "البنود",
+      "itemDescription": "وصف البند",
+      "qty": "الكمية",
+      "unitPrice": "سعر الوحدة",
+      "addItem": "إضافة بند",
+      "errors": {
+        "customerRequired": "اختيار العميل مطلوب",
+        "itemsRequired": "مطلوب بند واحد على الأقل"
+      }
+    },
+    "totals": {
+      "subtotal": "المجموع الفرعي",
+      "tax": "الضريبة",
+      "total": "الإجمالي"
+    },
+    "detail": {
+      "items": "البنود",
+      "lineTotal": "إجمالي السطر",
+      "convertedBadge": "حُوّل إلى {number}"
+    },
+    "convert": {
+      "title": "التحويل إلى فاتورة أولية",
+      "description": "يُحوَّل هذا العرض المقبول مرة واحدة إلى فاتورة أولية مسودة.",
+      "body": "تحويل العرض {number} بإجمالي {total} {currency} إلى فاتورة أولية؟",
+      "converting": "جارٍ التحويل...",
+      "resultTitle": "تم التحويل",
+      "resultLine": "أُنشئت الفاتورة الأولية {number}.",
+      "resultHint": "الفاتورة الأولية مسودة؛ أصدِرْها قبل تحويلها إلى فاتورة."
+    },
+    "confirm": {
+      "send": {
+        "title": "إرسال عرض السعر",
+        "description": "بعد الإرسال لا يمكن تعديل البنود أو المبالغ."
+      },
+      "accept": {
+        "title": "قبول عرض السعر",
+        "description": "بعد القبول يصبح التحويل إلى فاتورة أولية ممكناً."
+      },
+      "reject": {
+        "title": "رفض عرض السعر",
+        "description": "أدخل سبب الرفض.",
+        "reason": "سبب الرفض",
+        "reasonPlaceholder": "مثال: السعر أعلى من ميزانية العميل"
+      },
+      "cancel": {
+        "title": "إلغاء عرض السعر",
+        "description": "أدخل سبب الإلغاء.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "مثال: استُبدل بغيره"
       }
     }
   }

@@ -70,6 +70,11 @@ model User {
   proformasCreated        Proforma[]        @relation("ProformaCreatedBy")
   proformasIssued         Proforma[]        @relation("ProformaIssuedBy")
   proformasCancelled      Proforma[]        @relation("ProformaCancelledBy")
+  quotationsCreated       Quotation[]       @relation("QuotationCreatedBy")
+  quotationsSent          Quotation[]       @relation("QuotationSentBy")
+  quotationsAccepted      Quotation[]       @relation("QuotationAcceptedBy")
+  quotationsRejected      Quotation[]       @relation("QuotationRejectedBy")
+  quotationsCancelled     Quotation[]       @relation("QuotationCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -256,6 +261,7 @@ model Customer {
   billsAsConsignee   BillOfLading[] @relation("BillConsignee")
   invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
   proformasIssuedTo  Proforma[]  @relation("ProformaCustomer")
+  quotationsIssuedTo Quotation[] @relation("QuotationCustomer")
   deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
   vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
@@ -1160,6 +1166,7 @@ model Proforma {
 
   customer    Customer?     @relation("ProformaCustomer", fields: [customerId], references: [id])
   invoice     Invoice?      @relation("ProformaConvertedInvoice", fields: [linkedInvoiceId], references: [id])
+  quotation   Quotation?    @relation("QuotationConvertedProforma")
   items       ProformaItem[]
   createdBy   User?         @relation("ProformaCreatedBy", fields: [createdById], references: [id])
   issuedBy    User?         @relation("ProformaIssuedBy", fields: [issuedById], references: [id])
@@ -1189,6 +1196,100 @@ model ProformaItem {
   @@index([proformaId])
   @@index([sequence])
   @@map("proforma_items")
+}
+
+// ─── Phase 15: Quotations (price quotes — top of the commercial chain) ────────
+// A quotation answers a customer inquiry with a binding-until-expiry price.
+// Same money math as Invoice/Proforma. Lifecycle:
+//   DRAFT -> SENT -> ACCEPTED | REJECTED | CANCELLED  (DRAFT may also CANCELLED)
+// ACCEPTED quotations convert ONCE into a DRAFT proforma, completing the
+// legacy-free chain Quote -> Proforma -> Invoice (ADR-035).
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  quotationNumber String          @unique // auto QT-YYMM-#####
+  customerId      String          @map("customerId") // quoted-for counterparty
+  status          QuotationStatus @default(DRAFT)
+
+  title       String? // free heading on the printed quote
+  description String?
+
+  currencyCode String    @default("USD") @map("currencyCode") // ISO 4217
+  issueDate    DateTime? @map("issueDate")
+  validUntil   DateTime? @map("validUntil") // quote expiry
+
+  // Same math as Invoice: subtotal = SUM(items.amount),
+  // taxAmount = (subtotal - discountAmount) * taxRate / 100,
+  // totalAmount = subtotal - discountAmount + taxAmount.
+  subtotal       Decimal @default(0) @db.Decimal(18, 2) @map("subtotal")
+  taxRate        Decimal @default(0) @db.Decimal(5, 2)  @map("taxRate") // percent 0..100
+  taxAmount      Decimal @default(0) @db.Decimal(18, 2) @map("taxAmount")
+  discountAmount Decimal @default(0) @db.Decimal(18, 2) @map("discountAmount")
+  totalAmount    Decimal @default(0) @db.Decimal(18, 2) @map("totalAmount")
+
+  // One-time conversion link (ADR-035): set to the created proforma's id.
+  linkedProformaId String? @unique @map("linkedProformaId")
+
+  rejectReason  String? @map("rejectReason")  // required on rejection
+  cancelReason  String? @map("cancelReason")  // required on cancellation
+  notes         String?
+
+  createdById    String? @map("createdById")
+  sentById       String? @map("sentById")
+  acceptedById   String? @map("acceptedById")
+  rejectedById   String? @map("rejectedById")
+  cancelledById  String? @map("cancelledById")
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sentAt       DateTime? @map("sentAt")
+  acceptedAt   DateTime? @map("acceptedAt")
+  rejectedAt   DateTime? @map("rejectedAt")
+  cancelledAt  DateTime? @map("cancelledAt")
+  deletedAt    DateTime? @map("deletedAt")
+
+  customer    Customer?   @relation("QuotationCustomer", fields: [customerId], references: [id])
+  proforma    Proforma?   @relation("QuotationConvertedProforma", fields: [linkedProformaId], references: [id])
+  items       QuotationItem[]
+  createdBy   User?       @relation("QuotationCreatedBy", fields: [createdById], references: [id])
+  sentBy      User?       @relation("QuotationSentBy", fields: [sentById], references: [id])
+  acceptedBy  User?       @relation("QuotationAcceptedBy", fields: [acceptedById], references: [id])
+  rejectedBy  User?       @relation("QuotationRejectedBy", fields: [rejectedById], references: [id])
+  cancelledBy User?       @relation("QuotationCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([customerId])
+  @@index([status])
+  @@index([issueDate])
+  @@index([createdAt])
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id          String  @id @default(cuid())
+  quotationId String  @map("quotationId")
+  sequence    Int
+  description String?
+  quantity    Int     @default(1)
+  unitPrice   Decimal @default(0) @db.Decimal(18, 2) @map("unitPrice")
+  // Line total = quantity * unitPrice, maintained server-side on every write.
+  amount      Decimal @default(0) @db.Decimal(18, 2)
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@index([sequence])
+  @@map("quotation_items")
 }
 
 // ─── Phase 12: Finance — vouchers (receipt/payment) + derived ledger ──────────

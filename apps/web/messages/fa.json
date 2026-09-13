@@ -90,7 +90,8 @@
     "vouchers": "حواله‌ها",
     "ledger": "دفتر",
     "delivery": "حواله تحویل کالا",
-    "proformas": "پیش‌فاکتورها"
+    "proformas": "پیش‌فاکتورها",
+    "quotations": "استعلام‌بها"
   },
   "login": {
     "title": "ورود",
@@ -729,6 +730,112 @@
         "description": "پیش‌فاکتور باطل‌شده غیرقابل بازگشت است و بعداً قابل حذف است.",
         "reason": "دلیل",
         "reasonPlaceholder": "چرا این پیش‌فاکتور باطل می‌شود؟"
+      }
+    }
+  },
+  "quotation": {
+    "page": {
+      "title": "استعلام‌بها",
+      "description": "استعلام‌بهای ارسال‌شده برای مشتری — قابل تبدیل به پیش‌فاکتور"
+    },
+    "actions": {
+      "create": "استعلام جدید",
+      "send": "ارسال",
+      "accept": "پذیرش",
+      "reject": "رد",
+      "convert": "تبدیل",
+      "cancelling": "در حال لغو...",
+      "rejecting": "در حال رد..."
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "SENT": "ارسال‌شده",
+      "ACCEPTED": "پذیرفته‌شده",
+      "REJECTED": "ردشده",
+      "CANCELLED": "لغوشده"
+    },
+    "list": {
+      "title": "فهرست استعلام‌بها",
+      "subtitle": "جستجو، فیلتر و مدیریت استعلام‌بها",
+      "search": "جستجو...",
+      "allStatuses": "همه وضعیت‌ها",
+      "convertibleOnly": "فقط قابل تبدیل",
+      "empty": {
+        "title": "استعلام‌بهایی ثبت نشده است",
+        "description": "برای شروع، یک استعلام‌بها ایجاد کنید."
+      }
+    },
+    "fields": {
+      "number": "شماره",
+      "customer": "مشتری",
+      "issueDate": "تاریخ ارسال",
+      "validUntil": "اعتبار تا",
+      "total": "مجموع",
+      "status": "وضعیت",
+      "currency": "واحد پول",
+      "title": "عنوان",
+      "taxRate": "نرخ مالیات %",
+      "discount": "تخفیف",
+      "notes": "یادداشت",
+      "description": "شرح",
+      "cancelReason": "دلیل لغو",
+      "rejectReason": "دلیل رد",
+      "convertedTo": "تبدیل‌شده به"
+    },
+    "create": {
+      "title": "ایجاد استعلام‌بها",
+      "description": "سربرگ و اقلام را وارد کنید؛ مجموع‌ها خودکار محاسبه می‌شوند.",
+      "creating": "در حال ایجاد...",
+      "selectCustomer": "انتخاب مشتری...",
+      "itemsTitle": "اقلام",
+      "itemDescription": "شرح قلم",
+      "qty": "تعداد",
+      "unitPrice": "قیمت واحد",
+      "addItem": "افزودن قلم",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است",
+        "itemsRequired": "حداقل یک قلم لازم است"
+      }
+    },
+    "totals": {
+      "subtotal": "جمع فرعی",
+      "tax": "مالیات",
+      "total": "مجموع کل"
+    },
+    "detail": {
+      "items": "اقلام",
+      "lineTotal": "مجموع خط",
+      "convertedBadge": "تبدیل‌شده به {number}"
+    },
+    "convert": {
+      "title": "تبدیل به پیش‌فاکتور",
+      "description": "این استعلام‌بهای پذیرفته‌شده یک‌بار به پیش‌فاکتور پیش‌نویس تبدیل می‌شود.",
+      "body": "استعلام {number} با مجموع {total} {currency} به پیش‌فاکتور تبدیل شود؟",
+      "converting": "در حال تبدیل...",
+      "resultTitle": "تبدیل انجام شد",
+      "resultLine": "پیش‌فاکتور {number} ساخته شد.",
+      "resultHint": "پیش‌فاکتور در وضعیت پیش‌نویس است و پس از صدور قابل تبدیل به فاکتور است."
+    },
+    "confirm": {
+      "send": {
+        "title": "ارسال استعلام‌بها",
+        "description": "پس از ارسال، اقلام و مبالغ قابل ویرایش نیستند."
+      },
+      "accept": {
+        "title": "پذیرش استعلام‌بها",
+        "description": "با پذیرش، امکان تبدیل به پیش‌فاکتور فراهم می‌شود."
+      },
+      "reject": {
+        "title": "رد استعلام‌بها",
+        "description": "دلیل رد را وارد کنید.",
+        "reason": "دلیل رد",
+        "reasonPlaceholder": "مثلاً: قیمت بالاتر از بودجه مشتری"
+      },
+      "cancel": {
+        "title": "لغو استعلام‌بها",
+        "description": "دلیل لغو را وارد کنید.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "مثلاً: جایگزین شد"
       }
     }
   }

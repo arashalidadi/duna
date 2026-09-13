@@ -469,3 +469,18 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 5. The created invoice is a normal DRAFT invoice — the standard edit/issue/voucher chain applies to it unchanged; the proforma stays ISSUED as the quote of record (both numbers visible in each UI).
 
 **Consequences.** Conversion is auditable from both sides (proforma.linkedInvoiceId ⇄ invoice.convertedProforma). The money pipeline (vouchers, ledger, release hold) only ever sees real invoices — quotes cannot leak into accounting. One migration, no changes to existing tables beyond a nullable unique FK.
+
+
+## ADR-035: Quotation lifecycle with one-time conversion into Proforma
+
+**Date:** 2026-09-13 | **Status:** Accepted
+
+**Context.** The commercial chain needs a front stage before the proforma: the customer asks for a price, sales sends a quote, the customer accepts or rejects. ADR-034 already made Proforma→Invoice a one-time conversion. Open questions: whether a quote converts straight to an invoice (skipping the proforma), and whether a quote needs more states than the proforma's DRAFT/ISSUED pair.
+
+**Decision.**
+1. `Quotation` + `QuotationItem` mirror the proforma header/line structure (same totals math, same currency handling, `validUntil` = quote validity). Numbering `QT-YYMM-#####`.
+2. Five states instead of three: DRAFT → SENT → ACCEPTED | REJECTED, with CANCELLED reachable from DRAFT/SENT. SENT freezes content (a quote must not change after the customer received it); ACCEPTED/REJECTED stamp actor + timestamp; reject and cancel require a reason; delete stays DRAFT-only.
+3. **Conversion goes to Proforma only:** `POST /quotations/:id/convert` (permission `quotation:convert`) is allowed only from ACCEPTED and creates a fresh DRAFT proforma copying header + lines; the unique `linkedProformaId` FK makes it one-time (second attempt 409). A quote never becomes an invoice directly — ADR-034 remains the only invoicing path.
+4. Zero financial effect: quotations (like proformas) cannot receive vouchers, never touch the ledger, and are invisible to the R/O release hold.
+
+**Consequences.** The chain Quote → Proforma → Invoice gives each negotiation stage its own document and number, auditable both ways (`quotation.linkedProformaId` ⇔ `proforma.quotation`). Rejected/expired quotes stay queryable for win-rate reporting. The per-stage permission gates (sales sends, ops accepts, finance converts) add two endpoints over the proforma design but keep every hand-off explicit.

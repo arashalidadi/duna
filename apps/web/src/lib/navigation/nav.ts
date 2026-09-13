@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
+import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -168,6 +168,14 @@ export const NAV_SECTIONS: NavSection[] = [
     titleKey: 'commercial',
     items: [
       { labelKey: 'jobs', icon: ClipboardList, status: 'planned', description: 'Job costing' },
+      {
+        labelKey: 'quotations',
+        href: '/quotations',
+        icon: Quote,
+        status: 'implemented',
+        description: 'Quotations (price quotes)',
+        requiredPermission: 'quotation:read',
+      },
       {
         labelKey: 'proformas',
         href: '/proformas',

@@ -2,7 +2,24 @@
 
 ## Completed
 
-### Phase 14 — Proforma Invoices (completed)
+### Phase 15 — Quotations (completed)
+
+**Objective met:** full-stack quotation module — price quotes sent to customers with a
+5-state lifecycle (DRAFT→SENT→ACCEPTED/REJECTED/CANCELLED) and one-time conversion of an
+accepted quote into a proforma, closing the commercial chain Quote → Proforma → Invoice.
+
+- Prisma: `Quotation`, `QuotationItem` (+ `QuotationStatus`), migration `20260913005121_phase15_quotations`; `linkedProformaId` unique FK to proformas (one-time conversion guard); full audit actor columns (sentBy/acceptedBy/rejectedBy/cancelledBy + timestamps + reasons); 9 permissions (`quotation:read/create/update/delete/send/accept/reject/cancel/convert`)
+- Same money math as Invoice/Proforma (subtotal = SUM(items), tax = (subtotal − discount) × rate, recomputed server-side on every write)
+- Lifecycle guards: send needs ≥1 line and freezes the document; accept/reject only from SENT; cancel from DRAFT|SENT; reject/cancel require a reason; delete hard-removes DRAFT only (other rows keep the audit trail)
+- **Convert (ADR-035):** `POST /quotations/:id/convert` requires ACCEPTED + `quotation:convert`; copies header + lines into a fresh DRAFT proforma (own PRF number, totals recomputed) and stamps `linkedProformaId` (second attempt 409); list filter `?convertible=true`
+- NestJS: `modules/quotation` (dto/service/controller/module); API typecheck clean; item routes return the full quotation row (totals visible) with @HttpCode(200)
+- e2e: 11 tests — RBAC matrix, create with inline items + totals math, line CRUD recompute, send guards/freeze/terminal 409s, accept+reject perms and reason gating, convert 403/409/400 guards + copied totals verified via GET /proformas/:id, re-convert 409 + convertible filter, DRAFT-only delete; tag-scoped Prisma cleanup in afterAll; **full suite 15 suites, 204/204 green**
+- Web: `/quotations` page (fa/en/ar, RTL) — status + convertible filters, create dialog with inline line editor and live totals, detail with lines table, per-status row actions (send/accept/reject/convert/cancel), reject/cancel reason dialogs, convert result dialog; nav `quotations` activated
+- i18n: `quotation` namespace 72 leaves × 3 locales (`scripts/merge-quotation-i18n.py`)
+- Demo: `scripts/seed-quotation-demo.mjs` — QT-2609-00001 full chain SENT→ACCEPTED→converted to PRF-2609-00004, QT-2609-00002 SENT past validUntil, QT-2609-00003 REJECTED with reason, QT-2609-00004 DRAFT IRR
+- Smoke: `/quotations` 200 in fa/en/ar, SSR translations render, zero raw-key leaks
+
+## Phase 14 — Proforma Invoices (completed)
 
 **Objective met:** full-stack quote module — proforma documents with the same
 line/totals math as Invoice but zero financial effect, and one-time conversion
