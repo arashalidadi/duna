@@ -70,7 +70,7 @@
     "billOfLading": "بارنامه",
     "discharge": "تخلیه",
     "deliveryOrders": "دستور تحویل",
-    "jobs": "کارها",
+    "jobs": "پروژه‌ها و هزینه‌یابی",
     "invoices": "فاکتورها",
     "payments": "پرداخت‌ها",
     "release": "مجوز ترخیص کالا",
@@ -1063,6 +1063,124 @@
       "sentOn": "تاریخ ارسال",
       "archivedOn": "تاریخ بایگانی",
       "title": "نامه"
+    }
+  },
+  "jobs": {
+    "page": {
+      "title": "پروژه‌ها و هزینه‌یابی",
+      "description": "پروژه‌های مشتری با ردیف‌های درآمد/هزینه و سود زنده برای هر پروژه"
+    },
+    "actions": {
+      "create": "پروژه جدید",
+      "edit": "ویرایش",
+      "delete": "حذف",
+      "view": "مشاهده",
+      "start": "بازگشایی",
+      "complete": "تکمیل",
+      "cancel": "لغو پروژه",
+      "addItem": "افزودن ردیف"
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "OPEN": "باز",
+      "COMPLETED": "تکمیل‌شده",
+      "CANCELLED": "لغوشده"
+    },
+    "type": {
+      "IMPORT_CLEARANCE": "ترخیص واردات",
+      "EXPORT": "صادرات",
+      "TRANSIT": "ترانزیت",
+      "CUSTOMS": "امور گمرکی",
+      "TRANSPORT": "حمل‌ونقل",
+      "OTHER": "سایر"
+    },
+    "fields": {
+      "number": "شماره پروژه",
+      "title": "عنوان",
+      "description": "توضیحات",
+      "jobType": "نوع پروژه",
+      "customer": "مشتری",
+      "voyage": "سفر",
+      "currency": "واحد پول",
+      "status": "وضعیت",
+      "openingDate": "تاریخ شروع",
+      "notes": "یادداشت",
+      "income": "درآمد",
+      "cost": "هزینه",
+      "profit": "سود",
+      "totalIncome": "درآمد",
+      "totalCost": "هزینه",
+      "completedOn": "تاریخ تکمیل",
+      "cancelledOn": "تاریخ لغو"
+    },
+    "list": {
+      "search": "شماره، عنوان یا مشتری…",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "پروژه‌ای ثبت نشده است",
+        "description": "برای شروع هزینه‌یابی، اولین پروژه را ثبت کنید."
+      }
+    },
+    "items": {
+      "title": "ردیف‌های هزینه‌یابی",
+      "addTitle": "افزودن ردیف",
+      "editTitle": "ویرایش ردیف",
+      "editing": "ویرایش ردیف…",
+      "add": "افزودن",
+      "empty": "هنوز ردیفی ثبت نشده — برای محاسبه سود، ردیف درآمد و هزینه اضافه کنید.",
+      "kind": {
+        "INCOME": "درآمد",
+        "COST": "هزینه"
+      },
+      "INCOME": "درآمد",
+      "COST": "هزینه",
+      "totals": "جمع کل",
+      "category": "دسته",
+      "description": "شرح",
+      "amount": "مبلغ",
+      "date": "تاریخ",
+      "errors": {
+        "descriptionRequired": "شرح الزامی است",
+        "descAmountRequired": "شرح و مبلغ الزامی است",
+        "badAmount": "مبلغ معتبر وارد کنید"
+      }
+    },
+    "form": {
+      "title": "ایجاد پروژه",
+      "editTitle": "ویرایش پروژه",
+      "description": "ردیف‌ها پس از ایجاد اضافه می‌شوند؛ سود سمت سرور محاسبه می‌شود.",
+      "noType": "(بدون نوع)",
+      "noCustomer": "— بدون مشتری —",
+      "noVoyage": "— بدون سفر —",
+      "errors": {
+        "titleRequired": "عنوان الزامی است"
+      }
+    },
+    "cancel": {
+      "title": "لغو پروژه",
+      "description": "دلیل لغو را وارد کنید (حسابرسی).",
+      "reason": "دلیل لغو",
+      "reasonPlaceholder": "مثلاً: انصراف مشتری"
+    },
+    "detail": {
+      "title": "پروژه",
+      "openedOn": "تاریخ بازگشایی",
+      "completedOn": "تاریخ تکمیل",
+      "cancelledOn": "تاریخ لغو"
+    },
+    "confirm": {
+      "start": {
+        "title": "بازگشایی پروژه",
+        "description": "پروژه {number} باز شود؟ ردیف‌های درآمد/هزینه همچنان قابل ویرایش‌اند."
+      },
+      "complete": {
+        "title": "تکمیل پروژه",
+        "description": "پروژه {number} با سود {profit} {currency} تکمیل شود؟ پس از تکمیل، ردیف‌ها قفل می‌شوند."
+      },
+      "delete": {
+        "title": "حذف پروژه",
+        "description": "پروژه {number} حذف شود؟ فقط پروژه‌های پیش‌نویس قابل حذف‌اند."
+      }
     }
   }
 }

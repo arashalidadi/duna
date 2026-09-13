@@ -172,6 +172,13 @@ async function main() {
   { code: 'letter:delete', module: 'letters', action: 'delete' },
   { code: 'letter:send', module: 'letters', action: 'send' },
   { code: 'letter:archive', module: 'letters', action: 'archive' },
+  { code: 'job:read', module: 'jobs', action: 'read' },
+  { code: 'job:create', module: 'jobs', action: 'create' },
+  { code: 'job:update', module: 'jobs', action: 'update' },
+  { code: 'job:delete', module: 'jobs', action: 'delete' },
+  { code: 'job:start', module: 'jobs', action: 'start' },
+  { code: 'job:complete', module: 'jobs', action: 'complete' },
+  { code: 'job:cancel', module: 'jobs', action: 'cancel' },
 ];
 
   const createdPermissions: Record<string, string> = {};

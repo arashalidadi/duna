@@ -28,6 +28,7 @@ import { ProformaModule } from './modules/proforma/proforma.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
 import { SalaryModule } from './modules/salary/salary.module';
 import { LettersModule } from './modules/letters/letters.module';
+import { JobsModule } from './modules/jobs/jobs.module';
 import { JwtAuthGuard } from './common/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/auth/guards/permissions.guard';
 import { AppController } from './app.controller';
@@ -64,6 +65,7 @@ import { AppController } from './app.controller';
     QuotationModule,
     SalaryModule,
       LettersModule,
+      JobsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -511,3 +511,17 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 3. Contacts are free-text (`fromContact`/`toContact`), with an optional customer FK for correspondence tied to accounts — most counterparties (customs, port control) are not customers, so a required customer link was rejected.
 4. No attachments in v1: the register holds the text and reference numbers; file storage is deferred with the templates phase.
 **Consequences.** The register is cheap to keep (single table + self-FK) and gives the Letters module an auditable, immutable record of what was sent and when. Replies are ordinary letters, so filters and the future Agent Portal (Phase 20) treat them uniformly; the cost is that multi-level threads are only visible through the parent link, which is acceptable for a small operation.
+
+---
+
+## ADR-038: Self-contained job costing with lifecycle-frozen lines and read-time totals
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Context:** Phase 18 (Jobs & Job Costing). Operations need per-job income/cost tracking (clearance, transit, customs advisory) to see profitability before the Reports phase (Phase 21) aggregates it — but the company is small (<10 staff) and jobs are dozens per month, not thousands.
+**Decision.**
+1. A `Job` is a self-contained cost sheet: `JobCostItem` lines of kind INCOME or COST (category, description, amount, optional date/notes) in a single job currency (default USD). No link to vouchers, invoices or proformas — mirroring the self-contained salary decision (ADR-036) — so costing never risks double-counting against accounting. The Reports phase (21) will compute voyage P&L from manifest/B/L + vouchers plus these job lines as an auxiliary view.
+2. Lifecycle: DRAFT → `start` → OPEN → `complete` → COMPLETED; CANCELLED (with mandatory `cancelReason`) reachable from DRAFT or OPEN. Header fields are editable only in DRAFT; cost lines are editable in DRAFT and OPEN (real work accrues costs while the job runs) but freeze on COMPLETED/CANCELLED — the quotation freeze pattern (ADR-035) applied at line granularity. Delete is DRAFT-only.
+3. Totals (`totalIncome`/`totalCost`/`profit`) are computed from the items at read time in the service flatten — no denormalized columns, no triggers. At this scale (≤100 lines/job) the JS reduce on every read is cheaper than keeping a synced aggregate honest, and item mutations return the refreshed detail so the UI never goes stale.
+4. `jobType` is a free-text VarChar(60) with suggested values (IMPORT_CLEARANCE, EXPORT, TRANSIT, CUSTOMS, TRANSPORT, OTHER) rather than an enum: the operation invents new job kinds faster than migrations can follow, and the list filter is an equality match on the raw string.
+**Consequences.** Jobs give immediate per-job profitability with zero accounting coupling. The cost is that read-time totals must touch all items (included in the list select, acceptable at this scale) and that a future high-volume deployment would need an aggregate column — deferred deliberately. Numbering follows the shared `PREFIX-YYMM-#####` count+1 pattern (`JOB-`), and the 7 `job:*` permissions are seeded with ADMIN auto-grant.

@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, type LucideIcon } from 'lucide-react';
+import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, Briefcase, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -77,6 +77,14 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     titleKey: 'operations',
     items: [
+      {
+        labelKey: 'jobs',
+        href: '/jobs',
+        icon: Briefcase,
+        status: 'implemented',
+        description: 'Job register with costing',
+        requiredPermission: 'job:read',
+      },
       {
         labelKey: 'cargo',
         href: '/cargo',

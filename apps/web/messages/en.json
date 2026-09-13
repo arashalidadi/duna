@@ -70,7 +70,7 @@
     "billOfLading": "Bill of Lading",
     "discharge": "Discharge",
     "deliveryOrders": "Delivery Orders",
-    "jobs": "Jobs",
+    "jobs": "Jobs & Costing",
     "invoices": "Invoices",
     "payments": "Payments",
     "release": "Release Orders",
@@ -1063,6 +1063,124 @@
       "sentOn": "Sent on",
       "archivedOn": "Archived on",
       "title": "Letter"
+    }
+  },
+  "jobs": {
+    "page": {
+      "title": "Jobs & Costing",
+      "description": "Customer jobs with income/cost lines and live profit per job"
+    },
+    "actions": {
+      "create": "New Job",
+      "edit": "Edit",
+      "delete": "Delete",
+      "view": "View",
+      "start": "Open",
+      "complete": "Complete",
+      "cancel": "Cancel job",
+      "addItem": "Add line"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "OPEN": "Open",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled"
+    },
+    "type": {
+      "IMPORT_CLEARANCE": "Import clearance",
+      "EXPORT": "Export",
+      "TRANSIT": "Transit",
+      "CUSTOMS": "Customs affairs",
+      "TRANSPORT": "Transport",
+      "OTHER": "Other"
+    },
+    "fields": {
+      "number": "Job #",
+      "title": "Title",
+      "description": "Description",
+      "jobType": "Job type",
+      "customer": "Customer",
+      "voyage": "Voyage",
+      "currency": "Currency",
+      "status": "Status",
+      "openingDate": "Opening date",
+      "notes": "Notes",
+      "income": "Income",
+      "cost": "Cost",
+      "profit": "Profit",
+      "totalIncome": "Income",
+      "totalCost": "Cost",
+      "completedOn": "Completed",
+      "cancelledOn": "Cancelled"
+    },
+    "list": {
+      "search": "Number, title or customer…",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No jobs yet",
+        "description": "Create the first job to start costing."
+      }
+    },
+    "items": {
+      "title": "Costing lines",
+      "addTitle": "Add line",
+      "editTitle": "Edit line",
+      "editing": "Editing line…",
+      "add": "Add",
+      "empty": "No lines yet — add income and cost lines to compute profit.",
+      "kind": {
+        "INCOME": "Income",
+        "COST": "Cost"
+      },
+      "INCOME": "Income",
+      "COST": "Cost",
+      "totals": "Totals",
+      "category": "Category",
+      "description": "Description",
+      "amount": "Amount",
+      "date": "Date",
+      "errors": {
+        "descriptionRequired": "Description is required",
+        "descAmountRequired": "Description and amount are required",
+        "badAmount": "Enter a valid amount"
+      }
+    },
+    "form": {
+      "title": "Create Job",
+      "editTitle": "Edit Job",
+      "description": "Lines are added after creation; profit is computed server-side.",
+      "noType": "(no type)",
+      "noCustomer": "— none —",
+      "noVoyage": "— none —",
+      "errors": {
+        "titleRequired": "Title is required"
+      }
+    },
+    "cancel": {
+      "title": "Cancel job",
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. customer cancelled"
+    },
+    "detail": {
+      "title": "Job",
+      "openedOn": "Opened",
+      "completedOn": "Completed on",
+      "cancelledOn": "Cancelled on"
+    },
+    "confirm": {
+      "start": {
+        "title": "Open job",
+        "description": "Open {number}? Income/cost lines can still be adjusted."
+      },
+      "complete": {
+        "title": "Complete job",
+        "description": "Complete {number} with profit {profit} {currency}? Lines freeze after completion."
+      },
+      "delete": {
+        "title": "Delete job",
+        "description": "Delete {number}? Only DRAFT jobs can be deleted."
+      }
     }
   }
 }

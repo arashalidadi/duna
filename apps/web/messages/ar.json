@@ -84,7 +84,7 @@
     "billOfLading": "بوليصة الشحن",
     "discharge": "تخلیه",
     "deliveryOrders": "دستور تحویل",
-    "jobs": "کارها",
+    "jobs": "الخدمات والتكلفة",
     "payments": "پرداخت‌ها",
     "release": "أوامر الإفراج",
     "agents": "نمایندگان",
@@ -1084,6 +1084,124 @@
       "sentOn": "تاريخ الإرسال",
       "archivedOn": "تاريخ الأرشفة",
       "title": "الرسالة"
+    }
+  },
+  "jobs": {
+    "page": {
+      "title": "الخدمات والتكلفة",
+      "description": "خدمات العملاء مع بنود الإيراد/التكلفة وربح مباشر لكل خدمة"
+    },
+    "actions": {
+      "create": "خدمة جديدة",
+      "edit": "تعديل",
+      "delete": "حذف",
+      "view": "عرض",
+      "start": "فتح",
+      "complete": "إنجاز",
+      "cancel": "إلغاء الخدمة",
+      "addItem": "إضافة بند"
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "OPEN": "مفتوحة",
+      "COMPLETED": "منجزة",
+      "CANCELLED": "ملغاة"
+    },
+    "type": {
+      "IMPORT_CLEARANCE": "تخليص واردات",
+      "EXPORT": "صادرات",
+      "TRANSIT": "ترانزيت",
+      "CUSTOMS": "شؤون جمركية",
+      "TRANSPORT": "نقل",
+      "OTHER": "أخرى"
+    },
+    "fields": {
+      "number": "رقم الخدمة",
+      "title": "العنوان",
+      "description": "الوصف",
+      "jobType": "نوع الخدمة",
+      "customer": "العميل",
+      "voyage": "الرحلة",
+      "currency": "العملة",
+      "status": "الحالة",
+      "openingDate": "تاريخ الفتح",
+      "notes": "ملاحظات",
+      "income": "الإيراد",
+      "cost": "التكلفة",
+      "profit": "الربح",
+      "totalIncome": "الإيراد",
+      "totalCost": "التكلفة",
+      "completedOn": "تاريخ الإنجاز",
+      "cancelledOn": "تاريخ الإلغاء"
+    },
+    "list": {
+      "search": "الرقم أو العنوان أو العميل…",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا توجد خدمات",
+        "description": "أنشئ أول خدمة لبدء التكلفة."
+      }
+    },
+    "items": {
+      "title": "بنود التكلفة",
+      "addTitle": "إضافة بند",
+      "editTitle": "تعديل البند",
+      "editing": "تعديل البند…",
+      "add": "إضافة",
+      "empty": "لا بنود بعد — أضف بنود الإيراد والتكلفة لحساب الربح.",
+      "kind": {
+        "INCOME": "إيراد",
+        "COST": "تكلفة"
+      },
+      "INCOME": "إيراد",
+      "COST": "تكلفة",
+      "totals": "الإجماليات",
+      "category": "الفئة",
+      "description": "الشرح",
+      "amount": "المبلغ",
+      "date": "التاريخ",
+      "errors": {
+        "descriptionRequired": "الشرح مطلوب",
+        "descAmountRequired": "الشرح والمبلغ مطلوبان",
+        "badAmount": "أدخل مبلغًا صالحًا"
+      }
+    },
+    "form": {
+      "title": "إنشاء خدمة",
+      "editTitle": "تعديل الخدمة",
+      "description": "تُضاف البنود بعد الإنشاء؛ ويُحسب الربح في الخادم.",
+      "noType": "(بلا نوع)",
+      "noCustomer": "— بلا عميل —",
+      "noVoyage": "— بلا رحلة —",
+      "errors": {
+        "titleRequired": "العنوان مطلوب"
+      }
+    },
+    "cancel": {
+      "title": "إلغاء الخدمة",
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: ألغى العميل"
+    },
+    "detail": {
+      "title": "الخدمة",
+      "openedOn": "تاريخ الفتح",
+      "completedOn": "تاريخ الإنجاز",
+      "cancelledOn": "تاريخ الإلغاء"
+    },
+    "confirm": {
+      "start": {
+        "title": "فتح الخدمة",
+        "description": "فتح {number}؟ ما زالت بنود الإيراد/التكلفة قابلة للتعديل."
+      },
+      "complete": {
+        "title": "إنجاز الخدمة",
+        "description": "إنجاز {number} بربح {profit} {currency}؟ تُقفل البنود بعد الإنجاز."
+      },
+      "delete": {
+        "title": "حذف الخدمة",
+        "description": "حذف {number}؟ يمكن حذف مسودات الخدمات فقط."
+      }
     }
   }
 }

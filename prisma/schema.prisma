@@ -83,6 +83,9 @@ model User {
   lettersCreated      Letter[] @relation("LetterCreatedBy")
   lettersSent         Letter[] @relation("LetterSentBy")
   lettersArchived     Letter[] @relation("LetterArchivedBy")
+  jobsCreated          Job[]          @relation("JobCreatedBy")
+  jobsCompleted        Job[]          @relation("JobCompletedBy")
+  jobsCancelled        Job[]          @relation("JobCancelledBy")
 
   @@index([email])
   @@index([isActive])
@@ -271,6 +274,7 @@ model Customer {
   proformasIssuedTo  Proforma[]  @relation("ProformaCustomer")
   quotationsIssuedTo Quotation[] @relation("QuotationCustomer")
   letters               Letter[] @relation("LetterCustomer")
+  jobs                  Job[]          @relation("JobCustomer")
   deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
   vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
@@ -542,6 +546,7 @@ model Voyage {
   @@index([plannedDepartureAt])
   @@index([plannedArrivalAt])
   @@index([createdAt])
+  jobs                  Job[]          @relation("JobVoyage")
 }
 
 // ---------------------------------------------------------------------------
@@ -1579,4 +1584,73 @@ model Letter {
   @@index([customerId])
   @@index([replyToId])
   @@map("letters")
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+enum JobItemKind {
+  COST
+  INCOME
+}
+
+/// Job & costing (Phase 18, ADR-038). A job groups the operational work of one
+/// shipment (port call, transport, clearance); cost/income lines are tracked in
+/// the job currency. profit = sum(INCOME) - sum(COST), computed server-side.
+model Job {
+  id            String     @id @default(cuid())
+  jobNumber     String     @unique @map("jobNumber") // JOB-YYMM-#####
+  title         String     @db.VarChar(255)
+  description   String?    @db.Text
+  customerId    String?    @map("customerId")
+  voyageId      String?    @map("voyageId")
+  jobType       String?    @map("jobType") @db.VarChar(60)
+  status        JobStatus  @default(DRAFT)
+  currencyCode  String     @default("USD") @map("currencyCode") @db.VarChar(3)
+  openingDate   DateTime   @default(now()) @map("openingDate")
+  completedAt   DateTime?  @map("completedAt")
+  completedById String?    @map("completedById")
+  cancelledAt   DateTime?  @map("cancelledAt")
+  cancelledById String?    @map("cancelledById")
+  cancelReason  String?    @map("cancelReason") @db.VarChar(500)
+  notes         String?    @db.VarChar(500)
+  createdById   String?    @map("createdById")
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?  @map("deletedAt")
+
+  customer    Customer?      @relation("JobCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  voyage      Voyage?        @relation("JobVoyage", fields: [voyageId], references: [id], onDelete: SetNull)
+  items       JobCostItem[] @relation("JobItems")
+  createdBy   User?          @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedBy User?          @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  cancelledBy User?          @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([customerId])
+  @@index([voyageId])
+  @@index([openingDate])
+  @@map("jobs")
+}
+
+model JobCostItem {
+  id          String       @id @default(cuid())
+  jobId       String       @map("jobId")
+  kind        JobItemKind
+  category    String?      @db.VarChar(60)
+  description String       @db.VarChar(255)
+  amount      Decimal      @db.Decimal(18, 2)
+  itemDate    DateTime?    @map("itemDate")
+  notes       String?      @db.VarChar(255)
+  createdAt   DateTime     @default(now())
+
+  job Job @relation("JobItems", fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([kind])
+  @@map("job_cost_items")
 }
