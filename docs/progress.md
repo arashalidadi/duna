@@ -1,6 +1,17 @@
 # Progress
 
 ## Completed
+### Phase 18 — Jobs & Job Costing (completed)
+
+- **Model:** `Job` (auto `JOB-YYMM-#####`, title, jobType free-text VarChar(60), optional customer/voyage links, currencyCode default USD, status DRAFT/OPEN/COMPLETED/CANCELLED, openingDate, completedBy/At, cancelledBy/At + cancelReason, notes, soft delete) + `JobCostItem` (kind INCOME|COST, category, description, amount Decimal, itemDate, notes). Migrations `phase18_jobs` + jobType add-column.
+- **Lifecycle (ADR-038):** DRAFT → `start` → OPEN → `complete` → COMPLETED; `cancel` (mandatory `cancelReason`) from DRAFT|OPEN; delete DRAFT-only. Header edits DRAFT-only; cost lines editable DRAFT|OPEN, frozen after completion.
+- **API:** CRUD + item sub-resource (add/update/remove, `@HttpCode(200)` on item routes, create 201) + start/complete/cancel; totals `totalIncome`/`totalCost`/`profit` computed read-time in flatten; list filters search (number/title/customer) + status + customerId + jobType + voyageId + sort; 7 permissions (`job:*`) seeded, ADMIN auto-grant.
+- **E2E:** `job.e2e-spec.ts` 14 tests (RBAC matrix, numbering, inline items + totals, item CRUD with recalc, DRAFT-only header edit, start/complete freeze, cancel gating + reason, DRAFT-only delete, filters). Jobs 14/14 green.
+- **Shared:** `packages/shared/src/job.ts` — Job, JobItem, JobStatusValues, JobKindValues, JobListResult, JobCustomerRef, JobVoyageRef (`voyageNumber`, nested `vessel.name` matching service select).
+- **Web:** `/jobs` — search + status filter, list with per-job income/cost/profit (colored, currency-tagged), create/edit dialog (type/currency/customer/voyage selects), detail dialog with costing-lines table (add/edit/remove while DRAFT|OPEN), lifecycle actions (Open/Complete/Cancel-with-reason/Delete), audit stamps. Nav: **jobs** item in operations group (Briefcase icon). i18n `jobs` (80 keys) + nav ×3 via `scripts/merge-jobs-i18n.py`; web tsc clean.
+- **Demo seed:** `scripts/seed-jobs-demo.mjs` — IMPORT_CLEARANCE DRAFT (negative-WIP demo), EXPORT OPEN (post-open cost line), TRANSIT COMPLETED (profitable), CUSTOMS CANCELLED (reason); idempotent guard.
+- **Smoke:** fa/en/ar `/jobs` all 200, zero raw keys.
+
 ### Phase 17 — Letters / Correspondence register (completed)
 
 - **Model:** `Letter` (auto `LET-YYMM-#####`, direction INCOMING/OUTGOING, status DRAFT→SENT / RECEIVED / ARCHIVED, letterDate, subject, body, refNumber, from/to contacts, optional customer link, replyToId threading, notes, soft delete). Migration `20260913040329_phase17_letters`.
@@ -8,7 +19,7 @@
 - **API:** CRUD + send/reply/archive; list filters search (number/subject/ref/contacts/customer) + status + direction + replyToId + customerId; 6 permissions (`letter:read/create/update/delete/send/archive`) seeded, ADMIN auto-grant.
 - **E2E:** `letter.e2e-spec.ts` 15 tests (RBAC matrix, numbering, forced RECEIVED, freeze-after-send, transitions, reply threading + repliesCount, filters, delete gating, tag-scoped hard cleanup). Letters 15/15 green.
 - **Web:** `/letters` — filters, list with direction icons + thread indicator + repliesCount, create/edit/reply dialog, detail dialog with reply-thread box + audit stamps, DRAFT edit/send/delete and active-state archive actions. New **Correspondence** nav group (Mail icon). i18n `letters` (43 keys) + nav ×3 via `scripts/merge-letters-i18n.py`; web tsc clean.
-- **Demo seed:** `scripts/seed-letters-demo.mjs` — customs notice (incoming→archived), demurrage claim (sent), threaded reply (sent), fresh DRAFT; idempotent guard.
+- **Demo seed:** `scripts/seed-letters-demo.mjs` — arrival notice (INCOMING→RECEIVED, threaded), doc release request (SENT), one-click reply on the arrival notice (Re:, SENT), fresh detention-waiver DRAFT, archived rate-amendment notice; idempotent guard.
 - **Smoke:** fa/en/ar `/letters` all 200, zero raw keys, sidebar group renders.
 
 ### Phase 16 — Employees & Salary/Payroll (completed)
