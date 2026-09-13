@@ -166,6 +166,12 @@ async function main() {
   { code: 'bill:delete', module: 'bill', action: 'delete' },
   { code: 'bill:issue', module: 'bill', action: 'issue' },
   { code: 'bill:cancel', module: 'bill', action: 'cancel' },
+  { code: 'letter:read', module: 'letters', action: 'read' },
+  { code: 'letter:create', module: 'letters', action: 'create' },
+  { code: 'letter:update', module: 'letters', action: 'update' },
+  { code: 'letter:delete', module: 'letters', action: 'delete' },
+  { code: 'letter:send', module: 'letters', action: 'send' },
+  { code: 'letter:archive', module: 'letters', action: 'archive' },
 ];
 
   const createdPermissions: Record<string, string> = {};

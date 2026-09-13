@@ -94,7 +94,9 @@
     "quotations": "استعلام‌بها",
     "people": "کارکنان و حقوق",
     "employees": "کارکنان",
-    "salaryRecords": "فیش‌های حقوقی"
+    "salaryRecords": "فیش‌های حقوقی",
+    "correspondence": "مکاتبات",
+    "letters": "نامه‌ها"
   },
   "login": {
     "title": "ورود",
@@ -990,6 +992,77 @@
       "paidOn": "تاریخ پرداخت",
       "cancelledOn": "تاریخ لغو",
       "createdAt": "تاریخ ایجاد"
+    }
+  },
+  "letters": {
+    "page": {
+      "title": "نامه‌ها",
+      "description": "دفتر ثبت مکاتبات رسمی — وارده و صادره"
+    },
+    "actions": {
+      "create": "نامه جدید",
+      "edit": "ویرایش",
+      "send": "ارسال",
+      "archive": "بایگانی",
+      "reply": "پاسخ",
+      "view": "مشاهده"
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "SENT": "ارسال‌شده",
+      "RECEIVED": "دریافت‌شده",
+      "ARCHIVED": "بایگانی‌شده"
+    },
+    "direction": {
+      "INCOMING": "وارده",
+      "OUTGOING": "صادره"
+    },
+    "fields": {
+      "number": "شماره",
+      "direction": "جهت",
+      "subject": "موضوع",
+      "date": "تاریخ",
+      "contact": "طرف مکاتبه",
+      "fromContact": "از (سازمان/شخص)",
+      "toContact": "به (سازمان/شخص)",
+      "refNumber": "شماره مرجع",
+      "body": "متن",
+      "notes": "یادداشت",
+      "status": "وضعیت",
+      "customer": "مشتری"
+    },
+    "list": {
+      "title": "نامه‌ها",
+      "subtitle": "فیلتر بر اساس جهت، وضعیت و متن",
+      "search": "جستجوی شماره، موضوع، مرجع...",
+      "allStatuses": "همه وضعیت‌ها",
+      "allDirections": "همه جهت‌ها",
+      "empty": {
+        "title": "نامه‌ای ثبت نشده است",
+        "description": "اولین نامه‌ی وارده یا صادره را ثبت کنید."
+      }
+    },
+    "form": {
+      "title": "نامه جدید",
+      "editTitle": "ویرایش نامه",
+      "description": "نامه‌های وارده بلافاصله «دریافت‌شده» ثبت می‌شوند؛ صادره از پیش‌نویس شروع می‌شود.",
+      "replyDescription": "پاسخ به‌صورت پیش‌نویس صادره و متصل به نامه‌ی اصلی ایجاد می‌شود.",
+      "errors": {
+        "subjectRequired": "موضوع الزامی است"
+      },
+      "replyTitle": "پاسخ به نامه"
+    },
+    "confirm": {
+      "delete": {
+        "title": "حذف نامه",
+        "description": "نامه {number} حذف شود؟ فقط پیش‌نویس‌ها قابل حذف‌اند."
+      }
+    },
+    "detail": {
+      "inReplyTo": "در پاسخ به",
+      "sentOn": "تاریخ ارسال",
+      "archivedOn": "تاریخ بایگانی",
+      "title": "نامه"
     }
   }
 }

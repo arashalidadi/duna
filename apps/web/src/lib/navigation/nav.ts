@@ -1,4 +1,4 @@
-import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, type LucideIcon } from 'lucide-react';
+import { Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, type LucideIcon } from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -245,6 +245,19 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented',
         description: 'Monthly payslips (draft/approve/pay)',
         requiredPermission: 'salary:read',
+      },
+    ],
+  },
+  {
+    titleKey: 'correspondence',
+    items: [
+      {
+        labelKey: 'letters',
+        href: '/letters',
+        icon: Mail,
+        status: 'implemented',
+        description: 'Official correspondence register',
+        requiredPermission: 'letter:read',
       },
     ],
   },

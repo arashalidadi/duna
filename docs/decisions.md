@@ -497,3 +497,17 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 2. The reason is structural, not cosmetic: `Voucher` requires a `customerId` — it is a **customer-centric** instrument by design (ADR-032), so posting payroll through it would mix employee payments into customer receivables, corrupting aging and release-hold logic (ADR-033).
 3. Payslips therefore carry their own audit trail end-to-end, and the payroll list stays a complete money record (`base + additions − deductions = net`, server-computed, frozen on APPROVED).
 **Consequences.** Real expense accounting for salaries (supplier/expenses module with debit vouchers, cash/bank accounts, and month-end payroll journal) is deferred to a dedicated future phase; when it lands, it will link to payslips by `paymentRef`-style FKs rather than reusing `Voucher.customerId`. A `@@unique(employeeId, year, month)` prevents double-paying a period, and cancel preserves the reason for audit while DRAFT-only delete keeps drafts disposable.
+
+---
+
+## ADR-037: Correspondence register with direction-driven lifecycle and one-click threaded replies
+
+**Date:** 2026-09-13
+**Status:** Accepted
+**Context:** Phase 17 (Letters). Business correspondence — customs notices, agent claims, port-control requests — must be registered and retrievable for audit, with replies linked to their trigger letter.
+**Decision.**
+1. Direction drives the lifecycle, not a generic state machine: INCOMING letters are created directly as RECEIVED (an arrived letter is a fact, never a draft); OUTGOING letters follow DRAFT → SENT. Both reach terminal ARCHIVED from their active state. Content edits and deletes are DRAFT-only — a sent letter is immutable, mirroring the quotation freeze rule (ADR-035).
+2. Threading is a plain self-relation (`replyToId`): any letter may spawn multiple replies; no tree walk is needed for the UI (list shows ↩ indicator + repliesCount, detail links the single parent). One-click `POST /letters/:id/reply` mirrors contacts and prefixes `Re: ` so clerks never retype headers.
+3. Contacts are free-text (`fromContact`/`toContact`), with an optional customer FK for correspondence tied to accounts — most counterparties (customs, port control) are not customers, so a required customer link was rejected.
+4. No attachments in v1: the register holds the text and reference numbers; file storage is deferred with the templates phase.
+**Consequences.** The register is cheap to keep (single table + self-FK) and gives the Letters module an auditable, immutable record of what was sent and when. Replies are ordinary letters, so filters and the future Agent Portal (Phase 20) treat them uniformly; the cost is that multi-level threads are only visible through the parent link, which is acceptable for a small operation.

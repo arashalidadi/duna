@@ -94,7 +94,9 @@
     "delivery": "أوامر التسليم",
     "people": "الموظفون والرواتب",
     "employees": "الموظفون",
-    "salaryRecords": "قسائم الرواتب"
+    "salaryRecords": "قسائم الرواتب",
+    "correspondence": "المراسلات",
+    "letters": "الرسائل"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -1011,6 +1013,77 @@
       "paidOn": "تاريخ الدفع",
       "cancelledOn": "تاريخ الإلغاء",
       "createdAt": "تاريخ الإنشاء"
+    }
+  },
+  "letters": {
+    "page": {
+      "title": "الرسائل",
+      "description": "سجل المراسلات الرسمية — الواردة والصادرة"
+    },
+    "actions": {
+      "create": "رسالة جديدة",
+      "edit": "تعديل",
+      "send": "إرسال",
+      "archive": "أرشفة",
+      "reply": "رد",
+      "view": "عرض"
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "SENT": "مُرسلة",
+      "RECEIVED": "واردة",
+      "ARCHIVED": "مؤرشفة"
+    },
+    "direction": {
+      "INCOMING": "واردة",
+      "OUTGOING": "صادرة"
+    },
+    "fields": {
+      "number": "الرقم",
+      "direction": "الاتجاه",
+      "subject": "الموضوع",
+      "date": "التاريخ",
+      "contact": "المراسِل",
+      "fromContact": "من (جهة/شخص)",
+      "toContact": "إلى (جهة/شخص)",
+      "refNumber": "رقم المرجع",
+      "body": "النص",
+      "notes": "ملاحظات",
+      "status": "الحالة",
+      "customer": "العميل"
+    },
+    "list": {
+      "title": "الرسائل",
+      "subtitle": "تصفية حسب الاتجاه والحالة والنص",
+      "search": "بحث بالرقم أو الموضوع أو المرجع...",
+      "allStatuses": "كل الحالات",
+      "allDirections": "كل الاتجاهات",
+      "empty": {
+        "title": "لا توجد رسائل",
+        "description": "سجّل أول رسالة واردة أو صادرة."
+      }
+    },
+    "form": {
+      "title": "رسالة جديدة",
+      "editTitle": "تعديل الرسالة",
+      "description": "الرسائل الواردة تُسجَّل «واردة» فورًا؛ والصادرة تبدأ مسودة.",
+      "replyDescription": "يُنشأ الرد كمسودة صادرة مرتبطة بالرسالة الأصلية.",
+      "errors": {
+        "subjectRequired": "الموضوع مطلوب"
+      },
+      "replyTitle": "رد على الرسالة"
+    },
+    "confirm": {
+      "delete": {
+        "title": "حذف الرسالة",
+        "description": "حذف {number}؟ يمكن حذف المسودات فقط."
+      }
+    },
+    "detail": {
+      "inReplyTo": "ردًا على",
+      "sentOn": "تاريخ الإرسال",
+      "archivedOn": "تاريخ الأرشفة",
+      "title": "الرسالة"
     }
   }
 }

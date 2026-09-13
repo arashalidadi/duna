@@ -94,7 +94,9 @@
     "quotations": "Quotations",
     "people": "People & Payroll",
     "employees": "Employees",
-    "salaryRecords": "Salary Records"
+    "salaryRecords": "Salary Records",
+    "correspondence": "Correspondence",
+    "letters": "Letters"
   },
   "login": {
     "title": "Sign In",
@@ -990,6 +992,77 @@
       "paidOn": "Paid on",
       "cancelledOn": "Cancelled on",
       "createdAt": "Created"
+    }
+  },
+  "letters": {
+    "page": {
+      "title": "Letters",
+      "description": "Official correspondence register — incoming and outgoing"
+    },
+    "actions": {
+      "create": "New Letter",
+      "edit": "Edit",
+      "send": "Send",
+      "archive": "Archive",
+      "reply": "Reply",
+      "view": "View"
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "SENT": "Sent",
+      "RECEIVED": "Received",
+      "ARCHIVED": "Archived"
+    },
+    "direction": {
+      "INCOMING": "Incoming",
+      "OUTGOING": "Outgoing"
+    },
+    "fields": {
+      "number": "Number",
+      "direction": "Direction",
+      "subject": "Subject",
+      "date": "Date",
+      "contact": "Correspondent",
+      "fromContact": "From (organization/person)",
+      "toContact": "To (organization/person)",
+      "refNumber": "Reference No.",
+      "body": "Body",
+      "notes": "Notes",
+      "status": "Status",
+      "customer": "Customer"
+    },
+    "list": {
+      "title": "Letters",
+      "subtitle": "Filter by direction, status and text",
+      "search": "Search number, subject, reference...",
+      "allStatuses": "All statuses",
+      "allDirections": "All directions",
+      "empty": {
+        "title": "No letters yet",
+        "description": "Register the first incoming or outgoing letter."
+      }
+    },
+    "form": {
+      "title": "New Letter",
+      "editTitle": "Edit Letter",
+      "description": "Incoming letters are filed as Received immediately; outgoing ones start as Draft.",
+      "replyDescription": "Reply is created as an outgoing draft threaded to the original letter.",
+      "errors": {
+        "subjectRequired": "Subject is required"
+      },
+      "replyTitle": "Reply to Letter"
+    },
+    "confirm": {
+      "delete": {
+        "title": "Delete letter",
+        "description": "Delete {number}? Only DRAFT letters can be deleted."
+      }
+    },
+    "detail": {
+      "inReplyTo": "In reply to",
+      "sentOn": "Sent on",
+      "archivedOn": "Archived on",
+      "title": "Letter"
     }
   }
 }

@@ -181,3 +181,4 @@ export * from './proforma';
 export * from './quotation';
 export * from './employee';
 export * from './salary';
+export * from './letter';

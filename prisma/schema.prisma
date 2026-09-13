@@ -80,6 +80,9 @@ model User {
   salaryRecordsApproved   SalaryRecord[]   @relation("SalaryApprovedBy")
   salaryRecordsPaid       SalaryRecord[]   @relation("SalaryPaidBy")
   salaryRecordsCancelled  SalaryRecord[]   @relation("SalaryCancelledBy")
+  lettersCreated      Letter[] @relation("LetterCreatedBy")
+  lettersSent         Letter[] @relation("LetterSentBy")
+  lettersArchived     Letter[] @relation("LetterArchivedBy")
 
   @@index([email])
   @@index([isActive])
@@ -267,6 +270,7 @@ model Customer {
   invoicesIssuedTo  Invoice[]    @relation("InvoiceCustomer")
   proformasIssuedTo  Proforma[]  @relation("ProformaCustomer")
   quotationsIssuedTo Quotation[] @relation("QuotationCustomer")
+  letters               Letter[] @relation("LetterCustomer")
   deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
   vouchersReceived  Voucher[]     @relation("VoucherCustomer")
 
@@ -1520,4 +1524,59 @@ model ReleaseOrder {
   @@index([status])
   @@index([releaseDate])
   @@map("release_orders")
+}
+
+enum LetterDirection {
+  INCOMING
+  OUTGOING
+}
+
+enum LetterStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  ARCHIVED
+}
+
+/// Correspondence register (Phase 17, ADR-037). INCOMING letters are created as
+/// RECEIVED; OUTGOING follow DRAFT -> SENT. Both archive from their active state
+/// (ARCHIVED terminal). Replies thread through replyToId — any letter may spawn
+/// multiple replies; editing content is DRAFT-only. No file attachments yet
+/// (notes carry the reference), no per-agent portal coupling until Phase 20.
+model Letter {
+  id            String          @id @default(cuid())
+  letterNumber  String          @unique @map("letterNumber") // LET-YYMM-#####
+  direction     LetterDirection
+  status        LetterStatus    @default(DRAFT)
+  letterDate    DateTime        @map("letterDate")
+  subject       String          @db.VarChar(255)
+  body          String?         @db.Text
+  refNumber     String?         @map("refNumber") @db.VarChar(100)
+  fromContact   String?         @map("fromContact") @db.VarChar(160)
+  toContact     String?         @map("toContact") @db.VarChar(160)
+  customerId    String?         @map("customerId")
+  replyToId     String?         @map("replyToId")
+  notes         String?         @db.VarChar(500)
+  sentById      String?         @map("sentById")
+  sentAt        DateTime?       @map("sentAt")
+  archivedById  String?         @map("archivedById")
+  archivedAt    DateTime?       @map("archivedAt")
+  createdById   String?         @map("createdById")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?       @map("deletedAt")
+
+  customer   Customer? @relation("LetterCustomer", fields: [customerId], references: [id], onDelete: SetNull)
+  replyTo    Letter?   @relation("LetterReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies    Letter[]  @relation("LetterReply")
+  createdBy  User?     @relation("LetterCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  sentBy     User?     @relation("LetterSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  archivedBy User?     @relation("LetterArchivedBy", fields: [archivedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([direction])
+  @@index([letterDate])
+  @@index([customerId])
+  @@index([replyToId])
+  @@map("letters")
 }

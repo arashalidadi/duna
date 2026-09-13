@@ -1,6 +1,16 @@
 # Progress
 
 ## Completed
+### Phase 17 — Letters / Correspondence register (completed)
+
+- **Model:** `Letter` (auto `LET-YYMM-#####`, direction INCOMING/OUTGOING, status DRAFT→SENT / RECEIVED / ARCHIVED, letterDate, subject, body, refNumber, from/to contacts, optional customer link, replyToId threading, notes, soft delete). Migration `20260913040329_phase17_letters`.
+- **Lifecycle (ADR-037):** INCOMING letters are a fact — created directly as RECEIVED; OUTGOING start DRAFT → `send` stamps actor+time and freezes content (edit/delete DRAFT-only). SENT|RECEIVED → `archive` (terminal). `POST /letters/:id/reply` one-click reply: OUTGOING DRAFT with `Re:` subject, mirrored contacts, threaded replyToId.
+- **API:** CRUD + send/reply/archive; list filters search (number/subject/ref/contacts/customer) + status + direction + replyToId + customerId; 6 permissions (`letter:read/create/update/delete/send/archive`) seeded, ADMIN auto-grant.
+- **E2E:** `letter.e2e-spec.ts` 15 tests (RBAC matrix, numbering, forced RECEIVED, freeze-after-send, transitions, reply threading + repliesCount, filters, delete gating, tag-scoped hard cleanup). Letters 15/15 green.
+- **Web:** `/letters` — filters, list with direction icons + thread indicator + repliesCount, create/edit/reply dialog, detail dialog with reply-thread box + audit stamps, DRAFT edit/send/delete and active-state archive actions. New **Correspondence** nav group (Mail icon). i18n `letters` (43 keys) + nav ×3 via `scripts/merge-letters-i18n.py`; web tsc clean.
+- **Demo seed:** `scripts/seed-letters-demo.mjs` — customs notice (incoming→archived), demurrage claim (sent), threaded reply (sent), fresh DRAFT; idempotent guard.
+- **Smoke:** fa/en/ar `/letters` all 200, zero raw keys, sidebar group renders.
+
 ### Phase 16 — Employees & Salary/Payroll (completed)
 
 - **Employee master data:** `Employee` model (code auto `EMP-#####`, nationalId unique-optional, position, contact, hireDate, baseSalary + currency default, status ACTIVE/INACTIVE, soft delete). Deleting an employee with payslips is blocked 409.
