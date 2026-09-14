@@ -27,68 +27,72 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id                      String          @id @default(cuid())
-  email                   String          @unique
+  id                      String           @id @default(cuid())
+  email                   String           @unique
   passwordHash            String
   fullName                String
-  isActive                Boolean         @default(true)
+  isActive                Boolean          @default(true)
   lastLoginAt             DateTime?
-  failedLoginAttempts     Int             @default(0)
+  failedLoginAttempts     Int              @default(0)
   lockedUntil             DateTime?
   passwordChangedAt       DateTime?
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
   deletedAt               DateTime?
   roles                   UserRole[]
   refreshTokens           RefreshToken[]
-  inspectionsCreated      Inspection[]    @relation("InspectorCreated")
-  inspectionsApproved     Inspection[]    @relation("InspectorApproved")
-  inspectionsRejected     Inspection[]    @relation("InspectorRejected")
-  voyagesCreated          Voyage[]        @relation("VoyageCreated")
-  loadListsCreated        LoadList[]      @relation("LoadListCreatedBy")
-  loadListsFinalized      LoadList[]      @relation("LoadListFinalizedBy")
-  loadListsCancelled      LoadList[]      @relation("LoadListCancelledBy")
-  actualLoadingsCreated   ActualLoading[] @relation("ActualLoadingCreatedBy")
-  actualLoadingsCompleted ActualLoading[] @relation("ActualLoadingCompletedBy")
-  actualLoadingsCancelled ActualLoading[] @relation("ActualLoadingCancelledBy")
-  dischargesCreated       Discharge[]     @relation("DischargeCreatedBy")
-  dischargesCompleted     Discharge[]     @relation("DischargeCompletedBy")
-  dischargesCancelled     Discharge[]     @relation("DischargeCancelledBy")
-  manifestsCreated        Manifest[]      @relation("ManifestCreatedBy")
-  manifestsSubmitted      Manifest[]      @relation("ManifestSubmittedBy")
-  manifestsApproved       Manifest[]      @relation("ManifestApprovedBy")
-  manifestsCancelled      Manifest[]      @relation("ManifestCancelledBy")
-  billsCreated            BillOfLading[]  @relation("BillCreatedBy")
-  billsIssued             BillOfLading[]  @relation("BillIssuedBy")
-  billsCancelled          BillOfLading[]  @relation("BillCancelledBy")
-  invoicesCreated         Invoice[]       @relation("InvoiceCreatedBy")
-  invoicesIssued          Invoice[]       @relation("InvoiceIssuedBy")
-  vouchersCreated         Voucher[]       @relation("VoucherCreatedBy")
-  deliveryOrdersCreated   DeliveryOrder[] @relation("DeliveryOrderCreatedBy")
-  deliveryOrdersCancelled DeliveryOrder[] @relation("DeliveryOrderCancelledBy")
-  releaseOrdersCreated    ReleaseOrder[]  @relation("ReleaseOrderCreatedBy")
-  releaseOrdersCancelled  ReleaseOrder[]  @relation("ReleaseOrderCancelledBy")
-  vouchersCancelled       Voucher[]       @relation("VoucherCancelledBy")
-  invoicesCancelled       Invoice[]       @relation("InvoiceCancelledBy")
-  proformasCreated        Proforma[]      @relation("ProformaCreatedBy")
-  proformasIssued         Proforma[]      @relation("ProformaIssuedBy")
-  proformasCancelled      Proforma[]      @relation("ProformaCancelledBy")
-  quotationsCreated       Quotation[]     @relation("QuotationCreatedBy")
-  quotationsSent          Quotation[]     @relation("QuotationSentBy")
-  quotationsAccepted      Quotation[]     @relation("QuotationAcceptedBy")
-  quotationsRejected      Quotation[]     @relation("QuotationRejectedBy")
-  quotationsCancelled     Quotation[]     @relation("QuotationCancelledBy")
-  employeesCreated        Employee[]      @relation("EmployeeCreatedBy")
-  salaryRecordsCreated    SalaryRecord[]  @relation("SalaryCreatedBy")
-  salaryRecordsApproved   SalaryRecord[]  @relation("SalaryApprovedBy")
-  salaryRecordsPaid       SalaryRecord[]  @relation("SalaryPaidBy")
-  salaryRecordsCancelled  SalaryRecord[]  @relation("SalaryCancelledBy")
-  lettersCreated          Letter[]        @relation("LetterCreatedBy")
-  lettersSent             Letter[]        @relation("LetterSentBy")
-  lettersArchived         Letter[]        @relation("LetterArchivedBy")
-  jobsCreated             Job[]           @relation("JobCreatedBy")
-  jobsCompleted           Job[]           @relation("JobCompletedBy")
-  jobsCancelled           Job[]           @relation("JobCancelledBy")
+  inspectionsCreated      Inspection[]     @relation("InspectorCreated")
+  inspectionsApproved     Inspection[]     @relation("InspectorApproved")
+  inspectionsRejected     Inspection[]     @relation("InspectorRejected")
+  voyagesCreated          Voyage[]         @relation("VoyageCreated")
+  loadListsCreated        LoadList[]       @relation("LoadListCreatedBy")
+  loadListsFinalized      LoadList[]       @relation("LoadListFinalizedBy")
+  loadListsCancelled      LoadList[]       @relation("LoadListCancelledBy")
+  actualLoadingsCreated   ActualLoading[]  @relation("ActualLoadingCreatedBy")
+  actualLoadingsCompleted ActualLoading[]  @relation("ActualLoadingCompletedBy")
+  actualLoadingsCancelled ActualLoading[]  @relation("ActualLoadingCancelledBy")
+  dischargesCreated       Discharge[]      @relation("DischargeCreatedBy")
+  dischargesCompleted     Discharge[]      @relation("DischargeCompletedBy")
+  dischargesCancelled     Discharge[]      @relation("DischargeCancelledBy")
+  manifestsCreated        Manifest[]       @relation("ManifestCreatedBy")
+  manifestsSubmitted      Manifest[]       @relation("ManifestSubmittedBy")
+  manifestsApproved       Manifest[]       @relation("ManifestApprovedBy")
+  manifestsCancelled      Manifest[]       @relation("ManifestCancelledBy")
+  billsCreated            BillOfLading[]   @relation("BillCreatedBy")
+  billsIssued             BillOfLading[]   @relation("BillIssuedBy")
+  billsCancelled          BillOfLading[]   @relation("BillCancelledBy")
+  invoicesCreated         Invoice[]        @relation("InvoiceCreatedBy")
+  invoicesIssued          Invoice[]        @relation("InvoiceIssuedBy")
+  vouchersCreated         Voucher[]        @relation("VoucherCreatedBy")
+  deliveryOrdersCreated   DeliveryOrder[]  @relation("DeliveryOrderCreatedBy")
+  deliveryOrdersCancelled DeliveryOrder[]  @relation("DeliveryOrderCancelledBy")
+  releaseOrdersCreated    ReleaseOrder[]   @relation("ReleaseOrderCreatedBy")
+  releaseOrdersCancelled  ReleaseOrder[]   @relation("ReleaseOrderCancelledBy")
+  vouchersCancelled       Voucher[]        @relation("VoucherCancelledBy")
+  invoicesCancelled       Invoice[]        @relation("InvoiceCancelledBy")
+  proformasCreated        Proforma[]       @relation("ProformaCreatedBy")
+  proformasIssued         Proforma[]       @relation("ProformaIssuedBy")
+  proformasCancelled      Proforma[]       @relation("ProformaCancelledBy")
+  quotationsCreated       Quotation[]      @relation("QuotationCreatedBy")
+  quotationsSent          Quotation[]      @relation("QuotationSentBy")
+  quotationsAccepted      Quotation[]      @relation("QuotationAcceptedBy")
+  quotationsRejected      Quotation[]      @relation("QuotationRejectedBy")
+  quotationsCancelled     Quotation[]      @relation("QuotationCancelledBy")
+  employeesCreated        Employee[]       @relation("EmployeeCreatedBy")
+  salaryRecordsCreated    SalaryRecord[]   @relation("SalaryCreatedBy")
+  salaryRecordsApproved   SalaryRecord[]   @relation("SalaryApprovedBy")
+  salaryRecordsPaid       SalaryRecord[]   @relation("SalaryPaidBy")
+  salaryRecordsCancelled  SalaryRecord[]   @relation("SalaryCancelledBy")
+  lettersCreated          Letter[]         @relation("LetterCreatedBy")
+  lettersSent             Letter[]         @relation("LetterSentBy")
+  lettersArchived         Letter[]         @relation("LetterArchivedBy")
+  jobsCreated             Job[]            @relation("JobCreatedBy")
+  jobsCompleted           Job[]            @relation("JobCompletedBy")
+  jobsCancelled           Job[]            @relation("JobCancelledBy")
+  portalCustomerId        String?          @unique @map("portalCustomerId") // customer this user acts for (agent portal)
+  portalCustomer          Customer?        @relation("UserPortalCustomer", fields: [portalCustomerId], references: [id])
+  bookingsSubmitted       BookingRequest[] @relation("BookingSubmittedBy")
+  bookingsHandled         BookingRequest[] @relation("BookingHandledBy")
 
   @@index([email])
   @@index([isActive])
@@ -202,23 +206,25 @@ model Currency {
 // ---------------------------------------------------------------------------
 
 model Port {
-  id                 String          @id @default(cuid())
-  code               String          @unique // e.g. JEBALI, KHALIFA
-  name               String
-  country            String
-  city               String?
-  isActive           Boolean         @default(true)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
-  deletedAt          DateTime?
-  yards              Yard[]
-  cargos             Cargo[]         @relation("CargoPort") // cargo registered at this port
-  cargoDestinations  Cargo[]         @relation("DestinationPort") // cargo destined for this port
-  yardInventories    YardInventory[] // current inventory physically at this port
-  voyageOrigins      Voyage[]        @relation("VoyageOrigin") // voyages departing from this port
-  voyageDestinations Voyage[]        @relation("VoyageDestination") // voyages arriving at this port
-  manifestsAsPol     Manifest[]      @relation("ManifestPol") // manifests loaded at this port
-  manifestsAsPod     Manifest[]      @relation("ManifestPod") // manifests discharged at this port
+  id                    String           @id @default(cuid())
+  code                  String           @unique // e.g. JEBALI, KHALIFA
+  name                  String
+  country               String
+  city                  String?
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  deletedAt             DateTime?
+  yards                 Yard[]
+  cargos                Cargo[]          @relation("CargoPort") // cargo registered at this port
+  cargoDestinations     Cargo[]          @relation("DestinationPort") // cargo destined for this port
+  yardInventories       YardInventory[] // current inventory physically at this port
+  voyageOrigins         Voyage[]         @relation("VoyageOrigin") // voyages departing from this port
+  voyageDestinations    Voyage[]         @relation("VoyageDestination") // voyages arriving at this port
+  manifestsAsPol        Manifest[]       @relation("ManifestPol") // manifests loaded at this port
+  manifestsAsPod        Manifest[]       @relation("ManifestPod") // manifests discharged at this port
+  bookingsAsOrigin      BookingRequest[] @relation("BookingOrigin")
+  bookingsAsDestination BookingRequest[] @relation("BookingDestination")
 
   @@index([name])
   @@index([country])
@@ -249,8 +255,8 @@ model Yard {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id                     String          @id @default(cuid())
-  code                   String          @unique // configurable numbering, e.g. CUS-001
+  id                     String           @id @default(cuid())
+  code                   String           @unique // configurable numbering, e.g. CUS-001
   name                   String
   shortName              String?
   type                   String? // e.g. SHIPPER, CONSIGNEE, AGENT, FREIGHT_FORWARDER
@@ -260,26 +266,28 @@ model Customer {
   address                String?
   country                String?
   taxId                  String?
-  creditLimit            Decimal?        @db.Decimal(18, 2)
+  creditLimit            Decimal?         @db.Decimal(18, 2)
   currency               String? // ISO 4217
-  isActive               Boolean         @default(true)
+  isActive               Boolean          @default(true)
   notes                  String?
-  createdAt              DateTime        @default(now())
-  updatedAt              DateTime        @updatedAt
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
   deletedAt              DateTime?
   cargos                 Cargo[] // all cargo consigned to this customer
-  manifestsAsShipper     Manifest[]      @relation("ManifestShipper")
-  manifestsAsConsignee   Manifest[]      @relation("ManifestConsignee")
-  manifestsAsAgent       Manifest[]      @relation("ManifestAgent")
-  billsAsShipper         BillOfLading[]  @relation("BillShipper")
-  billsAsConsignee       BillOfLading[]  @relation("BillConsignee")
-  invoicesIssuedTo       Invoice[]       @relation("InvoiceCustomer")
-  proformasIssuedTo      Proforma[]      @relation("ProformaCustomer")
-  quotationsIssuedTo     Quotation[]     @relation("QuotationCustomer")
-  letters                Letter[]        @relation("LetterCustomer")
-  jobs                   Job[]           @relation("JobCustomer")
-  deliveryOrdersReceived DeliveryOrder[] @relation("DeliveryOrderRecipient")
-  vouchersReceived       Voucher[]       @relation("VoucherCustomer")
+  manifestsAsShipper     Manifest[]       @relation("ManifestShipper")
+  manifestsAsConsignee   Manifest[]       @relation("ManifestConsignee")
+  manifestsAsAgent       Manifest[]       @relation("ManifestAgent")
+  billsAsShipper         BillOfLading[]   @relation("BillShipper")
+  billsAsConsignee       BillOfLading[]   @relation("BillConsignee")
+  invoicesIssuedTo       Invoice[]        @relation("InvoiceCustomer")
+  proformasIssuedTo      Proforma[]       @relation("ProformaCustomer")
+  quotationsIssuedTo     Quotation[]      @relation("QuotationCustomer")
+  letters                Letter[]         @relation("LetterCustomer")
+  jobs                   Job[]            @relation("JobCustomer")
+  deliveryOrdersReceived DeliveryOrder[]  @relation("DeliveryOrderRecipient")
+  vouchersReceived       Voucher[]        @relation("VoucherCustomer")
+  bookings               BookingRequest[] @relation("BookingAgent") // bookings submitted via the agent portal
+  portalUsers            User[]           @relation("UserPortalCustomer")
 
   @@index([name])
   @@index([isActive])
@@ -729,6 +737,13 @@ enum DischargeResult {
   PARTIAL
 }
 
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 // Result of loading a single cargo item.
 enum LoadingResult {
   FULL
@@ -840,6 +855,42 @@ model DischargeItem {
   @@index([dischargeId])
   @@index([cargoId])
   @@index([actualLoadingItemId])
+}
+
+/// Phase 20 — agent portal booking request (submitted by the agent company's
+/// portal user, answered by staff; see ADR-040).
+model BookingRequest {
+  id                String        @id @default(cuid())
+  bookingNumber     String        @unique // auto BRK-YYMM-#####
+  customerId        String        @map("customerId") // the agent/forwarder company
+  status            BookingStatus @default(PENDING)
+  cargoDescription  String        @map("cargoDescription") // free text: commodity, containers…
+  originPortId      String?       @map("originPortId")
+  destinationPortId String?       @map("destinationPortId")
+  requestedShipDate DateTime?     @map("requestedShipDate")
+  containers        Int? // approximate unit count (TEU/containers/pallets)
+  weightKg          Decimal?      @db.Decimal(18, 3)
+  notes             String? // agent-side notes
+  responseNote      String?       @map("responseNote") // staff answer on accept/decline
+  submittedById     String?       @map("submittedById") // portal user who submitted
+  handledById       String?       @map("handledById")
+  handledAt         DateTime?     @map("handledAt")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  deletedAt         DateTime?
+
+  customer        Customer @relation("BookingAgent", fields: [customerId], references: [id])
+  originPort      Port?    @relation("BookingOrigin", fields: [originPortId], references: [id])
+  destinationPort Port?    @relation("BookingDestination", fields: [destinationPortId], references: [id])
+  submittedBy     User?    @relation("BookingSubmittedBy", fields: [submittedById], references: [id])
+  handledBy       User?    @relation("BookingHandledBy", fields: [handledById], references: [id])
+
+  @@index([customerId])
+  @@index([bookingNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@index([submittedById])
+  @@map("booking_requests")
 }
 
 // ---------------------------------------------------------------------------

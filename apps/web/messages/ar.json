@@ -41,7 +41,10 @@
     },
     "nav": {
       "home": "الرئيسية"
-    }
+    },
+    "saving": "جارٍ الحفظ…",
+    "select": "اختر…",
+    "reset": "إعادة تعيين"
   },
   "nav": {
     "overview": "نظرة عامة",
@@ -97,7 +100,10 @@
     "salaryRecords": "قسائم الرواتب",
     "correspondence": "المراسلات",
     "letters": "الرسائل",
-    "discharges": "التفريغ"
+    "discharges": "التفريغ",
+    "portal": "البوابة",
+    "agentPortal": "بوابة الوكيل",
+    "bookings": "حجوزات الوكلاء"
   },
   "dashboard": {
     "title": "نظرة عامة",
@@ -1294,6 +1300,131 @@
       "description": "أدخل سبب الإلغاء (للتدقيق).",
       "reason": "سبب الإلغاء",
       "reasonPlaceholder": "مثال: تغيير الرصيف"
+    }
+  },
+  "portal": {
+    "title": "بوابة الوكيل",
+    "notLinked": "هذا الحساب غير مرتبط بشركة البوابة.",
+    "newBooking": "حجز جديد",
+    "cancelBooking": "إلغاء الحجز",
+    "tabs": {
+      "bookings": "الحجوزات",
+      "shipments": "الشحنات",
+      "statement": "كشف الحساب"
+    },
+    "summary": {
+      "bookingsTotal": "إجمالي الحجوزات",
+      "pending": "بانتظار الرد",
+      "approvedManifests": "البيانات المعتمدة",
+      "balanceDue": "الرصيد المستحق"
+    },
+    "fields": {
+      "number": "الرقم",
+      "cargo": "البضاعة",
+      "route": "المسار",
+      "shipDate": "تاريخ الشحن",
+      "containers": "الحاويات",
+      "status": "الحالة",
+      "response": "رد المكتب",
+      "actions": "الإجراءات"
+    },
+    "form": {
+      "cargoDescription": "وصف البضاعة",
+      "cargoDescriptionPlaceholder": "مثال: لفائف فولاذ، 4 حاويات 20 قدم",
+      "originPort": "ميناء الشحن",
+      "destinationPort": "ميناء الوصول",
+      "requestedShipDate": "تاريخ الشحن المطلوب",
+      "containers": "عدد الحاويات (تقريبي)",
+      "containersHint": "عدد تقريبي",
+      "weightKg": "الوزن (كغم)",
+      "notes": "ملاحظات",
+      "notesPlaceholder": "متطلبات وملاحظات خاصة…"
+    },
+    "create": {
+      "title": "طلب حجز جديد",
+      "hint": "سيُرسَل طلبك إلى مكتب الحجوزات وسيتم الرد عليه قريباً.",
+      "submit": "إرسال الطلب"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": "لا توجد حجوزات بعد",
+      "emptyHint": "سجّل أول طلب حجز لك"
+    },
+    "shipments": {
+      "empty": "لا توجد شحنات مسجلة لشركتك بعد",
+      "manifest": "البيان",
+      "status": "الحالة",
+      "vessel": "السفينة",
+      "route": "المسار",
+      "etd": "تاريخ الإبحار",
+      "eta": "تاريخ الوصول",
+      "weight": "الوزن",
+      "units": "الكمية"
+    },
+    "statement": {
+      "date": "التاريخ",
+      "doc": "المستند",
+      "description": "الوصف",
+      "debit": "مدين",
+      "credit": "دائن",
+      "balance": "الرصيد",
+      "opening": "الرصيد الافتتاحي",
+      "debits": "إجمالي المدين",
+      "credits": "إجمالي الدائن",
+      "closing": "الرصيد الختامي",
+      "empty": "لا توجد حركات حساب"
+    },
+    "status": {
+      "PENDING": "بانتظار الرد",
+      "ACCEPTED": "مقبول",
+      "DECLINED": "مرفوض",
+      "CANCELLED": "ملغى"
+    },
+    "manifest": {
+      "DRAFT": "مسودة",
+      "SUBMITTED": "مُرسَل",
+      "APPROVED": "معتمد",
+      "CANCELLED": "ملغى"
+    }
+  },
+  "bookings": {
+    "title": "حجوزات الوكلاء",
+    "subtitle": "مراجعة طلبات الحجز المقدمة من شركات الوكلاء والرد عليها",
+    "allCompanies": "كل الشركات",
+    "allStatuses": "كل الحالات",
+    "searchPlaceholder": "ابحث برقم الحجز أو وصف البضاعة…",
+    "detail": "التفاصيل",
+    "detailTitle": "الحجز",
+    "empty": "لا توجد طلبات حجز",
+    "fields": {
+      "number": "الرقم",
+      "company": "الشركة",
+      "cargo": "البضاعة",
+      "route": "المسار",
+      "shipDate": "تاريخ الشحن",
+      "status": "الحالة",
+      "containers": "الحاويات",
+      "weightKg": "الوزن (كغم)",
+      "created": "تاريخ التقديم",
+      "notes": "ملاحظات",
+      "response": "الرد",
+      "responseNote": "نص الرد"
+    },
+    "respond": {
+      "title": "الرد على الطلب",
+      "accept": "قبول",
+      "decline": "رفض",
+      "notePlaceholder": "نص الرد (اختياري)…",
+      "submit": "إرسال الرد",
+      "noPermission": "تحتاج صلاحية booking:respond للرد على الطلبات."
+    }
+  },
+  "booking": {
+    "status": {
+      "PENDING": "بانتظار الرد",
+      "ACCEPTED": "مقبول",
+      "DECLINED": "مرفوض",
+      "CANCELLED": "ملغى"
     }
   }
 }

@@ -1,4 +1,36 @@
-import { PackageMinus, Anchor, BarChart3, BookOpen, Building2, ClipboardList, Container, CreditCard, FileCheck, FileText, KeyRound, LayoutDashboard, ListChecks, LockKeyhole, MapPin, PackageOpen, Quote, ScanSearch, ScrollText, ShieldCheck, Ship, Truck, Banknote, UserCircle, Users, Warehouse, Mail, Briefcase, type LucideIcon } from 'lucide-react';
+import {
+  Anchor,
+  Banknote,
+  BarChart3,
+  BookOpen,
+  Briefcase,
+  Building2,
+  CalendarCheck,
+  ClipboardList,
+  Container,
+  CreditCard,
+  FileCheck,
+  FileText,
+  Globe,
+  KeyRound,
+  LayoutDashboard,
+  ListChecks,
+  LockKeyhole,
+  Mail,
+  MapPin,
+  PackageMinus,
+  PackageOpen,
+  Quote,
+  ScanSearch,
+  ScrollText,
+  ShieldCheck,
+  Ship,
+  Truck,
+  UserCircle,
+  Users,
+  Warehouse,
+  type LucideIcon,
+} from 'lucide-react';
 
 export type NavItemStatus = 'implemented' | 'planned';
 
@@ -140,6 +172,14 @@ export const NAV_SECTIONS: NavSection[] = [
         requiredPermission: 'discharge:read',
       },
       {
+        labelKey: 'bookings',
+        href: '/bookings',
+        icon: CalendarCheck,
+        status: 'implemented',
+        description: 'Agent booking desk',
+        requiredPermission: 'booking:read',
+      },
+      {
         labelKey: 'vessels',
         href: '/vessels',
         icon: Ship,
@@ -277,6 +317,20 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+  {
+    titleKey: 'portal',
+    items: [
+      {
+        labelKey: 'agentPortal',
+        href: '/portal',
+        icon: Globe,
+        status: 'implemented',
+        description: 'Agent self-service portal',
+        requiredPermission: 'portal:access',
+      },
+    ],
+  },
+
   {
     titleKey: 'masterData',
     items: [

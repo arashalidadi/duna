@@ -36,6 +36,8 @@ export interface UserListItem {
   email: string;
   fullName: string;
   isActive: boolean;
+  portalCustomerId?: string | null;
+  portalCustomer?: { id: string; name: string; code: string } | null;
   lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;

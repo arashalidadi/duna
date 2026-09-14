@@ -37,7 +37,10 @@
     },
     "nav": {
       "home": "Home"
-    }
+    },
+    "saving": "Saving…",
+    "select": "Select…",
+    "reset": "Reset"
   },
   "system": {
     "operational": "System Operational",
@@ -97,7 +100,10 @@
     "salaryRecords": "Salary Records",
     "correspondence": "Correspondence",
     "letters": "Letters",
-    "discharges": "Discharge"
+    "discharges": "Discharge",
+    "portal": "Portal",
+    "agentPortal": "Agent Portal",
+    "bookings": "Agent Bookings"
   },
   "login": {
     "title": "Sign In",
@@ -1273,6 +1279,131 @@
       "description": "Provide a cancel reason (audit).",
       "reason": "Cancel reason",
       "reasonPlaceholder": "e.g. berth reassigned"
+    }
+  },
+  "portal": {
+    "title": "Agent Portal",
+    "notLinked": "This account is not linked to a portal company.",
+    "newBooking": "New Booking",
+    "cancelBooking": "Cancel booking",
+    "tabs": {
+      "bookings": "Bookings",
+      "shipments": "Shipments",
+      "statement": "Statement"
+    },
+    "summary": {
+      "bookingsTotal": "Total bookings",
+      "pending": "Awaiting reply",
+      "approvedManifests": "Approved manifests",
+      "balanceDue": "Balance due"
+    },
+    "fields": {
+      "number": "Number",
+      "cargo": "Cargo",
+      "route": "Route",
+      "shipDate": "Ship date",
+      "containers": "Containers",
+      "status": "Status",
+      "response": "Office reply",
+      "actions": "Actions"
+    },
+    "form": {
+      "cargoDescription": "Cargo description",
+      "cargoDescriptionPlaceholder": "e.g. steel coils, 4x 20ft containers",
+      "originPort": "Port of loading",
+      "destinationPort": "Port of discharge",
+      "requestedShipDate": "Requested ship date",
+      "containers": "Containers (approx.)",
+      "containersHint": "approx. count",
+      "weightKg": "Weight (kg)",
+      "notes": "Notes",
+      "notesPlaceholder": "Special requirements, remarks…"
+    },
+    "create": {
+      "title": "New booking request",
+      "hint": "Your request goes to the booking desk and will be answered shortly.",
+      "submit": "Submit request"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": "No bookings yet",
+      "emptyHint": "Submit your first booking request"
+    },
+    "shipments": {
+      "empty": "No shipments recorded for your company yet",
+      "manifest": "Manifest",
+      "status": "Status",
+      "vessel": "Vessel",
+      "route": "Route",
+      "etd": "ETD",
+      "eta": "ETA",
+      "weight": "Weight",
+      "units": "Units"
+    },
+    "statement": {
+      "date": "Date",
+      "doc": "Document",
+      "description": "Description",
+      "debit": "Debit",
+      "credit": "Credit",
+      "balance": "Balance",
+      "opening": "Opening balance",
+      "debits": "Total debit",
+      "credits": "Total credit",
+      "closing": "Closing balance",
+      "empty": "No ledger movements"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "ACCEPTED": "Accepted",
+      "DECLINED": "Declined",
+      "CANCELLED": "Cancelled"
+    },
+    "manifest": {
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted",
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled"
+    }
+  },
+  "bookings": {
+    "title": "Agent Bookings",
+    "subtitle": "Review and respond to booking requests submitted by agent companies",
+    "allCompanies": "All companies",
+    "allStatuses": "All statuses",
+    "searchPlaceholder": "Search booking no. or cargo…",
+    "detail": "Details",
+    "detailTitle": "Booking",
+    "empty": "No booking requests",
+    "fields": {
+      "number": "Number",
+      "company": "Company",
+      "cargo": "Cargo",
+      "route": "Route",
+      "shipDate": "Ship date",
+      "status": "Status",
+      "containers": "Containers",
+      "weightKg": "Weight (kg)",
+      "created": "Submitted",
+      "notes": "Notes",
+      "response": "Reply",
+      "responseNote": "Reply note"
+    },
+    "respond": {
+      "title": "Respond to request",
+      "accept": "Accept",
+      "decline": "Decline",
+      "notePlaceholder": "Reply note (optional)…",
+      "submit": "Send response",
+      "noPermission": "You need booking:respond permission to answer requests."
+    }
+  },
+  "booking": {
+    "status": {
+      "PENDING": "Pending",
+      "ACCEPTED": "Accepted",
+      "DECLINED": "Declined",
+      "CANCELLED": "Cancelled"
     }
   }
 }

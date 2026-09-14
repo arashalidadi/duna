@@ -33,6 +33,7 @@ const userSelect = {
   passwordChangedAt: true,
   createdAt: true,
   updatedAt: true,
+  portalCustomerId: true,
 } satisfies Prisma.UserSelect;
 
 const roleRelations = {
@@ -40,6 +41,9 @@ const roleRelations = {
     select: {
       role: { select: { id: true, code: true, name: true } },
     },
+  },
+  portalCustomer: {
+    select: { id: true, name: true, code: true },
   },
 } satisfies Prisma.UserSelect;
 
@@ -55,6 +59,8 @@ type UserWithRoles = {
   createdAt: Date;
   updatedAt: Date;
   roles: { role: { id: string; code: string; name: string } }[];
+  portalCustomerId?: string | null;
+  portalCustomer?: { id: string; name: string; code: string } | null;
 };
 
 @Injectable()
@@ -117,6 +123,9 @@ export class UsersService {
     }
 
     await this.validateRoleIds(dto.roleIds);
+    if (dto.portalCustomerId) {
+      await this.assertValidPortalCustomer(dto.portalCustomerId);
+    }
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
     const user = await this.prisma.user.create({
@@ -125,6 +134,7 @@ export class UsersService {
         fullName: dto.fullName,
         passwordHash,
         passwordChangedAt: new Date(),
+        ...(dto.portalCustomerId ? { portalCustomer: { connect: { id: dto.portalCustomerId } } } : {}),
         roles: {
           create: dto.roleIds.map((roleId) => ({ roleId })),
         },
@@ -150,6 +160,14 @@ export class UsersService {
     }
     if (dto.fullName !== undefined) {
       data.fullName = dto.fullName;
+    }
+    if (dto.portalCustomerId !== undefined) {
+      if (dto.portalCustomerId) {
+        await this.assertValidPortalCustomer(dto.portalCustomerId);
+        data.portalCustomer = { connect: { id: dto.portalCustomerId } };
+      } else {
+        data.portalCustomer = { disconnect: true };
+      }
     }
 
     const user = await this.prisma.user.update({
@@ -258,9 +276,24 @@ export class UsersService {
     return items.map((i) => this.mapOne(i));
   }
 
-  private mapOne(item: UserWithRoles) {
+  /** A portal link must point at a live, non-deleted customer. */
+  private async assertValidPortalCustomer(customerId: string) {
+    const customer = await this.prisma.customer.findFirst({
+      where: { id: customerId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!customer) {
+      throw new BadRequestException('Invalid portal customer');
+    }
+  }
+
+  private mapOne(item: UserWithRoles & { portalCustomerId?: string | null; portalCustomer?: { id: string; name: string; code: string } | null }) {
     return {
       id: item.id,
+      portalCustomerId: item.portalCustomerId ?? null,
+      portalCustomer: item.portalCustomer
+        ? { id: item.portalCustomer.id, name: item.portalCustomer.name, code: item.portalCustomer.code }
+        : null,
       email: item.email,
       fullName: item.fullName,
       isActive: item.isActive,

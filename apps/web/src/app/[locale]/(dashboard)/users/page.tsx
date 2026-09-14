@@ -48,6 +48,8 @@ export default function UsersPage() {
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [portalSel, setPortalSel] = useState('');
 
   const activeRoles = useMemo(() => roles.filter((r) => r.isActive !== false), [roles]);
 
@@ -57,12 +59,14 @@ export default function UsersPage() {
     const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
     if (q) params.set('search', q);
     try {
-      const [userData, roleData] = await Promise.all([
+      const [userData, roleData, customerData] = await Promise.all([
         api.get<PaginatedResult<UserListItem>>(`/users?${params.toString()}`),
         api.get<RoleListItem[]>('/roles/active'),
+        api.get<PaginatedResult<{ id: string; name: string; code: string }>>('/customers?pageSize=200'),
       ]);
       setData(userData);
       setRoles(roleData);
+      setCustomers(customerData.data ?? []);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Failed to load users');
     } finally {
@@ -84,6 +88,7 @@ export default function UsersPage() {
     setFullName('');
     setPassword('');
     setSelectedRoleIds([]);
+    setPortalSel('');
     setFormError(null);
     setCreateOpen(true);
   }
@@ -106,6 +111,7 @@ export default function UsersPage() {
         fullName: fullName.trim(),
         password,
         roleIds: selectedRoleIds,
+        ...(portalSel ? { portalCustomerId: portalSel } : {}),
       });
       setCreateOpen(false);
       setPage(1);
@@ -120,6 +126,7 @@ export default function UsersPage() {
   function openRoles(user: UserListItem) {
     setEditing(user);
     setSelectedRoleIds(user.roles.map((r) => r.id));
+    setPortalSel(user.portalCustomerId ?? '');
     setFormError(null);
   }
 
@@ -131,6 +138,10 @@ export default function UsersPage() {
       await api.patch<UserListItem>(`/users/${editing.id}/roles`, {
         roleIds: selectedRoleIds,
       });
+      const wanted = portalSel || null;
+      if (wanted !== (editing.portalCustomerId ?? null)) {
+        await api.patch(`/users/${editing.id}`, { portalCustomerId: wanted });
+      }
       setEditing(null);
       await load(page, search);
     } catch (err) {

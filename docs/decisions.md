@@ -538,3 +538,20 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 3. Completion flips only **FULL** lines to `cargo.status = DELIVERED`. PARTIAL/NOT_DISCHARGED lines keep the cargo LOADED with the gap recorded on the line — operations chases the shortfall against the carrier, and a corrected count goes through a fresh amendment cycle rather than editing a legal-ish record. This mirrors how Actual Loading only flips FULL lines to LOADED (ADR-020 consistency).
 4. No new yard-inventory entry is created at the destination: the inventory model tracks the origin-yard custody of not-yet-sailed cargo (deleted at loading), and POD-side storage is out of scope for this company's flow — the D-O/R-O documents already gate consignment release financially.
 **Consequences.** The POD desk gets a one-click pre-populated count sheet whose totals always reconcile with what sailed; the cost is that multi-port rotation (same cargo discharged at an intermediate port) cannot be modeled — acceptable for this point-to-point operation. Numbering follows `DIS-YYMM-#####`; the 6 `discharge:*` permissions are seeded with ADMIN auto-grant.
+
+---
+
+## ADR-040: Agent Portal — server-side company scoping via a unique user→customer link
+
+**Date:** 2026-09-14
+**Status:** Accepted
+**Context:** Phase 20 (Agent Portal). workflows.md §8 reserved a portal for agents: submit bookings, track their shipments, and see their account — read-mostly with scoped writes. The hard questions: how external company staff map onto the internal User model without new auth machinery, and how to make data leakage structurally impossible rather than filter-enforced.
+
+**Decision.**
+1. Portal users are ordinary `User` rows with a nullable **unique** `portalCustomerId` FK to a customer that acts as the agent company. Existing JWT/RBAC is reused unchanged; the unique index enforces one portal login per company. `portal:access` marks an account portal-capable; `booking:create` alone gates submission.
+2. Every portal read is scoped **server-side from the JWT actor** (`resolveActor`): the company id is never accepted from the request, so IDOR is structurally impossible; a missing link 403s. Cross-company objects 404 (no existence leak).
+3. Booking lifecycle is deliberately minimal: agent submits (PENDING) → office `POST /bookings/:id/respond` ACCEPTED | DECLINED (single-shot, 409 after) → agent may cancel while PENDING. No edit route — a correction is cancel + resubmit, keeping the audit trail honest. Bookings do **not** auto-convert into jobs/quotations/invoices in v1.
+4. Data surfaces: **shipments** = manifests where the company is the booked agent (`agentId`) — the status agents track; **statement** = the existing derived customer ledger passed through unchanged (zero new money logic). A dedicated `GET /portal/ports` feeds the booking form's port dropdown because `/ports` requires `port:read`, which portal roles must not carry.
+5. The office side is one desk at `/bookings` (`booking:read`/`booking:respond`) — list, detail, respond dialog; no separate navigation area.
+
+**Consequences.** Onboarding a real agent costs one user row + one role link — no new auth surface. `BRK-YYMM-#####` follows the shared count+1 numbering pending the Phase 23 numbering service. Deferred deliberately: booking→job conversion, portal document download, and per-agent (not per-company) portal accounts.

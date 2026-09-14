@@ -55,6 +55,11 @@ export class CreateUserDto {
   @ArrayNotEmpty({ message: 'at least one role is required' })
   @IsString({ each: true })
   roleIds: string[];
+
+  /** Link this login to a customer acting as an agent-portal company. */
+  @IsOptional()
+  @IsString()
+  portalCustomerId?: string;
 }
 
 export class UpdateUserDto {
@@ -68,6 +73,11 @@ export class UpdateUserDto {
   @MinLength(1)
   @MaxLength(150)
   fullName?: string;
+
+  /** Agent-portal company link: a customerId, or null to remove. */
+  @IsOptional()
+  @IsString()
+  portalCustomerId?: string | null;
 }
 
 export class SetUserActiveDto {

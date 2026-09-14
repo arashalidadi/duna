@@ -108,6 +108,10 @@ async function main() {
   { code: 'discharge:delete', module: 'discharge', action: 'delete' },
   { code: 'discharge:complete', module: 'discharge', action: 'complete' },
   { code: 'discharge:cancel', module: 'discharge', action: 'cancel' },
+  { code: 'portal:access', module: 'portal', action: 'read' },
+  { code: 'booking:create', module: 'portal', action: 'create' },
+  { code: 'booking:read', module: 'portal', action: 'read' },
+  { code: 'booking:respond', module: 'portal', action: 'update' },
   // Manifest (Phase 9)
   { code: 'manifest:read', module: 'manifest', action: 'read' },
   { code: 'manifest:create', module: 'manifest', action: 'create' },
