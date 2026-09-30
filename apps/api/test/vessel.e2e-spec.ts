@@ -276,4 +276,90 @@ describe('Vessel (e2e)', () => {
   it('returns 404 for unknown vessel id', async () => {
     await request(app.getHttpServer()).get('/api/v1/vessels/nonexistent').set(auth(adminToken)).expect(404);
   });
+
+  // ---------------------------------------------------------------------------
+  // Phase 2 — vessel type model (TUG / BARGE / LANDING_CRAFT alongside the
+  // self-propelled categories).
+  // ---------------------------------------------------------------------------
+
+  it('creates vessels with the TUG / BARGE / LANDING_CRAFT types (201 + echo)', async () => {
+    for (const [prefix, vType] of [
+      ['TUG', 'TUG'],
+      ['BRG', 'BARGE'],
+      ['LCT', 'LANDING_CRAFT'],
+    ] as const) {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/vessels')
+        .set(auth(adminToken))
+        .send({
+          ...vesselBase(),
+          code: `${prefix}-${tag}`,
+          name: `${vType} ${randomTag}`,
+          vesselType: vType,
+        })
+        .expect(201);
+      expect(res.body.data.vesselType).toBe(vType);
+      createdVessels.push({ id: res.body.data.id });
+    }
+  });
+
+  it('updates a vessel type and filters the list by vesselType', async () => {
+    // find the TUG vessel we just created via list filter
+    const list = await request(app.getHttpServer())
+      .get(`/api/v1/vessels?vesselType=TUG&search=${tag}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(list.body.data.data.length).toBeGreaterThanOrEqual(1);
+    for (const v of list.body.data.data) {
+      expect(v.vesselType).toBe('TUG');
+    }
+    const tugId = list.body.data.data[0].id;
+
+    // change its type to BARGE
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/vessels/${tugId}`)
+      .set(auth(adminToken))
+      .send({ vesselType: 'BARGE' })
+      .expect(200);
+    expect(res.body.data.vesselType).toBe('BARGE');
+
+    // restore so the TUG filter assertion above stays deterministic for re-runs
+    await request(app.getHttpServer())
+      .patch(`/api/v1/vessels/${tugId}`)
+      .set(auth(adminToken))
+      .send({ vesselType: 'TUG' })
+      .expect(200);
+  });
+
+  it('rejects an unknown vessel type (400) — enum validation still holds', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/vessels')
+      .set(auth(adminToken))
+      .send({ ...vesselBase(), code: `BADT-${tag}`, vesselType: 'SUBMARINE' })
+      .expect(400);
+  });
+
+  it('pre-existing vessels keep their type after the enum extension (backfill-safe)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/vessels?pageSize=100')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(res.body.data.data.length).toBeGreaterThan(0);
+    const allowed = new Set([
+      'CONTAINER', 'BULK', 'TANKER', 'RORO', 'GENERAL', 'PROJECT', 'OTHER',
+      'TUG', 'BARGE', 'LANDING_CRAFT',
+    ]);
+    for (const v of res.body.data.data) {
+      expect(allowed.has(v.vesselType)).toBe(true);
+    }
+
+    // The seeded legacy vessel is still readable with its original type.
+    const legacy = await request(app.getHttpServer())
+      .get('/api/v1/vessels?search=MV-HORIZON')
+      .set(auth(adminToken))
+      .expect(200);
+    const row = legacy.body.data.data.find((v: { code: string }) => v.code === 'MV-HORIZON');
+    expect(row).toBeDefined();
+    expect(row.vesselType).toBe('CONTAINER');
+  });
 });

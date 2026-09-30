@@ -1,6 +1,8 @@
 import {
-  IsInt,
+  ArrayMaxSize,
+  IsArray,
   IsIn,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
@@ -17,7 +19,6 @@ export const VOYAGE_STATUSES = [
   'CANCELLED',
 ] as const;
 
-/** Allowed sort fields (whitelist to prevent sort-injection). */
 export const VOYAGE_SORT_FIELDS = [
   'voyageNumber',
   'status',
@@ -30,11 +31,31 @@ export class CreateVoyageDto {
   @IsString()
   vesselId: string;
 
+  @IsOptional()
+  @IsString()
+  tugVesselId?: string;
+
+  @IsOptional()
+  @IsString()
+  bargeVesselId?: string;
+
   @IsString()
   originPortId: string;
 
   @IsString()
   destinationPortId: string;
+
+  /**
+   * Optional additional destinations for a multi-destination expedition.
+   * Each entry becomes its own leg with a destination-scoped number
+   * (e.g. 1/26). Omit for a single-destination voyage — the shape every
+   * existing caller uses (unchanged behaviour).
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  destinations?: string[];
 
   @IsOptional()
   @IsString()
@@ -43,11 +64,19 @@ export class CreateVoyageDto {
 }
 
 export class UpdateVoyageDto {
-  // A DRAFT voyage may re-target vessel/ports. Once SCHEDULED these become
-  // read-only; only notes may change.
   @IsOptional()
   @IsString()
   vesselId?: string;
+
+  /** Optional pairing. Send null or '' to detach the tug from this voyage. */
+  @IsOptional()
+  @IsString()
+  tugVesselId?: string | null;
+
+  /** Optional pairing. Send null or '' to detach the barge from this voyage. */
+  @IsOptional()
+  @IsString()
+  bargeVesselId?: string | null;
 
   @IsOptional()
   @IsString()
@@ -56,6 +85,20 @@ export class UpdateVoyageDto {
   @IsOptional()
   @IsString()
   destinationPortId?: string;
+
+  /**
+   * DRAFT-only leg management: the ADDITIONAL destination legs (beyond the
+   * primary `destinationPortId`, which stays leg 1). The given list is the
+   * desired state — kept legs keep their number and are renumbered by
+   * position, added legs get a fresh destination-scoped allocation, legs
+   * missing from the list are soft-deleted. Omit to leave legs untouched.
+   * SCHEDULED voyages reject it (route frozen).
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  destinations?: string[];
 
   @IsOptional()
   @IsString()

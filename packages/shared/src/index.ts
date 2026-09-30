@@ -34,6 +34,20 @@ export type {
   YardDetail,
 } from './master-data';
 export type {
+  ShipperListItem,
+  ShipperDetail,
+  ConsigneeListItem,
+  ConsigneeDetail,
+  AgentListItem,
+  AgentDetail,
+  AgentDestinationRef,
+  AgentDestinationListItem,
+  PaginatedShippersResult,
+  PaginatedConsigneesResult,
+  PaginatedAgentsResult,
+  PaginatedAgentDestinationsResult,
+} from './phase2';
+export type {
   CargoStatus,
   CargoType,
   InspectionStatus,
@@ -67,6 +81,9 @@ export type {
   VoyageStatus,
   VoyageListItem,
   VoyageDetail,
+  VoyageTugBargeRef,
+  VoyageDestination,
+  VoyageLegPortRef,
 } from './voyage';
 export type {
   LoadListStatus,

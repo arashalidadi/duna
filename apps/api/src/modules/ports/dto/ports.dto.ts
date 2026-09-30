@@ -17,6 +17,11 @@ export class CreatePortDto {
   @IsString()
   @MaxLength(100)
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  abbreviation?: string;
 }
 
 export class UpdatePortDto {
@@ -39,6 +44,11 @@ export class UpdatePortDto {
   @IsString()
   @MaxLength(100)
   city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  abbreviation?: string;
 
   @IsOptional()
   @IsBoolean()

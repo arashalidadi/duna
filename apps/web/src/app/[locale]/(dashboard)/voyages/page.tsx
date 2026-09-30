@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type {
   PaginatedResult,
   VoyageListItem,
@@ -64,12 +65,24 @@ const STATUS_META: Record<
 
 interface VoyageForm {
   vesselId: string;
+  tugVesselId: string;
+  bargeVesselId: string;
   originPortId: string;
   destinationPortId: string;
+  /** Additional destinations beyond the primary one (each gets its own leg). */
+  destinations: string[];
   notes: string;
 }
 
-const EMPTY_FORM: VoyageForm = { vesselId: '', originPortId: '', destinationPortId: '', notes: '' };
+const EMPTY_FORM: VoyageForm = {
+  vesselId: '',
+  tugVesselId: '',
+  bargeVesselId: '',
+  originPortId: '',
+  destinationPortId: '',
+  destinations: [],
+  notes: '',
+};
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
@@ -80,6 +93,7 @@ function fmtDate(iso: string | null): string {
 
 export default function VoyagesPage() {
   const { hasPermission } = useAuth();
+  const t = useTranslations('voyages');
   const [data, setData] = useState<PaginatedResult<VoyageListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +103,8 @@ export default function VoyagesPage() {
   const [vesselFilter, setVesselFilter] = useState('');
 
   const [vessels, setVessels] = useState<VesselListItem[]>([]);
+  const [tugs, setTugs] = useState<VesselListItem[]>([]);
+  const [barges, setBarges] = useState<VesselListItem[]>([]);
   const [ports, setPorts] = useState<PortListItem[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -104,6 +120,8 @@ export default function VoyagesPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<VoyageForm>(EMPTY_FORM);
+  // destinationPortId -> next per-destination number ({seq}/{YY}), advisory only.
+  const [numberPreview, setNumberPreview] = useState<Record<string, string>>({});
 
   const canCreate = hasPermission('voyage:create');
   const canRead = hasPermission('voyage:read');
@@ -140,11 +158,15 @@ export default function VoyagesPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [ves, port] = await Promise.all([
+        const [ves, tug, barge, port] = await Promise.all([
           api.get<PaginatedResult<VesselListItem>>('/vessels?pageSize=100'),
+          api.get<PaginatedResult<VesselListItem>>('/vessels?vesselType=TUG&pageSize=100'),
+          api.get<PaginatedResult<VesselListItem>>('/vessels?vesselType=BARGE&pageSize=100'),
           api.get<PaginatedResult<PortListItem>>('/ports?pageSize=100'),
         ]);
         setVessels(ves.data);
+        setTugs(tug.data);
+        setBarges(barge.data);
         setPorts(port.data);
       } catch {
         /* form selects degrade gracefully */
@@ -152,12 +174,57 @@ export default function VoyagesPage() {
     })();
   }, []);
 
+  // Per-destination number preview: shows what allocation WILL produce.
+  useEffect(() => {
+    const ids = [form.destinationPortId, ...form.destinations].filter(Boolean);
+    if (ids.length === 0) {
+      setNumberPreview({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await api.get<Array<{ destinationPortId: string; nextVoyageNumber: string }>>(
+          `/voyages/number-preview?destinationPortIds=${ids.join(',')}`
+        );
+        if (!cancelled) {
+          setNumberPreview(
+            Object.fromEntries(rows.map((row) => [row.destinationPortId, row.nextVoyageNumber]))
+          );
+        }
+      } catch {
+        /* preview is advisory — never block the form */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.destinationPortId, form.destinations]);
+
   function applyFilters() {
     setPage(1);
   }
 
   function updateField<K extends keyof VoyageForm>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function addDestination() {
+    setForm((prev) => ({ ...prev, destinations: [...prev.destinations, ''] }));
+  }
+
+  function updateDestination(index: number, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      destinations: prev.destinations.map((existing, i) => (i === index ? value : existing)),
+    }));
+  }
+
+  function removeDestination(index: number) {
+    setForm((prev) => ({
+      ...prev,
+      destinations: prev.destinations.filter((_, i) => i !== index),
+    }));
   }
 
   function openCreate() {
@@ -187,6 +254,18 @@ export default function VoyagesPage() {
       setFormError('Origin and destination must be different ports.');
       return;
     }
+    // Additional destination rows: every row must be filled and unique —
+    // mirrors the API's per-voyage duplicate-destination rejection.
+    const extraDestinations = form.destinations;
+    if (extraDestinations.some((dest) => !dest)) {
+      setFormError(t('legs.emptyRow'));
+      return;
+    }
+    const allDestinations = [form.destinationPortId, ...extraDestinations];
+    if (new Set(allDestinations).size !== allDestinations.length) {
+      setFormError(t('legs.duplicate'));
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {
@@ -194,6 +273,11 @@ export default function VoyagesPage() {
         originPortId: form.originPortId,
         destinationPortId: form.destinationPortId,
       };
+      if (extraDestinations.length > 0) payload.destinations = extraDestinations;
+      // Optional tug/barge pairing (Phase 2): only sent when selected, so a
+      // plain self-propelled voyage payload is unchanged from before.
+      if (form.tugVesselId) payload.tugVesselId = form.tugVesselId;
+      if (form.bargeVesselId) payload.bargeVesselId = form.bargeVesselId;
       if (form.notes.trim()) payload.notes = form.notes.trim();
       await api.post<VoyageDetail>('/voyages', payload);
       setCreateOpen(false);
@@ -368,9 +452,20 @@ export default function VoyagesPage() {
                         <span className="font-medium text-foreground">{v.vessel.name}</span>
                         <span className="text-[11px]">{v.vessel.code}</span>
                       </div>
+                      {(v.tugVessel || v.bargeVessel) && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          {[v.tugVessel, v.bargeVessel]
+                            .filter(Boolean)
+                            .map((tv) => `${tv!.name} (${tv!.code})`)
+                            .join(' + ')}
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {v.originPort.code} → {v.destinationPort.code}
+                      {v.originPort.code} →{' '}
+                      {v.legs.length > 0
+                        ? v.legs.map((leg) => leg.destinationPort.code).join(' → ')
+                        : v.destinationPort.code}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{fmtDate(v.plannedDepartureAt)}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{fmtDate(v.plannedArrivalAt)}</td>
@@ -507,6 +602,45 @@ export default function VoyagesPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
+              <Label htmlFor="voy-tug" className="block">
+                {t('pairing.tug')}
+              </Label>
+              <select
+                id="voy-tug"
+                className={SELECT_CLASS + ' w-full'}
+                value={form.tugVesselId}
+                onChange={(e) => updateField('tugVesselId', e.target.value)}
+              >
+                <option value="">{t('pairing.noneTug')}</option>
+                {tugs.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="voy-barge" className="block">
+                {t('pairing.barge')}
+              </Label>
+              <select
+                id="voy-barge"
+                className={SELECT_CLASS + ' w-full'}
+                value={form.bargeVesselId}
+                onChange={(e) => updateField('bargeVesselId', e.target.value)}
+              >
+                <option value="">{t('pairing.noneBarge')}</option>
+                {barges.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name} ({v.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">{t('pairing.hint')}</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
               <Label htmlFor="voy-origin" className="block">
                 Origin *
               </Label>
@@ -543,6 +677,59 @@ export default function VoyagesPage() {
               </select>
             </div>
           </div>
+          {/* Optional extra destinations: one leg each, own {seq}/{YY} number */}
+          <div className="space-y-1.5">
+            <Label className="block">{t('legs.title')}</Label>
+            <p className="text-[11px] text-muted-foreground">{t('legs.hint')}</p>
+            {form.destinations.map((destinationPortId, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <select
+                  className={SELECT_CLASS + ' flex-1'}
+                  value={destinationPortId}
+                  onChange={(e) => updateDestination(index, e.target.value)}
+                  aria-label={t('legs.rowLabel', { n: index + 2 })}
+                >
+                  <option value="">{t('legs.selectPlaceholder')}</option>
+                  {ports
+                    .filter(
+                      (port) =>
+                        port.id === destinationPortId ||
+                        (port.id !== form.destinationPortId &&
+                          !form.destinations.includes(port.id))
+                    )
+                    .map((port) => (
+                      <option key={port.id} value={port.id}>
+                        {port.code} — {port.name}
+                      </option>
+                    ))}
+                </select>
+                <span
+                  className="w-16 shrink-0 text-right font-mono text-xs text-muted-foreground"
+                  title={t('legs.previewTitle')}
+                >
+                  {destinationPortId ? (numberPreview[destinationPortId] ?? '…') : ''}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 shrink-0 px-2 text-xs"
+                  onClick={() => removeDestination(index)}
+                  aria-label={t('legs.removeLabel', { n: index + 2 })}
+                >
+                  {t('legs.remove')}
+                </Button>
+              </div>
+            ))}
+            <Button variant="outline" size="sm" onClick={addDestination}>
+              <Plus className="h-3.5 w-3.5" />
+              {t('legs.add')}
+            </Button>
+            {form.destinationPortId && (
+              <p className="font-mono text-[11px] text-muted-foreground">
+                {t('legs.previewPrefix')} {numberPreview[form.destinationPortId] ?? '…'}
+              </p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <Label htmlFor="voy-notes" className="block">
               Notes
@@ -578,6 +765,22 @@ export default function VoyagesPage() {
                 <div>{detail.vessel.name} ({detail.vessel.code})</div>
               </div>
               <div>
+                <div className="text-xs text-muted-foreground">{t('pairing.tug')}</div>
+                <div>
+                  {detail.tugVessel
+                    ? `${detail.tugVessel.name} (${detail.tugVessel.code})`
+                    : t('pairing.noneTug')}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">{t('pairing.barge')}</div>
+                <div>
+                  {detail.bargeVessel
+                    ? `${detail.bargeVessel.name} (${detail.bargeVessel.code})`
+                    : t('pairing.noneBarge')}
+                </div>
+              </div>
+              <div>
                 <div className="text-xs text-muted-foreground">Status</div>
                 <div>
                   <Badge variant={STATUS_META[detail.status].variant} dot>
@@ -603,6 +806,31 @@ export default function VoyagesPage() {
                   <div>{detail.cancelReason}</div>
                 </div>
               )}
+            </div>
+            {/* Destination legs: one row per destination with its own number */}
+            <div className="space-y-1.5">
+              <div className="text-xs text-muted-foreground">{t('legs.title')}</div>
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <th className="py-1 pr-2 font-medium">{t('legs.legColumn')}</th>
+                    <th className="py-1 pr-2 font-medium">{t('legs.destinationColumn')}</th>
+                    <th className="py-1 font-medium">{t('legs.numberColumn')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.legs.map((leg) => (
+                    <tr key={leg.id} className="border-b border-border/60 last:border-0">
+                      <td className="py-1.5 pr-2 text-[13px] text-muted-foreground">{leg.legNumber}</td>
+                      <td className="py-1.5 pr-2 text-[13px]">
+                        {leg.destinationPort.name}{' '}
+                        <span className="text-muted-foreground">({leg.destinationPort.code})</span>
+                      </td>
+                      <td className="py-1.5 font-mono text-[13px]">{leg.voyageNumber}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         ) : (

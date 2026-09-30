@@ -24,6 +24,10 @@ describe('Cargo & Yard Inventory (e2e)', () => {
   const emailSuffix = randomTag;
 
   const createdCustomers: Ref[] = [];
+  // Cargo.shipperId / Cargo.consigneeId are FKs to the Phase 2 party masters
+  // (shippers / consignees tables), NOT to Customer.
+  const createdShippers: Ref[] = [];
+  const createdConsignees: Ref[] = [];
   const createdPorts: Ref[] = [];
   const createdYards: Ref[] = [];
   const createdCargos: Ref[] = [];
@@ -77,6 +81,26 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
 
+    // Shippers/consignees are created straight through Prisma: the
+    // shipper:*/consignee:* permission codes are defined in prisma/seed.ts but
+    // are not yet present in the Permission table, so POST /shippers returns
+    // 403 for every role (including ADMIN). Fixture-only — cargo creation still
+    // goes through the API and is FK-checked against these rows.
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      const shp = await fx.shipper.create({
+        data: { code: `SHP-${tag}`, name: `Cargo Test Shipper ${randomTag}` },
+      });
+      createdShippers.push({ id: shp.id });
+      const cns = await fx.consignee.create({
+        data: { code: `CNS-${tag}`, name: `Cargo Test Consignee ${randomTag}` },
+      });
+      createdConsignees.push({ id: cns.id });
+    } finally {
+      await fx.$disconnect();
+    }
+
     const port1 = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
@@ -118,6 +142,12 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.customer.deleteMany({
         where: { id: { in: createdCustomers.map((c) => c.id) } },
+      });
+      await prisma.shipper.deleteMany({
+        where: { id: { in: createdShippers.map((s) => s.id) } },
+      });
+      await prisma.consignee.deleteMany({
+        where: { id: { in: createdConsignees.map((c) => c.id) } },
       });
       await prisma.role.deleteMany({
         where: { code: { in: [`CARGORD_${tag}`, `INVREAD_${tag}`] } },
@@ -275,13 +305,119 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       expect(res.body.data.specification).toBe('Updated 40ft');
     });
 
-    it('enforces the cargo lifecycle: READY requires APPROVED inspection (409)', async () => {
+    it('enforces the cargo lifecycle: READY_FOR_LOADING requires DONE inspection (409)', async () => {
       const target = createdCargos[createdCargos.length - 1];
       await request(app.getHttpServer())
         .patch(`/api/v1/cargo/${target.id}/status`)
         .set(auth(adminToken))
-        .send({ status: 'READY' })
+        .send({ status: 'READY_FOR_LOADING' })
         .expect(409);
+    });
+
+    it('creates cargo with all Phase 3A fields and returns them', async () => {
+      const cargo = {
+        customerId: createdCustomers[0].id,
+        portId: createdPorts[0].id,
+        yardId: createdYards[0].id,
+        cargoType: 'GENERAL',
+        pol: 'POL-PHASE3A',
+        pod: 'POD-PHASE3A',
+        description: 'Phase 3A full field test',
+        chassis: 'CH-3A',
+        serial: 'SER-3A',
+        units: 10,
+        comment: 'Phase 3A comment',
+        shipperId: createdShippers[0].id,
+        consigneeId: createdConsignees[0].id,
+        jobId: 'JOB-3A-001',
+        cargoValue: '9999.99',
+        cargoValueCurrency: 'EUR',
+      };
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/cargo')
+        .set(auth(adminToken))
+        .send(cargo)
+        .expect(201);
+      const d = res.body.data;
+      expect(d.pol).toBe('POL-PHASE3A');
+      expect(d.pod).toBe('POD-PHASE3A');
+      expect(d.description).toBe('Phase 3A full field test');
+      expect(d.chassis).toBe('CH-3A');
+      expect(d.serial).toBe('SER-3A');
+      expect(d.units).toBe(10);
+      expect(d.comment).toBe('Phase 3A comment');
+      expect(d.shipperId).toBe(createdShippers[0].id);
+      expect(d.consigneeId).toBe(createdConsignees[0].id);
+      expect(d.jobId).toBe('JOB-3A-001');
+      expect(d.cargoValue).toBe('9999.99');
+      expect(d.cargoValueCurrency).toBe('EUR');
+      createdCargos.push({ id: d.id });
+    });
+
+    it('returns null for omitted Phase 3A party/financial fields', async () => {
+      // Re-read the first cargo (created by cargoBase which omits the 5 new fields).
+      const target = createdCargos[0];
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${target.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(res.body.data.shipperId).toBeNull();
+      expect(res.body.data.consigneeId).toBeNull();
+      expect(res.body.data.jobId).toBeNull();
+      expect(res.body.data.cargoValue).toBeNull();
+      expect(res.body.data.cargoValueCurrency).toBeNull();
+    });
+
+    it('updates Phase 3A pol/pod/description/chassis/serial/units/comment fields', async () => {
+      const target = createdCargos[0];
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/cargo/${target.id}`)
+        .set(auth(adminToken))
+        .send({
+          pol: 'POL-UPDATED',
+          pod: 'POD-UPDATED',
+          description: 'Updated description',
+          chassis: 'CH-UPDATED',
+          serial: 'SER-UPDATED',
+          units: 99,
+          comment: 'Updated comment',
+        })
+        .expect(200);
+      expect(res.body.data.pol).toBe('POL-UPDATED');
+      expect(res.body.data.pod).toBe('POD-UPDATED');
+      expect(res.body.data.description).toBe('Updated description');
+      expect(res.body.data.chassis).toBe('CH-UPDATED');
+      expect(res.body.data.serial).toBe('SER-UPDATED');
+      expect(res.body.data.units).toBe(99);
+      expect(res.body.data.comment).toBe('Updated comment');
+    });
+
+    it('updates Phase 3A shipper/consignee/job/cargoValue/cargoValueCurrency fields', async () => {
+      const target = createdCargos[0];
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/cargo/${target.id}`)
+        .set(auth(adminToken))
+        .send({
+          shipperId: createdShippers[0].id,
+          consigneeId: createdConsignees[0].id,
+          jobId: 'JOB-UPDATED',
+          cargoValue: '5555.55',
+          cargoValueCurrency: 'GBP',
+        })
+        .expect(200);
+      expect(res.body.data.shipperId).toBe(createdShippers[0].id);
+      expect(res.body.data.consigneeId).toBe(createdConsignees[0].id);
+      expect(res.body.data.jobId).toBe('JOB-UPDATED');
+      expect(res.body.data.cargoValue).toBe('5555.55');
+      expect(res.body.data.cargoValueCurrency).toBe('GBP');
+    });
+
+    it('rejects SELECTED as an invalid CargoStatus', async () => {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/cargo/${createdCargos[0].id}/status`)
+        .set(auth(adminToken))
+        .send({ status: 'SELECTED' })
+        .expect(400);
     });
 
     it('loads dependency masters and supports cargo:read-only user isolation', async () => {

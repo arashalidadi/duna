@@ -31,6 +31,7 @@ export interface PortListItem {
   name: string;
   country: string;
   city: string | null;
+  abbreviation: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

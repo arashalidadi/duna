@@ -69,8 +69,9 @@ export interface BillOfLading {
     voyageNumber: string;
     status: string;
   };
-  shipper?: { id: string; code: string; name: string; shortName: string | null };
-  consignee?: { id: string; code: string; name: string; shortName: string | null };
+  // Master refs (Shipper/Consignee) — no shortName (party-cutover-plan.md §9).
+  shipper?: { id: string; code: string; name: string };
+  consignee?: { id: string; code: string; name: string };
   items?: BillOfLadingItem[];
   createdBy?: UserRef;
   issuedBy?: UserRef;
@@ -205,8 +206,8 @@ export interface BillManifestOption {
   vesselName: string;
   polPort?: { id: string; code: string; name: string };
   podPort?: { id: string; code: string; name: string };
-  shipper?: { id: string; code: string; name: string; shortName: string | null } | null;
-  consignee?: { id: string; code: string; name: string; shortName: string | null } | null;
+  shipper?: { id: string; code: string; name: string } | null;
+  consignee?: { id: string; code: string; name: string } | null;
   totalPackages: number;
   totalWeight: string;
   totalQuantity: number;

@@ -335,6 +335,30 @@ export const NAV_SECTIONS: NavSection[] = [
     titleKey: 'masterData',
     items: [
       {
+        labelKey: 'shippers',
+        href: '/shippers',
+        icon: Building2,
+        status: 'implemented',
+        description: 'Shipper master data',
+        requiredPermission: 'shipper:read',
+      },
+      {
+        labelKey: 'consignees',
+        href: '/consignees',
+        icon: Building2,
+        status: 'implemented',
+        description: 'Consignee master data',
+        requiredPermission: 'consignee:read',
+      },
+      {
+        labelKey: 'agents',
+        href: '/agents',
+        icon: UserCircle,
+        status: 'implemented',
+        description: 'Agent master data and destinations',
+        requiredPermission: 'agent:read',
+      },
+      {
         labelKey: 'customers',
         href: '/customers',
         icon: Users,

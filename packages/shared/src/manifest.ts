@@ -68,9 +68,11 @@ export interface Manifest {
   };
   polPort?: { id: string; code: string; name: string };
   podPort?: { id: string; code: string; name: string };
-  shipper?: { id: string; code: string; name: string; shortName: string | null };
-  consignee?: { id: string; code: string; name: string; shortName: string | null };
-  agent?: { id: string; code: string; name: string; shortName: string | null };
+  // Party refs are master rows (Shipper/Consignee/Agent) — no shortName there
+  // (party-cutover-plan.md §9).
+  shipper?: { id: string; code: string; name: string };
+  consignee?: { id: string; code: string; name: string };
+  agent?: { id: string; code: string; name: string };
   items?: ManifestItem[];
   createdBy?: UserRef;
   submittedBy?: UserRef;

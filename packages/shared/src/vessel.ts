@@ -25,7 +25,12 @@ export type VesselType =
   | 'RORO'
   | 'GENERAL'
   | 'PROJECT'
-  | 'OTHER';
+  | 'OTHER'
+  // Tug/barge modeling (Phase 2). The plan requires Tug, Barge and Landing
+  // Craft alongside the self-propelled categories above.
+  | 'TUG'
+  | 'BARGE'
+  | 'LANDING_CRAFT';
 
 /** Vessel list row. */
 export interface VesselListItem {

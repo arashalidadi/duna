@@ -12,3 +12,6 @@ logs/
 !.env.example
 .DS_Store
 *.tsbuildinfo
+graphify-out/
+.codebase-memory/
+.cbmignore

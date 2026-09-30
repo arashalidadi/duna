@@ -16,17 +16,19 @@ import {
 } from './dto/inspection.dto';
 
 // ---------------------------------------------------------------------------
-// Inspection lifecycle (server-side, ADR-024).
-//   PENDING -> APPROVED
-//   PENDING -> REJECTED
-// Once APPROVED or REJECTED an inspection is finalized and cannot be edited or
-// re-transitioned. Reinspection is a NEW Inspection record for the same cargo
-// (history preserved); the cargo's current state is re-evaluated on create.
+// Inspection lifecycle (server-side, Phase 3).
+//   PENDING → BOOKED → DONE
+//   PENDING → FAILED
+//   FAILED → NEEDS_REINSPECTION
+//   DONE and FAILED are terminal (finalized).
+//   NEEDS_REINSPECTION re-opens the cargo for a new inspection cycle.
 // ---------------------------------------------------------------------------
 const TRANSITIONS: Record<InspectionStatus, InspectionStatus[]> = {
-  PENDING: ['APPROVED', 'REJECTED'],
-  APPROVED: [],
-  REJECTED: [],
+  PENDING: ['BOOKED', 'FAILED'],
+  BOOKED: ['DONE', 'FAILED'],
+  DONE: [],
+  FAILED: ['NEEDS_REINSPECTION'],
+  NEEDS_REINSPECTION: ['BOOKED', 'FAILED'],
 };
 
 const listSelect = {
@@ -88,7 +90,6 @@ export class InspectionService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.cargoId ? { cargoId: query.cargoId } : {}),
       ...(query.customerId ? { cargo: { customerId: query.customerId } } : {}),
-      // A yard filter selects inspections whose cargo is currently in that yard.
       ...(query.yardId ? { cargo: { inventory: { yardId: query.yardId } } } : {}),
       ...(query.inspectionFrom || query.inspectionTo
         ? {
@@ -140,9 +141,6 @@ export class InspectionService {
    * Create a new inspection for a cargo and set the cargo's current readiness
    * state to PENDING. Rejects if the cargo does not exist, is soft-deleted, is
    * cancelled, or already has a PENDING inspection (only one pending at a time).
-   *
-   * inspectorId references the authenticated user; inspectorName defaults to the
-   * actor's full name (free-text snapshot for external inspectors).
    */
   async create(dto: CreateInspectionDto, actor?: AuthenticatedUser) {
     const cargo = await this.prisma.cargo.findUnique({
@@ -189,7 +187,6 @@ export class InspectionService {
           select: createSelect,
         });
 
-        // The cargo's current readiness re-enters PENDING for this new cycle.
         await tx.cargo.update({
           where: { id: dto.cargoId },
           data: { inspectionStatus: 'PENDING' },
@@ -211,8 +208,8 @@ export class InspectionService {
   }
 
   /**
-   * Edit a non-finalized (PENDING) inspection's details. APPROVED/REJECTED
-   * inspections are immutable; corrections require a new inspection cycle.
+   * Edit a non-finalized (PENDING or BOOKED) inspection's details.
+   * DONE/FAILED/NEEDS_REINSPECTION inspections are immutable.
    */
   async update(id: string, dto: UpdateInspectionDto, _actor?: AuthenticatedUser) {
     const existing = await this.prisma.inspection.findUnique({
@@ -222,8 +219,8 @@ export class InspectionService {
     if (!existing) {
       throw new NotFoundException('Inspection not found');
     }
-    if (existing.status !== 'PENDING') {
-      throw new ConflictException('Only a pending inspection can be edited');
+    if (existing.status !== 'PENDING' && existing.status !== 'BOOKED') {
+      throw new ConflictException('Only a pending or booked inspection can be edited');
     }
 
     return this.prisma.inspection.update({
@@ -241,11 +238,9 @@ export class InspectionService {
   }
 
   /**
-   * Approve. Transactionally validates the transition, finalizes this
-   * inspection, and sets the cargo's current readiness to APPROVED — the
-   * authoritative rule future Load Planning (Phase 7) will consume.
+   * Book. Transitions PENDING → BOOKED.
    */
-  async approve(id: string, actor?: AuthenticatedUser) {
+  async book(id: string, actor?: AuthenticatedUser) {
     const inspection = await this.prisma.inspection.findUnique({
       where: { id },
       select: { id: true, status: true, cargoId: true },
@@ -253,20 +248,16 @@ export class InspectionService {
     if (!inspection) {
       throw new NotFoundException('Inspection not found');
     }
-    this.assertTransition(inspection.status, 'APPROVED');
+    this.assertTransition(inspection.status, 'BOOKED');
 
     await this.prisma.$transaction([
       this.prisma.inspection.update({
         where: { id },
         data: {
-          status: 'APPROVED',
+          status: 'BOOKED',
           approvedById: actor?.id,
           approvedAt: new Date(),
         },
-      }),
-      this.prisma.cargo.update({
-        where: { id: inspection.cargoId },
-        data: { inspectionStatus: 'APPROVED' },
       }),
     ]);
 
@@ -274,11 +265,11 @@ export class InspectionService {
   }
 
   /**
-   * Reject. Requires a rejection reason (the driver of Load-List ineligibility).
-   * Transactionally finalizes this inspection and sets the cargo's current
-   * readiness to REJECTED.
+   * Done. Transitions PENDING→BOOKED→DONE or BOOKED→DONE.
+   * Sets the cargo's current readiness to DONE — the authoritative rule
+   * for load-list eligibility.
    */
-  async reject(id: string, dto: RejectInspectionDto, actor?: AuthenticatedUser) {
+  async done(id: string, actor?: AuthenticatedUser) {
     const inspection = await this.prisma.inspection.findUnique({
       where: { id },
       select: { id: true, status: true, cargoId: true },
@@ -286,7 +277,40 @@ export class InspectionService {
     if (!inspection) {
       throw new NotFoundException('Inspection not found');
     }
-    this.assertTransition(inspection.status, 'REJECTED');
+    this.assertTransition(inspection.status, 'DONE');
+
+    await this.prisma.$transaction([
+      this.prisma.inspection.update({
+        where: { id },
+        data: {
+          status: 'DONE',
+          approvedById: actor?.id,
+          approvedAt: new Date(),
+        },
+      }),
+      this.prisma.cargo.update({
+        where: { id: inspection.cargoId },
+        data: { inspectionStatus: 'DONE' },
+      }),
+    ]);
+
+    return this.findById(id);
+  }
+
+  /**
+   * Fail. Transitions PENDING→FAILED or BOOKED→FAILED.
+   * Sets the cargo's current readiness to FAILED.
+   * Requires a rejection reason.
+   */
+  async fail(id: string, dto: RejectInspectionDto, actor?: AuthenticatedUser) {
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      select: { id: true, status: true, cargoId: true },
+    });
+    if (!inspection) {
+      throw new NotFoundException('Inspection not found');
+    }
+    this.assertTransition(inspection.status, 'FAILED');
 
     const reason = dto.rejectionReason?.trim();
     if (!reason) {
@@ -297,7 +321,7 @@ export class InspectionService {
       this.prisma.inspection.update({
         where: { id },
         data: {
-          status: 'REJECTED',
+          status: 'FAILED',
           rejectionReason: reason,
           rejectedById: actor?.id,
           rejectedAt: new Date(),
@@ -305,7 +329,7 @@ export class InspectionService {
       }),
       this.prisma.cargo.update({
         where: { id: inspection.cargoId },
-        data: { inspectionStatus: 'REJECTED' },
+        data: { inspectionStatus: 'FAILED' },
       }),
     ]);
 
@@ -313,8 +337,39 @@ export class InspectionService {
   }
 
   /**
-   * Inspection history for a cargo, newest first. Returns only PENDING/APPROVED/
-   * REJECTED records (never soft-deleted — inspections are not soft-deleted).
+   * NeedsRe inspection. Transitions FAILED → NEEDS_REINSPECTION.
+   * Sets the cargo's current readiness back to PENDING for a new cycle.
+   */
+  async needsReInspection(id: string, actor?: AuthenticatedUser) {
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      select: { id: true, status: true, cargoId: true },
+    });
+    if (!inspection) {
+      throw new NotFoundException('Inspection not found');
+    }
+    this.assertTransition(inspection.status, 'NEEDS_REINSPECTION');
+
+    await this.prisma.$transaction([
+      this.prisma.inspection.update({
+        where: { id },
+        data: {
+          status: 'NEEDS_REINSPECTION',
+          rejectedById: actor?.id,
+          rejectedAt: new Date(),
+        },
+      }),
+      this.prisma.cargo.update({
+        where: { id: inspection.cargoId },
+        data: { inspectionStatus: 'PENDING' },
+      }),
+    ]);
+
+    return this.findById(id);
+  }
+
+  /**
+   * Inspection history for a cargo, newest first.
    */
   async historyByCargo(cargoId: string) {
     const cargo = await this.prisma.cargo.findUnique({ where: { id: cargoId }, select: { id: true } });
@@ -330,16 +385,15 @@ export class InspectionService {
   }
 
   /**
-   * Readiness contract for future Load Planning (Phase 7): is this cargo
-   * inspection-approved? Backed by the authoritative Cargo.inspectionStatus
-   * (kept in sync transactionally on approve/reject). Never trusts frontend.
+   * Readiness contract for load-list eligibility: is this cargo inspection-DONE?
+   * Backed by the authoritative Cargo.inspectionStatus.
    */
-  async isCargoInspectionApproved(cargoId: string): Promise<boolean> {
+  async isCargoInspectionDone(cargoId: string): Promise<boolean> {
     const cargo = await this.prisma.cargo.findUnique({
       where: { id: cargoId },
       select: { inspectionStatus: true },
     });
-    return cargo?.inspectionStatus === 'APPROVED';
+    return cargo?.inspectionStatus === 'DONE';
   }
 
   // -------------------------------------------------------------------------
@@ -355,7 +409,6 @@ export class InspectionService {
     }
   }
 
-  /** Deterministic unique human-friendly reference: INS-<YYMM>-<padded seq>. */
   private async generateReference(): Promise<string> {
     const now = new Date();
     const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(

@@ -38,8 +38,10 @@ describe('Manifest (e2e)', () => {
   const createdYards: Ref[] = [];
   const createdCargos: Ref[] = [];
   const createdLoadLists: Ref[] = [];
+  const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
 
   let adminToken = '';
+  let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
   let readerToken = ''; // manifest:read only
   let writerToken = ''; // read + create + update
   let submitterToken = ''; // read + submit
@@ -89,6 +91,20 @@ describe('Manifest (e2e)', () => {
       .expect(200);
     adminToken = login.body.data.accessToken as string;
     expect(adminToken).toBeDefined();
+
+    // Phase 2 cutover (party-cutover-plan.md §3): manifest party fields are
+    // Shipper-master refs now — fixture Shipper replaces the old Customer id.
+    const { PrismaClient } = require('@prisma/client');
+    const partyFx = new PrismaClient();
+    try {
+      const shp = await partyFx.shipper.create({
+        data: { code: `MFSP-${tag}`, name: `Manifest Test Shipper ${randomTag}` },
+      });
+      fixtureShipperId = shp.id;
+      createdPartyMasters.push({ id: shp.id });
+    } finally {
+      await partyFx.$disconnect();
+    }
 
     readerToken = await createRoleToken(`MFREAD_${tag}`, ['manifest:read'], `mf-read-${emailSuffix}@shipping.local`);
     writerToken = await createRoleToken(
@@ -269,6 +285,7 @@ describe('Manifest (e2e)', () => {
       await prisma.vessel.deleteMany({ where: { id: { in: createdVessels.map((v) => v.id) } } });
       await prisma.yard.deleteMany({ where: { id: { in: createdYards.map((y) => y.id) } } });
       await prisma.customer.deleteMany({ where: { id: { in: createdCustomers.map((c) => c.id) } } });
+      await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.user.deleteMany({
         where: {
@@ -512,14 +529,14 @@ describe('Manifest (e2e)', () => {
       .patch(`/api/v1/manifests/${manifest1Id}`)
       .set(auth(writerToken))
       .send({
-        shipperId: customerId,
+        shipperId: fixtureShipperId,
         notifyParty: 'MF Notify',
         gasCost: '100.5',
         currencyCode: 'USD',
         description: 'MF header edit',
       })
       .expect(200);
-    expect(upd.body.data.shipperId).toBe(customerId);
+    expect(upd.body.data.shipperId).toBe(fixtureShipperId); // master ref, not Customer
     expect(upd.body.data.notifyParty).toBe('MF Notify');
     expect(Number(upd.body.data.gasCost)).toBe(100.5);
     expect(upd.body.data.currencyCode).toBe('USD');

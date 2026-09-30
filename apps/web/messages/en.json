@@ -3,1407 +3,1585 @@
     "name": "Shipping ERP",
     "tagline": "Operations & Accounting"
   },
-  "common": {
-    "loading": "Loading…",
-    "signIn": "Sign in",
-    "signOut": "Sign out",
-    "signingIn": "Signing in…",
-    "search": "Search…",
-    "soon": "Soon",
-    "active": "Active",
-    "save": "Save",
-    "cancel": "Cancel",
-    "delete": "Delete",
-    "edit": "Edit",
-    "create": "Create",
-    "actions": {
-      "save": "Save",
-      "cancel": "Cancel",
-      "delete": "Delete",
-      "search": "Search",
-      "create": "Create",
-      "edit": "Edit"
-    },
-    "confirm": "Confirm",
-    "back": "Back",
-    "workspace": "Workspace",
-    "notifications": "Notifications",
-    "list": {
-      "total": "Total",
-      "loading": "Loading…"
-    },
-    "errors": {
-      "generic": "Something went wrong. Please try again."
-    },
-    "nav": {
-      "home": "Home"
-    },
-    "saving": "Saving…",
-    "select": "Select…",
-    "reset": "Reset"
-  },
-  "system": {
-    "operational": "System Operational",
-    "issue": "System Issue",
-    "checking": "Checking…",
-    "checkedAt": "Checked {time}"
-  },
-  "nav": {
-    "overview": "Overview",
-    "accessControl": "Access Control",
-    "administration": "Administration",
-    "operations": "Operations",
-    "commercial": "Commercial",
-    "masterData": "Master Data",
-    "insightControl": "Insight & Control",
-    "dashboard": "Dashboard",
-    "users": "Users",
-    "roles": "Roles",
-    "permissions": "Permissions",
-    "settings": "Settings",
-    "cargo": "Cargo",
-    "yardInventory": "Yard Inventory",
-    "inspection": "Inspection",
-    "loadLists": "Load Lists",
-    "loadPlanning": "Load Planning",
-    "actualLoading": "Actual Loading",
-    "vessels": "Vessels",
-    "voyages": "Voyages",
-    "manifest": "Manifest",
-    "billOfLading": "Bill of Lading",
-    "discharge": "Discharge",
-    "deliveryOrders": "Delivery Orders",
-    "jobs": "Jobs & Costing",
-    "invoices": "Invoices",
-    "payments": "Payments",
-    "release": "Release Orders",
-    "agents": "Agents",
-    "customers": "Customers",
-    "ports": "Ports",
-    "yards": "Yards",
-    "reports": "Reports",
-    "port": "port",
-    "yard": "yard",
-    "vessel": "vessel",
-    "invoice": "invoice",
-    "quotation": "quotation",
-    "proforma": "proforma",
-    "loadList": "loadList",
-    "voyage": "voyage",
-    "vouchers": "Vouchers",
-    "ledger": "Ledger",
-    "delivery": "Delivery Orders",
-    "proformas": "Proforma Invoices",
-    "quotations": "Quotations",
-    "people": "People & Payroll",
-    "employees": "Employees",
-    "salaryRecords": "Salary Records",
-    "correspondence": "Correspondence",
-    "letters": "Letters",
-    "discharges": "Discharge",
-    "portal": "Portal",
-    "agentPortal": "Agent Portal",
-    "bookings": "Agent Bookings"
-  },
-  "login": {
-    "title": "Sign In",
-    "subtitle": "Sign in to continue to your workspace.",
-    "heading": "Sign in",
-    "description": "Use your staff account to access the workspace.",
-    "email": "Email",
-    "password": "Password",
-    "emailPlaceholder": "you@shipping.local",
-    "enterCredentials": "Enter your email and password.",
-    "unableToSignIn": "Unable to sign in. Check your connection and try again.",
-    "restricted": "Access is restricted to authorised staff.",
-    "showPassword": "Show password",
-    "hidePassword": "Hide password"
-  },
-  "dashboard": {
-    "title": "Dashboard",
-    "description": "System overview and status",
-    "implementedModules": "Implemented Modules",
-    "plannedModules": "Planned Modules",
-    "health": "System Health",
-    "database": "Database",
-    "uptime": "Uptime",
-    "version": "Version",
-    "environment": "Environment",
-    "apiStatus": "API Status",
-    "dbUnavailable": "Database Unavailable",
-    "dbUnavailableDesc": "The API is reachable but its database health check failed.",
-    "apiError": "API Error",
-    "apiUnreachable": "API Unreachable",
-    "apiUnreachableDesc": "Unable to reach the API. Check that the API is running and reachable.",
-    "quickLinks": "Quick Links"
-  },
-  "topbar": {
-    "signedIn": "Signed in",
-    "openNav": "Open navigation",
-    "language": "Language",
-    "switchToEnglish": "English",
-    "switchToPersian": "فارسی"
-  },
   "auth": {
     "redirectingHome": "Redirecting…"
   },
-  "manifest": {
-    "title": "Manifests",
-    "subtitle": "Build the official cargo manifest for a voyage from completed loadings, then submit and approve it.",
-    "register": "Manifest register",
-    "registerHint": "Official cargo manifests. One manifest per voyage.",
-    "searchPlaceholder": "Search manifest no., voyage no., vessel name",
+  "booking": {
+    "status": {
+      "ACCEPTED": "Accepted",
+      "CANCELLED": "Cancelled",
+      "DECLINED": "Declined",
+      "PENDING": "Pending"
+    }
+  },
+  "bookings": {
+    "allCompanies": "All companies",
     "allStatuses": "All statuses",
-    "allVoyages": "All voyages",
-    "new": "New manifest",
-    "loading": "Loading…",
-    "createdFrom": "From",
-    "createdTo": "To",
-    "empty": {
-      "title": "No manifests found",
-      "description": "Try a different search or filter, or create a manifest for a voyage with completed loadings."
-    },
-    "status": {
-      "DRAFT": "Draft",
-      "SUBMITTED": "Submitted",
-      "APPROVED": "Approved",
-      "CANCELLED": "Cancelled"
-    },
-    "table": {
-      "no": "No.",
-      "voyage": "Voyage / Vessel",
-      "route": "Route",
-      "status": "Status",
-      "items": "Items",
-      "totalWeight": "Total weight",
-      "created": "Created",
-      "actions": "Actions"
-    },
-    "create": {
-      "title": "New manifest",
-      "description": "Select the voyage to manifest. Vessel, route and ports are snapshotted from the voyage.",
-      "voyage": "Voyage *",
-      "selectVoyage": "Select voyage…",
-      "noVoyages": "No voyages available.",
-      "shipper": "Shipper",
-      "consignee": "Consignee",
-      "agent": "Agent",
-      "selectCustomer": "None",
-      "notifyParty": "Notify party",
-      "descriptionField": "Description",
-      "notes": "Notes",
-      "submit": "Create manifest",
-      "errorVoyage": "Select a voyage."
-    },
-    "detail": {
-      "draftHint": "Draft — editable. Add cargo, then submit.",
-      "submittedHint": "Submitted — awaiting approval.",
-      "immutable": "Approved or cancelled manifests are immutable.",
-      "cancelReason": "Cancellation reason",
-      "submittedAt": "Submitted",
-      "approvedAt": "Approved",
-      "parties": "Parties",
-      "costs": "Costs",
-      "gasCost": "Gas cost",
-      "lashingCost": "Lashing cost",
-      "shipperCost": "Shipper cost",
-      "podCost": "POD cost",
-      "polCost": "POL cost",
-      "currency": "Currency",
-      "totalWeight": "Total weight",
-      "totalQuantity": "Total quantity",
-      "totalPackages": "Total packages"
-    },
-    "items": {
-      "title": "Manifest items",
-      "addTitle": "Add cargo to manifest",
-      "selectEligible": "Select cargo…",
-      "eligibleEmpty": "No eligible cargo. Complete an actual loading for this voyage first.",
-      "addLabel": "Add cargo",
-      "blNumber": "B/L number",
-      "empty": "No items yet. Add loaded cargo to build the manifest.",
-      "seq": "#",
+    "detail": "Details",
+    "detailTitle": "Booking",
+    "empty": "No booking requests",
+    "fields": {
       "cargo": "Cargo",
-      "weight": "Weight",
-      "quantity": "Qty",
-      "packages": "Pkgs",
+      "company": "Company",
+      "containers": "Containers",
+      "created": "Submitted",
       "notes": "Notes",
-      "remove": "Remove",
-      "actions": "Actions"
+      "number": "Number",
+      "response": "Reply",
+      "responseNote": "Reply note",
+      "route": "Route",
+      "shipDate": "Ship date",
+      "status": "Status",
+      "weightKg": "Weight (kg)"
     },
+    "respond": {
+      "accept": "Accept",
+      "decline": "Decline",
+      "noPermission": "You need booking:respond permission to answer requests.",
+      "notePlaceholder": "Reply note (optional)…",
+      "submit": "Send response",
+      "title": "Respond to request"
+    },
+    "searchPlaceholder": "Search booking no. or cargo…",
+    "subtitle": "Review and respond to booking requests submitted by agent companies",
+    "title": "Agent Bookings"
+  },
+  "common": {
     "actions": {
-      "view": "View",
-      "submit": "Submit",
-      "approve": "Approve",
       "cancel": "Cancel",
+      "create": "Create",
       "delete": "Delete",
-      "close": "Close",
-      "save": "Save"
+      "edit": "Edit",
+      "save": "Save",
+      "search": "Search"
     },
-    "confirm": {
-      "submitTitle": "Submit manifest",
-      "submitBody": "Submit {no} for approval? After submission the manifest becomes read-only.",
-      "approveTitle": "Approve manifest",
-      "approveBody": "Approve {no}? Approved manifests are final and immutable.",
-      "cancelTitle": "Cancel manifest",
-      "cancelBody": "Cancel {no}? A reason is required. Cancelled manifests are immutable.",
-      "deleteTitle": "Delete manifest",
-      "deleteBody": "Delete draft {no}? The manifest and its items will be soft-deleted.",
-      "reason": "Cancellation reason *",
-      "keep": "Keep",
-      "confirmSubmit": "Submit",
-      "confirmApprove": "Approve",
-      "confirmCancel": "Cancel manifest",
-      "confirmDelete": "Delete"
-    },
+    "active": "Active",
+    "back": "Back",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "create": "Create",
+    "delete": "Delete",
+    "edit": "Edit",
     "errors": {
-      "loadList": "Failed to load manifests",
-      "loadDetail": "Failed to load manifest",
-      "create": "Failed to create manifest",
-      "save": "Failed to save",
-      "addItem": "Failed to add cargo",
-      "removeItem": "Failed to remove item",
-      "submit": "Failed to submit",
-      "approve": "Failed to approve",
-      "cancel": "Failed to cancel",
-      "delete": "Failed to delete",
-      "reasonRequired": "A cancellation reason is required.",
-      "blOrNotes": "Enter a B/L number or notes to save."
-    }
-  },
-  "roles": {
-    "page": {
-      "title": "Roles page",
-      "description": "Manage roles and permissions"
-    },
-    "create": {
-      "title": "Create role",
-      "description": "Create a new role"
-    },
-    "edit": {
-      "title": "Edit role",
-      "description": "Edit role details"
-    },
-    "permission": "Permission",
-    "status": "Status",
-    "actions": "Actions"
-  },
-  "invoice": {
-    "page": {
-      "title": "Invoices",
-      "description": "Customer billing documents"
+      "generic": "Something went wrong. Please try again."
     },
     "list": {
-      "title": "Invoices",
-      "search": "Search by number, title or customer",
-      "allStatuses": "All statuses",
-      "allPayments": "Paid + unpaid",
-      "unpaid": "Unpaid only",
-      "allDue": "Any due date",
-      "overdue": "Overdue only",
-      "empty": {
-        "title": "No invoices yet",
-        "description": "Create the first invoice for a customer."
-      }
-    },
-    "status": {
-      "DRAFT": "Draft",
-      "ISSUED": "Issued",
-      "CANCELLED": "Cancelled"
-    },
-    "fields": {
-      "invoiceNumber": "Invoice No.",
-      "customer": "Customer",
-      "title": "Title",
-      "description": "Description",
-      "status": "Status",
-      "currencyCode": "Currency",
-      "issueDate": "Issue date",
-      "dueDate": "Due date",
-      "subtotal": "Subtotal",
-      "taxRate": "Tax rate %",
-      "taxAmount": "Tax",
-      "discountAmount": "Discount",
-      "totalAmount": "Total",
-      "paidAmount": "Paid",
-      "manifest": "Manifest",
-      "bill": "B/L",
-      "notes": "Notes"
-    },
-    "detail": {
-      "headerTitle": "Invoice header",
       "loading": "Loading…",
-      "saving": "Saving…",
-      "paid": "Paid",
-      "unpaid": "Unpaid"
+      "total": "Total"
     },
-    "actions": {
-      "create": "New invoice",
-      "save": "Save",
-      "close": "Close",
-      "issue": "Issue",
-      "cancel": "Cancel invoice",
-      "delete": "Delete"
+    "loading": "Loading…",
+    "nav": {
+      "home": "Home"
     },
-    "create": {
-      "title": "Create invoice",
-      "description": "Pick a customer; optionally anchor to a manifest or B/L.",
-      "selectCustomer": "Select customer",
-      "selectManifest": "No manifest",
-      "selectBill": "No B/L",
-      "noAnchor": "Anchor links are optional.",
-      "creating": "Creating…",
-      "errors": {
-        "customerRequired": "A customer is required"
-      }
-    },
-    "items": {
-      "title": "Invoice lines",
-      "empty": "No lines yet.",
-      "add": "Add line",
-      "addTitle": "Add invoice line",
-      "addDescription": "Description, quantity and unit price; the line amount is computed.",
-      "description": "Description",
-      "quantity": "Qty",
-      "unitPrice": "Unit price",
-      "amount": "Amount",
-      "remove": "Remove",
-      "saveAll": "Save changes",
-      "adding": "Adding…",
-      "errors": {
-        "lineRequired": "Description and a positive unit price are required"
-      }
-    },
-    "confirm": {
-      "issue": {
-        "title": "Issue invoice?",
-        "description": "Issued invoices are locked and enter the payment ledger."
-      },
-      "cancel": {
-        "title": "Cancel invoice?",
-        "reason": "Cancellation reason",
-        "reasonPlaceholder": "Why is this invoice cancelled?",
-        "description": "Cancelled invoices are terminal and stay for audit."
-      },
-      "delete": {
-        "title": "Delete this draft invoice?",
-        "description": "Soft-deleted; never shown again."
-      },
-      "removeItem": {
-        "title": "Remove this line?",
-        "description": "Totals will be recalculated."
-      }
-    }
+    "notifications": "Notifications",
+    "reset": "Reset",
+    "save": "Save",
+    "saving": "Saving…",
+    "search": "Search…",
+    "select": "Select…",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "signingIn": "Signing in…",
+    "soon": "Soon",
+    "workspace": "Workspace"
   },
-  "voucher": {
-    "page": {
-      "title": "Vouchers",
-      "description": "Receipt & payment vouchers"
-    },
-    "list": {
-      "title": "Voucher register",
-      "subtitle": "Posted money documents against customers and invoices",
-      "search": "Search by number, reference or description",
-      "allTypes": "All types",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No vouchers yet",
-        "description": "Register the first receipt or payment voucher."
-      }
-    },
-    "type": {
-      "RECEIPT": "Receipt",
-      "PAYMENT": "Payment"
-    },
-    "status": {
-      "POSTED": "Posted",
-      "CANCELLED": "Cancelled"
-    },
-    "method": {
-      "CASH": "Cash",
-      "BANK_TRANSFER": "Bank transfer",
-      "CHEQUE": "Cheque",
-      "OTHER": "Other"
-    },
-    "fields": {
-      "voucherNumber": "Voucher No.",
-      "type": "Type",
-      "customer": "Customer",
-      "invoice": "Invoice",
-      "amount": "Amount",
-      "currencyCode": "Currency",
-      "method": "Method",
-      "reference": "Reference",
-      "description": "Description",
-      "note": "Note",
-      "voucherDate": "Value date",
-      "status": "Status",
-      "cancelReason": "Cancellation reason"
-    },
-    "actions": {
-      "create": "New voucher",
-      "save": "Save",
-      "cancelVoucher": "Cancel voucher",
-      "cancelling": "Cancelling…"
-    },
-    "create": {
-      "title": "Create voucher",
-      "description": "Receipt (money in) or payment (refund). Link an invoice to settle it.",
-      "selectCustomer": "Select customer",
-      "noInvoice": "No invoice (standalone)",
-      "creating": "Creating…",
-      "errors": {
-        "customerRequired": "A customer is required",
-        "amountRequired": "A positive amount is required"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "Cancel this voucher?",
-        "description": "Its effect on the invoice is reversed; the row stays for audit.",
-        "reason": "Cancellation reason",
-        "reasonPlaceholder": "Why is this voucher cancelled?"
-      },
-      "delete": {
-        "title": "Delete this cancelled voucher?",
-        "description": "Removes the cancelled row permanently."
-      }
-    }
-  },
-  "ledger": {
-    "page": {
-      "title": "Ledger",
-      "description": "Customer statements — invoices and settlements"
-    },
-    "filters": {
-      "title": "Statement filters",
-      "description": "Pick a customer; optionally a currency and date range."
-    },
-    "fields": {
-      "customer": "Customer",
-      "currency": "Currency",
-      "fromDate": "From",
-      "toDate": "To"
-    },
-    "selectCustomer": "Select a customer to build the statement",
-    "allCurrencies": "All currencies",
-    "actions": {
-      "run": "Build statement",
-      "print": "Print"
-    },
-    "columns": {
-      "date": "Date",
-      "kind": "Type",
-      "document": "Document",
-      "description": "Description",
-      "debit": "Debit",
-      "credit": "Credit",
-      "balance": "Balance"
-    },
-    "kind": {
-      "invoice": "Invoice",
-      "voucher": "Voucher",
-      "balance": "Balance"
-    },
-    "statement": {
-      "title": "Statement — {customer}",
-      "subtitle": "{count} entries in range",
-      "opening": "Opening balance",
-      "period": "In range",
-      "closing": "Closing balance"
-    },
-    "list": {
-      "loading": "Building statement…",
-      "empty": {
-        "title": "No entries",
-        "description": "No invoices or vouchers match these filters."
-      }
-    }
+  "dashboard": {
+    "apiError": "API Error",
+    "apiStatus": "API Status",
+    "apiUnreachable": "API Unreachable",
+    "apiUnreachableDesc": "Unable to reach the API. Check that the API is running and reachable.",
+    "database": "Database",
+    "dbUnavailable": "Database Unavailable",
+    "dbUnavailableDesc": "The API is reachable but its database health check failed.",
+    "description": "System overview and status",
+    "environment": "Environment",
+    "health": "System Health",
+    "implementedModules": "Implemented Modules",
+    "plannedModules": "Planned Modules",
+    "quickLinks": "Quick Links",
+    "title": "Dashboard",
+    "uptime": "Uptime",
+    "version": "Version"
   },
   "deliveryOrder": {
-    "page": {
-      "title": "Delivery Orders",
-      "description": "Cargo hand-over permits against B/Ls (D/O)"
+    "actions": {
+      "cancelOrder": "Cancel D/O",
+      "cancelling": "Cancelling…",
+      "create": "New D/O"
     },
-    "list": {
-      "title": "D/O register",
-      "subtitle": "Issued delivery orders; one active per B/L",
-      "search": "Search by number, recipient or plate",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No delivery orders",
-        "description": "Issue the first delivery order against an ISSUED B/L."
+    "confirm": {
+      "cancel": {
+        "description": "The B/L becomes deliverable again; the row stays for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this D/O cancelled?",
+        "title": "Cancel this D/O?"
+      },
+      "delete": {
+        "description": "Removes the cancelled row permanently.",
+        "title": "Delete this cancelled D/O?"
       }
     },
-    "status": {
-      "ISSUED": "Issued",
-      "CANCELLED": "Cancelled"
-    },
-    "fields": {
-      "docNumber": "D/O No.",
-      "bill": "B/L",
-      "recipient": "Recipient",
-      "vehiclePlate": "Vehicle plate",
-      "issueDate": "Issue date",
-      "notes": "Notes",
-      "status": "Status",
-      "cancelReason": "Cancellation reason"
-    },
-    "actions": {
-      "create": "New D/O",
-      "cancelOrder": "Cancel D/O",
-      "cancelling": "Cancelling…"
-    },
     "create": {
-      "title": "Create delivery order",
-      "description": "The B/L must be ISSUED; one active D/O per B/L.",
-      "selectBill": "Select B/L",
-      "recipientPlaceholder": "Who receives the cargo?",
       "creating": "Creating…",
+      "description": "The B/L must be ISSUED; one active D/O per B/L.",
       "errors": {
         "billRequired": "A B/L is required",
         "recipientRequired": "Recipient is required"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "Cancel this D/O?",
-        "description": "The B/L becomes deliverable again; the row stays for audit.",
-        "reason": "Cancellation reason",
-        "reasonPlaceholder": "Why is this D/O cancelled?"
       },
-      "delete": {
-        "title": "Delete this cancelled D/O?",
-        "description": "Removes the cancelled row permanently."
-      }
+      "recipientPlaceholder": "Who receives the cargo?",
+      "selectBill": "Select B/L",
+      "title": "Create delivery order"
     },
     "detail": {
       "headerTitle": "Delivery order"
-    }
-  },
-  "releaseOrder": {
-    "page": {
-      "title": "Release Orders",
-      "description": "Cargo release permits against B/Ls (R/O) — settled or authorized override"
-    },
-    "list": {
-      "title": "R/O register",
-      "subtitle": "One active release per B/L; money rule enforced",
-      "search": "Search by number or notes",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No release orders",
-        "description": "Issue a release once the B/L invoices are settled."
-      }
-    },
-    "status": {
-      "ISSUED": "Issued",
-      "CANCELLED": "Cancelled"
     },
     "fields": {
-      "docNumber": "R/O No.",
       "bill": "B/L",
-      "releaseDate": "Release date",
-      "financial": "Financial",
-      "override": "Override",
-      "settled": "Settled",
-      "invoicesTotal": "Invoiced",
-      "invoicesPaid": "Paid",
-      "overrideReason": "Override reason",
+      "cancelReason": "Cancellation reason",
+      "docNumber": "D/O No.",
+      "issueDate": "Issue date",
       "notes": "Notes",
+      "recipient": "Recipient",
       "status": "Status",
-      "cancelReason": "Cancellation reason"
+      "vehiclePlate": "Vehicle plate"
     },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Issue the first delivery order against an ISSUED B/L.",
+        "title": "No delivery orders"
+      },
+      "search": "Search by number, recipient or plate",
+      "subtitle": "Issued delivery orders; one active per B/L",
+      "title": "D/O register"
+    },
+    "page": {
+      "description": "Cargo hand-over permits against B/Ls (D/O)",
+      "title": "Delivery Orders"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "ISSUED": "Issued"
+    }
+  },
+  "discharge": {
     "actions": {
-      "create": "New R/O",
-      "cancelOrder": "Cancel R/O",
+      "cancel": "Cancel discharge",
+      "complete": "Complete",
+      "create": "New Discharge",
+      "delete": "Delete",
+      "start": "Start unloading",
       "view": "View"
     },
-    "create": {
-      "title": "Create release order",
-      "description": "Requires every ISSUED invoice on the B/L to be fully paid, or an authorized override.",
-      "selectBill": "Select B/L",
-      "creating": "Creating…",
-      "checkingEligibility": "Checking settlement…",
-      "blockedTitle": "Outstanding balance",
-      "readyTitle": "Ready to release",
-      "eligibilityLine": "Invoiced {total} — paid {paid} — outstanding {outstanding}",
-      "blockedNeedsForce": "Invoices unpaid: tick the override box and give a reason, or settle first.",
-      "forceOverride": "Override the payment requirement (audited)",
-      "overrideReasonPlaceholder": "Why release despite the outstanding balance?",
-      "errors": {
-        "billRequired": "A B/L is required",
-        "overrideReasonRequired": "An override reason is required"
-      }
+    "cancel": {
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. berth reassigned",
+      "title": "Cancel discharge"
     },
     "confirm": {
-      "cancel": {
-        "title": "Cancel this R/O?",
-        "description": "The B/L becomes releasable again; the row stays for audit.",
-        "reason": "Cancellation reason",
-        "reasonPlaceholder": "Why is this R/O cancelled?"
+      "complete": {
+        "description": "Complete {number}? Fully discharged cargo becomes DELIVERED; shortfalls stay open for claims.",
+        "title": "Complete discharge"
       },
       "delete": {
-        "title": "Delete this cancelled R/O?",
-        "description": "Removes the cancelled row permanently."
+        "description": "Delete {number}? Only unstarted/in-progress discharges can be deleted.",
+        "title": "Delete discharge"
+      },
+      "start": {
+        "description": "Start unloading {number}? Lines stay editable while in progress.",
+        "title": "Start unloading"
       }
-    },
-    "detail": {
-      "headerTitle": "Release order"
-    }
-  },
-  "proforma": {
-    "page": {
-      "title": "Proforma Invoices",
-      "description": "Quotes and pre-invoices — convert into real invoices with one click."
-    },
-    "list": {
-      "title": "Proforma list",
-      "subtitle": "DRAFT proformas are editable; issuing freezes them for conversion.",
-      "search": "Search by number, title or customer",
-      "allStatuses": "All statuses",
-      "unconvertedOnly": "Unconverted only",
-      "empty": {
-        "title": "No proforma invoices",
-        "description": "Create your first quote to get started."
-      }
-    },
-    "fields": {
-      "number": "Number",
-      "title": "Title",
-      "customer": "Customer",
-      "status": "Status",
-      "currency": "Currency",
-      "issueDate": "Issue date",
-      "validUntil": "Valid until",
-      "total": "Total",
-      "discount": "Discount",
-      "taxRate": "Tax rate %",
-      "description": "Description",
-      "notes": "Notes",
-      "cancelReason": "Cancellation reason",
-      "convertedTo": "Converted to"
-    },
-    "status": {
-      "DRAFT": "Draft",
-      "ISSUED": "Issued",
-      "CANCELLED": "Cancelled"
-    },
-    "actions": {
-      "create": "New proforma",
-      "issue": "Issue",
-      "convert": "Convert to invoice",
-      "cancelOrder": "Cancel proforma",
-      "cancelling": "Cancelling…"
-    },
-    "totals": {
-      "subtotal": "Subtotal",
-      "tax": "Tax",
-      "total": "Total"
     },
     "create": {
-      "title": "New proforma invoice",
-      "description": "Add lines and optional tax/discount — totals are computed automatically.",
-      "selectCustomer": "Select customer…",
-      "titlePlaceholder": "e.g. Freight quote — MV Ali / voyage 12",
-      "itemsTitle": "Lines",
-      "addItem": "Add line",
-      "itemDescription": "Description",
-      "qty": "Qty",
-      "unitPrice": "Unit price",
-      "creating": "Creating…",
+      "description": "Pre-populates expected lines from what was actually loaded.",
       "errors": {
-        "customerRequired": "A customer is required",
-        "itemsRequired": "Add at least one line"
-      }
+        "loadingRequired": "Select an actual loading"
+      },
+      "loadingLabel": "Actual loading (completed)",
+      "loadingPlaceholder": "— select —",
+      "noLoadings": "No completed actual loadings available for discharge.",
+      "title": "New Discharge"
     },
     "detail": {
-      "title": "Proforma details",
-      "items": "Lines",
-      "lineTotal": "Amount",
-      "convertedBadge": "Converted"
-    },
-    "convert": {
-      "title": "Convert to invoice",
-      "description": "This creates a DRAFT invoice with the same lines and totals.",
-      "body": "The proforma will be marked as converted. This can only be done once.",
-      "converting": "Converting…",
-      "resultTitle": "Invoice created",
-      "resultLine": "Draft invoice {number} was created from this proforma.",
-      "resultHint": "Review it on the invoices page, then issue it."
-    },
-    "confirm": {
-      "issue": {
-        "title": "Issue proforma?",
-        "description": "After issuing, lines and header are frozen."
-      },
-      "cancel": {
-        "title": "Cancel proforma?",
-        "description": "A cancelled proforma is terminal and can be deleted afterwards.",
-        "reason": "Reason",
-        "reasonPlaceholder": "Why is this proforma being cancelled?"
-      }
-    }
-  },
-  "quotation": {
-    "page": {
-      "title": "Quotations",
-      "description": "Price quotes sent to customers — convertible to proforma invoices"
-    },
-    "actions": {
-      "create": "New Quotation",
-      "send": "Send",
-      "accept": "Accept",
-      "reject": "Reject",
-      "convert": "Convert",
-      "cancelling": "Cancelling...",
-      "rejecting": "Rejecting..."
-    },
-    "status": {
-      "DRAFT": "Draft",
-      "SENT": "Sent",
-      "ACCEPTED": "Accepted",
-      "REJECTED": "Rejected",
-      "CANCELLED": "Cancelled"
-    },
-    "list": {
-      "title": "Quotation List",
-      "subtitle": "Search, filter and manage quotations",
-      "search": "Search...",
-      "allStatuses": "All statuses",
-      "convertibleOnly": "Convertible only",
-      "empty": {
-        "title": "No quotations yet",
-        "description": "Create a quotation to get started."
-      }
+      "cancelledOn": "Cancelled on",
+      "completedOn": "Completed on",
+      "createdOn": "Created",
+      "title": "Discharge"
     },
     "fields": {
-      "number": "Number",
-      "customer": "Customer",
-      "issueDate": "Issue date",
-      "validUntil": "Valid until",
-      "total": "Total",
-      "status": "Status",
-      "currency": "Currency",
-      "title": "Title",
-      "taxRate": "Tax rate %",
-      "discount": "Discount",
+      "discharged": "Discharged",
+      "expected": "Expected",
+      "lines": "Lines",
+      "loading": "Actual loading",
       "notes": "Notes",
-      "description": "Description",
-      "cancelReason": "Cancel reason",
-      "rejectReason": "Reject reason",
-      "convertedTo": "Converted to"
+      "number": "Discharge #",
+      "pod": "Destination port",
+      "status": "Status",
+      "vessel": "Vessel",
+      "voyage": "Voyage"
     },
-    "create": {
-      "title": "Create Quotation",
-      "description": "Fill header and lines; totals compute automatically.",
-      "creating": "Creating...",
-      "selectCustomer": "Select customer...",
-      "itemsTitle": "Line items",
-      "itemDescription": "Item description",
-      "qty": "Qty",
-      "unitPrice": "Unit price",
-      "addItem": "Add item",
+    "items": {
+      "cargo": "Cargo",
+      "discharged": "Discharged",
       "errors": {
-        "customerRequired": "Customer is required",
-        "itemsRequired": "At least one line is required"
-      }
-    },
-    "totals": {
-      "subtotal": "Subtotal",
-      "tax": "Tax",
-      "total": "Total"
-    },
-    "detail": {
-      "items": "Line items",
-      "lineTotal": "Line total",
-      "convertedBadge": "Converted to {number}"
-    },
-    "convert": {
-      "title": "Convert to proforma",
-      "description": "Converts this accepted quotation into a DRAFT proforma (one time).",
-      "body": "Convert quotation {number} (total {total} {currency}) into a proforma invoice?",
-      "converting": "Converting...",
-      "resultTitle": "Converted",
-      "resultLine": "Proforma {number} created.",
-      "resultHint": "The proforma starts as DRAFT; issue it before converting to an invoice."
-    },
-    "confirm": {
-      "send": {
-        "title": "Send quotation",
-        "description": "Once sent, the lines and amounts are frozen."
+        "exceeds": "Discharged quantity exceeds expected ({expected})",
+        "nonnegative": "Quantity must be a non-negative integer"
       },
-      "accept": {
-        "title": "Accept quotation",
-        "description": "Accepting enables conversion to a proforma invoice."
+      "expected": "Expected",
+      "result": {
+        "FULL": "Full",
+        "NOT_DISCHARGED": "Not discharged",
+        "PARTIAL": "Partial"
       },
-      "reject": {
-        "title": "Reject quotation",
-        "description": "Provide a reject reason.",
-        "reason": "Reject reason",
-        "reasonPlaceholder": "e.g. Price above customer budget"
+      "totals": "Totals"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Create a discharge when a completed loading arrives at the destination port.",
+        "title": "No discharges yet"
       },
-      "cancel": {
-        "title": "Cancel quotation",
-        "description": "Provide a cancel reason.",
-        "reason": "Cancel reason",
-        "reasonPlaceholder": "e.g. Superseded"
-      }
+      "search": "Discharge #, loading, voyage, vessel…"
+    },
+    "page": {
+      "description": "Unloading at the destination port — mirrors what was actually loaded",
+      "title": "Discharge"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed",
+      "IN_PROGRESS": "In progress",
+      "NOT_STARTED": "Not started"
     }
   },
   "employee": {
-    "page": {
-      "title": "Employees",
-      "description": "HR master data — staff, base salaries and status"
-    },
     "actions": {
       "create": "New Employee",
-      "edit": "Edit",
-      "delete": "Delete"
+      "delete": "Delete",
+      "edit": "Edit"
+    },
+    "confirm": {
+      "delete": {
+        "description": "Delete {name}? This cannot be undone.",
+        "title": "Delete employee"
+      }
     },
     "fields": {
+      "baseSalary": "Base Salary",
       "code": "Code",
-      "name": "Name",
-      "nationalId": "National ID",
-      "position": "Position",
-      "phone": "Phone",
+      "currency": "Currency",
       "email": "Email",
       "hireDate": "Hire Date",
-      "baseSalary": "Base Salary",
-      "currency": "Currency",
-      "status": "Status",
+      "name": "Name",
+      "nationalId": "National ID",
       "notes": "Notes",
-      "salaryRecordsCount": "Payslips"
+      "phone": "Phone",
+      "position": "Position",
+      "salaryRecordsCount": "Payslips",
+      "status": "Status"
+    },
+    "form": {
+      "codePlaceholder": "Auto (EMP-#####)",
+      "description": "Base salary and currency drive payslip defaults.",
+      "editTitle": "Edit Employee",
+      "errors": {
+        "nameRequired": "Name is required"
+      },
+      "saving": "Saving...",
+      "title": "Create Employee"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Create the first employee to start payroll.",
+        "title": "No employees yet"
+      },
+      "search": "Search...",
+      "subtitle": "Search and manage staff records",
+      "title": "Employee List"
+    },
+    "page": {
+      "description": "HR master data — staff, base salaries and status",
+      "title": "Employees"
     },
     "status": {
       "ACTIVE": "Active",
       "INACTIVE": "Inactive"
+    }
+  },
+  "home": {
+    "nav": {
+      "brand": "Duna Shipping",
+      "home": "Home",
+      "about": "About",
+      "services": "Services",
+      "contact": "Contact",
+      "login": "Dashboard Login",
+      "switchToPersian": "Persian",
+      "switchToEnglish": "English",
+      "switchToArabic": "Arabic"
     },
-    "list": {
-      "title": "Employee List",
-      "subtitle": "Search and manage staff records",
-      "search": "Search...",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No employees yet",
-        "description": "Create the first employee to start payroll."
+    "hero": {
+      "tag": "International Shipping Company",
+      "title": "Shipping cargo from origin to destination\nSafe and on time, every time",
+      "subtitle": "Security, re‑export, documentation, and after‑sales service.\nAll in one place — from loading to final settlement.",
+      "ctaPrimary": "Dashboard Login",
+      "ctaSecondary": "Learn More",
+      "stats": {
+        "years": "Years Experience",
+        "destinations": "Target Markets",
+        "shipments": "Successful Shipments"
       }
     },
-    "form": {
-      "title": "Create Employee",
-      "editTitle": "Edit Employee",
-      "description": "Base salary and currency drive payslip defaults.",
-      "saving": "Saving...",
-      "codePlaceholder": "Auto (EMP-#####)",
-      "errors": {
-        "nameRequired": "Name is required"
+    "about": {
+      "eyebrow": "About Us",
+      "title": "Duna Shipping Company",
+      "paragraph": "Duna Shipping, with over 10 years of experience in maritime transport, cargo clearance, container management and yard operations, is a trusted partner for companies across the Persian Gulf and free zones. We deliver a combination of operational excellence, precise documentation, and transparent accounting — from initial loading to final settlement.",
+      "values": {
+        "expertise": "Expertise & Experience",
+        "safety": "Safety & Stability",
+        "timeliness": "Timeliness & Reliability",
+        "transparency": "Transparency & Clear Accounting"
       }
     },
-    "confirm": {
-      "delete": {
-        "title": "Delete employee",
-        "description": "Delete {name}? This cannot be undone."
+    "services": {
+      "eyebrow": "Professional Services",
+      "title": "Our Services",
+      "services": [
+        {
+          "name": "Yard & Inventory",
+          "icon": "warehouse",
+          "desc": "Cargo registration, inventory visibility by port and yard, status tracking and reporting."
+        },
+        {
+          "name": "Loading & Load Lists",
+          "icon": "shipping",
+          "desc": "Load lists are progressively completed; inspected cargo approved and finalised."
+        },
+        {
+          "name": "Bill of Lading & Manifest",
+          "icon": "file-text",
+          "desc": "Full resources, automatic generation of B/L and manifests, banking and customs references."
+        },
+        {
+          "name": "Accounting & Finance",
+          "icon": "dollar-sign",
+          "desc": "Proforma, quotation, invoice, voucher, payslip, and full financial reporting."
+        }
+      ]
+    },
+    "capabilities": {
+      "eyebrow": "Why Duna?",
+      "title": "Our Capabilities",
+      "items": [
+        {
+          "title": "Global Coverage",
+          "icon": "globe",
+          "desc": "Active in Persian Gulf, Gulf of Oman and free zones, with access to international destinations."
+        },
+        {
+          "title": "Precise Documentation",
+          "icon": "file-check",
+          "desc": "Bill of lading, manifest, delivery orders, invoice, and proforma — all to standard quality."
+        },
+        {
+          "title": "Transparent Accounting",
+          "icon": "receipt",
+          "desc": "Full accounting cycle: from proforma and quotation to invoice and final reports."
+        },
+        {
+          "title": "Agent Portal",
+          "icon": "user-round",
+          "desc": "Partner agents can submit booking requests, track status, and manage shipments."
+        }
+      ]
+    },
+    "coverage": {
+      "eyebrow": "Ports & Destinations",
+      "title": "Geographic Coverage",
+      "intro": "We operate in the main ports of the Persian Gulf and Iran's free zones, with access to international destinations.",
+      "ports": [
+        "Bandar Abbas",
+        "Bandar-e Emam",
+        "Chabahar",
+        "Kish Island",
+        "Bushehr",
+        "Jask"
+      ]
+    },
+    "cta": {
+      "title": "Ready to get started?",
+      "subtitle": "Manage your shipping and accounting operations with Duna today.",
+      "button": "Dashboard Login"
+    },
+    "footer": {
+      "brand": "Duna Shipping",
+      "legal": "© {year} Duna Shipping. All rights reserved.",
+      "tagline": "Shipping Operations & Accounting",
+      "links": {
+        "about": "About",
+        "services": "Services",
+        "contact": "Contact",
+        "login": "Dashboard Login"
       }
     }
   },
-  "salary": {
-    "page": {
-      "title": "Salary Records",
-      "description": "Monthly payslips — draft, approve, pay"
-    },
+  "invoice": {
     "actions": {
-      "create": "New Payslip",
-      "approve": "Approve",
-      "pay": "Pay",
-      "cancel": "Cancel",
-      "cancelling": "Cancelling...",
+      "cancel": "Cancel invoice",
+      "close": "Close",
+      "create": "New invoice",
       "delete": "Delete",
-      "view": "View"
-    },
-    "status": {
-      "DRAFT": "Draft",
-      "APPROVED": "Approved",
-      "PAID": "Paid",
-      "CANCELLED": "Cancelled"
-    },
-    "list": {
-      "title": "Payslips",
-      "subtitle": "Filter by period, employee and status",
-      "search": "Search...",
-      "allStatuses": "All statuses",
-      "allYears": "All years",
-      "allMonths": "All months",
-      "allEmployees": "All employees",
-      "empty": {
-        "title": "No payslips yet",
-        "description": "Create the first payslip to start payroll."
-      }
-    },
-    "fields": {
-      "number": "Number",
-      "employee": "Employee",
-      "period": "Period",
-      "base": "Base",
-      "additions": "Additions",
-      "deductions": "Deductions",
-      "net": "Net pay",
-      "currency": "Currency",
-      "status": "Status",
-      "notes": "Notes",
-      "year": "Year",
-      "month": "Month",
-      "paymentMethod": "Payment method",
-      "paymentRef": "Payment reference",
-      "cancelReason": "Cancel reason"
-    },
-    "method": {
-      "CASH": "Cash",
-      "BANK_TRANSFER": "Bank transfer",
-      "CHEQUE": "Cheque",
-      "OTHER": "Other"
-    },
-    "create": {
-      "title": "Create Payslip",
-      "description": "Base and currency default to the employee's.",
-      "creating": "Creating...",
-      "selectEmployee": "Select employee...",
-      "errors": {
-        "employeeRequired": "Employee is required"
-      }
+      "issue": "Issue",
+      "save": "Save"
     },
     "confirm": {
-      "approve": {
-        "title": "Approve payslip",
-        "description": "Approve {number} with net {net}? It will be frozen."
+      "cancel": {
+        "description": "Cancelled invoices are terminal and stay for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this invoice cancelled?",
+        "title": "Cancel invoice?"
       },
       "delete": {
-        "title": "Delete payslip",
-        "description": "Delete {number}? Only DRAFT payslips can be deleted."
+        "description": "Soft-deleted; never shown again.",
+        "title": "Delete this draft invoice?"
+      },
+      "issue": {
+        "description": "Issued invoices are locked and enter the payment ledger.",
+        "title": "Issue invoice?"
+      },
+      "removeItem": {
+        "description": "Totals will be recalculated.",
+        "title": "Remove this line?"
       }
     },
-    "pay": {
-      "title": "Record payment",
-      "description": "Records the payment fact on the payslip.",
-      "paying": "Recording...",
-      "referencePlaceholder": "e.g. TRF-12345"
-    },
-    "cancel": {
-      "title": "Cancel payslip",
-      "description": "Provide a cancel reason (audit).",
-      "reason": "Cancel reason",
-      "reasonPlaceholder": "e.g. left the company"
+    "create": {
+      "creating": "Creating…",
+      "description": "Pick a customer; optionally anchor to a manifest or B/L.",
+      "errors": {
+        "customerRequired": "A customer is required"
+      },
+      "noAnchor": "Anchor links are optional.",
+      "selectBill": "No B/L",
+      "selectCustomer": "Select customer",
+      "selectManifest": "No manifest",
+      "title": "Create invoice"
     },
     "detail": {
-      "title": "Payslip",
-      "approvedOn": "Approved on",
-      "paidOn": "Paid on",
+      "headerTitle": "Invoice header",
+      "loading": "Loading…",
+      "paid": "Paid",
+      "saving": "Saving…",
+      "unpaid": "Unpaid"
+    },
+    "fields": {
+      "bill": "B/L",
+      "currencyCode": "Currency",
+      "customer": "Customer",
+      "description": "Description",
+      "discountAmount": "Discount",
+      "dueDate": "Due date",
+      "invoiceNumber": "Invoice No.",
+      "issueDate": "Issue date",
+      "manifest": "Manifest",
+      "notes": "Notes",
+      "paidAmount": "Paid",
+      "status": "Status",
+      "subtotal": "Subtotal",
+      "taxAmount": "Tax",
+      "taxRate": "Tax rate %",
+      "title": "Title",
+      "totalAmount": "Total"
+    },
+    "items": {
+      "add": "Add line",
+      "addDescription": "Description, quantity and unit price; the line amount is computed.",
+      "addTitle": "Add invoice line",
+      "adding": "Adding…",
+      "amount": "Amount",
+      "description": "Description",
+      "empty": "No lines yet.",
+      "errors": {
+        "lineRequired": "Description and a positive unit price are required"
+      },
+      "quantity": "Qty",
+      "remove": "Remove",
+      "saveAll": "Save changes",
+      "title": "Invoice lines",
+      "unitPrice": "Unit price"
+    },
+    "list": {
+      "allDue": "Any due date",
+      "allPayments": "Paid + unpaid",
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Create the first invoice for a customer.",
+        "title": "No invoices yet"
+      },
+      "overdue": "Overdue only",
+      "search": "Search by number, title or customer",
+      "title": "Invoices",
+      "unpaid": "Unpaid only"
+    },
+    "page": {
+      "description": "Customer billing documents",
+      "title": "Invoices"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "ISSUED": "Issued"
+    }
+  },
+  "jobs": {
+    "actions": {
+      "addItem": "Add line",
+      "cancel": "Cancel job",
+      "complete": "Complete",
+      "create": "New Job",
+      "delete": "Delete",
+      "edit": "Edit",
+      "start": "Open",
+      "view": "View"
+    },
+    "cancel": {
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. customer cancelled",
+      "title": "Cancel job"
+    },
+    "confirm": {
+      "complete": {
+        "description": "Complete {number} with profit {profit} {currency}? Lines freeze after completion.",
+        "title": "Complete job"
+      },
+      "delete": {
+        "description": "Delete {number}? Only DRAFT jobs can be deleted.",
+        "title": "Delete job"
+      },
+      "start": {
+        "description": "Open {number}? Income/cost lines can still be adjusted.",
+        "title": "Open job"
+      }
+    },
+    "detail": {
       "cancelledOn": "Cancelled on",
-      "createdAt": "Created"
+      "completedOn": "Completed on",
+      "openedOn": "Opened",
+      "title": "Job"
+    },
+    "fields": {
+      "cancelledOn": "Cancelled",
+      "completedOn": "Completed",
+      "cost": "Cost",
+      "currency": "Currency",
+      "customer": "Customer",
+      "description": "Description",
+      "income": "Income",
+      "jobType": "Job type",
+      "notes": "Notes",
+      "number": "Job #",
+      "openingDate": "Opening date",
+      "profit": "Profit",
+      "status": "Status",
+      "title": "Title",
+      "totalCost": "Cost",
+      "totalIncome": "Income",
+      "voyage": "Voyage"
+    },
+    "form": {
+      "description": "Lines are added after creation; profit is computed server-side.",
+      "editTitle": "Edit Job",
+      "errors": {
+        "titleRequired": "Title is required"
+      },
+      "noCustomer": "— none —",
+      "noType": "(no type)",
+      "noVoyage": "— none —",
+      "title": "Create Job"
+    },
+    "items": {
+      "COST": "Cost",
+      "INCOME": "Income",
+      "add": "Add",
+      "addTitle": "Add line",
+      "amount": "Amount",
+      "category": "Category",
+      "date": "Date",
+      "description": "Description",
+      "editTitle": "Edit line",
+      "editing": "Editing line…",
+      "empty": "No lines yet — add income and cost lines to compute profit.",
+      "errors": {
+        "badAmount": "Enter a valid amount",
+        "descAmountRequired": "Description and amount are required",
+        "descriptionRequired": "Description is required"
+      },
+      "kind": {
+        "COST": "Cost",
+        "INCOME": "Income"
+      },
+      "title": "Costing lines",
+      "totals": "Totals"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Create the first job to start costing.",
+        "title": "No jobs yet"
+      },
+      "search": "Number, title or customer…"
+    },
+    "page": {
+      "description": "Customer jobs with income/cost lines and live profit per job",
+      "title": "Jobs & Costing"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "COMPLETED": "Completed",
+      "DRAFT": "Draft",
+      "OPEN": "Open"
+    },
+    "type": {
+      "CUSTOMS": "Customs affairs",
+      "EXPORT": "Export",
+      "IMPORT_CLEARANCE": "Import clearance",
+      "OTHER": "Other",
+      "TRANSIT": "Transit",
+      "TRANSPORT": "Transport"
+    }
+  },
+  "ledger": {
+    "actions": {
+      "print": "Print",
+      "run": "Build statement"
+    },
+    "allCurrencies": "All currencies",
+    "columns": {
+      "balance": "Balance",
+      "credit": "Credit",
+      "date": "Date",
+      "debit": "Debit",
+      "description": "Description",
+      "document": "Document",
+      "kind": "Type"
+    },
+    "fields": {
+      "currency": "Currency",
+      "customer": "Customer",
+      "fromDate": "From",
+      "toDate": "To"
+    },
+    "filters": {
+      "description": "Pick a customer; optionally a currency and date range.",
+      "title": "Statement filters"
+    },
+    "kind": {
+      "balance": "Balance",
+      "invoice": "Invoice",
+      "voucher": "Voucher"
+    },
+    "list": {
+      "empty": {
+        "description": "No invoices or vouchers match these filters.",
+        "title": "No entries"
+      },
+      "loading": "Building statement…"
+    },
+    "page": {
+      "description": "Customer statements — invoices and settlements",
+      "title": "Ledger"
+    },
+    "selectCustomer": "Select a customer to build the statement",
+    "statement": {
+      "closing": "Closing balance",
+      "opening": "Opening balance",
+      "period": "In range",
+      "subtitle": "{count} entries in range",
+      "title": "Statement — {customer}"
     }
   },
   "letters": {
-    "page": {
-      "title": "Letters",
-      "description": "Official correspondence register — incoming and outgoing"
-    },
     "actions": {
+      "archive": "Archive",
       "create": "New Letter",
       "edit": "Edit",
-      "send": "Send",
-      "archive": "Archive",
       "reply": "Reply",
+      "send": "Send",
       "view": "View"
     },
-    "status": {
-      "DRAFT": "Draft",
-      "SENT": "Sent",
-      "RECEIVED": "Received",
-      "ARCHIVED": "Archived"
+    "confirm": {
+      "delete": {
+        "description": "Delete {number}? Only DRAFT letters can be deleted.",
+        "title": "Delete letter"
+      }
+    },
+    "detail": {
+      "archivedOn": "Archived on",
+      "inReplyTo": "In reply to",
+      "sentOn": "Sent on",
+      "title": "Letter"
     },
     "direction": {
       "INCOMING": "Incoming",
       "OUTGOING": "Outgoing"
     },
     "fields": {
-      "number": "Number",
-      "direction": "Direction",
-      "subject": "Subject",
-      "date": "Date",
-      "contact": "Correspondent",
-      "fromContact": "From (organization/person)",
-      "toContact": "To (organization/person)",
-      "refNumber": "Reference No.",
       "body": "Body",
+      "contact": "Correspondent",
+      "customer": "Customer",
+      "date": "Date",
+      "direction": "Direction",
+      "fromContact": "From (organization/person)",
       "notes": "Notes",
+      "number": "Number",
+      "refNumber": "Reference No.",
       "status": "Status",
-      "customer": "Customer"
-    },
-    "list": {
-      "title": "Letters",
-      "subtitle": "Filter by direction, status and text",
-      "search": "Search number, subject, reference...",
-      "allStatuses": "All statuses",
-      "allDirections": "All directions",
-      "empty": {
-        "title": "No letters yet",
-        "description": "Register the first incoming or outgoing letter."
-      }
+      "subject": "Subject",
+      "toContact": "To (organization/person)"
     },
     "form": {
-      "title": "New Letter",
-      "editTitle": "Edit Letter",
       "description": "Incoming letters are filed as Received immediately; outgoing ones start as Draft.",
-      "replyDescription": "Reply is created as an outgoing draft threaded to the original letter.",
+      "editTitle": "Edit Letter",
       "errors": {
         "subjectRequired": "Subject is required"
       },
-      "replyTitle": "Reply to Letter"
+      "replyDescription": "Reply is created as an outgoing draft threaded to the original letter.",
+      "replyTitle": "Reply to Letter",
+      "title": "New Letter"
     },
-    "confirm": {
-      "delete": {
-        "title": "Delete letter",
-        "description": "Delete {number}? Only DRAFT letters can be deleted."
-      }
+    "list": {
+      "allDirections": "All directions",
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Register the first incoming or outgoing letter.",
+        "title": "No letters yet"
+      },
+      "search": "Search number, subject, reference...",
+      "subtitle": "Filter by direction, status and text",
+      "title": "Letters"
     },
-    "detail": {
-      "inReplyTo": "In reply to",
-      "sentOn": "Sent on",
-      "archivedOn": "Archived on",
-      "title": "Letter"
-    }
-  },
-  "jobs": {
     "page": {
-      "title": "Jobs & Costing",
-      "description": "Customer jobs with income/cost lines and live profit per job"
-    },
-    "actions": {
-      "create": "New Job",
-      "edit": "Edit",
-      "delete": "Delete",
-      "view": "View",
-      "start": "Open",
-      "complete": "Complete",
-      "cancel": "Cancel job",
-      "addItem": "Add line"
+      "description": "Official correspondence register — incoming and outgoing",
+      "title": "Letters"
     },
     "status": {
+      "ARCHIVED": "Archived",
       "DRAFT": "Draft",
-      "OPEN": "Open",
-      "COMPLETED": "Completed",
-      "CANCELLED": "Cancelled"
-    },
-    "type": {
-      "IMPORT_CLEARANCE": "Import clearance",
-      "EXPORT": "Export",
-      "TRANSIT": "Transit",
-      "CUSTOMS": "Customs affairs",
-      "TRANSPORT": "Transport",
-      "OTHER": "Other"
-    },
-    "fields": {
-      "number": "Job #",
-      "title": "Title",
-      "description": "Description",
-      "jobType": "Job type",
-      "customer": "Customer",
-      "voyage": "Voyage",
-      "currency": "Currency",
-      "status": "Status",
-      "openingDate": "Opening date",
-      "notes": "Notes",
-      "income": "Income",
-      "cost": "Cost",
-      "profit": "Profit",
-      "totalIncome": "Income",
-      "totalCost": "Cost",
-      "completedOn": "Completed",
-      "cancelledOn": "Cancelled"
-    },
-    "list": {
-      "search": "Number, title or customer…",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No jobs yet",
-        "description": "Create the first job to start costing."
-      }
-    },
-    "items": {
-      "title": "Costing lines",
-      "addTitle": "Add line",
-      "editTitle": "Edit line",
-      "editing": "Editing line…",
-      "add": "Add",
-      "empty": "No lines yet — add income and cost lines to compute profit.",
-      "kind": {
-        "INCOME": "Income",
-        "COST": "Cost"
-      },
-      "INCOME": "Income",
-      "COST": "Cost",
-      "totals": "Totals",
-      "category": "Category",
-      "description": "Description",
-      "amount": "Amount",
-      "date": "Date",
-      "errors": {
-        "descriptionRequired": "Description is required",
-        "descAmountRequired": "Description and amount are required",
-        "badAmount": "Enter a valid amount"
-      }
-    },
-    "form": {
-      "title": "Create Job",
-      "editTitle": "Edit Job",
-      "description": "Lines are added after creation; profit is computed server-side.",
-      "noType": "(no type)",
-      "noCustomer": "— none —",
-      "noVoyage": "— none —",
-      "errors": {
-        "titleRequired": "Title is required"
-      }
-    },
-    "cancel": {
-      "title": "Cancel job",
-      "description": "Provide a cancel reason (audit).",
-      "reason": "Cancel reason",
-      "reasonPlaceholder": "e.g. customer cancelled"
-    },
-    "detail": {
-      "title": "Job",
-      "openedOn": "Opened",
-      "completedOn": "Completed on",
-      "cancelledOn": "Cancelled on"
-    },
-    "confirm": {
-      "start": {
-        "title": "Open job",
-        "description": "Open {number}? Income/cost lines can still be adjusted."
-      },
-      "complete": {
-        "title": "Complete job",
-        "description": "Complete {number} with profit {profit} {currency}? Lines freeze after completion."
-      },
-      "delete": {
-        "title": "Delete job",
-        "description": "Delete {number}? Only DRAFT jobs can be deleted."
-      }
+      "RECEIVED": "Received",
+      "SENT": "Sent"
     }
   },
-  "discharge": {
-    "page": {
-      "title": "Discharge",
-      "description": "Unloading at the destination port — mirrors what was actually loaded"
-    },
+  "login": {
+    "description": "Use your staff account to access the workspace.",
+    "email": "Email",
+    "emailPlaceholder": "you@shipping.local",
+    "enterCredentials": "Enter your email and password.",
+    "heading": "Sign in",
+    "hidePassword": "Hide password",
+    "password": "Password",
+    "restricted": "Access is restricted to authorised staff.",
+    "showPassword": "Show password",
+    "subtitle": "Sign in to continue to your workspace.",
+    "title": "Sign In",
+    "unableToSignIn": "Unable to sign in. Check your connection and try again."
+  },
+  "manifest": {
     "actions": {
-      "create": "New Discharge",
-      "view": "View",
-      "start": "Start unloading",
-      "complete": "Complete",
-      "cancel": "Cancel discharge",
-      "delete": "Delete"
+      "approve": "Approve",
+      "cancel": "Cancel",
+      "close": "Close",
+      "delete": "Delete",
+      "save": "Save",
+      "submit": "Submit",
+      "view": "View"
     },
-    "status": {
-      "NOT_STARTED": "Not started",
-      "IN_PROGRESS": "In progress",
-      "COMPLETED": "Completed",
-      "CANCELLED": "Cancelled"
-    },
-    "fields": {
-      "number": "Discharge #",
-      "loading": "Actual loading",
-      "voyage": "Voyage",
-      "vessel": "Vessel",
-      "status": "Status",
-      "lines": "Lines",
-      "expected": "Expected",
-      "discharged": "Discharged",
-      "notes": "Notes",
-      "pod": "Destination port"
-    },
-    "list": {
-      "search": "Discharge #, loading, voyage, vessel…",
-      "allStatuses": "All statuses",
-      "empty": {
-        "title": "No discharges yet",
-        "description": "Create a discharge when a completed loading arrives at the destination port."
-      }
+    "allStatuses": "All statuses",
+    "allVoyages": "All voyages",
+    "confirm": {
+      "approveBody": "Approve {no}? Approved manifests are final and immutable.",
+      "approveTitle": "Approve manifest",
+      "cancelBody": "Cancel {no}? A reason is required. Cancelled manifests are immutable.",
+      "cancelTitle": "Cancel manifest",
+      "confirmApprove": "Approve",
+      "confirmCancel": "Cancel manifest",
+      "confirmDelete": "Delete",
+      "confirmSubmit": "Submit",
+      "deleteBody": "Delete draft {no}? The manifest and its items will be soft-deleted.",
+      "deleteTitle": "Delete manifest",
+      "keep": "Keep",
+      "reason": "Cancellation reason *",
+      "submitBody": "Submit {no} for approval? After submission the manifest becomes read-only.",
+      "submitTitle": "Submit manifest"
     },
     "create": {
-      "title": "New Discharge",
-      "description": "Pre-populates expected lines from what was actually loaded.",
-      "loadingLabel": "Actual loading (completed)",
-      "loadingPlaceholder": "— select —",
-      "noLoadings": "No completed actual loadings available for discharge.",
-      "errors": {
-        "loadingRequired": "Select an actual loading"
-      }
+      "agent": "Agent",
+      "consignee": "Consignee",
+      "description": "Select the voyage to manifest. Vessel, route and ports are snapshotted from the voyage.",
+      "descriptionField": "Description",
+      "errorVoyage": "Select a voyage.",
+      "noVoyages": "No voyages available.",
+      "notes": "Notes",
+      "notifyParty": "Notify party",
+      "selectAgent": "Select agent…",
+      "selectConsignee": "Select consignee…",
+      "selectShipper": "Select shipper…",
+      "selectVoyage": "Select voyage…",
+      "shipper": "Shipper",
+      "submit": "Create manifest",
+      "title": "New manifest",
+      "voyage": "Voyage *"
+    },
+    "createdFrom": "From",
+    "createdTo": "To",
+    "detail": {
+      "approvedAt": "Approved",
+      "cancelReason": "Cancellation reason",
+      "costs": "Costs",
+      "currency": "Currency",
+      "draftHint": "Draft — editable. Add cargo, then submit.",
+      "gasCost": "Gas cost",
+      "immutable": "Approved or cancelled manifests are immutable.",
+      "lashingCost": "Lashing cost",
+      "parties": "Parties",
+      "podCost": "POD cost",
+      "polCost": "POL cost",
+      "shipperCost": "Shipper cost",
+      "submittedAt": "Submitted",
+      "submittedHint": "Submitted — awaiting approval.",
+      "totalPackages": "Total packages",
+      "totalQuantity": "Total quantity",
+      "totalWeight": "Total weight"
+    },
+    "empty": {
+      "description": "Try a different search or filter, or create a manifest for a voyage with completed loadings.",
+      "title": "No manifests found"
+    },
+    "errors": {
+      "addItem": "Failed to add cargo",
+      "approve": "Failed to approve",
+      "blOrNotes": "Enter a B/L number or notes to save.",
+      "cancel": "Failed to cancel",
+      "create": "Failed to create manifest",
+      "delete": "Failed to delete",
+      "loadDetail": "Failed to load manifest",
+      "loadList": "Failed to load manifests",
+      "reasonRequired": "A cancellation reason is required.",
+      "removeItem": "Failed to remove item",
+      "save": "Failed to save",
+      "submit": "Failed to submit"
     },
     "items": {
+      "actions": "Actions",
+      "addLabel": "Add cargo",
+      "addTitle": "Add cargo to manifest",
+      "blNumber": "B/L number",
       "cargo": "Cargo",
-      "result": {
-        "FULL": "Full",
-        "PARTIAL": "Partial",
-        "NOT_DISCHARGED": "Not discharged"
-      },
-      "expected": "Expected",
-      "discharged": "Discharged",
-      "totals": "Totals",
-      "errors": {
-        "nonnegative": "Quantity must be a non-negative integer",
-        "exceeds": "Discharged quantity exceeds expected ({expected})"
-      }
+      "eligibleEmpty": "No eligible cargo. Complete an actual loading for this voyage first.",
+      "empty": "No items yet. Add loaded cargo to build the manifest.",
+      "notes": "Notes",
+      "packages": "Pkgs",
+      "quantity": "Qty",
+      "remove": "Remove",
+      "selectEligible": "Select cargo…",
+      "seq": "#",
+      "title": "Manifest items",
+      "weight": "Weight"
     },
-    "detail": {
-      "title": "Discharge",
-      "createdOn": "Created",
-      "completedOn": "Completed on",
-      "cancelledOn": "Cancelled on"
+    "loading": "Loading…",
+    "new": "New manifest",
+    "register": "Manifest register",
+    "registerHint": "Official cargo manifests. One manifest per voyage.",
+    "searchPlaceholder": "Search manifest no., voyage no., vessel name",
+    "status": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted"
     },
-    "confirm": {
-      "start": {
-        "title": "Start unloading",
-        "description": "Start unloading {number}? Lines stay editable while in progress."
-      },
-      "complete": {
-        "title": "Complete discharge",
-        "description": "Complete {number}? Fully discharged cargo becomes DELIVERED; shortfalls stay open for claims."
-      },
-      "delete": {
-        "title": "Delete discharge",
-        "description": "Delete {number}? Only unstarted/in-progress discharges can be deleted."
-      }
+    "subtitle": "Build the official cargo manifest for a voyage from completed loadings, then submit and approve it.",
+    "table": {
+      "actions": "Actions",
+      "created": "Created",
+      "items": "Items",
+      "no": "No.",
+      "route": "Route",
+      "status": "Status",
+      "totalWeight": "Total weight",
+      "voyage": "Voyage / Vessel"
     },
-    "cancel": {
-      "title": "Cancel discharge",
-      "description": "Provide a cancel reason (audit).",
-      "reason": "Cancel reason",
-      "reasonPlaceholder": "e.g. berth reassigned"
-    }
+    "title": "Manifests"
+  },
+  "nav": {
+    "accessControl": "Access Control",
+    "actualLoading": "Actual Loading",
+    "administration": "Administration",
+    "agentPortal": "Agent Portal",
+    "agents": "Agents",
+    "billOfLading": "Bill of Lading",
+    "bookings": "Agent Bookings",
+    "cargo": "Cargo",
+    "commercial": "Commercial",
+    "correspondence": "Correspondence",
+    "customers": "Customers",
+    "dashboard": "Dashboard",
+    "delivery": "Delivery Orders",
+    "deliveryOrders": "Delivery Orders",
+    "discharge": "Discharge",
+    "discharges": "Discharge",
+    "employees": "Employees",
+    "insightControl": "Insight & Control",
+    "inspection": "Inspection",
+    "invoice": "invoice",
+    "invoices": "Invoices",
+    "jobs": "Jobs & Costing",
+    "ledger": "Ledger",
+    "letters": "Letters",
+    "loadList": "loadList",
+    "loadLists": "Load Lists",
+    "loadPlanning": "Load Planning",
+    "manifest": "Manifest",
+    "masterData": "Master Data",
+    "operations": "Operations",
+    "overview": "Overview",
+    "payments": "Payments",
+    "people": "People & Payroll",
+    "permissions": "Permissions",
+    "port": "port",
+    "portal": "Portal",
+    "ports": "Ports",
+    "proforma": "proforma",
+    "proformas": "Proforma Invoices",
+    "quotation": "quotation",
+    "quotations": "Quotations",
+    "release": "Release Orders",
+    "reports": "Reports",
+    "roles": "Roles",
+    "salaryRecords": "Salary Records",
+    "settings": "Settings",
+    "users": "Users",
+    "vessel": "vessel",
+    "vessels": "Vessels",
+    "vouchers": "Vouchers",
+    "voyage": "voyage",
+    "voyages": "Voyages",
+    "yard": "yard",
+    "yardInventory": "Yard Inventory",
+    "yards": "Yards"
   },
   "portal": {
-    "title": "Agent Portal",
-    "notLinked": "This account is not linked to a portal company.",
-    "newBooking": "New Booking",
     "cancelBooking": "Cancel booking",
-    "tabs": {
-      "bookings": "Bookings",
-      "shipments": "Shipments",
-      "statement": "Statement"
-    },
-    "summary": {
-      "bookingsTotal": "Total bookings",
-      "pending": "Awaiting reply",
-      "approvedManifests": "Approved manifests",
-      "balanceDue": "Balance due"
+    "create": {
+      "hint": "Your request goes to the booking desk and will be answered shortly.",
+      "submit": "Submit request",
+      "title": "New booking request"
     },
     "fields": {
-      "number": "Number",
+      "actions": "Actions",
       "cargo": "Cargo",
+      "containers": "Containers",
+      "number": "Number",
+      "response": "Office reply",
       "route": "Route",
       "shipDate": "Ship date",
-      "containers": "Containers",
-      "status": "Status",
-      "response": "Office reply",
-      "actions": "Actions"
+      "status": "Status"
     },
     "form": {
       "cargoDescription": "Cargo description",
       "cargoDescriptionPlaceholder": "e.g. steel coils, 4x 20ft containers",
-      "originPort": "Port of loading",
-      "destinationPort": "Port of discharge",
-      "requestedShipDate": "Requested ship date",
       "containers": "Containers (approx.)",
       "containersHint": "approx. count",
-      "weightKg": "Weight (kg)",
+      "destinationPort": "Port of discharge",
       "notes": "Notes",
-      "notesPlaceholder": "Special requirements, remarks…"
-    },
-    "create": {
-      "title": "New booking request",
-      "hint": "Your request goes to the booking desk and will be answered shortly.",
-      "submit": "Submit request"
+      "notesPlaceholder": "Special requirements, remarks…",
+      "originPort": "Port of loading",
+      "requestedShipDate": "Requested ship date",
+      "weightKg": "Weight (kg)"
     },
     "list": {
       "allStatuses": "All statuses",
       "empty": "No bookings yet",
       "emptyHint": "Submit your first booking request"
     },
+    "manifest": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "SUBMITTED": "Submitted"
+    },
+    "newBooking": "New Booking",
+    "notLinked": "This account is not linked to a portal company.",
     "shipments": {
       "empty": "No shipments recorded for your company yet",
-      "manifest": "Manifest",
-      "status": "Status",
-      "vessel": "Vessel",
-      "route": "Route",
-      "etd": "ETD",
       "eta": "ETA",
-      "weight": "Weight",
-      "units": "Units"
+      "etd": "ETD",
+      "manifest": "Manifest",
+      "route": "Route",
+      "status": "Status",
+      "units": "Units",
+      "vessel": "Vessel",
+      "weight": "Weight"
     },
     "statement": {
-      "date": "Date",
-      "doc": "Document",
-      "description": "Description",
-      "debit": "Debit",
-      "credit": "Credit",
       "balance": "Balance",
-      "opening": "Opening balance",
-      "debits": "Total debit",
-      "credits": "Total credit",
       "closing": "Closing balance",
-      "empty": "No ledger movements"
+      "credit": "Credit",
+      "credits": "Total credit",
+      "date": "Date",
+      "debit": "Debit",
+      "debits": "Total debit",
+      "description": "Description",
+      "doc": "Document",
+      "empty": "No ledger movements",
+      "opening": "Opening balance"
     },
     "status": {
-      "PENDING": "Pending",
       "ACCEPTED": "Accepted",
+      "CANCELLED": "Cancelled",
       "DECLINED": "Declined",
-      "CANCELLED": "Cancelled"
+      "PENDING": "Pending"
     },
-    "manifest": {
-      "DRAFT": "Draft",
-      "SUBMITTED": "Submitted",
-      "APPROVED": "Approved",
-      "CANCELLED": "Cancelled"
+    "summary": {
+      "approvedManifests": "Approved manifests",
+      "balanceDue": "Balance due",
+      "bookingsTotal": "Total bookings",
+      "pending": "Awaiting reply"
+    },
+    "tabs": {
+      "bookings": "Bookings",
+      "shipments": "Shipments",
+      "statement": "Statement"
+    },
+    "title": "Agent Portal"
+  },
+  "ports": {
+    "abbreviation": {
+      "column": "Abbr",
+      "detail": "Abbreviation",
+      "empty": "—",
+      "hint": "Optional. Short unique port code, max 10 characters.",
+      "label": "Abbreviation",
+      "placeholder": "e.g. JEA",
+      "validation": "Abbreviation must be 10 characters or fewer."
     }
   },
-  "bookings": {
-    "title": "Agent Bookings",
-    "subtitle": "Review and respond to booking requests submitted by agent companies",
-    "allCompanies": "All companies",
-    "allStatuses": "All statuses",
-    "searchPlaceholder": "Search booking no. or cargo…",
-    "detail": "Details",
-    "detailTitle": "Booking",
-    "empty": "No booking requests",
+  "proforma": {
+    "actions": {
+      "cancelOrder": "Cancel proforma",
+      "cancelling": "Cancelling…",
+      "convert": "Convert to invoice",
+      "create": "New proforma",
+      "issue": "Issue"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "A cancelled proforma is terminal and can be deleted afterwards.",
+        "reason": "Reason",
+        "reasonPlaceholder": "Why is this proforma being cancelled?",
+        "title": "Cancel proforma?"
+      },
+      "issue": {
+        "description": "After issuing, lines and header are frozen.",
+        "title": "Issue proforma?"
+      }
+    },
+    "convert": {
+      "body": "The proforma will be marked as converted. This can only be done once.",
+      "converting": "Converting…",
+      "description": "This creates a DRAFT invoice with the same lines and totals.",
+      "resultHint": "Review it on the invoices page, then issue it.",
+      "resultLine": "Draft invoice {number} was created from this proforma.",
+      "resultTitle": "Invoice created",
+      "title": "Convert to invoice"
+    },
+    "create": {
+      "addItem": "Add line",
+      "creating": "Creating…",
+      "description": "Add lines and optional tax/discount — totals are computed automatically.",
+      "errors": {
+        "customerRequired": "A customer is required",
+        "itemsRequired": "Add at least one line"
+      },
+      "itemDescription": "Description",
+      "itemsTitle": "Lines",
+      "qty": "Qty",
+      "selectCustomer": "Select customer…",
+      "title": "New proforma invoice",
+      "titlePlaceholder": "e.g. Freight quote — MV Ali / voyage 12",
+      "unitPrice": "Unit price"
+    },
+    "detail": {
+      "convertedBadge": "Converted",
+      "items": "Lines",
+      "lineTotal": "Amount",
+      "title": "Proforma details"
+    },
     "fields": {
-      "number": "Number",
-      "company": "Company",
-      "cargo": "Cargo",
-      "route": "Route",
-      "shipDate": "Ship date",
-      "status": "Status",
-      "containers": "Containers",
-      "weightKg": "Weight (kg)",
-      "created": "Submitted",
+      "cancelReason": "Cancellation reason",
+      "convertedTo": "Converted to",
+      "currency": "Currency",
+      "customer": "Customer",
+      "description": "Description",
+      "discount": "Discount",
+      "issueDate": "Issue date",
       "notes": "Notes",
-      "response": "Reply",
-      "responseNote": "Reply note"
+      "number": "Number",
+      "status": "Status",
+      "taxRate": "Tax rate %",
+      "title": "Title",
+      "total": "Total",
+      "validUntil": "Valid until"
     },
-    "respond": {
-      "title": "Respond to request",
-      "accept": "Accept",
-      "decline": "Decline",
-      "notePlaceholder": "Reply note (optional)…",
-      "submit": "Send response",
-      "noPermission": "You need booking:respond permission to answer requests."
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Create your first quote to get started.",
+        "title": "No proforma invoices"
+      },
+      "search": "Search by number, title or customer",
+      "subtitle": "DRAFT proformas are editable; issuing freezes them for conversion.",
+      "title": "Proforma list",
+      "unconvertedOnly": "Unconverted only"
+    },
+    "page": {
+      "description": "Quotes and pre-invoices — convert into real invoices with one click.",
+      "title": "Proforma Invoices"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "ISSUED": "Issued"
+    },
+    "totals": {
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "total": "Total"
     }
   },
-  "booking": {
+  "quotation": {
+    "actions": {
+      "accept": "Accept",
+      "cancelling": "Cancelling...",
+      "convert": "Convert",
+      "create": "New Quotation",
+      "reject": "Reject",
+      "rejecting": "Rejecting...",
+      "send": "Send"
+    },
+    "confirm": {
+      "accept": {
+        "description": "Accepting enables conversion to a proforma invoice.",
+        "title": "Accept quotation"
+      },
+      "cancel": {
+        "description": "Provide a cancel reason.",
+        "reason": "Cancel reason",
+        "reasonPlaceholder": "e.g. Superseded",
+        "title": "Cancel quotation"
+      },
+      "reject": {
+        "description": "Provide a reject reason.",
+        "reason": "Reject reason",
+        "reasonPlaceholder": "e.g. Price above customer budget",
+        "title": "Reject quotation"
+      },
+      "send": {
+        "description": "Once sent, the lines and amounts are frozen.",
+        "title": "Send quotation"
+      }
+    },
+    "convert": {
+      "body": "Convert quotation {number} (total {total} {currency}) into a proforma invoice?",
+      "converting": "Converting...",
+      "description": "Converts this accepted quotation into a DRAFT proforma (one time).",
+      "resultHint": "The proforma starts as DRAFT; issue it before converting to an invoice.",
+      "resultLine": "Proforma {number} created.",
+      "resultTitle": "Converted",
+      "title": "Convert to proforma"
+    },
+    "create": {
+      "addItem": "Add item",
+      "creating": "Creating...",
+      "description": "Fill header and lines; totals compute automatically.",
+      "errors": {
+        "customerRequired": "Customer is required",
+        "itemsRequired": "At least one line is required"
+      },
+      "itemDescription": "Item description",
+      "itemsTitle": "Line items",
+      "qty": "Qty",
+      "selectCustomer": "Select customer...",
+      "title": "Create Quotation",
+      "unitPrice": "Unit price"
+    },
+    "detail": {
+      "convertedBadge": "Converted to {number}",
+      "items": "Line items",
+      "lineTotal": "Line total"
+    },
+    "fields": {
+      "cancelReason": "Cancel reason",
+      "convertedTo": "Converted to",
+      "currency": "Currency",
+      "customer": "Customer",
+      "description": "Description",
+      "discount": "Discount",
+      "issueDate": "Issue date",
+      "notes": "Notes",
+      "number": "Number",
+      "rejectReason": "Reject reason",
+      "status": "Status",
+      "taxRate": "Tax rate %",
+      "title": "Title",
+      "total": "Total",
+      "validUntil": "Valid until"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "convertibleOnly": "Convertible only",
+      "empty": {
+        "description": "Create a quotation to get started.",
+        "title": "No quotations yet"
+      },
+      "search": "Search...",
+      "subtitle": "Search, filter and manage quotations",
+      "title": "Quotation List"
+    },
+    "page": {
+      "description": "Price quotes sent to customers — convertible to proforma invoices",
+      "title": "Quotations"
+    },
     "status": {
-      "PENDING": "Pending",
       "ACCEPTED": "Accepted",
-      "DECLINED": "Declined",
-      "CANCELLED": "Cancelled"
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "REJECTED": "Rejected",
+      "SENT": "Sent"
+    },
+    "totals": {
+      "subtotal": "Subtotal",
+      "tax": "Tax",
+      "total": "Total"
+    }
+  },
+  "releaseOrder": {
+    "actions": {
+      "cancelOrder": "Cancel R/O",
+      "create": "New R/O",
+      "view": "View"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "The B/L becomes releasable again; the row stays for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this R/O cancelled?",
+        "title": "Cancel this R/O?"
+      },
+      "delete": {
+        "description": "Removes the cancelled row permanently.",
+        "title": "Delete this cancelled R/O?"
+      }
+    },
+    "create": {
+      "blockedNeedsForce": "Invoices unpaid: tick the override box and give a reason, or settle first.",
+      "blockedTitle": "Outstanding balance",
+      "checkingEligibility": "Checking settlement…",
+      "creating": "Creating…",
+      "description": "Requires every ISSUED invoice on the B/L to be fully paid, or an authorized override.",
+      "eligibilityLine": "Invoiced {total} — paid {paid} — outstanding {outstanding}",
+      "errors": {
+        "billRequired": "A B/L is required",
+        "overrideReasonRequired": "An override reason is required"
+      },
+      "forceOverride": "Override the payment requirement (audited)",
+      "overrideReasonPlaceholder": "Why release despite the outstanding balance?",
+      "readyTitle": "Ready to release",
+      "selectBill": "Select B/L",
+      "title": "Create release order"
+    },
+    "detail": {
+      "headerTitle": "Release order"
+    },
+    "fields": {
+      "bill": "B/L",
+      "cancelReason": "Cancellation reason",
+      "docNumber": "R/O No.",
+      "financial": "Financial",
+      "invoicesPaid": "Paid",
+      "invoicesTotal": "Invoiced",
+      "notes": "Notes",
+      "override": "Override",
+      "overrideReason": "Override reason",
+      "releaseDate": "Release date",
+      "settled": "Settled",
+      "status": "Status"
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "empty": {
+        "description": "Issue a release once the B/L invoices are settled.",
+        "title": "No release orders"
+      },
+      "search": "Search by number or notes",
+      "subtitle": "One active release per B/L; money rule enforced",
+      "title": "R/O register"
+    },
+    "page": {
+      "description": "Cargo release permits against B/Ls (R/O) — settled or authorized override",
+      "title": "Release Orders"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "ISSUED": "Issued"
+    }
+  },
+  "roles": {
+    "actions": "Actions",
+    "create": {
+      "description": "Create a new role",
+      "title": "Create role"
+    },
+    "edit": {
+      "description": "Edit role details",
+      "title": "Edit role"
+    },
+    "page": {
+      "description": "Manage roles and permissions",
+      "title": "Roles page"
+    },
+    "permission": "Permission",
+    "status": "Status"
+  },
+  "salary": {
+    "actions": {
+      "approve": "Approve",
+      "cancel": "Cancel",
+      "cancelling": "Cancelling...",
+      "create": "New Payslip",
+      "delete": "Delete",
+      "pay": "Pay",
+      "view": "View"
+    },
+    "cancel": {
+      "description": "Provide a cancel reason (audit).",
+      "reason": "Cancel reason",
+      "reasonPlaceholder": "e.g. left the company",
+      "title": "Cancel payslip"
+    },
+    "confirm": {
+      "approve": {
+        "description": "Approve {number} with net {net}? It will be frozen.",
+        "title": "Approve payslip"
+      },
+      "delete": {
+        "description": "Delete {number}? Only DRAFT payslips can be deleted.",
+        "title": "Delete payslip"
+      }
+    },
+    "create": {
+      "creating": "Creating...",
+      "description": "Base and currency default to the employee's.",
+      "errors": {
+        "employeeRequired": "Employee is required"
+      },
+      "selectEmployee": "Select employee...",
+      "title": "Create Payslip"
+    },
+    "detail": {
+      "approvedOn": "Approved on",
+      "cancelledOn": "Cancelled on",
+      "createdAt": "Created",
+      "paidOn": "Paid on",
+      "title": "Payslip"
+    },
+    "fields": {
+      "additions": "Additions",
+      "base": "Base",
+      "cancelReason": "Cancel reason",
+      "currency": "Currency",
+      "deductions": "Deductions",
+      "employee": "Employee",
+      "month": "Month",
+      "net": "Net pay",
+      "notes": "Notes",
+      "number": "Number",
+      "paymentMethod": "Payment method",
+      "paymentRef": "Payment reference",
+      "period": "Period",
+      "status": "Status",
+      "year": "Year"
+    },
+    "list": {
+      "allEmployees": "All employees",
+      "allMonths": "All months",
+      "allStatuses": "All statuses",
+      "allYears": "All years",
+      "empty": {
+        "description": "Create the first payslip to start payroll.",
+        "title": "No payslips yet"
+      },
+      "search": "Search...",
+      "subtitle": "Filter by period, employee and status",
+      "title": "Payslips"
+    },
+    "method": {
+      "BANK_TRANSFER": "Bank transfer",
+      "CASH": "Cash",
+      "CHEQUE": "Cheque",
+      "OTHER": "Other"
+    },
+    "page": {
+      "description": "Monthly payslips — draft, approve, pay",
+      "title": "Salary Records"
+    },
+    "pay": {
+      "description": "Records the payment fact on the payslip.",
+      "paying": "Recording...",
+      "referencePlaceholder": "e.g. TRF-12345",
+      "title": "Record payment"
+    },
+    "status": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "PAID": "Paid"
+    }
+  },
+  "system": {
+    "checkedAt": "Checked {time}",
+    "checking": "Checking…",
+    "issue": "System Issue",
+    "operational": "System Operational"
+  },
+  "topbar": {
+    "language": "Language",
+    "openNav": "Open navigation",
+    "signedIn": "Signed in",
+    "switchToEnglish": "English",
+    "switchToPersian": "فارسی"
+  },
+  "voucher": {
+    "actions": {
+      "cancelVoucher": "Cancel voucher",
+      "cancelling": "Cancelling…",
+      "create": "New voucher",
+      "save": "Save"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "Its effect on the invoice is reversed; the row stays for audit.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this voucher cancelled?",
+        "title": "Cancel this voucher?"
+      },
+      "delete": {
+        "description": "Removes the cancelled row permanently.",
+        "title": "Delete this cancelled voucher?"
+      }
+    },
+    "create": {
+      "creating": "Creating…",
+      "description": "Receipt (money in) or payment (refund). Link an invoice to settle it.",
+      "errors": {
+        "amountRequired": "A positive amount is required",
+        "customerRequired": "A customer is required"
+      },
+      "noInvoice": "No invoice (standalone)",
+      "selectCustomer": "Select customer",
+      "title": "Create voucher"
+    },
+    "fields": {
+      "amount": "Amount",
+      "cancelReason": "Cancellation reason",
+      "currencyCode": "Currency",
+      "customer": "Customer",
+      "description": "Description",
+      "invoice": "Invoice",
+      "method": "Method",
+      "note": "Note",
+      "reference": "Reference",
+      "status": "Status",
+      "type": "Type",
+      "voucherDate": "Value date",
+      "voucherNumber": "Voucher No."
+    },
+    "list": {
+      "allStatuses": "All statuses",
+      "allTypes": "All types",
+      "empty": {
+        "description": "Register the first receipt or payment voucher.",
+        "title": "No vouchers yet"
+      },
+      "search": "Search by number, reference or description",
+      "subtitle": "Posted money documents against customers and invoices",
+      "title": "Voucher register"
+    },
+    "method": {
+      "BANK_TRANSFER": "Bank transfer",
+      "CASH": "Cash",
+      "CHEQUE": "Cheque",
+      "OTHER": "Other"
+    },
+    "page": {
+      "description": "Receipt & payment vouchers",
+      "title": "Vouchers"
+    },
+    "status": {
+      "CANCELLED": "Cancelled",
+      "POSTED": "Posted"
+    },
+    "type": {
+      "PAYMENT": "Payment",
+      "RECEIPT": "Receipt"
+    }
+  },
+  "vessels": {
+    "detail": {
+      "type": "Type"
+    },
+    "filter": {
+      "allTypes": "All types"
+    },
+    "form": {
+      "type": "Vessel type"
+    },
+    "type": {
+      "BARGE": "Barge",
+      "BULK": "Bulk carrier",
+      "CONTAINER": "Container",
+      "GENERAL": "General cargo",
+      "LANDING_CRAFT": "Landing craft",
+      "OTHER": "Other",
+      "PROJECT": "Project",
+      "RORO": "Ro-Ro",
+      "TANKER": "Tanker",
+      "TUG": "Tug"
+    }
+  },
+  "voyages": {
+    "pairing": {
+      "barge": "Barge",
+      "hint": "Optional — pair a tug with a barge for this voyage.",
+      "noneBarge": "No barge",
+      "noneTug": "No tug",
+      "tug": "Tug"
+    },
+    "legs": {
+      "title": "Destinations",
+      "hint": "One number per destination (e.g. 1/26). The first destination is leg 1.",
+      "add": "Add destination",
+      "remove": "Remove",
+      "rowLabel": "Destination {n}",
+      "selectPlaceholder": "Select…",
+      "removeLabel": "Remove destination {n}",
+      "previewTitle": "Next voyage number for this destination",
+      "previewPrefix": "Next number for the primary destination:",
+      "emptyRow": "Select a port for every destination row.",
+      "duplicate": "Duplicate destination — each destination may appear only once.",
+      "legColumn": "Leg",
+      "destinationColumn": "Destination",
+      "numberColumn": "Voyage number"
     }
   }
 }

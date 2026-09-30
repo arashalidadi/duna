@@ -82,9 +82,11 @@ const listSelect = {
   voyage: { select: voyageSelect },
   polPort: { select: { id: true, code: true, name: true, country: true } },
   podPort: { select: { id: true, code: true, name: true, country: true } },
-  shipper: { select: { id: true, code: true, name: true, shortName: true } },
-  consignee: { select: { id: true, code: true, name: true, shortName: true } },
-  agent: { select: { id: true, code: true, name: true, shortName: true } },
+  // Party relations now point at the masters (Shipper/Consignee/Agent), which
+  // have no shortName — field dropped per party-cutover-plan.md §9.
+  shipper: { select: { id: true, code: true, name: true } },
+  consignee: { select: { id: true, code: true, name: true } },
+  agent: { select: { id: true, code: true, name: true } },
   createdBy: { select: { id: true, email: true, fullName: true } },
   submittedBy: { select: { id: true, email: true, fullName: true } },
   approvedBy: { select: { id: true, email: true, fullName: true } },
@@ -245,6 +247,12 @@ export class ManifestService {
       );
     }
 
+    await this.validatePartyRefs({
+      shipperId: dto.shipperId,
+      consigneeId: dto.consigneeId,
+      agentId: dto.agentId,
+    });
+
     const manifestNumber = await this.generateReference();
 
     try {
@@ -273,6 +281,11 @@ export class ManifestService {
       ) {
         throw new ConflictException('Could not create Manifest: duplicate reference');
       }
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'Invalid reference: party ids must reference existing master records',
+        );
+      }
       throw e;
     }
   }
@@ -287,8 +300,14 @@ export class ManifestService {
       select: { id: true, status: true, deletedAt: true },
     });
     await this.assertEditable(existing, 'edited');
+    await this.validatePartyRefs({
+      shipperId: dto.shipperId || undefined,
+      consigneeId: dto.consigneeId || undefined,
+      agentId: dto.agentId || undefined,
+    });
 
-    return this.prisma.manifest.update({
+    try {
+      return await this.prisma.manifest.update({
       where: { id },
       data: {
         ...(dto.shipperId !== undefined ? { shipperId: dto.shipperId || null } : {}),
@@ -304,8 +323,16 @@ export class ManifestService {
         ...(dto.currencyCode !== undefined ? { currencyCode: dto.currencyCode } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
-      select: detailSelect,
-    });
+        select: detailSelect,
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'Invalid reference: party ids must reference existing master records',
+        );
+      }
+      throw e;
+    }
   }
 
   /**
@@ -582,6 +609,52 @@ export class ManifestService {
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Party references must resolve to live (existing, non-soft-deleted) master
+   * rows since the Customer -> masters cutover (party-cutover-plan.md §3).
+   * Unknown / soft-deleted ids -> 400 with a clear message. Empty string or
+   * undefined means "clear / unchanged" and needs no validation.
+   */
+  private async validatePartyRefs(refs: {
+    shipperId?: string | null;
+    consigneeId?: string | null;
+    agentId?: string | null;
+  }) {
+    if (refs.shipperId) {
+      const row = await this.prisma.shipper.findUnique({
+        where: { id: refs.shipperId },
+        select: { deletedAt: true },
+      });
+      if (!row || row.deletedAt) {
+        throw new BadRequestException(
+          `Unknown shipperId: no live Shipper with id ${refs.shipperId}`,
+        );
+      }
+    }
+    if (refs.consigneeId) {
+      const row = await this.prisma.consignee.findUnique({
+        where: { id: refs.consigneeId },
+        select: { deletedAt: true },
+      });
+      if (!row || row.deletedAt) {
+        throw new BadRequestException(
+          `Unknown consigneeId: no live Consignee with id ${refs.consigneeId}`,
+        );
+      }
+    }
+    if (refs.agentId) {
+      const row = await this.prisma.agent.findUnique({
+        where: { id: refs.agentId },
+        select: { deletedAt: true },
+      });
+      if (!row || row.deletedAt) {
+        throw new BadRequestException(
+          `Unknown agentId: no live Agent with id ${refs.agentId}`,
+        );
+      }
+    }
+  }
 
   private async assertEditable(
     row: { status: ManifestStatus; deletedAt: Date | null } | null,

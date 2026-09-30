@@ -36,6 +36,8 @@ describe('Agent Portal (e2e)', () => {
   let customerAId = '';
   let customerBId = '';
   let customerCId = '';
+  let agentAId = ''; // fixture Agent master linked to user A (portalAgentId)
+  let agentBId = ''; // fixture Agent master linked to user B (portalAgentId)
   let portId = '';
   let voyageId = '';
   let manifestAId = '';
@@ -80,7 +82,27 @@ describe('Agent Portal (e2e)', () => {
     await prisma.user.update({ where: { email: `pf-agb-${randomTag}@shipping.local` }, data: { portalCustomerId: custB.id } });
     await prisma.user.update({ where: { email: `pf-agc-${randomTag}@shipping.local` }, data: { portalCustomerId: custC.id } });
 
+    // Phase 2 portal agent linkage (party-cutover-plan.md §3 addendum / §8 item 0):
+    // fixture Agent masters + portalAgentId links on users A and B.
+    const [fixtureAgentA, fixtureAgentB] = await Promise.all([
+      prisma.agent.create({ data: { code: `PFA-${tag}`, name: `Portal Agent Alpha ${randomTag}` } }),
+      prisma.agent.create({ data: { code: `PFB-${tag}`, name: `Portal Agent Beta ${randomTag}` } }),
+    ]);
+    agentAId = fixtureAgentA.id;
+    agentBId = fixtureAgentB.id;
+    await prisma.user.update({ where: { email: `pf-aga-${randomTag}@shipping.local` }, data: { portalAgentId: fixtureAgentA.id } });
+    await prisma.user.update({ where: { email: `pf-agb-${randomTag}@shipping.local` }, data: { portalAgentId: fixtureAgentB.id } });
+    const linked = await prisma.user.findUnique({
+      where: { email: `pf-aga-${randomTag}@shipping.local` },
+      select: { portalAgentId: true },
+    });
+    expect(linked?.portalAgentId).toBe(fixtureAgentA.id);
+
     // Manifest fixtures via Prisma directly - only the agentId scoping matters here.
+    // Cutover DONE: manifests.agentId FKs the Agent master, so fixtures carry the
+    // fixture AGENT ids; scoping assertions below pass through the portalAgentId
+    // leg of portalManifestScopeIds (the legacy portalCustomerId leg stays in place
+    // as the documented fallback — kept per task-unit 1 scope item 2).
     const port = await prisma.port.findFirst({ select: { id: true } });
     const voyage = await prisma.voyage.findFirst({ select: { id: true } });
     expect(port).not.toBeNull();
@@ -94,7 +116,7 @@ describe('Agent Portal (e2e)', () => {
         vesselName: `Portal Tester ${randomTag}`,
         polPortId: portId,
         podPortId: portId,
-        agentId: custA.id,
+        agentId: fixtureAgentA.id,
         status: 'APPROVED',
         approvedAt: new Date(),
       },
@@ -106,7 +128,7 @@ describe('Agent Portal (e2e)', () => {
         vesselName: `Portal Tester Other ${randomTag}`,
         polPortId: portId,
         podPortId: portId,
-        agentId: custB.id,
+        agentId: fixtureAgentB.id,
       },
     });
     manifestAId = mA.id;
@@ -134,6 +156,7 @@ describe('Agent Portal (e2e)', () => {
     try {
       await prisma.bookingRequest.deleteMany({ where: { customerId: { in: [customerAId, customerBId, customerCId] } } });
       await prisma.manifest.deleteMany({ where: { manifestNumber: { startsWith: `MAN-PF${tag}` } } });
+      await prisma.agent.deleteMany({ where: { id: { in: [agentAId, agentBId].filter(Boolean) } } });
       const users = await prisma.user.findMany({
         where: { email: { contains: `-${randomTag}@shipping.local` } },
         select: { id: true },
@@ -161,6 +184,9 @@ describe('Agent Portal (e2e)', () => {
       .send({ cargoDescription: `orphan ${randomTag}` }).expect(403);
   });
 
+  // approvedManifests counts manifests whose agentId is in the portal scope ids
+  // (portalAgentId + legacy Customer fallback) — mA holds the fixture CUSTOMER id
+  // (FK reality), so this passes via the temporary fallback until the cutover unit.
   it('linked agent -> 200 me with company + summary counts', async () => {
     const res = await S().get('/api/v1/portal/me').set(auth(agentAToken)).expect(200);
     expect(res.body.data.customer.name).toBe(`Agent Alpha ${randomTag}`);
@@ -237,6 +263,8 @@ describe('Agent Portal (e2e)', () => {
 
   // ── shipments + statement ──────────────────────────────────────────────────
 
+  // Scoping asserted through the same portal scope ids (portalAgentId + legacy
+  // Customer fallback): A sees exactly its own manifest, never B's.
   it('shipments: agent A sees only its manifest, not B-s', async () => {
     const res = await S().get('/api/v1/portal/shipments?pageSize=50').set(auth(agentAToken)).expect(200);
     const rows = res.body.data.data ?? res.body.data;

@@ -27,7 +27,10 @@ import {
 // (finalize/cancel) — never an arbitrary status edit.
 // ---------------------------------------------------------------------------
 const LOAD_LIST_TRANSITIONS: Record<LoadListStatus, LoadListStatus[]> = {
-  DRAFT: ['FINALIZED', 'CANCELLED'],
+  DRAFT: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['PARTIALLY_LOADED', 'COMPLETED', 'CANCELLED'],
+  PARTIALLY_LOADED: ['COMPLETED', 'CANCELLED'],
+  COMPLETED: ['FINALIZED', 'CANCELLED'],
   FINALIZED: [],
   CANCELLED: [],
 };
@@ -355,11 +358,11 @@ export class LoadPlanningService {
     if (cargo.status === 'CANCELLED') {
       return { cargoId, eligible: false, reason: 'Cargo is cancelled' };
     }
-    if (cargo.inspectionStatus !== 'APPROVED') {
+    if (cargo.inspectionStatus !== 'DONE') {
       return {
         cargoId,
         eligible: false,
-        reason: `Inspection status is ${cargo.inspectionStatus}; only APPROVED cargo may be planned`,
+        reason: `Inspection status is ${cargo.inspectionStatus}; only DONE cargo may be planned`,
       };
     }
 
@@ -429,7 +432,7 @@ export class LoadPlanningService {
     const where: Prisma.CargoWhereInput = {
       deletedAt: null,
       status: { not: 'CANCELLED' },
-      ...(eligibleOnly ? { inspectionStatus: 'APPROVED' as const } : {}),
+      ...(eligibleOnly ? { inspectionStatus: 'DONE' as const } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.yardId ? { yardId: query.yardId } : {}),
       ...(query.cargoType ? { cargoType: query.cargoType as any } : {}),
@@ -530,9 +533,9 @@ export class LoadPlanningService {
     if (cargo.status === 'CANCELLED') {
       throw new ConflictException('Cancelled cargo cannot be added to a Load List');
     }
-    if (cargo.inspectionStatus !== 'APPROVED') {
+    if (cargo.inspectionStatus !== 'DONE') {
       throw new ConflictException(
-        `Cargo "${cargo.reference}" has inspection status ${cargo.inspectionStatus}; only APPROVED cargo may be added`
+        `Cargo "${cargo.reference}" has inspection status ${cargo.inspectionStatus}; only DONE cargo may be added`
       );
     }
 

@@ -3,1407 +3,1585 @@
     "name": "Shipping ERP",
     "tagline": "عملیات و حسابداری"
   },
-  "common": {
-    "loading": "در حال بارگذاری…",
-    "signIn": "ورود",
-    "signOut": "خروج",
-    "signingIn": "در حال ورود…",
-    "search": "جستجو…",
-    "soon": "به‌زودی",
-    "active": "فعال",
-    "save": "ذخیره",
-    "cancel": "انصراف",
-    "delete": "حذف",
-    "edit": "ویرایش",
-    "create": "ایجاد",
-    "actions": {
-      "save": "ذخیره",
-      "cancel": "انصراف",
-      "delete": "حذف",
-      "search": "جستجو",
-      "create": "ایجاد",
-      "edit": "ویرایش"
-    },
-    "confirm": "تأیید",
-    "back": "بازگشت",
-    "workspace": "فضای کاری",
-    "notifications": "اعلان‌ها",
-    "list": {
-      "total": "مجموع",
-      "loading": "در حال بارگذاری…"
-    },
-    "errors": {
-      "generic": "خطایی رخ داد. دوباره تلاش کنید."
-    },
-    "nav": {
-      "home": "خانه"
-    },
-    "saving": "در حال ذخیره…",
-    "select": "انتخاب کنید…",
-    "reset": "بازنشانی"
-  },
-  "system": {
-    "operational": "سیستم فعال",
-    "issue": "مشکل سیستم",
-    "checking": "در حال بررسی…",
-    "checkedAt": "بررسی {time}"
-  },
-  "nav": {
-    "overview": "نمای کلی",
-    "accessControl": "کنترل دسترسی",
-    "administration": "مدیریت",
-    "operations": "عملیات",
-    "commercial": "تجاری",
-    "masterData": "داده‌های پایه",
-    "insightControl": "گزارش و کنترل",
-    "dashboard": "داشبورد",
-    "users": "کاربران",
-    "roles": "نقش‌ها",
-    "permissions": "مجوزها",
-    "settings": "تنظیمات",
-    "cargo": "بار",
-    "yardInventory": "موجودی حیاط",
-    "inspection": "بازرسی",
-    "loadLists": "لیست بارگیری",
-    "loadPlanning": "برنامه‌ریزی بار",
-    "actualLoading": "بارگیری واقعی",
-    "vessels": "کشتی‌ها",
-    "voyages": "سفرها",
-    "manifest": "مانیفست",
-    "billOfLading": "بارنامه",
-    "discharge": "تخلیه",
-    "deliveryOrders": "دستور تحویل",
-    "jobs": "پروژه‌ها و هزینه‌یابی",
-    "invoices": "فاکتورها",
-    "payments": "پرداخت‌ها",
-    "release": "مجوز ترخیص کالا",
-    "agents": "نمایندگان",
-    "customers": "مشتریان",
-    "ports": "بندرها",
-    "yards": "حیاط‌ها",
-    "reports": "گزارش‌ها",
-    "port": "port",
-    "yard": "yard",
-    "vessel": "vessel",
-    "invoice": "invoice",
-    "quotation": "quotation",
-    "proforma": "proforma",
-    "loadList": "loadList",
-    "voyage": "voyage",
-    "vouchers": "حواله‌ها",
-    "ledger": "دفتر",
-    "delivery": "حواله تحویل کالا",
-    "proformas": "پیش‌فاکتورها",
-    "quotations": "استعلام‌بها",
-    "people": "کارکنان و حقوق",
-    "employees": "کارکنان",
-    "salaryRecords": "فیش‌های حقوقی",
-    "correspondence": "مکاتبات",
-    "letters": "نامه‌ها",
-    "discharges": "تخلیه",
-    "portal": "پورتال",
-    "agentPortal": "پورتال ایجنت",
-    "bookings": "رزروهای ایجنت‌ها"
-  },
-  "login": {
-    "title": "ورود",
-    "subtitle": "برای ادامه، وارد حساب کاربری خود شوید.",
-    "heading": "ورود به سیستم",
-    "description": "برای دسترسی به فضای کاری از حساب کارمندی خود استفاده کنید.",
-    "email": "ایمیل",
-    "password": "رمز عبور",
-    "emailPlaceholder": "you@shipping.local",
-    "enterCredentials": "ایمیل و رمز عبور خود را وارد کنید.",
-    "unableToSignIn": "ورود ممکن نیست. اتصال خود را بررسی و دوباره تلاش کنید.",
-    "restricted": "دسترسی فقط برای کارکنان مجاز است.",
-    "showPassword": "نمایش رمز عبور",
-    "hidePassword": "پنهان کردن رمز عبور"
-  },
-  "dashboard": {
-    "title": "داشبورد",
-    "description": "نمای کلی وضعیت سیستم",
-    "implementedModules": "ماژول‌های پیاده‌سازی‌شده",
-    "plannedModules": "ماژول‌های در دست برنامه‌ریزی",
-    "health": "سلامت سیستم",
-    "database": "پایگاه داده",
-    "uptime": "زمان فعال",
-    "version": "نسخه",
-    "environment": "محیط",
-    "apiStatus": "وضعیت API",
-    "dbUnavailable": "پایگاه داده در دسترس نیست",
-    "dbUnavailableDesc": "API در دسترس است اما بررسی سلامت پایگاه داده ناموفق بود.",
-    "apiError": "خطای API",
-    "apiUnreachable": "API در دسترس نیست",
-    "apiUnreachableDesc": "اتصال به API برقرار نشد. مطمئن شوید API در حال اجراست.",
-    "quickLinks": "دسترسی سریع"
-  },
-  "topbar": {
-    "signedIn": "وارد شده",
-    "openNav": "باز کردن منو",
-    "language": "زبان",
-    "switchToEnglish": "English",
-    "switchToPersian": "فارسی"
-  },
   "auth": {
     "redirectingHome": "در حال انتقال…"
   },
-  "manifest": {
-    "title": "مانیفست‌ها",
-    "subtitle": "مانیفست رسمی بارِ هر سفر را از بارگیری‌های تکمیل‌شده بسازید، سپس ارسال و تأیید کنید.",
-    "register": "دفتر مانیفست‌ها",
-    "registerHint": "مانیفست‌های رسمی بار — یک مانیفست به ازای هر سفر.",
-    "searchPlaceholder": "جستجوی شماره مانیفست، شماره سفر، نام کشتی",
+  "booking": {
+    "status": {
+      "ACCEPTED": "تأییدشده",
+      "CANCELLED": "لغوشده",
+      "DECLINED": "ردشده",
+      "PENDING": "در انتظار"
+    }
+  },
+  "bookings": {
+    "allCompanies": "همه شرکت‌ها",
     "allStatuses": "همه وضعیت‌ها",
-    "allVoyages": "همه سفرها",
-    "new": "مانیفست جدید",
-    "loading": "در حال بارگذاری…",
-    "createdFrom": "از",
-    "createdTo": "تا",
-    "empty": {
-      "title": "مانیفستی یافت نشد",
-      "description": "جستجو یا فیلتر دیگری را امتحان کنید، یا برای سفری که بارگیری تکمیل‌شده دارد مانیفست بسازید."
-    },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "SUBMITTED": "ارسال‌شده",
-      "APPROVED": "تأییدشده",
-      "CANCELLED": "لغوشده"
-    },
-    "table": {
-      "no": "شماره",
-      "voyage": "سفر / کشتی",
-      "route": "مسیر",
-      "status": "وضعیت",
-      "items": "قلم‌ها",
-      "totalWeight": "وزن کل",
-      "created": "تاریخ ایجاد",
-      "actions": "عملیات"
-    },
-    "create": {
-      "title": "مانیفست جدید",
-      "description": "سفر موردنظر را انتخاب کنید. کشتی، مسیر و بنادر از سفر برداشت می‌شوند.",
-      "voyage": "سفر *",
-      "selectVoyage": "انتخاب سفر…",
-      "noVoyages": "سفری موجود نیست.",
-      "shipper": "فرستنده",
-      "consignee": "گیرنده",
-      "agent": "کارگزار",
-      "selectCustomer": "هیچ‌کدام",
-      "notifyParty": "طرف اطلاع‌رسانی",
-      "descriptionField": "توضیحات",
-      "notes": "یادداشت‌ها",
-      "submit": "ایجاد مانیفست",
-      "errorVoyage": "یک سفر انتخاب کنید."
-    },
-    "detail": {
-      "draftHint": "پیش‌نویس — قابل ویرایش. بار را اضافه و سپس ارسال کنید.",
-      "submittedHint": "ارسال‌شده — در انتظار تأیید.",
-      "immutable": "مانیفست تأییدشده یا لغوشده قابل ویرایش نیست.",
-      "cancelReason": "دلیل لغو",
-      "submittedAt": "تاریخ ارسال",
-      "approvedAt": "تاریخ تأیید",
-      "parties": "طرف‌ها",
-      "costs": "هزینه‌ها",
-      "gasCost": "هزینه سوخت",
-      "lashingCost": "هزینه مهاربندی",
-      "shipperCost": "هزینه فرستنده",
-      "podCost": "هزینه بندر تخلیه",
-      "polCost": "هزینه بندر بارگیری",
-      "currency": "واحد پول",
-      "totalWeight": "وزن کل",
-      "totalQuantity": "تعداد کل",
-      "totalPackages": "تعداد بسته‌ها"
-    },
-    "items": {
-      "title": "قلم‌های مانیفست",
-      "addTitle": "افزودن بار به مانیفست",
-      "selectEligible": "انتخاب بار…",
-      "eligibleEmpty": "بار مجازی وجود ندارد. ابتدا بارگیری واقعی این سفر را تکمیل کنید.",
-      "addLabel": "افزودن بار",
-      "blNumber": "شماره B/L",
-      "empty": "هنوز قلمی نیست. بارهای بارگیری‌شده را برای ساخت مانیفست بیفزایید.",
-      "seq": "ردیف",
+    "detail": "جزئیات",
+    "detailTitle": "رزرو",
+    "empty": "درخواست رزروی وجود ندارد",
+    "fields": {
       "cargo": "بار",
-      "weight": "وزن",
-      "quantity": "تعداد",
-      "packages": "بسته‌ها",
-      "notes": "یادداشت",
-      "remove": "حذف",
-      "actions": "عملیات"
+      "company": "شرکت",
+      "containers": "کانتینر",
+      "created": "تاریخ ثبت",
+      "notes": "توضیحات",
+      "number": "شماره",
+      "response": "پاسخ",
+      "responseNote": "متن پاسخ",
+      "route": "مسیر",
+      "shipDate": "تاریخ حمل",
+      "status": "وضعیت",
+      "weightKg": "وزن (کیلوگرم)"
     },
+    "respond": {
+      "accept": "تأیید",
+      "decline": "رد",
+      "noPermission": "برای پاسخ به درخواست‌ها نیاز به مجوز booking:respond دارید.",
+      "notePlaceholder": "متن پاسخ (اختیاری)…",
+      "submit": "ثبت پاسخ",
+      "title": "پاسخ به درخواست"
+    },
+    "searchPlaceholder": "جستجوی شماره رزرو یا شرح بار…",
+    "subtitle": "بررسی و پاسخ به درخواست‌های رزرو شرکت‌های ایجنت",
+    "title": "رزروهای ایجنت‌ها"
+  },
+  "common": {
     "actions": {
-      "view": "مشاهده",
-      "submit": "ارسال",
-      "approve": "تأیید",
-      "cancel": "لغو",
+      "cancel": "انصراف",
+      "create": "ایجاد",
       "delete": "حذف",
-      "close": "بستن",
-      "save": "ذخیره"
+      "edit": "ویرایش",
+      "save": "ذخیره",
+      "search": "جستجو"
     },
-    "confirm": {
-      "submitTitle": "ارسال مانیفست",
-      "submitBody": "مانیفست {no} برای تأیید ارسال شود؟ پس از ارسال، فقط‌خواندنی می‌شود.",
-      "approveTitle": "تأیید مانیفست",
-      "approveBody": "مانیفست {no} تأیید شود؟ مانیفست تأییدشده قطعی و غیرقابل‌ویرایش است.",
-      "cancelTitle": "لغو مانیفست",
-      "cancelBody": "مانیفست {no} لغو شود؟ ذکر دلیل الزامی است. مانیفست لغوشده غیرقابل‌ویرایش است.",
-      "deleteTitle": "حذف مانیفست",
-      "deleteBody": "پیش‌نویس {no} حذف شود؟ مانیفست و قلم‌های آن به‌صورت نرم حذف می‌شوند.",
-      "reason": "دلیل لغو *",
-      "keep": "نگه داشتن",
-      "confirmSubmit": "ارسال",
-      "confirmApprove": "تأیید",
-      "confirmCancel": "لغو مانیفست",
-      "confirmDelete": "حذف"
-    },
+    "active": "فعال",
+    "back": "بازگشت",
+    "cancel": "انصراف",
+    "confirm": "تأیید",
+    "create": "ایجاد",
+    "delete": "حذف",
+    "edit": "ویرایش",
     "errors": {
-      "loadList": "بارگذاری مانیفست‌ها ناموفق بود",
-      "loadDetail": "بارگذاری مانیفست ناموفق بود",
-      "create": "ایجاد مانیفست ناموفق بود",
-      "save": "ذخیره ناموفق بود",
-      "addItem": "افزودن بار ناموفق بود",
-      "removeItem": "حذف قلم ناموفق بود",
-      "submit": "ارسال ناموفق بود",
-      "approve": "تأیید ناموفق بود",
-      "cancel": "لغو ناموفق بود",
-      "delete": "حذف ناموفق بود",
-      "reasonRequired": "دلیل لغو الزامی است.",
-      "blOrNotes": "برای ذخیره، شماره B/L یا یادداشت وارد کنید."
-    }
-  },
-  "roles": {
-    "page": {
-      "title": "صفحه نقش‌ها",
-      "description": "مدیریت نقش‌ها و دسترسی‌ها"
-    },
-    "create": {
-      "title": "ایجاد نقش",
-      "description": "یک نقش جدید با دسترسی‌ها بسازید"
-    },
-    "edit": {
-      "title": "ویرایش نقش",
-      "description": "نام و دسترسی‌های نقش را ویرایش کنید"
-    },
-    "permission": "دسترسی",
-    "status": "وضعیت",
-    "actions": "عملیات"
-  },
-  "invoice": {
-    "page": {
-      "title": "فاکتورها",
-      "description": "اسناد فاکتور مشتری"
+      "generic": "خطایی رخ داد. دوباره تلاش کنید."
     },
     "list": {
-      "title": "فاکتورها",
-      "search": "جستجو با شماره، عنوان یا مشتری",
-      "allStatuses": "همه وضعیت‌ها",
-      "allPayments": "پرداخت‌شده و پرداخت‌نشده",
-      "unpaid": "فقط پرداخت‌نشده",
-      "allDue": "هر سررسیدی",
-      "overdue": "فقط معوق",
-      "empty": {
-        "title": "هنوز فاکتوری نیست",
-        "description": "اولین فاکتور را برای یک مشتری بسازید."
-      }
-    },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "ISSUED": "صادرشده",
-      "CANCELLED": "لغوشده"
-    },
-    "fields": {
-      "invoiceNumber": "شماره فاکتور",
-      "customer": "مشتری",
-      "title": "عنوان",
-      "description": "توضیحات",
-      "status": "وضعیت",
-      "currencyCode": "واحد پول",
-      "issueDate": "تاریخ صدور",
-      "dueDate": "تاریخ سررسید",
-      "subtotal": "جمع جزء",
-      "taxRate": "نرخ مالیات ٪",
-      "taxAmount": "مالیات",
-      "discountAmount": "تخفیف",
-      "totalAmount": "مبلغ کل",
-      "paidAmount": "پرداخت‌شده",
-      "manifest": "مانیفست",
-      "bill": "بارنامه",
-      "notes": "یادداشت‌ها"
-    },
-    "detail": {
-      "headerTitle": "سربرگ فاکتور",
       "loading": "در حال بارگذاری…",
-      "saving": "در حال ذخیره…",
-      "paid": "پرداخت‌شده",
-      "unpaid": "پرداخت‌نشده"
+      "total": "مجموع"
     },
-    "actions": {
-      "create": "فاکتور جدید",
-      "save": "ذخیره",
-      "close": "بستن",
-      "issue": "صدور",
-      "cancel": "لغو فاکتور",
-      "delete": "حذف"
+    "loading": "در حال بارگذاری…",
+    "nav": {
+      "home": "خانه"
     },
-    "create": {
-      "title": "ساخت فاکتور",
-      "description": "یک مشتری انتخاب کنید؛ اختیاری: اتصال به مانیفست یا بارنامه.",
-      "selectCustomer": "انتخاب مشتری",
-      "selectManifest": "بدون مانیفست",
-      "selectBill": "بدون بارنامه",
-      "noAnchor": "اتصال‌ها اختیاری هستند.",
-      "creating": "در حال ساخت…",
-      "errors": {
-        "customerRequired": "انتخاب مشتری الزامی است"
-      }
-    },
-    "items": {
-      "title": "ردیف‌های فاکتور",
-      "empty": "هنوز ردیفی نیست.",
-      "add": "افزودن ردیف",
-      "addTitle": "افزودن ردیف فاکتور",
-      "addDescription": "شرح، تعداد و نرخ واحد؛ مبلغ ردیف محاسبه می‌شود.",
-      "description": "شرح",
-      "quantity": "تعداد",
-      "unitPrice": "نرخ واحد",
-      "amount": "مبلغ",
-      "remove": "برداشتن",
-      "saveAll": "ذخیره تغییرات",
-      "adding": "در حال افزودن…",
-      "errors": {
-        "lineRequired": "شرح و نرخ واحد مثبت الزامی است"
-      }
-    },
-    "confirm": {
-      "issue": {
-        "title": "صادر شود؟",
-        "description": "فاکتور صادرشده قفل می‌شود و وارد دفتر پرداخت می‌گردد."
-      },
-      "cancel": {
-        "title": "فاکتور لغو شود؟",
-        "reason": "دلیل لغو",
-        "reasonPlaceholder": "چرا این فاکتور لغو می‌شود؟",
-        "description": "فاکتور لغوشده بازگشت‌ناپذیر است و برای ممیزی می‌ماند."
-      },
-      "delete": {
-        "title": "این فاکتور پیش‌نویس حذف شود؟",
-        "description": "حذف نرم؛ دیگر نمایش داده نمی‌شود."
-      },
-      "removeItem": {
-        "title": "این ردیف برداشته شود؟",
-        "description": "جمع‌ها دوباره محاسبه می‌شوند."
-      }
-    }
+    "notifications": "اعلان‌ها",
+    "reset": "بازنشانی",
+    "save": "ذخیره",
+    "saving": "در حال ذخیره…",
+    "search": "جستجو…",
+    "select": "انتخاب کنید…",
+    "signIn": "ورود",
+    "signOut": "خروج",
+    "signingIn": "در حال ورود…",
+    "soon": "به‌زودی",
+    "workspace": "فضای کاری"
   },
-  "voucher": {
-    "page": {
-      "title": "حواله‌ها",
-      "description": "رسید و پرداخت"
-    },
-    "list": {
-      "title": "دفتر حواله",
-      "subtitle": "اسناد مالی ثبت‌شده برای مشتریان و فاکتورها",
-      "search": "جستجو با شماره، ارجاع یا توضیحات",
-      "allTypes": "همه انواع",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "هنوز حواله‌ای نیست",
-        "description": "اولین رسید یا پرداخت را ثبت کنید."
-      }
-    },
-    "type": {
-      "RECEIPT": "رسید",
-      "PAYMENT": "پرداخت"
-    },
-    "status": {
-      "POSTED": "ثبت‌شده",
-      "CANCELLED": "لغوشده"
-    },
-    "method": {
-      "CASH": "نقدی",
-      "BANK_TRANSFER": "انتقال بانکی",
-      "CHEQUE": "چک",
-      "OTHER": "سایر"
-    },
-    "fields": {
-      "voucherNumber": "شماره حواله",
-      "type": "نوع",
-      "customer": "مشتری",
-      "invoice": "فاکتور",
-      "amount": "مبلغ",
-      "currencyCode": "واحد پول",
-      "method": "روش",
-      "reference": "ارجاع",
-      "description": "توضیحات",
-      "note": "یادداشت",
-      "voucherDate": "تاریخ ارزش",
-      "status": "وضعیت",
-      "cancelReason": "دلیل لغو"
-    },
-    "actions": {
-      "create": "حواله جدید",
-      "save": "ذخیره",
-      "cancelVoucher": "لغو حواله",
-      "cancelling": "در حال لغو…"
-    },
-    "create": {
-      "title": "ساخت حواله",
-      "description": "رسید (ورود پول) یا پرداخت (بازگشت). با اتصال فاکتور، تسویه می‌شود.",
-      "selectCustomer": "انتخاب مشتری",
-      "noInvoice": "بدون فاکتور (مستقل)",
-      "creating": "در حال ساخت…",
-      "errors": {
-        "customerRequired": "انتخاب مشتری الزامی است",
-        "amountRequired": "مبلغ باید مثبت باشد"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "این حواله لغو شود؟",
-        "description": "اثر آن روی فاکتور برمی‌گردد؛ ردیف برای ممیزی می‌ماند.",
-        "reason": "دلیل لغو",
-        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟"
-      },
-      "delete": {
-        "title": "این حواله لغوشده حذف شود؟",
-        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
-      }
-    }
-  },
-  "ledger": {
-    "page": {
-      "title": "دفتر",
-      "description": "صورت‌حساب مشتری — فاکتورها و تسویه‌ها"
-    },
-    "filters": {
-      "title": "فیلترهای صورت‌حساب",
-      "description": "یک مشتری انتخاب کنید؛ اختیاری: واحد پول و بازه تاریخ."
-    },
-    "fields": {
-      "customer": "مشتری",
-      "currency": "واحد پول",
-      "fromDate": "از",
-      "toDate": "تا"
-    },
-    "selectCustomer": "برای ساخت صورت‌حساب یک مشتری انتخاب کنید",
-    "allCurrencies": "همه واحدها",
-    "actions": {
-      "run": "ساخت صورت‌حساب",
-      "print": "چاپ"
-    },
-    "columns": {
-      "date": "تاریخ",
-      "kind": "نوع",
-      "document": "سند",
-      "description": "توضیحات",
-      "debit": "بدهکار",
-      "credit": "بستانکار",
-      "balance": "مانده"
-    },
-    "kind": {
-      "invoice": "فاکتور",
-      "voucher": "حواله",
-      "balance": "مانده"
-    },
-    "statement": {
-      "title": "صورت‌حساب — {customer}",
-      "subtitle": "{count} ردیف در بازه",
-      "opening": "مانده ابتدای دوره",
-      "period": "در بازه",
-      "closing": "مانده پایان دوره"
-    },
-    "list": {
-      "loading": "در حال ساخت صورت‌حساب…",
-      "empty": {
-        "title": "ردیفی نیست",
-        "description": "فاکتور یا حواله‌ای با این فیلترها نیست."
-      }
-    }
+  "dashboard": {
+    "apiError": "خطای API",
+    "apiStatus": "وضعیت API",
+    "apiUnreachable": "API در دسترس نیست",
+    "apiUnreachableDesc": "اتصال به API برقرار نشد. مطمئن شوید API در حال اجراست.",
+    "database": "پایگاه داده",
+    "dbUnavailable": "پایگاه داده در دسترس نیست",
+    "dbUnavailableDesc": "API در دسترس است اما بررسی سلامت پایگاه داده ناموفق بود.",
+    "description": "نمای کلی وضعیت سیستم",
+    "environment": "محیط",
+    "health": "سلامت سیستم",
+    "implementedModules": "ماژول‌های پیاده‌سازی‌شده",
+    "plannedModules": "ماژول‌های در دست برنامه‌ریزی",
+    "quickLinks": "دسترسی سریع",
+    "title": "داشبورد",
+    "uptime": "زمان فعال",
+    "version": "نسخه"
   },
   "deliveryOrder": {
-    "page": {
-      "title": "حواله تحویل کالا",
-      "description": "مجوز تحویل بار بر اساس بارنامه (D/O)"
+    "actions": {
+      "cancelOrder": "لغو حواله",
+      "cancelling": "در حال لغو…",
+      "create": "حواله جدید"
     },
-    "list": {
-      "title": "دفتر حواله تحویل",
-      "subtitle": "حواله‌های صادرشده؛ یک حواله فعال برای هر بارنامه",
-      "search": "جستجو با شماره، تحویل‌گیرنده یا پلاک",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "حواله تحویلی نیست",
-        "description": "برای یک بارنامه صادرشده، اولین حواله تحویل را ثبت کنید."
+    "confirm": {
+      "cancel": {
+        "description": "بارنامه دوباره قابل تحویل می‌شود؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟",
+        "title": "این حواله لغو شود؟"
+      },
+      "delete": {
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود.",
+        "title": "این حواله لغوشده حذف شود؟"
       }
     },
-    "status": {
-      "ISSUED": "صادرشده",
-      "CANCELLED": "لغوشده"
-    },
-    "fields": {
-      "docNumber": "شماره حواله",
-      "bill": "بارنامه",
-      "recipient": "تحویل‌گیرنده",
-      "vehiclePlate": "پلاک خودرو",
-      "issueDate": "تاریخ صدور",
-      "notes": "یادداشت",
-      "status": "وضعیت",
-      "cancelReason": "دلیل لغو"
-    },
-    "actions": {
-      "create": "حواله جدید",
-      "cancelOrder": "لغو حواله",
-      "cancelling": "در حال لغو…"
-    },
     "create": {
-      "title": "ساخت حواله تحویل",
-      "description": "بارنامه باید صادرشده باشد؛ یک حواله فعال برای هر بارنامه.",
-      "selectBill": "انتخاب بارنامه",
-      "recipientPlaceholder": "چه کسی بار را تحویل می‌گیرد؟",
       "creating": "در حال ساخت…",
+      "description": "بارنامه باید صادرشده باشد؛ یک حواله فعال برای هر بارنامه.",
       "errors": {
         "billRequired": "انتخاب بارنامه الزامی است",
         "recipientRequired": "تحویل‌گیرنده الزامی است"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "این حواله لغو شود؟",
-        "description": "بارنامه دوباره قابل تحویل می‌شود؛ ردیف برای ممیزی می‌ماند.",
-        "reason": "دلیل لغو",
-        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟"
       },
-      "delete": {
-        "title": "این حواله لغوشده حذف شود؟",
-        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
-      }
+      "recipientPlaceholder": "چه کسی بار را تحویل می‌گیرد؟",
+      "selectBill": "انتخاب بارنامه",
+      "title": "ساخت حواله تحویل"
     },
     "detail": {
       "headerTitle": "حواله تحویل"
-    }
-  },
-  "releaseOrder": {
-    "page": {
-      "title": "مجوز ترخیص کالا",
-      "description": "مجوز خروج بار بر اساس بارنامه (R/O) — تسویه‌شده یا با تأیید ویژه"
-    },
-    "list": {
-      "title": "دفتر مجوز ترخیص",
-      "subtitle": "یک مجوز فعال برای هر بارنامه؛ قاعده مالی اجرا می‌شود",
-      "search": "جستجو با شماره یا یادداشت",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "مجوز ترخیصی نیست",
-        "description": "پس از تسویه فاکتورهای بارنامه، مجوز صادر کنید."
-      }
-    },
-    "status": {
-      "ISSUED": "صادرشده",
-      "CANCELLED": "لغوشده"
     },
     "fields": {
-      "docNumber": "شماره مجوز",
       "bill": "بارنامه",
-      "releaseDate": "تاریخ ترخیص",
-      "financial": "مالی",
-      "override": "تأیید ویژه",
-      "settled": "تسویه‌شده",
-      "invoicesTotal": "فاکتورشده",
-      "invoicesPaid": "پرداخت‌شده",
-      "overrideReason": "دلیل تأیید ویژه",
+      "cancelReason": "دلیل لغو",
+      "docNumber": "شماره حواله",
+      "issueDate": "تاریخ صدور",
       "notes": "یادداشت",
+      "recipient": "تحویل‌گیرنده",
       "status": "وضعیت",
-      "cancelReason": "دلیل لغو"
+      "vehiclePlate": "پلاک خودرو"
     },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "برای یک بارنامه صادرشده، اولین حواله تحویل را ثبت کنید.",
+        "title": "حواله تحویلی نیست"
+      },
+      "search": "جستجو با شماره، تحویل‌گیرنده یا پلاک",
+      "subtitle": "حواله‌های صادرشده؛ یک حواله فعال برای هر بارنامه",
+      "title": "دفتر حواله تحویل"
+    },
+    "page": {
+      "description": "مجوز تحویل بار بر اساس بارنامه (D/O)",
+      "title": "حواله تحویل کالا"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "ISSUED": "صادرشده"
+    }
+  },
+  "discharge": {
     "actions": {
-      "create": "مجوز جدید",
-      "cancelOrder": "لغو مجوز",
+      "cancel": "لغو تخلیه",
+      "complete": "تکمیل",
+      "create": "تخلیه جدید",
+      "delete": "حذف",
+      "start": "شروع تخلیه",
       "view": "مشاهده"
     },
-    "create": {
-      "title": "ساخت مجوز ترخیص",
-      "description": "همه فاکتورهای صادرشده بارنامه باید تسویه باشند، یا با تأیید ویژه صادر شود.",
-      "selectBill": "انتخاب بارنامه",
-      "creating": "در حال ساخت…",
-      "checkingEligibility": "بررسی تسویه…",
-      "blockedTitle": "مانده بدهی",
-      "readyTitle": "آماده ترخیص",
-      "eligibilityLine": "فاکتورشده {total} — پرداخت‌شده {paid} — مانده {outstanding}",
-      "blockedNeedsForce": "فاکتورها پرداخت‌نشده‌اند: یا تسویه کنید، یا گزینه تأیید ویژه را با دلیل فعال کنید.",
-      "forceOverride": "عبور از الزام پرداخت (ثبت برای ممیزی)",
-      "overrideReasonPlaceholder": "چرا با وجود مانده بدهی ترخیص شود؟",
-      "errors": {
-        "billRequired": "انتخاب بارنامه الزامی است",
-        "overrideReasonRequired": "دلیل تأیید ویژه الزامی است"
-      }
+    "cancel": {
+      "description": "دلیل لغو را وارد کنید (حسابرسی).",
+      "reason": "دلیل لغو",
+      "reasonPlaceholder": "مثلاً: تغییر پهلو",
+      "title": "لغو تخلیه"
     },
     "confirm": {
-      "cancel": {
-        "title": "این مجوز لغو شود؟",
-        "description": "بارنامه دوباره قابل ترخیص می‌شود؛ ردیف برای ممیزی می‌ماند.",
-        "reason": "دلیل لغو",
-        "reasonPlaceholder": "چرا این مجوز لغو می‌شود؟"
+      "complete": {
+        "description": "تخلیه {number} تکمیل شود؟ بارهای کاملاً تخلیه‌شده «تحویل‌شده» می‌شوند؛ کسری‌ها برای پیگیری ادعای باقی می‌مانند.",
+        "title": "تکمیل تخلیه"
       },
       "delete": {
-        "title": "این مجوز لغوشده حذف شود؟",
-        "description": "ردیف لغوشده برای همیشه حذف می‌شود."
+        "description": "تخلیه {number} حذف شود؟ فقط تخلیه‌های شروع‌نشده/در حال انجام قابل حذف‌اند.",
+        "title": "حذف تخلیه"
+      },
+      "start": {
+        "description": "تخلیه {number} شروع شود؟ در حال انجام، ردیف‌ها قابل ویرایش می‌مانند.",
+        "title": "شروع تخلیه"
       }
-    },
-    "detail": {
-      "headerTitle": "مجوز ترخیص"
-    }
-  },
-  "proforma": {
-    "page": {
-      "title": "پیش‌فاکتورها",
-      "description": "پیش‌فاکتور و استعلام قیمت — با یک کلیک به فاکتور رسمی تبدیل می‌شوند."
-    },
-    "list": {
-      "title": "فهرست پیش‌فاکتورها",
-      "subtitle": "پیش‌فاکتورهای پیش‌نویس قابل ویرایش‌اند؛ پس از صدور، برای تبدیل قفل می‌شوند.",
-      "search": "جستجو با شماره، عنوان یا مشتری",
-      "allStatuses": "همه وضعیت‌ها",
-      "unconvertedOnly": "فقط تبدیل‌نشده‌ها",
-      "empty": {
-        "title": "پیش‌فاکتوری ثبت نشده",
-        "description": "برای شروع، اولین پیش‌فاکتور را بسازید."
-      }
-    },
-    "fields": {
-      "number": "شماره",
-      "title": "عنوان",
-      "customer": "مشتری",
-      "status": "وضعیت",
-      "currency": "واحد پول",
-      "issueDate": "تاریخ صدور",
-      "validUntil": "اعتبار تا",
-      "total": "مبلغ کل",
-      "discount": "تخفیف",
-      "taxRate": "نرخ مالیات ٪",
-      "description": "توضیحات",
-      "notes": "یادداشت‌ها",
-      "cancelReason": "دلیل ابطال",
-      "convertedTo": "تبدیل‌شده به"
-    },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "ISSUED": "صادرشده",
-      "CANCELLED": "باطل‌شده"
-    },
-    "actions": {
-      "create": "پیش‌فاکتور جدید",
-      "issue": "صدور",
-      "convert": "تبدیل به فاکتور",
-      "cancelOrder": "ابطال پیش‌فاکتور",
-      "cancelling": "در حال ابطال…"
-    },
-    "totals": {
-      "subtotal": "جمع سطرها",
-      "tax": "مالیات",
-      "total": "مبلغ کل"
     },
     "create": {
-      "title": "پیش‌فاکتور جدید",
-      "description": "سطرها و در صورت نیاز مالیات/تخفیف را اضافه کنید — جمع‌ها خودکار محاسبه می‌شوند.",
-      "selectCustomer": "انتخاب مشتری…",
-      "titlePlaceholder": "مثلاً استعلام کرایه — کشتی علی / سفر ۱۲",
-      "itemsTitle": "سطرها",
-      "addItem": "افزودن سطر",
-      "itemDescription": "شرح",
-      "qty": "تعداد",
-      "unitPrice": "بهای واحد",
-      "creating": "در حال ساخت…",
+      "description": "ردیف‌های مورد انتظار از بار واقعاً بارگیری‌شده پیش‌پر می‌شوند.",
       "errors": {
-        "customerRequired": "انتخاب مشتری الزامی است",
-        "itemsRequired": "حداقل یک سطر اضافه کنید"
-      }
+        "loadingRequired": "انتخاب بارگیری الزامی است"
+      },
+      "loadingLabel": "بارگیری واقعی (تکمیل‌شده)",
+      "loadingPlaceholder": "— انتخاب —",
+      "noLoadings": "بارگیری واقعی تکمیل‌شده‌ای برای تخلیه موجود نیست.",
+      "title": "تخلیه جدید"
     },
     "detail": {
-      "title": "جزئیات پیش‌فاکتور",
-      "items": "سطرها",
-      "lineTotal": "مبلغ",
-      "convertedBadge": "تبدیل‌شده"
-    },
-    "convert": {
-      "title": "تبدیل به فاکتور",
-      "description": "با این کار یک فاکتور پیش‌نویس با همان سطرها و مبالغ ساخته می‌شود.",
-      "body": "این پیش‌فاکتور «تبدیل‌شده» علامت می‌خورد؛ تبدیل فقط یک‌بار ممکن است.",
-      "converting": "در حال تبدیل…",
-      "resultTitle": "فاکتور ساخته شد",
-      "resultLine": "فاکتور پیش‌نویس {number} از این پیش‌فاکتور ساخته شد.",
-      "resultHint": "در صفحه فاکتورها بازبینی و سپس صادرش کنید."
-    },
-    "confirm": {
-      "issue": {
-        "title": "صدور پیش‌فاکتور؟",
-        "description": "پس از صدور، سطرهای عنوان و شرح قفل می‌شوند."
-      },
-      "cancel": {
-        "title": "ابطال پیش‌فاکتور؟",
-        "description": "پیش‌فاکتور باطل‌شده غیرقابل بازگشت است و بعداً قابل حذف است.",
-        "reason": "دلیل",
-        "reasonPlaceholder": "چرا این پیش‌فاکتور باطل می‌شود؟"
-      }
-    }
-  },
-  "quotation": {
-    "page": {
-      "title": "استعلام‌بها",
-      "description": "استعلام‌بهای ارسال‌شده برای مشتری — قابل تبدیل به پیش‌فاکتور"
-    },
-    "actions": {
-      "create": "استعلام جدید",
-      "send": "ارسال",
-      "accept": "پذیرش",
-      "reject": "رد",
-      "convert": "تبدیل",
-      "cancelling": "در حال لغو...",
-      "rejecting": "در حال رد..."
-    },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "SENT": "ارسال‌شده",
-      "ACCEPTED": "پذیرفته‌شده",
-      "REJECTED": "ردشده",
-      "CANCELLED": "لغوشده"
-    },
-    "list": {
-      "title": "فهرست استعلام‌بها",
-      "subtitle": "جستجو، فیلتر و مدیریت استعلام‌بها",
-      "search": "جستجو...",
-      "allStatuses": "همه وضعیت‌ها",
-      "convertibleOnly": "فقط قابل تبدیل",
-      "empty": {
-        "title": "استعلام‌بهایی ثبت نشده است",
-        "description": "برای شروع، یک استعلام‌بها ایجاد کنید."
-      }
+      "cancelledOn": "تاریخ لغو",
+      "completedOn": "تاریخ تکمیل",
+      "createdOn": "تاریخ ثبت",
+      "title": "تخلیه"
     },
     "fields": {
-      "number": "شماره",
-      "customer": "مشتری",
-      "issueDate": "تاریخ ارسال",
-      "validUntil": "اعتبار تا",
-      "total": "مجموع",
-      "status": "وضعیت",
-      "currency": "واحد پول",
-      "title": "عنوان",
-      "taxRate": "نرخ مالیات %",
-      "discount": "تخفیف",
+      "discharged": "تخلیه‌شده",
+      "expected": "مورد انتظار",
+      "lines": "ردیف",
+      "loading": "بارگیری واقعی",
       "notes": "یادداشت",
-      "description": "شرح",
-      "cancelReason": "دلیل لغو",
-      "rejectReason": "دلیل رد",
-      "convertedTo": "تبدیل‌شده به"
+      "number": "شماره تخلیه",
+      "pod": "بندر مقصد",
+      "status": "وضعیت",
+      "vessel": "شناور",
+      "voyage": "سفر"
     },
-    "create": {
-      "title": "ایجاد استعلام‌بها",
-      "description": "سربرگ و اقلام را وارد کنید؛ مجموع‌ها خودکار محاسبه می‌شوند.",
-      "creating": "در حال ایجاد...",
-      "selectCustomer": "انتخاب مشتری...",
-      "itemsTitle": "اقلام",
-      "itemDescription": "شرح قلم",
-      "qty": "تعداد",
-      "unitPrice": "قیمت واحد",
-      "addItem": "افزودن قلم",
+    "items": {
+      "cargo": "بار",
+      "discharged": "تخلیه‌شده",
       "errors": {
-        "customerRequired": "انتخاب مشتری الزامی است",
-        "itemsRequired": "حداقل یک قلم لازم است"
-      }
-    },
-    "totals": {
-      "subtotal": "جمع فرعی",
-      "tax": "مالیات",
-      "total": "مجموع کل"
-    },
-    "detail": {
-      "items": "اقلام",
-      "lineTotal": "مجموع خط",
-      "convertedBadge": "تبدیل‌شده به {number}"
-    },
-    "convert": {
-      "title": "تبدیل به پیش‌فاکتور",
-      "description": "این استعلام‌بهای پذیرفته‌شده یک‌بار به پیش‌فاکتور پیش‌نویس تبدیل می‌شود.",
-      "body": "استعلام {number} با مجموع {total} {currency} به پیش‌فاکتور تبدیل شود؟",
-      "converting": "در حال تبدیل...",
-      "resultTitle": "تبدیل انجام شد",
-      "resultLine": "پیش‌فاکتور {number} ساخته شد.",
-      "resultHint": "پیش‌فاکتور در وضعیت پیش‌نویس است و پس از صدور قابل تبدیل به فاکتور است."
-    },
-    "confirm": {
-      "send": {
-        "title": "ارسال استعلام‌بها",
-        "description": "پس از ارسال، اقلام و مبالغ قابل ویرایش نیستند."
+        "exceeds": "تعداد تخلیه از مورد انتظار بیشتر است ({expected})",
+        "nonnegative": "تعداد باید عدد صحیح نامنفی باشد"
       },
-      "accept": {
-        "title": "پذیرش استعلام‌بها",
-        "description": "با پذیرش، امکان تبدیل به پیش‌فاکتور فراهم می‌شود."
+      "expected": "مورد انتظار",
+      "result": {
+        "FULL": "کامل",
+        "NOT_DISCHARGED": "تخلیه‌نشده",
+        "PARTIAL": "جزئی"
       },
-      "reject": {
-        "title": "رد استعلام‌بها",
-        "description": "دلیل رد را وارد کنید.",
-        "reason": "دلیل رد",
-        "reasonPlaceholder": "مثلاً: قیمت بالاتر از بودجه مشتری"
+      "totals": "جمع کل"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "پس از رسیدن بارگیری تکمیل‌شده به بندر مقصد، تخلیه را ثبت کنید.",
+        "title": "تخلیه‌ای ثبت نشده است"
       },
-      "cancel": {
-        "title": "لغو استعلام‌بها",
-        "description": "دلیل لغو را وارد کنید.",
-        "reason": "دلیل لغو",
-        "reasonPlaceholder": "مثلاً: جایگزین شد"
-      }
+      "search": "شماره تخلیه، بارگیری، سفر، شناور…"
+    },
+    "page": {
+      "description": "تخلیه بار در بندر مقصد — آینه‌ی بارگیری واقعی",
+      "title": "تخلیه"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "COMPLETED": "تکمیل‌شده",
+      "IN_PROGRESS": "در حال انجام",
+      "NOT_STARTED": "شروع‌نشده"
     }
   },
   "employee": {
-    "page": {
-      "title": "کارکنان",
-      "description": "اطلاعات پایه منابع انسانی — پرسنل، حقوق پایه و وضعیت"
-    },
     "actions": {
       "create": "کارمند جدید",
-      "edit": "ویرایش",
-      "delete": "حذف"
+      "delete": "حذف",
+      "edit": "ویرایش"
+    },
+    "confirm": {
+      "delete": {
+        "description": "«{name}» حذف شود؟ این عمل قابل بازگشت نیست.",
+        "title": "حذف کارمند"
+      }
     },
     "fields": {
+      "baseSalary": "حقوق پایه",
       "code": "کد",
-      "name": "نام",
-      "nationalId": "کد ملی",
-      "position": "سمت",
-      "phone": "تلفن",
+      "currency": "واحد پول",
       "email": "ایمیل",
       "hireDate": "تاریخ استخدام",
-      "baseSalary": "حقوق پایه",
-      "currency": "واحد پول",
-      "status": "وضعیت",
+      "name": "نام",
+      "nationalId": "کد ملی",
       "notes": "یادداشت",
-      "salaryRecordsCount": "فیش‌های حقوقی"
+      "phone": "تلفن",
+      "position": "سمت",
+      "salaryRecordsCount": "فیش‌های حقوقی",
+      "status": "وضعیت"
+    },
+    "form": {
+      "codePlaceholder": "خودکار (EMP-#####)",
+      "description": "حقوق پایه و واحد پول، پیش‌فرض فیش حقوقی را تعیین می‌کنند.",
+      "editTitle": "ویرایش کارمند",
+      "errors": {
+        "nameRequired": "نام الزامی است"
+      },
+      "saving": "در حال ذخیره...",
+      "title": "ایجاد کارمند"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "برای شروع چرخه حقوق، اولین کارمند را ثبت کنید.",
+        "title": "کارمندی ثبت نشده است"
+      },
+      "search": "جستجو...",
+      "subtitle": "جستجو و مدیریت پرسنل",
+      "title": "فهرست کارکنان"
+    },
+    "page": {
+      "description": "اطلاعات پایه منابع انسانی — پرسنل، حقوق پایه و وضعیت",
+      "title": "کارکنان"
     },
     "status": {
       "ACTIVE": "فعال",
       "INACTIVE": "غیرفعال"
+    }
+  },
+  "home": {
+    "nav": {
+      "brand": "دونا کشتیرانی",
+      "home": "خانه",
+      "about": "درباره ما",
+      "services": "خدمات",
+      "contact": "تماس",
+      "login": "ورود به داشبورد",
+      "switchToPersian": "فارسی",
+      "switchToEnglish": "انگلیسی",
+      "switchToArabic": "عربی"
     },
-    "list": {
-      "title": "فهرست کارکنان",
-      "subtitle": "جستجو و مدیریت پرسنل",
-      "search": "جستجو...",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "کارمندی ثبت نشده است",
-        "description": "برای شروع چرخه حقوق، اولین کارمند را ثبت کنید."
+    "hero": {
+      "tag": "شرکت کشتیرانی بین‌المللی",
+      "title": "کالاها را از مبدأ تا مقصد\nامن و به‌زمان تحویل می‌دهیم",
+      "subtitle": "امنیت، کالای بازیافتی، ارقامی و سرویس پس از فروش.\nهمه چیز در یکجا — از بارگیری تا تسویه نهایی.",
+      "ctaPrimary": "ورود به داشبورد",
+      "ctaSecondary": "بیشتر بدانید",
+      "stats": {
+        "years": "سال تجربه",
+        "destinations": "بازار هدف",
+        "shipments": "حمل‌ونقل موفق"
       }
     },
-    "form": {
-      "title": "ایجاد کارمند",
-      "editTitle": "ویرایش کارمند",
-      "description": "حقوق پایه و واحد پول، پیش‌فرض فیش حقوقی را تعیین می‌کنند.",
-      "saving": "در حال ذخیره...",
-      "codePlaceholder": "خودکار (EMP-#####)",
-      "errors": {
-        "nameRequired": "نام الزامی است"
+    "about": {
+      "eyebrow": "درباره ما",
+      "title": "شرکت کشتیرانی دونا",
+      "paragraph": "دونا کشتیرانی با بیش از ۱۰ سال تجربه در حمل‌ونقل دریایی، ترخیص کالا، مدیریت کانتینر و عملیات یارد، به عنوان شریکی قابل‌اتکا برای شرکت‌هایی در خلیج فارس و مناطق آزاد فعال است. ما ترکیبی از برترین عملیات، اسناد دقیق و حسابداری شفاف ارائه می‌دهیم — از بارگیری اولیه تا تسویه نهایی.",
+      "values": {
+        "expertise": "تخصص و تجربه",
+        "safety": "امنیت و استقرار",
+        "timeliness": "به‌زمانی و قابلیت‌اتکا",
+        "transparency": "شفافیت و حسابداری روشن"
       }
     },
-    "confirm": {
-      "delete": {
-        "title": "حذف کارمند",
-        "description": "«{name}» حذف شود؟ این عمل قابل بازگشت نیست."
+    "services": {
+      "eyebrow": "خدمات حرفه‌ای",
+      "title": "خدمات ما",
+      "services": [
+        {
+          "name": "یارد و موجودی",
+          "icon": "warehouse",
+          "desc": "ثبت کالا، نمایش موجودی طبق بندر و یارد، وضعیت‌ها و گزارش‌گیری 피심."
+        },
+        {
+          "name": "بارگیری و لیست بار",
+          "icon": "shipping",
+          "desc": "لیست‌های بار به‌تدریج تکمیل می‌شوند؛ کالاهای بازرسی‌شده و تأیید نهایی."
+        },
+        {
+          "name": "بارنامه و منیفست",
+          "icon": "file-text",
+          "desc": "منابع کامل، تولید خودکار بارنامه و منیفست، ارجاع به银行ی وかを."
+        },
+        {
+          "name": "حسابداری و مالی",
+          "icon": "dollar-sign",
+          "desc": "پروفاکتور، استعلام‌بها، فاکتور، حواله، فیش حقوقی و گزارش‌های مالی."
+        }
+      ]
+    },
+    "capabilities": {
+      "eyebrow": "چرا دونا؟",
+      "title": "توانمندی‌های ما",
+      "items": [
+        {
+          "title": "پوشش جهانی",
+          "icon": "globe",
+          "desc": "فعالیت در بنادر خلیج فارس، خلیج عمان و مناطق آزاد، با دسترسی به مقاصد بین‌المللی."
+        },
+        {
+          "title": "اسناد دقیق",
+          "icon": "file-check",
+          "desc": "بارنامه، منیفست، حواله‌های تحویل، فاکتور و صورت‌حساب — همه با کیفیت استاندارد."
+        },
+        {
+          "title": "حسابداری شفاف",
+          "icon": "receipt",
+          "desc": "چرخه کامل حسابداری: از پروفاکتور و استعلام تا فاکتور و گزارش‌های نهایی."
+        },
+        {
+          "title": "پورتال ایجنت",
+          "icon": "user-round",
+          "desc": "ایجنت‌های شریکی می‌توانند درخواست‌های رزرو صادر کنند، وضعیت‌ها را پیگیری نمایند."
+        }
+      ]
+    },
+    "coverage": {
+      "eyebrow": "بنادر و مقاصد",
+      "title": "پوشش جغرافیایی",
+      "intro": "ما در بنادر اصلی خلیج فارس و مناطق آزاد ایران فعالیت می‌کنیم و به مقاصد بین‌المللی نیز دسترسی داریم.",
+      "ports": [
+        "بندر عباس",
+        "بندر امام",
+        "چابهار",
+        "جزیره کیش",
+        "بوشهر",
+        "جسک"
+      ]
+    },
+    "cta": {
+      "title": "آماده‌اید به شروع؟",
+      "subtitle": "از 오늘، عملیات کشتیرانی و حسابداری‌تان را با دونا مدیریت کنید.",
+      "button": "ورود به داشبورد"
+    },
+    "footer": {
+      "brand": "دونا کشتیرانی",
+      "legal": "© {year} دونا کشتیرانی. تمامی حقوق محفوظ است.",
+      "tagline": "عملیات و حسابداری",
+      "links": {
+        "about": "درباره ما",
+        "services": "خدمات",
+        "contact": "تماس",
+        "login": "ورود به داشبورد"
       }
     }
   },
-  "salary": {
-    "page": {
-      "title": "فیش‌های حقوقی",
-      "description": "فیش ماهانه — پیش‌نویس، تأیید، پرداخت"
-    },
+  "invoice": {
     "actions": {
-      "create": "فیش جدید",
-      "approve": "تأیید",
-      "pay": "پرداخت",
-      "cancel": "لغو",
-      "cancelling": "در حال لغو...",
+      "cancel": "لغو فاکتور",
+      "close": "بستن",
+      "create": "فاکتور جدید",
       "delete": "حذف",
-      "view": "مشاهده"
-    },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "APPROVED": "تأییدشده",
-      "PAID": "پرداخت‌شده",
-      "CANCELLED": "لغوشده"
-    },
-    "list": {
-      "title": "فیش‌های حقوقی",
-      "subtitle": "فیلتر بر اساس دوره، کارمند و وضعیت",
-      "search": "جستجو...",
-      "allStatuses": "همه وضعیت‌ها",
-      "allYears": "همه سال‌ها",
-      "allMonths": "همه ماه‌ها",
-      "allEmployees": "همه کارکنان",
-      "empty": {
-        "title": "فیشی ثبت نشده است",
-        "description": "برای شروع چرخه حقوق، اولین فیش را ثبت کنید."
-      }
-    },
-    "fields": {
-      "number": "شماره",
-      "employee": "کارمند",
-      "period": "دوره",
-      "base": "پایه",
-      "additions": "افزودنی‌ها",
-      "deductions": "کسورات",
-      "net": "خالص پرداختی",
-      "currency": "واحد پول",
-      "status": "وضعیت",
-      "notes": "یادداشت",
-      "year": "سال",
-      "month": "ماه",
-      "paymentMethod": "روش پرداخت",
-      "paymentRef": "مرجع پرداخت",
-      "cancelReason": "دلیل لغو"
-    },
-    "method": {
-      "CASH": "نقدی",
-      "BANK_TRANSFER": "انتقال بانکی",
-      "CHEQUE": "چک",
-      "OTHER": "سایر"
-    },
-    "create": {
-      "title": "ایجاد فیش حقوقی",
-      "description": "پایه و واحد پول از پروفایل کارمند پیش‌فرض می‌شوند.",
-      "creating": "در حال ایجاد...",
-      "selectEmployee": "انتخاب کارمند...",
-      "errors": {
-        "employeeRequired": "انتخاب کارمند الزامی است"
-      }
+      "issue": "صدور",
+      "save": "ذخیره"
     },
     "confirm": {
-      "approve": {
-        "title": "تأیید فیش",
-        "description": "فیش {number} با خالص {net} تأیید شود؟ پس از تأیید قابل ویرایش نیست."
+      "cancel": {
+        "description": "فاکتور لغوشده بازگشت‌ناپذیر است و برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این فاکتور لغو می‌شود؟",
+        "title": "فاکتور لغو شود؟"
       },
       "delete": {
-        "title": "حذف فیش",
-        "description": "فیش {number} حذف شود؟ فقط فیش‌های پیش‌نویس قابل حذف‌اند."
+        "description": "حذف نرم؛ دیگر نمایش داده نمی‌شود.",
+        "title": "این فاکتور پیش‌نویس حذف شود؟"
+      },
+      "issue": {
+        "description": "فاکتور صادرشده قفل می‌شود و وارد دفتر پرداخت می‌گردد.",
+        "title": "صادر شود؟"
+      },
+      "removeItem": {
+        "description": "جمع‌ها دوباره محاسبه می‌شوند.",
+        "title": "این ردیف برداشته شود؟"
       }
     },
-    "pay": {
-      "title": "ثبت پرداخت",
-      "description": "ماهیت پرداخت روی فیش ثبت می‌شود.",
-      "paying": "در حال ثبت...",
-      "referencePlaceholder": "مثلاً TRF-12345"
-    },
-    "cancel": {
-      "title": "لغو فیش",
-      "description": "دلیل لغو را وارد کنید (حسابرسی).",
-      "reason": "دلیل لغو",
-      "reasonPlaceholder": "مثلاً: ترک کار"
+    "create": {
+      "creating": "در حال ساخت…",
+      "description": "یک مشتری انتخاب کنید؛ اختیاری: اتصال به مانیفست یا بارنامه.",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است"
+      },
+      "noAnchor": "اتصال‌ها اختیاری هستند.",
+      "selectBill": "بدون بارنامه",
+      "selectCustomer": "انتخاب مشتری",
+      "selectManifest": "بدون مانیفست",
+      "title": "ساخت فاکتور"
     },
     "detail": {
-      "title": "فیش حقوقی",
-      "approvedOn": "تاریخ تأیید",
-      "paidOn": "تاریخ پرداخت",
+      "headerTitle": "سربرگ فاکتور",
+      "loading": "در حال بارگذاری…",
+      "paid": "پرداخت‌شده",
+      "saving": "در حال ذخیره…",
+      "unpaid": "پرداخت‌نشده"
+    },
+    "fields": {
+      "bill": "بارنامه",
+      "currencyCode": "واحد پول",
+      "customer": "مشتری",
+      "description": "توضیحات",
+      "discountAmount": "تخفیف",
+      "dueDate": "تاریخ سررسید",
+      "invoiceNumber": "شماره فاکتور",
+      "issueDate": "تاریخ صدور",
+      "manifest": "مانیفست",
+      "notes": "یادداشت‌ها",
+      "paidAmount": "پرداخت‌شده",
+      "status": "وضعیت",
+      "subtotal": "جمع جزء",
+      "taxAmount": "مالیات",
+      "taxRate": "نرخ مالیات ٪",
+      "title": "عنوان",
+      "totalAmount": "مبلغ کل"
+    },
+    "items": {
+      "add": "افزودن ردیف",
+      "addDescription": "شرح، تعداد و نرخ واحد؛ مبلغ ردیف محاسبه می‌شود.",
+      "addTitle": "افزودن ردیف فاکتور",
+      "adding": "در حال افزودن…",
+      "amount": "مبلغ",
+      "description": "شرح",
+      "empty": "هنوز ردیفی نیست.",
+      "errors": {
+        "lineRequired": "شرح و نرخ واحد مثبت الزامی است"
+      },
+      "quantity": "تعداد",
+      "remove": "برداشتن",
+      "saveAll": "ذخیره تغییرات",
+      "title": "ردیف‌های فاکتور",
+      "unitPrice": "نرخ واحد"
+    },
+    "list": {
+      "allDue": "هر سررسیدی",
+      "allPayments": "پرداخت‌شده و پرداخت‌نشده",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "اولین فاکتور را برای یک مشتری بسازید.",
+        "title": "هنوز فاکتوری نیست"
+      },
+      "overdue": "فقط معوق",
+      "search": "جستجو با شماره، عنوان یا مشتری",
+      "title": "فاکتورها",
+      "unpaid": "فقط پرداخت‌نشده"
+    },
+    "page": {
+      "description": "اسناد فاکتور مشتری",
+      "title": "فاکتورها"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "DRAFT": "پیش‌نویس",
+      "ISSUED": "صادرشده"
+    }
+  },
+  "jobs": {
+    "actions": {
+      "addItem": "افزودن ردیف",
+      "cancel": "لغو پروژه",
+      "complete": "تکمیل",
+      "create": "پروژه جدید",
+      "delete": "حذف",
+      "edit": "ویرایش",
+      "start": "بازگشایی",
+      "view": "مشاهده"
+    },
+    "cancel": {
+      "description": "دلیل لغو را وارد کنید (حسابرسی).",
+      "reason": "دلیل لغو",
+      "reasonPlaceholder": "مثلاً: انصراف مشتری",
+      "title": "لغو پروژه"
+    },
+    "confirm": {
+      "complete": {
+        "description": "پروژه {number} با سود {profit} {currency} تکمیل شود؟ پس از تکمیل، ردیف‌ها قفل می‌شوند.",
+        "title": "تکمیل پروژه"
+      },
+      "delete": {
+        "description": "پروژه {number} حذف شود؟ فقط پروژه‌های پیش‌نویس قابل حذف‌اند.",
+        "title": "حذف پروژه"
+      },
+      "start": {
+        "description": "پروژه {number} باز شود؟ ردیف‌های درآمد/هزینه همچنان قابل ویرایش‌اند.",
+        "title": "بازگشایی پروژه"
+      }
+    },
+    "detail": {
       "cancelledOn": "تاریخ لغو",
-      "createdAt": "تاریخ ایجاد"
+      "completedOn": "تاریخ تکمیل",
+      "openedOn": "تاریخ بازگشایی",
+      "title": "پروژه"
+    },
+    "fields": {
+      "cancelledOn": "تاریخ لغو",
+      "completedOn": "تاریخ تکمیل",
+      "cost": "هزینه",
+      "currency": "واحد پول",
+      "customer": "مشتری",
+      "description": "توضیحات",
+      "income": "درآمد",
+      "jobType": "نوع پروژه",
+      "notes": "یادداشت",
+      "number": "شماره پروژه",
+      "openingDate": "تاریخ شروع",
+      "profit": "سود",
+      "status": "وضعیت",
+      "title": "عنوان",
+      "totalCost": "هزینه",
+      "totalIncome": "درآمد",
+      "voyage": "سفر"
+    },
+    "form": {
+      "description": "ردیف‌ها پس از ایجاد اضافه می‌شوند؛ سود سمت سرور محاسبه می‌شود.",
+      "editTitle": "ویرایش پروژه",
+      "errors": {
+        "titleRequired": "عنوان الزامی است"
+      },
+      "noCustomer": "— بدون مشتری —",
+      "noType": "(بدون نوع)",
+      "noVoyage": "— بدون سفر —",
+      "title": "ایجاد پروژه"
+    },
+    "items": {
+      "COST": "هزینه",
+      "INCOME": "درآمد",
+      "add": "افزودن",
+      "addTitle": "افزودن ردیف",
+      "amount": "مبلغ",
+      "category": "دسته",
+      "date": "تاریخ",
+      "description": "شرح",
+      "editTitle": "ویرایش ردیف",
+      "editing": "ویرایش ردیف…",
+      "empty": "هنوز ردیفی ثبت نشده — برای محاسبه سود، ردیف درآمد و هزینه اضافه کنید.",
+      "errors": {
+        "badAmount": "مبلغ معتبر وارد کنید",
+        "descAmountRequired": "شرح و مبلغ الزامی است",
+        "descriptionRequired": "شرح الزامی است"
+      },
+      "kind": {
+        "COST": "هزینه",
+        "INCOME": "درآمد"
+      },
+      "title": "ردیف‌های هزینه‌یابی",
+      "totals": "جمع کل"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "برای شروع هزینه‌یابی، اولین پروژه را ثبت کنید.",
+        "title": "پروژه‌ای ثبت نشده است"
+      },
+      "search": "شماره، عنوان یا مشتری…"
+    },
+    "page": {
+      "description": "پروژه‌های مشتری با ردیف‌های درآمد/هزینه و سود زنده برای هر پروژه",
+      "title": "پروژه‌ها و هزینه‌یابی"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "COMPLETED": "تکمیل‌شده",
+      "DRAFT": "پیش‌نویس",
+      "OPEN": "باز"
+    },
+    "type": {
+      "CUSTOMS": "امور گمرکی",
+      "EXPORT": "صادرات",
+      "IMPORT_CLEARANCE": "ترخیص واردات",
+      "OTHER": "سایر",
+      "TRANSIT": "ترانزیت",
+      "TRANSPORT": "حمل‌ونقل"
+    }
+  },
+  "ledger": {
+    "actions": {
+      "print": "چاپ",
+      "run": "ساخت صورت‌حساب"
+    },
+    "allCurrencies": "همه واحدها",
+    "columns": {
+      "balance": "مانده",
+      "credit": "بستانکار",
+      "date": "تاریخ",
+      "debit": "بدهکار",
+      "description": "توضیحات",
+      "document": "سند",
+      "kind": "نوع"
+    },
+    "fields": {
+      "currency": "واحد پول",
+      "customer": "مشتری",
+      "fromDate": "از",
+      "toDate": "تا"
+    },
+    "filters": {
+      "description": "یک مشتری انتخاب کنید؛ اختیاری: واحد پول و بازه تاریخ.",
+      "title": "فیلترهای صورت‌حساب"
+    },
+    "kind": {
+      "balance": "مانده",
+      "invoice": "فاکتور",
+      "voucher": "حواله"
+    },
+    "list": {
+      "empty": {
+        "description": "فاکتور یا حواله‌ای با این فیلترها نیست.",
+        "title": "ردیفی نیست"
+      },
+      "loading": "در حال ساخت صورت‌حساب…"
+    },
+    "page": {
+      "description": "صورت‌حساب مشتری — فاکتورها و تسویه‌ها",
+      "title": "دفتر"
+    },
+    "selectCustomer": "برای ساخت صورت‌حساب یک مشتری انتخاب کنید",
+    "statement": {
+      "closing": "مانده پایان دوره",
+      "opening": "مانده ابتدای دوره",
+      "period": "در بازه",
+      "subtitle": "{count} ردیف در بازه",
+      "title": "صورت‌حساب — {customer}"
     }
   },
   "letters": {
-    "page": {
-      "title": "نامه‌ها",
-      "description": "دفتر ثبت مکاتبات رسمی — وارده و صادره"
-    },
     "actions": {
+      "archive": "بایگانی",
       "create": "نامه جدید",
       "edit": "ویرایش",
-      "send": "ارسال",
-      "archive": "بایگانی",
       "reply": "پاسخ",
+      "send": "ارسال",
       "view": "مشاهده"
     },
-    "status": {
-      "DRAFT": "پیش‌نویس",
-      "SENT": "ارسال‌شده",
-      "RECEIVED": "دریافت‌شده",
-      "ARCHIVED": "بایگانی‌شده"
+    "confirm": {
+      "delete": {
+        "description": "نامه {number} حذف شود؟ فقط پیش‌نویس‌ها قابل حذف‌اند.",
+        "title": "حذف نامه"
+      }
+    },
+    "detail": {
+      "archivedOn": "تاریخ بایگانی",
+      "inReplyTo": "در پاسخ به",
+      "sentOn": "تاریخ ارسال",
+      "title": "نامه"
     },
     "direction": {
       "INCOMING": "وارده",
       "OUTGOING": "صادره"
     },
     "fields": {
-      "number": "شماره",
-      "direction": "جهت",
-      "subject": "موضوع",
-      "date": "تاریخ",
-      "contact": "طرف مکاتبه",
-      "fromContact": "از (سازمان/شخص)",
-      "toContact": "به (سازمان/شخص)",
-      "refNumber": "شماره مرجع",
       "body": "متن",
+      "contact": "طرف مکاتبه",
+      "customer": "مشتری",
+      "date": "تاریخ",
+      "direction": "جهت",
+      "fromContact": "از (سازمان/شخص)",
       "notes": "یادداشت",
+      "number": "شماره",
+      "refNumber": "شماره مرجع",
       "status": "وضعیت",
-      "customer": "مشتری"
-    },
-    "list": {
-      "title": "نامه‌ها",
-      "subtitle": "فیلتر بر اساس جهت، وضعیت و متن",
-      "search": "جستجوی شماره، موضوع، مرجع...",
-      "allStatuses": "همه وضعیت‌ها",
-      "allDirections": "همه جهت‌ها",
-      "empty": {
-        "title": "نامه‌ای ثبت نشده است",
-        "description": "اولین نامه‌ی وارده یا صادره را ثبت کنید."
-      }
+      "subject": "موضوع",
+      "toContact": "به (سازمان/شخص)"
     },
     "form": {
-      "title": "نامه جدید",
-      "editTitle": "ویرایش نامه",
       "description": "نامه‌های وارده بلافاصله «دریافت‌شده» ثبت می‌شوند؛ صادره از پیش‌نویس شروع می‌شود.",
-      "replyDescription": "پاسخ به‌صورت پیش‌نویس صادره و متصل به نامه‌ی اصلی ایجاد می‌شود.",
+      "editTitle": "ویرایش نامه",
       "errors": {
         "subjectRequired": "موضوع الزامی است"
       },
-      "replyTitle": "پاسخ به نامه"
+      "replyDescription": "پاسخ به‌صورت پیش‌نویس صادره و متصل به نامه‌ی اصلی ایجاد می‌شود.",
+      "replyTitle": "پاسخ به نامه",
+      "title": "نامه جدید"
     },
-    "confirm": {
-      "delete": {
-        "title": "حذف نامه",
-        "description": "نامه {number} حذف شود؟ فقط پیش‌نویس‌ها قابل حذف‌اند."
-      }
+    "list": {
+      "allDirections": "همه جهت‌ها",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "اولین نامه‌ی وارده یا صادره را ثبت کنید.",
+        "title": "نامه‌ای ثبت نشده است"
+      },
+      "search": "جستجوی شماره، موضوع، مرجع...",
+      "subtitle": "فیلتر بر اساس جهت، وضعیت و متن",
+      "title": "نامه‌ها"
     },
-    "detail": {
-      "inReplyTo": "در پاسخ به",
-      "sentOn": "تاریخ ارسال",
-      "archivedOn": "تاریخ بایگانی",
-      "title": "نامه"
-    }
-  },
-  "jobs": {
     "page": {
-      "title": "پروژه‌ها و هزینه‌یابی",
-      "description": "پروژه‌های مشتری با ردیف‌های درآمد/هزینه و سود زنده برای هر پروژه"
-    },
-    "actions": {
-      "create": "پروژه جدید",
-      "edit": "ویرایش",
-      "delete": "حذف",
-      "view": "مشاهده",
-      "start": "بازگشایی",
-      "complete": "تکمیل",
-      "cancel": "لغو پروژه",
-      "addItem": "افزودن ردیف"
+      "description": "دفتر ثبت مکاتبات رسمی — وارده و صادره",
+      "title": "نامه‌ها"
     },
     "status": {
+      "ARCHIVED": "بایگانی‌شده",
       "DRAFT": "پیش‌نویس",
-      "OPEN": "باز",
-      "COMPLETED": "تکمیل‌شده",
-      "CANCELLED": "لغوشده"
-    },
-    "type": {
-      "IMPORT_CLEARANCE": "ترخیص واردات",
-      "EXPORT": "صادرات",
-      "TRANSIT": "ترانزیت",
-      "CUSTOMS": "امور گمرکی",
-      "TRANSPORT": "حمل‌ونقل",
-      "OTHER": "سایر"
-    },
-    "fields": {
-      "number": "شماره پروژه",
-      "title": "عنوان",
-      "description": "توضیحات",
-      "jobType": "نوع پروژه",
-      "customer": "مشتری",
-      "voyage": "سفر",
-      "currency": "واحد پول",
-      "status": "وضعیت",
-      "openingDate": "تاریخ شروع",
-      "notes": "یادداشت",
-      "income": "درآمد",
-      "cost": "هزینه",
-      "profit": "سود",
-      "totalIncome": "درآمد",
-      "totalCost": "هزینه",
-      "completedOn": "تاریخ تکمیل",
-      "cancelledOn": "تاریخ لغو"
-    },
-    "list": {
-      "search": "شماره، عنوان یا مشتری…",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "پروژه‌ای ثبت نشده است",
-        "description": "برای شروع هزینه‌یابی، اولین پروژه را ثبت کنید."
-      }
-    },
-    "items": {
-      "title": "ردیف‌های هزینه‌یابی",
-      "addTitle": "افزودن ردیف",
-      "editTitle": "ویرایش ردیف",
-      "editing": "ویرایش ردیف…",
-      "add": "افزودن",
-      "empty": "هنوز ردیفی ثبت نشده — برای محاسبه سود، ردیف درآمد و هزینه اضافه کنید.",
-      "kind": {
-        "INCOME": "درآمد",
-        "COST": "هزینه"
-      },
-      "INCOME": "درآمد",
-      "COST": "هزینه",
-      "totals": "جمع کل",
-      "category": "دسته",
-      "description": "شرح",
-      "amount": "مبلغ",
-      "date": "تاریخ",
-      "errors": {
-        "descriptionRequired": "شرح الزامی است",
-        "descAmountRequired": "شرح و مبلغ الزامی است",
-        "badAmount": "مبلغ معتبر وارد کنید"
-      }
-    },
-    "form": {
-      "title": "ایجاد پروژه",
-      "editTitle": "ویرایش پروژه",
-      "description": "ردیف‌ها پس از ایجاد اضافه می‌شوند؛ سود سمت سرور محاسبه می‌شود.",
-      "noType": "(بدون نوع)",
-      "noCustomer": "— بدون مشتری —",
-      "noVoyage": "— بدون سفر —",
-      "errors": {
-        "titleRequired": "عنوان الزامی است"
-      }
-    },
-    "cancel": {
-      "title": "لغو پروژه",
-      "description": "دلیل لغو را وارد کنید (حسابرسی).",
-      "reason": "دلیل لغو",
-      "reasonPlaceholder": "مثلاً: انصراف مشتری"
-    },
-    "detail": {
-      "title": "پروژه",
-      "openedOn": "تاریخ بازگشایی",
-      "completedOn": "تاریخ تکمیل",
-      "cancelledOn": "تاریخ لغو"
-    },
-    "confirm": {
-      "start": {
-        "title": "بازگشایی پروژه",
-        "description": "پروژه {number} باز شود؟ ردیف‌های درآمد/هزینه همچنان قابل ویرایش‌اند."
-      },
-      "complete": {
-        "title": "تکمیل پروژه",
-        "description": "پروژه {number} با سود {profit} {currency} تکمیل شود؟ پس از تکمیل، ردیف‌ها قفل می‌شوند."
-      },
-      "delete": {
-        "title": "حذف پروژه",
-        "description": "پروژه {number} حذف شود؟ فقط پروژه‌های پیش‌نویس قابل حذف‌اند."
-      }
+      "RECEIVED": "دریافت‌شده",
+      "SENT": "ارسال‌شده"
     }
   },
-  "discharge": {
-    "page": {
-      "title": "تخلیه",
-      "description": "تخلیه بار در بندر مقصد — آینه‌ی بارگیری واقعی"
-    },
+  "login": {
+    "description": "برای دسترسی به فضای کاری از حساب کارمندی خود استفاده کنید.",
+    "email": "ایمیل",
+    "emailPlaceholder": "you@shipping.local",
+    "enterCredentials": "ایمیل و رمز عبور خود را وارد کنید.",
+    "heading": "ورود به سیستم",
+    "hidePassword": "پنهان کردن رمز عبور",
+    "password": "رمز عبور",
+    "restricted": "دسترسی فقط برای کارکنان مجاز است.",
+    "showPassword": "نمایش رمز عبور",
+    "subtitle": "برای ادامه، وارد حساب کاربری خود شوید.",
+    "title": "ورود",
+    "unableToSignIn": "ورود ممکن نیست. اتصال خود را بررسی و دوباره تلاش کنید."
+  },
+  "manifest": {
     "actions": {
-      "create": "تخلیه جدید",
-      "view": "مشاهده",
-      "start": "شروع تخلیه",
-      "complete": "تکمیل",
-      "cancel": "لغو تخلیه",
-      "delete": "حذف"
+      "approve": "تأیید",
+      "cancel": "لغو",
+      "close": "بستن",
+      "delete": "حذف",
+      "save": "ذخیره",
+      "submit": "ارسال",
+      "view": "مشاهده"
     },
-    "status": {
-      "NOT_STARTED": "شروع‌نشده",
-      "IN_PROGRESS": "در حال انجام",
-      "COMPLETED": "تکمیل‌شده",
-      "CANCELLED": "لغوشده"
-    },
-    "fields": {
-      "number": "شماره تخلیه",
-      "loading": "بارگیری واقعی",
-      "voyage": "سفر",
-      "vessel": "شناور",
-      "status": "وضعیت",
-      "lines": "ردیف",
-      "expected": "مورد انتظار",
-      "discharged": "تخلیه‌شده",
-      "notes": "یادداشت",
-      "pod": "بندر مقصد"
-    },
-    "list": {
-      "search": "شماره تخلیه، بارگیری، سفر، شناور…",
-      "allStatuses": "همه وضعیت‌ها",
-      "empty": {
-        "title": "تخلیه‌ای ثبت نشده است",
-        "description": "پس از رسیدن بارگیری تکمیل‌شده به بندر مقصد، تخلیه را ثبت کنید."
-      }
+    "allStatuses": "همه وضعیت‌ها",
+    "allVoyages": "همه سفرها",
+    "confirm": {
+      "approveBody": "مانیفست {no} تأیید شود؟ مانیفست تأییدشده قطعی و غیرقابل‌ویرایش است.",
+      "approveTitle": "تأیید مانیفست",
+      "cancelBody": "مانیفست {no} لغو شود؟ ذکر دلیل الزامی است. مانیفست لغوشده غیرقابل‌ویرایش است.",
+      "cancelTitle": "لغو مانیفست",
+      "confirmApprove": "تأیید",
+      "confirmCancel": "لغو مانیفست",
+      "confirmDelete": "حذف",
+      "confirmSubmit": "ارسال",
+      "deleteBody": "پیش‌نویس {no} حذف شود؟ مانیفست و قلم‌های آن به‌صورت نرم حذف می‌شوند.",
+      "deleteTitle": "حذف مانیفست",
+      "keep": "نگه داشتن",
+      "reason": "دلیل لغو *",
+      "submitBody": "مانیفست {no} برای تأیید ارسال شود؟ پس از ارسال، فقط‌خواندنی می‌شود.",
+      "submitTitle": "ارسال مانیفست"
     },
     "create": {
-      "title": "تخلیه جدید",
-      "description": "ردیف‌های مورد انتظار از بار واقعاً بارگیری‌شده پیش‌پر می‌شوند.",
-      "loadingLabel": "بارگیری واقعی (تکمیل‌شده)",
-      "loadingPlaceholder": "— انتخاب —",
-      "noLoadings": "بارگیری واقعی تکمیل‌شده‌ای برای تخلیه موجود نیست.",
-      "errors": {
-        "loadingRequired": "انتخاب بارگیری الزامی است"
-      }
+      "agent": "کارگزار",
+      "consignee": "گیرنده",
+      "description": "سفر موردنظر را انتخاب کنید. کشتی، مسیر و بنادر از سفر برداشت می‌شوند.",
+      "descriptionField": "توضیحات",
+      "errorVoyage": "یک سفر انتخاب کنید.",
+      "noVoyages": "سفری موجود نیست.",
+      "notes": "یادداشت‌ها",
+      "notifyParty": "طرف اطلاع‌رسانی",
+      "selectAgent": "کارگزار را انتخاب کنید…",
+      "selectConsignee": "گیرنده را انتخاب کنید…",
+      "selectShipper": "فرستنده را انتخاب کنید…",
+      "selectVoyage": "انتخاب سفر…",
+      "shipper": "فرستنده",
+      "submit": "ایجاد مانیفست",
+      "title": "مانیفست جدید",
+      "voyage": "سفر *"
+    },
+    "createdFrom": "از",
+    "createdTo": "تا",
+    "detail": {
+      "approvedAt": "تاریخ تأیید",
+      "cancelReason": "دلیل لغو",
+      "costs": "هزینه‌ها",
+      "currency": "واحد پول",
+      "draftHint": "پیش‌نویس — قابل ویرایش. بار را اضافه و سپس ارسال کنید.",
+      "gasCost": "هزینه سوخت",
+      "immutable": "مانیفست تأییدشده یا لغوشده قابل ویرایش نیست.",
+      "lashingCost": "هزینه مهاربندی",
+      "parties": "طرف‌ها",
+      "podCost": "هزینه بندر تخلیه",
+      "polCost": "هزینه بندر بارگیری",
+      "shipperCost": "هزینه فرستنده",
+      "submittedAt": "تاریخ ارسال",
+      "submittedHint": "ارسال‌شده — در انتظار تأیید.",
+      "totalPackages": "تعداد بسته‌ها",
+      "totalQuantity": "تعداد کل",
+      "totalWeight": "وزن کل"
+    },
+    "empty": {
+      "description": "جستجو یا فیلتر دیگری را امتحان کنید، یا برای سفری که بارگیری تکمیل‌شده دارد مانیفست بسازید.",
+      "title": "مانیفستی یافت نشد"
+    },
+    "errors": {
+      "addItem": "افزودن بار ناموفق بود",
+      "approve": "تأیید ناموفق بود",
+      "blOrNotes": "برای ذخیره، شماره B/L یا یادداشت وارد کنید.",
+      "cancel": "لغو ناموفق بود",
+      "create": "ایجاد مانیفست ناموفق بود",
+      "delete": "حذف ناموفق بود",
+      "loadDetail": "بارگذاری مانیفست ناموفق بود",
+      "loadList": "بارگذاری مانیفست‌ها ناموفق بود",
+      "reasonRequired": "دلیل لغو الزامی است.",
+      "removeItem": "حذف قلم ناموفق بود",
+      "save": "ذخیره ناموفق بود",
+      "submit": "ارسال ناموفق بود"
     },
     "items": {
+      "actions": "عملیات",
+      "addLabel": "افزودن بار",
+      "addTitle": "افزودن بار به مانیفست",
+      "blNumber": "شماره B/L",
       "cargo": "بار",
-      "result": {
-        "FULL": "کامل",
-        "PARTIAL": "جزئی",
-        "NOT_DISCHARGED": "تخلیه‌نشده"
-      },
-      "expected": "مورد انتظار",
-      "discharged": "تخلیه‌شده",
-      "totals": "جمع کل",
-      "errors": {
-        "nonnegative": "تعداد باید عدد صحیح نامنفی باشد",
-        "exceeds": "تعداد تخلیه از مورد انتظار بیشتر است ({expected})"
-      }
+      "eligibleEmpty": "بار مجازی وجود ندارد. ابتدا بارگیری واقعی این سفر را تکمیل کنید.",
+      "empty": "هنوز قلمی نیست. بارهای بارگیری‌شده را برای ساخت مانیفست بیفزایید.",
+      "notes": "یادداشت",
+      "packages": "بسته‌ها",
+      "quantity": "تعداد",
+      "remove": "حذف",
+      "selectEligible": "انتخاب بار…",
+      "seq": "ردیف",
+      "title": "قلم‌های مانیفست",
+      "weight": "وزن"
     },
-    "detail": {
-      "title": "تخلیه",
-      "createdOn": "تاریخ ثبت",
-      "completedOn": "تاریخ تکمیل",
-      "cancelledOn": "تاریخ لغو"
+    "loading": "در حال بارگذاری…",
+    "new": "مانیفست جدید",
+    "register": "دفتر مانیفست‌ها",
+    "registerHint": "مانیفست‌های رسمی بار — یک مانیفست به ازای هر سفر.",
+    "searchPlaceholder": "جستجوی شماره مانیفست، شماره سفر، نام کشتی",
+    "status": {
+      "APPROVED": "تأییدشده",
+      "CANCELLED": "لغوشده",
+      "DRAFT": "پیش‌نویس",
+      "SUBMITTED": "ارسال‌شده"
     },
-    "confirm": {
-      "start": {
-        "title": "شروع تخلیه",
-        "description": "تخلیه {number} شروع شود؟ در حال انجام، ردیف‌ها قابل ویرایش می‌مانند."
-      },
-      "complete": {
-        "title": "تکمیل تخلیه",
-        "description": "تخلیه {number} تکمیل شود؟ بارهای کاملاً تخلیه‌شده «تحویل‌شده» می‌شوند؛ کسری‌ها برای پیگیری ادعای باقی می‌مانند."
-      },
-      "delete": {
-        "title": "حذف تخلیه",
-        "description": "تخلیه {number} حذف شود؟ فقط تخلیه‌های شروع‌نشده/در حال انجام قابل حذف‌اند."
-      }
+    "subtitle": "مانیفست رسمی بارِ هر سفر را از بارگیری‌های تکمیل‌شده بسازید، سپس ارسال و تأیید کنید.",
+    "table": {
+      "actions": "عملیات",
+      "created": "تاریخ ایجاد",
+      "items": "قلم‌ها",
+      "no": "شماره",
+      "route": "مسیر",
+      "status": "وضعیت",
+      "totalWeight": "وزن کل",
+      "voyage": "سفر / کشتی"
     },
-    "cancel": {
-      "title": "لغو تخلیه",
-      "description": "دلیل لغو را وارد کنید (حسابرسی).",
-      "reason": "دلیل لغو",
-      "reasonPlaceholder": "مثلاً: تغییر پهلو"
-    }
+    "title": "مانیفست‌ها"
+  },
+  "nav": {
+    "accessControl": "کنترل دسترسی",
+    "actualLoading": "بارگیری واقعی",
+    "administration": "مدیریت",
+    "agentPortal": "پورتال ایجنت",
+    "agents": "نمایندگان",
+    "billOfLading": "بارنامه",
+    "bookings": "رزروهای ایجنت‌ها",
+    "cargo": "بار",
+    "commercial": "تجاری",
+    "correspondence": "مکاتبات",
+    "customers": "مشتریان",
+    "dashboard": "داشبورد",
+    "delivery": "حواله تحویل کالا",
+    "deliveryOrders": "دستور تحویل",
+    "discharge": "تخلیه",
+    "discharges": "تخلیه",
+    "employees": "کارکنان",
+    "insightControl": "گزارش و کنترل",
+    "inspection": "بازرسی",
+    "invoice": "invoice",
+    "invoices": "فاکتورها",
+    "jobs": "پروژه‌ها و هزینه‌یابی",
+    "ledger": "دفتر",
+    "letters": "نامه‌ها",
+    "loadList": "loadList",
+    "loadLists": "لیست بارگیری",
+    "loadPlanning": "برنامه‌ریزی بار",
+    "manifest": "مانیفست",
+    "masterData": "داده‌های پایه",
+    "operations": "عملیات",
+    "overview": "نمای کلی",
+    "payments": "پرداخت‌ها",
+    "people": "کارکنان و حقوق",
+    "permissions": "مجوزها",
+    "port": "port",
+    "portal": "پورتال",
+    "ports": "بندرها",
+    "proforma": "proforma",
+    "proformas": "پیش‌فاکتورها",
+    "quotation": "quotation",
+    "quotations": "استعلام‌بها",
+    "release": "مجوز ترخیص کالا",
+    "reports": "گزارش‌ها",
+    "roles": "نقش‌ها",
+    "salaryRecords": "فیش‌های حقوقی",
+    "settings": "تنظیمات",
+    "users": "کاربران",
+    "vessel": "vessel",
+    "vessels": "کشتی‌ها",
+    "vouchers": "حواله‌ها",
+    "voyage": "voyage",
+    "voyages": "سفرها",
+    "yard": "yard",
+    "yardInventory": "موجودی حیاط",
+    "yards": "حیاط‌ها"
   },
   "portal": {
-    "title": "پورتال ایجنت",
-    "notLinked": "این حساب به شرکت پورتال متصل نیست.",
-    "newBooking": "رزرو جدید",
     "cancelBooking": "لغو رزرو",
-    "tabs": {
-      "bookings": "رزروها",
-      "shipments": "حمل‌ها",
-      "statement": "صورت‌حساب"
-    },
-    "summary": {
-      "bookingsTotal": "کل رزروها",
-      "pending": "در انتظار پاسخ",
-      "approvedManifests": "مانیفست‌های تأییدشده",
-      "balanceDue": "مانده بدهی"
+    "create": {
+      "hint": "درخواست شما به میز رزرو ارسال می‌شود و به‌زودی پاسخ داده خواهد شد.",
+      "submit": "ارسال درخواست",
+      "title": "ثبت درخواست رزرو"
     },
     "fields": {
-      "number": "شماره",
+      "actions": "اقدامات",
       "cargo": "بار",
+      "containers": "کانتینر",
+      "number": "شماره",
+      "response": "پاسخ دفتر",
       "route": "مسیر",
       "shipDate": "تاریخ حمل",
-      "containers": "کانتینر",
-      "status": "وضعیت",
-      "response": "پاسخ دفتر",
-      "actions": "اقدامات"
+      "status": "وضعیت"
     },
     "form": {
       "cargoDescription": "شرح بار",
       "cargoDescriptionPlaceholder": "مثلاً: کویل فولاد، ۴ کانتینر ۲۰ فوتی",
-      "originPort": "بندر مبدأ",
-      "destinationPort": "بندر مقصد",
-      "requestedShipDate": "تاریخ حمل درخواستی",
       "containers": "تعداد کانتینر (تقریبی)",
       "containersHint": "تعداد تقریبی",
-      "weightKg": "وزن (کیلوگرم)",
+      "destinationPort": "بندر مقصد",
       "notes": "توضیحات",
-      "notesPlaceholder": "نکات خاص و درخواست‌ها…"
-    },
-    "create": {
-      "title": "ثبت درخواست رزرو",
-      "hint": "درخواست شما به میز رزرو ارسال می‌شود و به‌زودی پاسخ داده خواهد شد.",
-      "submit": "ارسال درخواست"
+      "notesPlaceholder": "نکات خاص و درخواست‌ها…",
+      "originPort": "بندر مبدأ",
+      "requestedShipDate": "تاریخ حمل درخواستی",
+      "weightKg": "وزن (کیلوگرم)"
     },
     "list": {
       "allStatuses": "همه وضعیت‌ها",
       "empty": "هنوز رزروی ثبت نشده است",
       "emptyHint": "اولین درخواست رزرو خود را ثبت کنید"
     },
+    "manifest": {
+      "APPROVED": "تأییدشده",
+      "CANCELLED": "لغوشده",
+      "DRAFT": "پیش‌نویس",
+      "SUBMITTED": "ارسال‌شده"
+    },
+    "newBooking": "رزرو جدید",
+    "notLinked": "این حساب به شرکت پورتال متصل نیست.",
     "shipments": {
       "empty": "هنوز حملی برای شرکت شما ثبت نشده است",
-      "manifest": "مانیفست",
-      "status": "وضعیت",
-      "vessel": "شناور",
-      "route": "مسیر",
-      "etd": "تاریخ حرکت",
       "eta": "تاریخ ورود",
-      "weight": "وزن",
-      "units": "تعداد"
+      "etd": "تاریخ حرکت",
+      "manifest": "مانیفست",
+      "route": "مسیر",
+      "status": "وضعیت",
+      "units": "تعداد",
+      "vessel": "شناور",
+      "weight": "وزن"
     },
     "statement": {
-      "date": "تاریخ",
-      "doc": "سند",
-      "description": "شرح",
-      "debit": "بدهکار",
-      "credit": "بستانکار",
       "balance": "مانده",
-      "opening": "مانده ابتدای دوره",
-      "debits": "جمع بدهکار",
-      "credits": "جمع بستانکار",
       "closing": "مانده پایان دوره",
-      "empty": "گردش حسابی موجود نیست"
+      "credit": "بستانکار",
+      "credits": "جمع بستانکار",
+      "date": "تاریخ",
+      "debit": "بدهکار",
+      "debits": "جمع بدهکار",
+      "description": "شرح",
+      "doc": "سند",
+      "empty": "گردش حسابی موجود نیست",
+      "opening": "مانده ابتدای دوره"
     },
     "status": {
-      "PENDING": "در انتظار",
       "ACCEPTED": "تأییدشده",
+      "CANCELLED": "لغوشده",
       "DECLINED": "ردشده",
-      "CANCELLED": "لغوشده"
+      "PENDING": "در انتظار"
     },
-    "manifest": {
-      "DRAFT": "پیش‌نویس",
-      "SUBMITTED": "ارسال‌شده",
-      "APPROVED": "تأییدشده",
-      "CANCELLED": "لغوشده"
+    "summary": {
+      "approvedManifests": "مانیفست‌های تأییدشده",
+      "balanceDue": "مانده بدهی",
+      "bookingsTotal": "کل رزروها",
+      "pending": "در انتظار پاسخ"
+    },
+    "tabs": {
+      "bookings": "رزروها",
+      "shipments": "حمل‌ها",
+      "statement": "صورت‌حساب"
+    },
+    "title": "پورتال ایجنت"
+  },
+  "ports": {
+    "abbreviation": {
+      "column": "مختصر",
+      "detail": "اختصار",
+      "empty": "—",
+      "hint": "اختیاری. کد کوتاه و یکتای بندر، حداکثر ۱۰ کاراکتر.",
+      "label": "اختصار",
+      "placeholder": "مثلاً JEA",
+      "validation": "اختصار باید حداکثر ۱۰ کاراکتر باشد."
     }
   },
-  "bookings": {
-    "title": "رزروهای ایجنت‌ها",
-    "subtitle": "بررسی و پاسخ به درخواست‌های رزرو شرکت‌های ایجنت",
-    "allCompanies": "همه شرکت‌ها",
-    "allStatuses": "همه وضعیت‌ها",
-    "searchPlaceholder": "جستجوی شماره رزرو یا شرح بار…",
-    "detail": "جزئیات",
-    "detailTitle": "رزرو",
-    "empty": "درخواست رزروی وجود ندارد",
+  "proforma": {
+    "actions": {
+      "cancelOrder": "ابطال پیش‌فاکتور",
+      "cancelling": "در حال ابطال…",
+      "convert": "تبدیل به فاکتور",
+      "create": "پیش‌فاکتور جدید",
+      "issue": "صدور"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "پیش‌فاکتور باطل‌شده غیرقابل بازگشت است و بعداً قابل حذف است.",
+        "reason": "دلیل",
+        "reasonPlaceholder": "چرا این پیش‌فاکتور باطل می‌شود؟",
+        "title": "ابطال پیش‌فاکتور؟"
+      },
+      "issue": {
+        "description": "پس از صدور، سطرهای عنوان و شرح قفل می‌شوند.",
+        "title": "صدور پیش‌فاکتور؟"
+      }
+    },
+    "convert": {
+      "body": "این پیش‌فاکتور «تبدیل‌شده» علامت می‌خورد؛ تبدیل فقط یک‌بار ممکن است.",
+      "converting": "در حال تبدیل…",
+      "description": "با این کار یک فاکتور پیش‌نویس با همان سطرها و مبالغ ساخته می‌شود.",
+      "resultHint": "در صفحه فاکتورها بازبینی و سپس صادرش کنید.",
+      "resultLine": "فاکتور پیش‌نویس {number} از این پیش‌فاکتور ساخته شد.",
+      "resultTitle": "فاکتور ساخته شد",
+      "title": "تبدیل به فاکتور"
+    },
+    "create": {
+      "addItem": "افزودن سطر",
+      "creating": "در حال ساخت…",
+      "description": "سطرها و در صورت نیاز مالیات/تخفیف را اضافه کنید — جمع‌ها خودکار محاسبه می‌شوند.",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است",
+        "itemsRequired": "حداقل یک سطر اضافه کنید"
+      },
+      "itemDescription": "شرح",
+      "itemsTitle": "سطرها",
+      "qty": "تعداد",
+      "selectCustomer": "انتخاب مشتری…",
+      "title": "پیش‌فاکتور جدید",
+      "titlePlaceholder": "مثلاً استعلام کرایه — کشتی علی / سفر ۱۲",
+      "unitPrice": "بهای واحد"
+    },
+    "detail": {
+      "convertedBadge": "تبدیل‌شده",
+      "items": "سطرها",
+      "lineTotal": "مبلغ",
+      "title": "جزئیات پیش‌فاکتور"
+    },
     "fields": {
+      "cancelReason": "دلیل ابطال",
+      "convertedTo": "تبدیل‌شده به",
+      "currency": "واحد پول",
+      "customer": "مشتری",
+      "description": "توضیحات",
+      "discount": "تخفیف",
+      "issueDate": "تاریخ صدور",
+      "notes": "یادداشت‌ها",
       "number": "شماره",
-      "company": "شرکت",
-      "cargo": "بار",
-      "route": "مسیر",
-      "shipDate": "تاریخ حمل",
       "status": "وضعیت",
-      "containers": "کانتینر",
-      "weightKg": "وزن (کیلوگرم)",
-      "created": "تاریخ ثبت",
-      "notes": "توضیحات",
-      "response": "پاسخ",
-      "responseNote": "متن پاسخ"
+      "taxRate": "نرخ مالیات ٪",
+      "title": "عنوان",
+      "total": "مبلغ کل",
+      "validUntil": "اعتبار تا"
     },
-    "respond": {
-      "title": "پاسخ به درخواست",
-      "accept": "تأیید",
-      "decline": "رد",
-      "notePlaceholder": "متن پاسخ (اختیاری)…",
-      "submit": "ثبت پاسخ",
-      "noPermission": "برای پاسخ به درخواست‌ها نیاز به مجوز booking:respond دارید."
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "برای شروع، اولین پیش‌فاکتور را بسازید.",
+        "title": "پیش‌فاکتوری ثبت نشده"
+      },
+      "search": "جستجو با شماره، عنوان یا مشتری",
+      "subtitle": "پیش‌فاکتورهای پیش‌نویس قابل ویرایش‌اند؛ پس از صدور، برای تبدیل قفل می‌شوند.",
+      "title": "فهرست پیش‌فاکتورها",
+      "unconvertedOnly": "فقط تبدیل‌نشده‌ها"
+    },
+    "page": {
+      "description": "پیش‌فاکتور و استعلام قیمت — با یک کلیک به فاکتور رسمی تبدیل می‌شوند.",
+      "title": "پیش‌فاکتورها"
+    },
+    "status": {
+      "CANCELLED": "باطل‌شده",
+      "DRAFT": "پیش‌نویس",
+      "ISSUED": "صادرشده"
+    },
+    "totals": {
+      "subtotal": "جمع سطرها",
+      "tax": "مالیات",
+      "total": "مبلغ کل"
     }
   },
-  "booking": {
+  "quotation": {
+    "actions": {
+      "accept": "پذیرش",
+      "cancelling": "در حال لغو...",
+      "convert": "تبدیل",
+      "create": "استعلام جدید",
+      "reject": "رد",
+      "rejecting": "در حال رد...",
+      "send": "ارسال"
+    },
+    "confirm": {
+      "accept": {
+        "description": "با پذیرش، امکان تبدیل به پیش‌فاکتور فراهم می‌شود.",
+        "title": "پذیرش استعلام‌بها"
+      },
+      "cancel": {
+        "description": "دلیل لغو را وارد کنید.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "مثلاً: جایگزین شد",
+        "title": "لغو استعلام‌بها"
+      },
+      "reject": {
+        "description": "دلیل رد را وارد کنید.",
+        "reason": "دلیل رد",
+        "reasonPlaceholder": "مثلاً: قیمت بالاتر از بودجه مشتری",
+        "title": "رد استعلام‌بها"
+      },
+      "send": {
+        "description": "پس از ارسال، اقلام و مبالغ قابل ویرایش نیستند.",
+        "title": "ارسال استعلام‌بها"
+      }
+    },
+    "convert": {
+      "body": "استعلام {number} با مجموع {total} {currency} به پیش‌فاکتور تبدیل شود؟",
+      "converting": "در حال تبدیل...",
+      "description": "این استعلام‌بهای پذیرفته‌شده یک‌بار به پیش‌فاکتور پیش‌نویس تبدیل می‌شود.",
+      "resultHint": "پیش‌فاکتور در وضعیت پیش‌نویس است و پس از صدور قابل تبدیل به فاکتور است.",
+      "resultLine": "پیش‌فاکتور {number} ساخته شد.",
+      "resultTitle": "تبدیل انجام شد",
+      "title": "تبدیل به پیش‌فاکتور"
+    },
+    "create": {
+      "addItem": "افزودن قلم",
+      "creating": "در حال ایجاد...",
+      "description": "سربرگ و اقلام را وارد کنید؛ مجموع‌ها خودکار محاسبه می‌شوند.",
+      "errors": {
+        "customerRequired": "انتخاب مشتری الزامی است",
+        "itemsRequired": "حداقل یک قلم لازم است"
+      },
+      "itemDescription": "شرح قلم",
+      "itemsTitle": "اقلام",
+      "qty": "تعداد",
+      "selectCustomer": "انتخاب مشتری...",
+      "title": "ایجاد استعلام‌بها",
+      "unitPrice": "قیمت واحد"
+    },
+    "detail": {
+      "convertedBadge": "تبدیل‌شده به {number}",
+      "items": "اقلام",
+      "lineTotal": "مجموع خط"
+    },
+    "fields": {
+      "cancelReason": "دلیل لغو",
+      "convertedTo": "تبدیل‌شده به",
+      "currency": "واحد پول",
+      "customer": "مشتری",
+      "description": "شرح",
+      "discount": "تخفیف",
+      "issueDate": "تاریخ ارسال",
+      "notes": "یادداشت",
+      "number": "شماره",
+      "rejectReason": "دلیل رد",
+      "status": "وضعیت",
+      "taxRate": "نرخ مالیات %",
+      "title": "عنوان",
+      "total": "مجموع",
+      "validUntil": "اعتبار تا"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "convertibleOnly": "فقط قابل تبدیل",
+      "empty": {
+        "description": "برای شروع، یک استعلام‌بها ایجاد کنید.",
+        "title": "استعلام‌بهایی ثبت نشده است"
+      },
+      "search": "جستجو...",
+      "subtitle": "جستجو، فیلتر و مدیریت استعلام‌بها",
+      "title": "فهرست استعلام‌بها"
+    },
+    "page": {
+      "description": "استعلام‌بهای ارسال‌شده برای مشتری — قابل تبدیل به پیش‌فاکتور",
+      "title": "استعلام‌بها"
+    },
     "status": {
-      "PENDING": "در انتظار",
-      "ACCEPTED": "تأییدشده",
-      "DECLINED": "ردشده",
-      "CANCELLED": "لغوشده"
+      "ACCEPTED": "پذیرفته‌شده",
+      "CANCELLED": "لغوشده",
+      "DRAFT": "پیش‌نویس",
+      "REJECTED": "ردشده",
+      "SENT": "ارسال‌شده"
+    },
+    "totals": {
+      "subtotal": "جمع فرعی",
+      "tax": "مالیات",
+      "total": "مجموع کل"
+    }
+  },
+  "releaseOrder": {
+    "actions": {
+      "cancelOrder": "لغو مجوز",
+      "create": "مجوز جدید",
+      "view": "مشاهده"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "بارنامه دوباره قابل ترخیص می‌شود؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این مجوز لغو می‌شود؟",
+        "title": "این مجوز لغو شود؟"
+      },
+      "delete": {
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود.",
+        "title": "این مجوز لغوشده حذف شود؟"
+      }
+    },
+    "create": {
+      "blockedNeedsForce": "فاکتورها پرداخت‌نشده‌اند: یا تسویه کنید، یا گزینه تأیید ویژه را با دلیل فعال کنید.",
+      "blockedTitle": "مانده بدهی",
+      "checkingEligibility": "بررسی تسویه…",
+      "creating": "در حال ساخت…",
+      "description": "همه فاکتورهای صادرشده بارنامه باید تسویه باشند، یا با تأیید ویژه صادر شود.",
+      "eligibilityLine": "فاکتورشده {total} — پرداخت‌شده {paid} — مانده {outstanding}",
+      "errors": {
+        "billRequired": "انتخاب بارنامه الزامی است",
+        "overrideReasonRequired": "دلیل تأیید ویژه الزامی است"
+      },
+      "forceOverride": "عبور از الزام پرداخت (ثبت برای ممیزی)",
+      "overrideReasonPlaceholder": "چرا با وجود مانده بدهی ترخیص شود؟",
+      "readyTitle": "آماده ترخیص",
+      "selectBill": "انتخاب بارنامه",
+      "title": "ساخت مجوز ترخیص"
+    },
+    "detail": {
+      "headerTitle": "مجوز ترخیص"
+    },
+    "fields": {
+      "bill": "بارنامه",
+      "cancelReason": "دلیل لغو",
+      "docNumber": "شماره مجوز",
+      "financial": "مالی",
+      "invoicesPaid": "پرداخت‌شده",
+      "invoicesTotal": "فاکتورشده",
+      "notes": "یادداشت",
+      "override": "تأیید ویژه",
+      "overrideReason": "دلیل تأیید ویژه",
+      "releaseDate": "تاریخ ترخیص",
+      "settled": "تسویه‌شده",
+      "status": "وضعیت"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "description": "پس از تسویه فاکتورهای بارنامه، مجوز صادر کنید.",
+        "title": "مجوز ترخیصی نیست"
+      },
+      "search": "جستجو با شماره یا یادداشت",
+      "subtitle": "یک مجوز فعال برای هر بارنامه؛ قاعده مالی اجرا می‌شود",
+      "title": "دفتر مجوز ترخیص"
+    },
+    "page": {
+      "description": "مجوز خروج بار بر اساس بارنامه (R/O) — تسویه‌شده یا با تأیید ویژه",
+      "title": "مجوز ترخیص کالا"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "ISSUED": "صادرشده"
+    }
+  },
+  "roles": {
+    "actions": "عملیات",
+    "create": {
+      "description": "یک نقش جدید با دسترسی‌ها بسازید",
+      "title": "ایجاد نقش"
+    },
+    "edit": {
+      "description": "نام و دسترسی‌های نقش را ویرایش کنید",
+      "title": "ویرایش نقش"
+    },
+    "page": {
+      "description": "مدیریت نقش‌ها و دسترسی‌ها",
+      "title": "صفحه نقش‌ها"
+    },
+    "permission": "دسترسی",
+    "status": "وضعیت"
+  },
+  "salary": {
+    "actions": {
+      "approve": "تأیید",
+      "cancel": "لغو",
+      "cancelling": "در حال لغو...",
+      "create": "فیش جدید",
+      "delete": "حذف",
+      "pay": "پرداخت",
+      "view": "مشاهده"
+    },
+    "cancel": {
+      "description": "دلیل لغو را وارد کنید (حسابرسی).",
+      "reason": "دلیل لغو",
+      "reasonPlaceholder": "مثلاً: ترک کار",
+      "title": "لغو فیش"
+    },
+    "confirm": {
+      "approve": {
+        "description": "فیش {number} با خالص {net} تأیید شود؟ پس از تأیید قابل ویرایش نیست.",
+        "title": "تأیید فیش"
+      },
+      "delete": {
+        "description": "فیش {number} حذف شود؟ فقط فیش‌های پیش‌نویس قابل حذف‌اند.",
+        "title": "حذف فیش"
+      }
+    },
+    "create": {
+      "creating": "در حال ایجاد...",
+      "description": "پایه و واحد پول از پروفایل کارمند پیش‌فرض می‌شوند.",
+      "errors": {
+        "employeeRequired": "انتخاب کارمند الزامی است"
+      },
+      "selectEmployee": "انتخاب کارمند...",
+      "title": "ایجاد فیش حقوقی"
+    },
+    "detail": {
+      "approvedOn": "تاریخ تأیید",
+      "cancelledOn": "تاریخ لغو",
+      "createdAt": "تاریخ ایجاد",
+      "paidOn": "تاریخ پرداخت",
+      "title": "فیش حقوقی"
+    },
+    "fields": {
+      "additions": "افزودنی‌ها",
+      "base": "پایه",
+      "cancelReason": "دلیل لغو",
+      "currency": "واحد پول",
+      "deductions": "کسورات",
+      "employee": "کارمند",
+      "month": "ماه",
+      "net": "خالص پرداختی",
+      "notes": "یادداشت",
+      "number": "شماره",
+      "paymentMethod": "روش پرداخت",
+      "paymentRef": "مرجع پرداخت",
+      "period": "دوره",
+      "status": "وضعیت",
+      "year": "سال"
+    },
+    "list": {
+      "allEmployees": "همه کارکنان",
+      "allMonths": "همه ماه‌ها",
+      "allStatuses": "همه وضعیت‌ها",
+      "allYears": "همه سال‌ها",
+      "empty": {
+        "description": "برای شروع چرخه حقوق، اولین فیش را ثبت کنید.",
+        "title": "فیشی ثبت نشده است"
+      },
+      "search": "جستجو...",
+      "subtitle": "فیلتر بر اساس دوره، کارمند و وضعیت",
+      "title": "فیش‌های حقوقی"
+    },
+    "method": {
+      "BANK_TRANSFER": "انتقال بانکی",
+      "CASH": "نقدی",
+      "CHEQUE": "چک",
+      "OTHER": "سایر"
+    },
+    "page": {
+      "description": "فیش ماهانه — پیش‌نویس، تأیید، پرداخت",
+      "title": "فیش‌های حقوقی"
+    },
+    "pay": {
+      "description": "ماهیت پرداخت روی فیش ثبت می‌شود.",
+      "paying": "در حال ثبت...",
+      "referencePlaceholder": "مثلاً TRF-12345",
+      "title": "ثبت پرداخت"
+    },
+    "status": {
+      "APPROVED": "تأییدشده",
+      "CANCELLED": "لغوشده",
+      "DRAFT": "پیش‌نویس",
+      "PAID": "پرداخت‌شده"
+    }
+  },
+  "system": {
+    "checkedAt": "بررسی {time}",
+    "checking": "در حال بررسی…",
+    "issue": "مشکل سیستم",
+    "operational": "سیستم فعال"
+  },
+  "topbar": {
+    "language": "زبان",
+    "openNav": "باز کردن منو",
+    "signedIn": "وارد شده",
+    "switchToEnglish": "English",
+    "switchToPersian": "فارسی"
+  },
+  "voucher": {
+    "actions": {
+      "cancelVoucher": "لغو حواله",
+      "cancelling": "در حال لغو…",
+      "create": "حواله جدید",
+      "save": "ذخیره"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "اثر آن روی فاکتور برمی‌گردد؛ ردیف برای ممیزی می‌ماند.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این حواله لغو می‌شود؟",
+        "title": "این حواله لغو شود؟"
+      },
+      "delete": {
+        "description": "ردیف لغوشده برای همیشه حذف می‌شود.",
+        "title": "این حواله لغوشده حذف شود؟"
+      }
+    },
+    "create": {
+      "creating": "در حال ساخت…",
+      "description": "رسید (ورود پول) یا پرداخت (بازگشت). با اتصال فاکتور، تسویه می‌شود.",
+      "errors": {
+        "amountRequired": "مبلغ باید مثبت باشد",
+        "customerRequired": "انتخاب مشتری الزامی است"
+      },
+      "noInvoice": "بدون فاکتور (مستقل)",
+      "selectCustomer": "انتخاب مشتری",
+      "title": "ساخت حواله"
+    },
+    "fields": {
+      "amount": "مبلغ",
+      "cancelReason": "دلیل لغو",
+      "currencyCode": "واحد پول",
+      "customer": "مشتری",
+      "description": "توضیحات",
+      "invoice": "فاکتور",
+      "method": "روش",
+      "note": "یادداشت",
+      "reference": "ارجاع",
+      "status": "وضعیت",
+      "type": "نوع",
+      "voucherDate": "تاریخ ارزش",
+      "voucherNumber": "شماره حواله"
+    },
+    "list": {
+      "allStatuses": "همه وضعیت‌ها",
+      "allTypes": "همه انواع",
+      "empty": {
+        "description": "اولین رسید یا پرداخت را ثبت کنید.",
+        "title": "هنوز حواله‌ای نیست"
+      },
+      "search": "جستجو با شماره، ارجاع یا توضیحات",
+      "subtitle": "اسناد مالی ثبت‌شده برای مشتریان و فاکتورها",
+      "title": "دفتر حواله"
+    },
+    "method": {
+      "BANK_TRANSFER": "انتقال بانکی",
+      "CASH": "نقدی",
+      "CHEQUE": "چک",
+      "OTHER": "سایر"
+    },
+    "page": {
+      "description": "رسید و پرداخت",
+      "title": "حواله‌ها"
+    },
+    "status": {
+      "CANCELLED": "لغوشده",
+      "POSTED": "ثبت‌شده"
+    },
+    "type": {
+      "PAYMENT": "پرداخت",
+      "RECEIPT": "رسید"
+    }
+  },
+  "vessels": {
+    "detail": {
+      "type": "نوع"
+    },
+    "filter": {
+      "allTypes": "همه انواع"
+    },
+    "form": {
+      "type": "نوع شناور"
+    },
+    "type": {
+      "BARGE": "بارج",
+      "BULK": "فله‌بر",
+      "CONTAINER": "کانتینری",
+      "GENERAL": "بار عمومی",
+      "LANDING_CRAFT": "لاندینگ کرفت",
+      "OTHER": "سایر",
+      "PROJECT": "پروژه‌ای",
+      "RORO": "رو-رو",
+      "TANKER": "نفتکش",
+      "TUG": "یدک‌کش"
+    }
+  },
+  "voyages": {
+    "pairing": {
+      "barge": "بارج",
+      "hint": "اختیاری — یدک‌کش و بارج را برای این سفر جفت کنید.",
+      "noneBarge": "بدون بارج",
+      "noneTug": "بدون یدک‌کش",
+      "tug": "یدک‌کش"
+    },
+    "legs": {
+      "title": "مقصدها",
+      "hint": "هر مقصد شمارهٔ خودش را دارد (مثلاً 1/26). مقصد اول، مرحلهٔ ۱ است.",
+      "add": "افزودن مقصد",
+      "remove": "حذف",
+      "rowLabel": "مقصد {n}",
+      "selectPlaceholder": "انتخاب…",
+      "removeLabel": "حذف مقصد {n}",
+      "previewTitle": "شمارهٔ سفر بعدی برای این مقصد",
+      "previewPrefix": "شمارهٔ بعدی برای مقصد اصلی:",
+      "emptyRow": "برای هر ردیف مقصد، یک بندر انتخاب کنید.",
+      "duplicate": "مقصد تکراری — هر مقصد فقط یک بار می‌تواند بیاید.",
+      "legColumn": "مرحله",
+      "destinationColumn": "مقصد",
+      "numberColumn": "شماره سفر"
     }
   }
 }

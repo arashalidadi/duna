@@ -45,15 +45,17 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const STATUSES: ActualLoadingStatus[] = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+const STATUSES: ActualLoadingStatus[] = ['DRAFT', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 const STATUS_META: Record<
   ActualLoadingStatus,
   { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
 > = {
-  NOT_STARTED: { label: 'Not started', variant: 'neutral' },
+  DRAFT: { label: 'Not started', variant: 'neutral' },
   IN_PROGRESS: { label: 'In progress', variant: 'info' },
+  PARTIALLY_LOADED: { label: 'Partially loaded', variant: 'warning' },
   COMPLETED: { label: 'Completed', variant: 'success' },
+  FINALIZED: { label: 'Finalized', variant: 'danger' },
   CANCELLED: { label: 'Cancelled', variant: 'neutral' },
 };
 
@@ -314,7 +316,7 @@ export default function ActualLoadingPage() {
     }
   }
 
-  const editable = detail !== null && (detail.status === 'NOT_STARTED' || detail.status === 'IN_PROGRESS');
+  const editable = detail !== null && (detail.status === 'DRAFT' || detail.status === 'IN_PROGRESS');
 
   return (
     <div className="space-y-4">
@@ -456,7 +458,7 @@ export default function ActualLoadingPage() {
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        {canUpdate && row.status === 'NOT_STARTED' && (
+                        {canUpdate && row.status === 'DRAFT' && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -478,7 +480,7 @@ export default function ActualLoadingPage() {
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        {canCancel && (row.status === 'NOT_STARTED' || row.status === 'IN_PROGRESS') && (
+                        {canCancel && (row.status === 'DRAFT' || row.status === 'IN_PROGRESS') && (
                           <Button
                             variant="ghost"
                             size="icon"

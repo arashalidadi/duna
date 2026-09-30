@@ -32,8 +32,16 @@ import { SalaryModule } from './modules/salary/salary.module';
 import { LettersModule } from './modules/letters/letters.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { JwtAuthGuard } from './common/auth/guards/jwt-auth.guard';
+import { ShippersModule } from './modules/shippers/shippers.module';
+import { ConsigneesModule } from './modules/consignees/consignees.module';
+import { AgentsModule } from './modules/agents/agents.module';
 import { PermissionsGuard } from './common/auth/guards/permissions.guard';
 import { AppController } from './app.controller';
+import { StorageModule } from './common/infrastructure/storage/storage.module';
+import { AuditModule } from './common/infrastructure/audit/audit.module';
+import { NumberingModule } from './common/infrastructure/numbering/numbering.module';
+import { AttachmentModule } from './common/infrastructure/attachment/attachment.module';
+import { DocumentTemplateModule } from './common/infrastructure/templates/document-template.module';
 
 @Module({
   imports: [
@@ -68,8 +76,18 @@ import { AppController } from './app.controller';
     ProformaModule,
     QuotationModule,
     SalaryModule,
-      LettersModule,
-      JobsModule,
+    LettersModule,
+    JobsModule,
+    // Phase 2 master data (party model)
+    ShippersModule,
+    ConsigneesModule,
+    AgentsModule,
+    // Phase 1 infrastructure (global — available to all modules)
+    StorageModule,
+    AuditModule,
+    NumberingModule,
+    AttachmentModule,
+    DocumentTemplateModule,
   ],
   controllers: [AppController],
   providers: [

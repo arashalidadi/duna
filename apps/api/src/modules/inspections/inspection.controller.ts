@@ -46,21 +46,51 @@ export class InspectionController {
     return this.inspectionService.update(id, dto);
   }
 
-  @Post(':id/approve')
+  /**
+   * Book: PENDING → BOOKED.
+   * Books an inspection for execution.
+   */
+  @Post(':id/book')
   @HttpCode(HttpStatus.OK)
-  @RequirePermissions('inspection:approve')
-  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.inspectionService.approve(id, user);
+  @RequirePermissions('inspection:update')
+  book(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.inspectionService.book(id, user);
   }
 
-  @Post(':id/reject')
+  /**
+   * Done: PENDING/BOOKED → DONE.
+   * Marks inspection successful; cargo becomes loading-eligible.
+   */
+  @Post(':id/done')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('inspection:approve')
+  done(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.inspectionService.done(id, user);
+  }
+
+  /**
+   * Fail: PENDING/BOOKED → FAILED.
+   * Requires a rejection reason; cargo is not loading-eligible.
+   */
+  @Post(':id/fail')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('inspection:reject')
-  reject(
+  fail(
     @Param('id') id: string,
     @Body() dto: RejectInspectionDto,
-    @CurrentUser() user: AuthenticatedUser
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.inspectionService.reject(id, dto, user);
+    return this.inspectionService.fail(id, dto, user);
+  }
+
+  /**
+   * Needs Re-inspection: FAILED → NEEDS_REINSPECTION.
+   * Re-opens the cargo for a new inspection cycle (cargo inspectionStatus → PENDING).
+   */
+  @Post(':id/needs-re-inspection')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('inspection:update')
+  needsReInspection(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.inspectionService.needsReInspection(id, user);
   }
 }

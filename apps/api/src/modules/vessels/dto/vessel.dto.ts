@@ -19,6 +19,9 @@ export const VESSEL_TYPES = [
   'GENERAL',
   'PROJECT',
   'OTHER',
+  'TUG',
+  'BARGE',
+  'LANDING_CRAFT',
 ] as const;
 
 /** IMO number: exactly 7 digits (international standard); supplied optionally. */

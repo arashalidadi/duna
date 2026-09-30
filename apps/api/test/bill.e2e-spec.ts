@@ -39,8 +39,10 @@ describe('BillOfLading (e2e)', () => {
   const createdCargos: Ref[] = [];
   const createdLoadLists: Ref[] = [];
   const createdManifests: Ref[] = [];
+  const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
 
   let adminToken = '';
+  let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
   let readerToken = ''; // bill:read only
   let writerToken = ''; // read + create + update
   let issuerToken = ''; // read + issue
@@ -91,6 +93,20 @@ describe('BillOfLading (e2e)', () => {
       .expect(200);
     adminToken = login.body.data.accessToken as string;
     expect(adminToken).toBeDefined();
+
+    // Phase 2 cutover (party-cutover-plan.md §3): B/L parties derive from the
+    // manifest's master refs — fixture Shipper replaces the old Customer id.
+    const { PrismaClient } = require('@prisma/client');
+    const partyFx = new PrismaClient();
+    try {
+      const shp = await partyFx.shipper.create({
+        data: { code: `BLSP-${tag}`, name: `Bill Test Shipper ${randomTag}` },
+      });
+      fixtureShipperId = shp.id;
+      createdPartyMasters.push({ id: shp.id });
+    } finally {
+      await partyFx.$disconnect();
+    }
 
     readerToken = await createRoleToken(`BLREAD_${tag}`, ['bill:read'], `bl-read-${emailSuffix}@shipping.local`);
     writerToken = await createRoleToken(
@@ -319,7 +335,7 @@ describe('BillOfLading (e2e)', () => {
     const mf = await request(app.getHttpServer())
       .post('/api/v1/manifests')
       .set(auth(adminToken))
-      .send({ voyageId, shipperId: customerId, notes: 'BL fixture manifest' })
+      .send({ voyageId, shipperId: fixtureShipperId, notes: 'BL fixture manifest' })
       .expect(201);
     manifestId = mf.body.data.id;
     createdManifests.push({ id: manifestId });
@@ -360,6 +376,7 @@ describe('BillOfLading (e2e)', () => {
       await prisma.billOfLading.deleteMany({ where: { manifestId: { in: manifestIds } } });
       await prisma.manifestItem.deleteMany({ where: { manifestId: { in: manifestIds } } });
       await prisma.manifest.deleteMany({ where: { id: { in: manifestIds } } });
+      await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       await prisma.actualLoadingItem.deleteMany({ where: { actualLoading: { loadListId: { in: loadListIds } } } });
       await prisma.actualLoading.deleteMany({ where: { loadListId: { in: loadListIds } } });
       await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });
@@ -499,8 +516,9 @@ describe('BillOfLading (e2e)', () => {
     expect(created.voyageId).toBe(voyageId);
     expect(created.items).toEqual([]);
     expect(created.vesselName).toBe(`MV BL ${randomTag}`);
-    // Parties default from the manifest (shipperId was set on the fixture manifest).
-    expect(created.shipperId).toBe(customerId);
+    // Parties default from the manifest (shipperId = Shipper MASTER id after the
+    // cutover, not a Customer id) — see party-cutover-plan.md §3.
+    expect(created.shipperId).toBe(fixtureShipperId);
     expect(created.manifest.manifestNumber).toMatch(/^MAN-/);
     bill1Id = created.id;
 

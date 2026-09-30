@@ -21,7 +21,7 @@
  */
 
 import type { CargoPortRef } from './cargo';
-import type { VesselRef } from './vessel';
+import type { VesselRef, VesselType } from './vessel';
 
 /** Voyage lifecycle status (matches the VoyageStatus DB enum). */
 export type VoyageStatus =
@@ -31,7 +31,47 @@ export type VoyageStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
-/** Voyage list row (no cargo; cargo assignment is Phase 7). */
+/** Compact tug/barge reference embedded in a voyage (Phase 2 pairing). */
+export interface VoyageTugBargeRef {
+  id: string;
+  code: string;
+  name: string;
+  vesselType: VesselType;
+}
+
+/** Port reference embedded in a destination leg (matches the voyage port selects). */
+export interface VoyageLegPortRef {
+  id: string;
+  code: string;
+  name: string;
+  country: string;
+  city: string | null;
+  abbreviation: string | null;
+}
+
+/**
+ * One destination leg of a voyage (Phase 2 per-destination numbering).
+ * `voyageNumber` is the destination-scoped document number (e.g. `1/26`,
+ * `2/26`); backfilled legs carry the parent voyageNumber instead.
+ * `legNumber` is sequential from 1 — leg 1 is the primary destination
+ * (= Voyage.destinationPortId).
+ */
+export interface VoyageDestination {
+  id: string;
+  legNumber: number;
+  voyageNumber: string;
+  destinationPortId: string;
+  destinationPort: VoyageLegPortRef;
+}
+
+/**
+ * Voyage list row (no cargo; cargo assignment is Phase 7).
+ *
+ * `tugVessel` / `bargeVessel` are the optional per-voyage pairing: a tug
+ * pushes/pulls a barge on this sailing. Both are null for plain
+ * self-propelled voyages (the shape every pre-existing voyage has).
+ * `legs` carries the destination legs with their per-destination numbers.
+ */
 export interface VoyageListItem {
   id: string;
   voyageNumber: string;
@@ -41,8 +81,12 @@ export interface VoyageListItem {
   createdAt: string;
   updatedAt: string;
   vessel: VesselRef;
+  tugVessel: VoyageTugBargeRef | null;
+  bargeVessel: VoyageTugBargeRef | null;
   originPort: CargoPortRef;
   destinationPort: CargoPortRef;
+  /** Destination legs with per-destination numbers (ordered by legNumber). */
+  legs: VoyageDestination[];
 }
 
 /** Full voyage detail (adds cancellation/notes/audit fields). */

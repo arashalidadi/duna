@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { PaginatedResult, PortListItem, PortDetail } from '@shipping/shared';
 import { Plus, Power, Eye, MapPin } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
@@ -34,16 +35,30 @@ interface FormValues {
   name: string;
   country: string;
   city: string;
+  abbreviation: string;
 }
 
-const EMPTY_FORM: FormValues = { code: '', name: '', country: '', city: '' };
+const EMPTY_FORM: FormValues = {
+  code: '',
+  name: '',
+  country: '',
+  city: '',
+  abbreviation: '',
+};
 
 function toForm(p: PortListItem): FormValues {
-  return { code: p.code, name: p.name, country: p.country, city: p.city ?? '' };
+  return {
+    code: p.code,
+    name: p.name,
+    country: p.country,
+    city: p.city ?? '',
+    abbreviation: p.abbreviation ?? '',
+  };
 }
 
 export default function PortsPage() {
   const { hasPermission } = useAuth();
+  const t = useTranslations('ports');
   const [data, setData] = useState<PaginatedResult<PortListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,13 +139,17 @@ export default function PortsPage() {
       setFormError('Code, name and country are required.');
       return;
     }
+    if (form.abbreviation.trim().length > 10) {
+      setFormError(t('abbreviation.validation'));
+      return;
+    }
     setSaving(true);
     try {
       if (editing) {
-        await api.patch<PortListItem>(`/ports/${editing.id}`, formInput(form));
+        await api.patch<PortListItem>(`/ports/${editing.id}`, savePayload(form));
         setEditing(null);
       } else {
-        await api.post<PortListItem>('/ports', formInput(form));
+        await api.post<PortListItem>('/ports', savePayload(form));
         setCreateOpen(false);
         setPage(1);
       }
@@ -238,6 +257,7 @@ export default function PortsPage() {
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Port</th>
+                  <th className="px-3 py-2 font-medium">{t('abbreviation.column')}</th>
                   <th className="px-3 py-2 font-medium">Country</th>
                   <th className="px-3 py-2 font-medium">City</th>
                   <th className="px-3 py-2 font-medium">Status</th>
@@ -254,6 +274,15 @@ export default function PortsPage() {
                         </span>
                         <span className="text-[11px] text-muted-foreground">{p.code}</span>
                       </div>
+                    </td>
+                    <td className="px-3 py-2">
+                      {p.abbreviation ? (
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium tracking-wide text-foreground">
+                          {p.abbreviation}
+                        </span>
+                      ) : (
+                        <span className="text-[12px] text-muted-foreground">{t('abbreviation.empty')}</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{p.country}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{p.city ?? '—'}</td>
@@ -396,6 +425,22 @@ export default function PortsPage() {
               placeholder="Dubai"
             />
           </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="port-abbreviation" className="block">
+              {t('abbreviation.label')}
+            </Label>
+            <Input
+              id="port-abbreviation"
+              value={form.abbreviation}
+              onChange={(e) => updateField('abbreviation', e.target.value.toUpperCase())}
+              placeholder={t('abbreviation.placeholder')}
+              maxLength={10}
+              aria-describedby="port-abbreviation-hint"
+            />
+            <p id="port-abbreviation-hint" className="text-[11px] text-muted-foreground">
+              {t('abbreviation.hint')}
+            </p>
+          </div>
         </div>
         {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
       </Dialog>
@@ -415,6 +460,10 @@ export default function PortsPage() {
         {detail ? (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-muted-foreground">{t('abbreviation.detail')}</div>
+                <div>{detail.abbreviation ?? t('abbreviation.empty')}</div>
+              </div>
               <div>
                 <div className="text-xs text-muted-foreground">City</div>
                 <div>{detail.city ?? '—'}</div>
@@ -488,4 +537,13 @@ function formInput(f: FormValues): Record<string, string> {
   return Object.fromEntries(
     Object.entries(f).filter(([, v]) => v.trim() !== '')
   ) as Record<string, string>;
+}
+
+/**
+ * Payload for create/edit. `abbreviation` is always present (even when empty)
+ * so clearing the field on edit actually clears it server-side instead of
+ * being dropped as an "empty optional" by formInput.
+ */
+function savePayload(f: FormValues): Record<string, string> {
+  return { ...formInput(f), abbreviation: f.abbreviation.trim() };
 }

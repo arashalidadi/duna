@@ -15,8 +15,8 @@ import { CreateCargoDto, ListCargoQueryDto, UpdateCargoDto } from './dto/cargo.d
  */
 const TRANSITIONS: Record<CargoStatus, CargoStatus[]> = {
   REGISTERED: ['CANCELLED'],
-  AT_YARD: ['REGISTERED', 'READY', 'CANCELLED'],
-  READY: ['AT_YARD', 'LOADED', 'CANCELLED'],
+  AT_YARD: ['REGISTERED', 'READY_FOR_LOADING', 'CANCELLED'],
+  READY_FOR_LOADING: ['AT_YARD', 'LOADED', 'CANCELLED'],
   LOADED: ['DELIVERED'],
   DELIVERED: [],
   CANCELLED: [],
@@ -29,6 +29,8 @@ const select = {
   portId: true,
   yardId: true,
   destinationPortId: true,
+  pol: true,
+  pod: true,
   cargoType: true,
   specification: true,
   serialNumber: true,
@@ -45,6 +47,12 @@ const select = {
   loadingStatus: true,
   manifestNumber: true,
   status: true,
+  // Phase 3A: free-text / spec fields written by create+update (see DTO)
+  description: true,
+  chassis: true,
+  serial: true,
+  units: true,
+  comment: true,
   comments: true,
   deletedAt: true,
   createdAt: true,
@@ -54,6 +62,12 @@ const select = {
   yard: { select: { id: true, code: true, name: true } },
   destinationPort: { select: { id: true, code: true, name: true, country: true, city: true } },
   inventory: { select: { id: true, yardId: true, portId: true, status: true, enteredAt: true } },
+  // Phase 3A: party and financial fields
+  shipperId: true,
+  consigneeId: true,
+  jobId: true,
+  cargoValue: true,
+  cargoValueCurrency: true,
 } satisfies Prisma.CargoSelect;
 
 // The exact row shape produced by the select above (used for type-safe
@@ -74,6 +88,8 @@ export class CargoService {
       ...(query.portId ? { portId: query.portId } : {}),
       ...(query.yardId ? { yardId: query.yardId } : {}),
       ...(query.destinationPortId ? { destinationPortId: query.destinationPortId } : {}),
+      ...(query.pol ? { pol: query.pol } : {}),
+      ...(query.pod ? { pod: query.pod } : {}),
       ...(query.cargoType ? { cargoType: query.cargoType } : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.inspectionStatus ? { inspectionStatus: query.inspectionStatus } : {}),
@@ -99,6 +115,9 @@ export class CargoService {
               { manifestNumber: { contains: query.search, mode: 'insensitive' } },
               { customer: { name: { contains: query.search, mode: 'insensitive' } } },
               { customer: { code: { contains: query.search, mode: 'insensitive' } } },
+              { pol: { contains: query.search, mode: 'insensitive' } },
+              { pod: { contains: query.search, mode: 'insensitive' } },
+              { description: { contains: query.search, mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -139,6 +158,8 @@ export class CargoService {
           portId: dto.portId,
           yardId: dto.yardId,
           destinationPortId: dto.destinationPortId,
+          pol: dto.pol ?? null,
+          pod: dto.pod ?? null,
           cargoType: dto.cargoType,
           specification: dto.specification,
           serialNumber: dto.serialNumber,
@@ -153,6 +174,16 @@ export class CargoService {
           arrivalReference: dto.arrivalReference,
           manifestNumber: dto.manifestNumber,
           comments: dto.comments,
+          comment: dto.comment ?? null,
+          description: dto.description ?? null,
+          chassis: dto.chassis ?? null,
+          serial: dto.serial ?? null,
+          units: dto.units,
+          shipperId: dto.shipperId ?? null,
+          consigneeId: dto.consigneeId ?? null,
+          jobId: dto.jobId ?? null,
+          cargoValue: dto.cargoValue ?? null,
+          cargoValueCurrency: dto.cargoValueCurrency ?? null,
           createdById: actor?.id,
         },
         select,
@@ -186,6 +217,8 @@ export class CargoService {
           portId,
           yardId,
           destinationPortId,
+          pol: dto.pol ?? existing.pol,
+          pod: dto.pod ?? existing.pod,
           cargoType: dto.cargoType,
           specification: dto.specification,
           serialNumber: dto.serialNumber,
@@ -200,6 +233,17 @@ export class CargoService {
           arrivalReference: dto.arrivalReference,
           manifestNumber: dto.manifestNumber,
           comments: dto.comments,
+          comment: dto.comment ?? undefined,
+          description: dto.description ?? undefined,
+          chassis: dto.chassis ?? undefined,
+          serial: dto.serial ?? undefined,
+          units: dto.units ?? undefined,
+          // Phase 3A: party and financial fields
+          shipperId: dto.shipperId ?? existing.shipperId,
+          consigneeId: dto.consigneeId ?? existing.consigneeId,
+          jobId: dto.jobId ?? existing.jobId,
+          cargoValue: dto.cargoValue !== undefined ? dto.cargoValue : existing.cargoValue,
+          cargoValueCurrency: dto.cargoValueCurrency ?? existing.cargoValueCurrency,
         },
         select,
       })
@@ -224,9 +268,9 @@ export class CargoService {
       throw new ConflictException(`Cannot transition cargo from ${from} to ${to}.`);
     }
 
-    if (to === 'READY' && existing.inspectionStatus !== 'APPROVED') {
+    if (to === 'READY_FOR_LOADING' && existing.inspectionStatus !== 'DONE') {
       throw new ConflictException(
-        'Cargo cannot be marked READY until its inspection status is APPROVED.'
+        'Cargo cannot be marked READY_FOR_LOADING until its inspection status is DONE.'
       );
     }
 

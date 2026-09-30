@@ -4,7 +4,7 @@ import type { UserRef } from './auth';
 import type { PaginatedResult } from './api';
 import type { LoadListDetail } from './load-planning';
 
-export type ActualLoadingStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type ActualLoadingStatus = 'DRAFT' | 'IN_PROGRESS' | 'PARTIALLY_LOADED' | 'COMPLETED' | 'FINALIZED' | 'CANCELLED';
 
 export type LoadingResult = 'FULL' | 'PARTIAL' | 'NOT_LOADED';
 

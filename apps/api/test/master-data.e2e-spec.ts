@@ -269,6 +269,79 @@ describe('Master Data (e2e)', () => {
         .expect(409);
     });
 
+    it('creates a port with an abbreviation and returns it (201)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/ports')
+        .set(auth(adminToken))
+        .send({
+          code: `ABP-${tag}`,
+          name: `Abbrev Port ${randomTag}`,
+          country: 'AE',
+          city: 'Jebel Ali',
+          abbreviation: `AB${tag}`,
+        })
+        .expect(201);
+      expect(res.body.data.abbreviation).toBe(`AB${tag}`);
+      createdPorts.push({ id: res.body.data.id, code: res.body.data.code });
+    });
+
+    it('rejects a duplicate abbreviation with 409 and a clear message', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/ports')
+        .set(auth(adminToken))
+        .send({
+          code: `ABP2-${tag}`,
+          name: 'Dup abbreviation',
+          country: 'AE',
+          abbreviation: `AB${tag}`,
+        })
+        .expect(409);
+      expect(JSON.stringify(res.body)).toContain('abbreviation');
+    });
+
+    it('updates a port abbreviation and echoes it (200)', async () => {
+      const abbrPort = createdPorts.find((p) => p.code === `ABP-${tag}`);
+      expect(abbrPort).toBeDefined();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/v1/ports/${abbrPort!.id}`)
+        .set(auth(adminToken))
+        .send({ abbreviation: `UP${tag}` })
+        .expect(200);
+      expect(res.body.data.abbreviation).toBe(`UP${tag}`);
+    });
+
+    it('includes abbreviation in list and detail responses', async () => {
+      const abbrPort = createdPorts.find((p) => p.code === `ABP-${tag}`);
+      expect(abbrPort).toBeDefined();
+
+      const listRes = await request(app.getHttpServer())
+        .get('/api/v1/ports?search=' + randomTag)
+        .set(auth(adminToken))
+        .expect(200);
+      const row = listRes.body.data.data.find(
+        (p: { code: string }) => p.code === `ABP-${tag}`
+      );
+      expect(row).toBeDefined();
+      expect(row.abbreviation).toBe(`UP${tag}`);
+
+      const detailRes = await request(app.getHttpServer())
+        .get(`/api/v1/ports/${abbrPort!.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(detailRes.body.data.abbreviation).toBe(`UP${tag}`);
+    });
+
+    it('accepts a port without an abbreviation (nullable field)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/ports')
+        .set(auth(adminToken))
+        .send({ code: `NOA-${tag}`, name: `No Abbr ${randomTag}`, country: 'OM' })
+        .expect(201);
+      expect(res.body.data.abbreviation).toBeNull();
+      createdPorts.push({ id: res.body.data.id, code: res.body.data.code });
+    });
+
     const portId = () => createdPorts[0].id;
 
     it('does not allow creating a yard under a port that does not exist (404)', async () => {

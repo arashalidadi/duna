@@ -14,7 +14,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ActualLoadingStatus } from '@shipping/shared';
 
-const ActualLoadingStatusValues = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
+const ActualLoadingStatusValues = ['DRAFT', 'IN_PROGRESS', 'PARTIALLY_LOADED', 'COMPLETED', 'FINALIZED'] as const;
 
 export class CreateActualLoadingDto {
   @ApiProperty({ description: 'ID of the Load List to start loading for' })

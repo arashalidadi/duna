@@ -4,13 +4,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useLocale } from 'next-intl';
 import type {
-  CustomerListItem,
+  AgentListItem,
+  ConsigneeListItem,
   Manifest,
   ManifestDetail,
   ManifestEligibleCargo,
   ManifestItem,
   ManifestStatus,
   PaginatedResult,
+  ShipperListItem,
   VoyageListItem,
 } from '@shipping/shared';
 import {
@@ -124,7 +126,11 @@ export default function ManifestPage() {
   const [createdTo, setCreatedTo] = useState('');
 
   const [voyages, setVoyages] = useState<VoyageListItem[]>([]);
-  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
+  // Party master lists for the manifest party selects (cutover: these replaced
+  // the Customer list — party-cutover-plan.md §4).
+  const [shippers, setShippers] = useState<ShipperListItem[]>([]);
+  const [consignees, setConsignees] = useState<ConsigneeListItem[]>([]);
+  const [agents, setAgents] = useState<AgentListItem[]>([]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
@@ -181,12 +187,16 @@ export default function ManifestPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [voyageRes, customerRes] = await Promise.all([
+        const [voyageRes, shipperRes, consigneeRes, agentRes] = await Promise.all([
           api.get<PaginatedResult<VoyageListItem>>('/voyages?pageSize=100'),
-          api.get<PaginatedResult<CustomerListItem>>('/customers?pageSize=100'),
+          api.get<PaginatedResult<ShipperListItem>>('/shippers?pageSize=100'),
+          api.get<PaginatedResult<ConsigneeListItem>>('/consignees?pageSize=100'),
+          api.get<PaginatedResult<AgentListItem>>('/agents?pageSize=100'),
         ]);
         setVoyages(voyageRes.data);
-        setCustomers(customerRes.data);
+        setShippers(shipperRes.data);
+        setConsignees(consigneeRes.data);
+        setAgents(agentRes.data);
       } catch {
         /* filters degrade gracefully */
       }
@@ -721,8 +731,8 @@ export default function ManifestPage() {
               value={createForm.shipperId}
               onChange={(e) => setCreateForm((f) => ({ ...f, shipperId: e.target.value }))}
             >
-              <option value="">{t('create.selectCustomer')}</option>
-              {customers.map((c) => (
+              <option value="">{t('create.selectShipper')}</option>
+              {shippers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -739,8 +749,8 @@ export default function ManifestPage() {
               value={createForm.consigneeId}
               onChange={(e) => setCreateForm((f) => ({ ...f, consigneeId: e.target.value }))}
             >
-              <option value="">{t('create.selectCustomer')}</option>
-              {customers.map((c) => (
+              <option value="">{t('create.selectConsignee')}</option>
+              {consignees.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -757,8 +767,8 @@ export default function ManifestPage() {
               value={createForm.agentId}
               onChange={(e) => setCreateForm((f) => ({ ...f, agentId: e.target.value }))}
             >
-              <option value="">{t('create.selectCustomer')}</option>
-              {customers.map((c) => (
+              <option value="">{t('create.selectAgent')}</option>
+              {agents.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -928,8 +938,8 @@ export default function ManifestPage() {
                           setHeaderDraft((h) => (h ? { ...h, shipperId: e.target.value } : h))
                         }
                       >
-                        <option value="">{t('create.selectCustomer')}</option>
-                        {customers.map((c) => (
+                        <option value="">{t('create.selectShipper')}</option>
+                        {shippers.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
                           </option>
@@ -952,8 +962,8 @@ export default function ManifestPage() {
                           setHeaderDraft((h) => (h ? { ...h, consigneeId: e.target.value } : h))
                         }
                       >
-                        <option value="">{t('create.selectCustomer')}</option>
-                        {customers.map((c) => (
+                        <option value="">{t('create.selectConsignee')}</option>
+                        {consignees.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
                           </option>
@@ -976,8 +986,8 @@ export default function ManifestPage() {
                           setHeaderDraft((h) => (h ? { ...h, agentId: e.target.value } : h))
                         }
                       >
-                        <option value="">{t('create.selectCustomer')}</option>
-                        {customers.map((c) => (
+                        <option value="">{t('create.selectAgent')}</option>
+                        {agents.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.name}
                           </option>

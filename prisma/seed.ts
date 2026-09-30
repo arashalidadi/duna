@@ -131,6 +131,19 @@ async function main() {
   { code: 'voucher:update', module: 'voucher', action: 'update' },
   { code: 'voucher:delete', module: 'voucher', action: 'delete' },
   { code: 'voucher:cancel', module: 'voucher', action: 'cancel' },
+  // Phase 2: Shipper/Consignee/Agent master data
+  { code: 'shipper:read', module: 'shipper', action: 'read' },
+  { code: 'shipper:create', module: 'shipper', action: 'create' },
+  { code: 'shipper:update', module: 'shipper', action: 'update' },
+  { code: 'shipper:delete', module: 'shipper', action: 'delete' },
+  { code: 'consignee:read', module: 'consignee', action: 'read' },
+  { code: 'consignee:create', module: 'consignee', action: 'create' },
+  { code: 'consignee:update', module: 'consignee', action: 'update' },
+  { code: 'consignee:delete', module: 'consignee', action: 'delete' },
+  { code: 'agent:read', module: 'agent', action: 'read' },
+  { code: 'agent:create', module: 'agent', action: 'create' },
+  { code: 'agent:update', module: 'agent', action: 'update' },
+  { code: 'agent:delete', module: 'agent', action: 'delete' },
   { code: 'ledger:read', module: 'ledger', action: 'read' },
   { code: 'delivery:read', module: 'delivery', action: 'read' },
   { code: 'delivery:create', module: 'delivery', action: 'create' },
@@ -350,6 +363,23 @@ async function main() {
     },
   });
 
+  // Backfill safety for fresh installs: the migration's leg backfill runs
+  // before seed, so a voyage created here directly would otherwise have no
+  // destination leg. Idempotent — existing legs are left untouched.
+  const voyageLegCount = await prisma.voyageDestination.count({
+    where: { voyageId: voyage.id },
+  });
+  if (voyageLegCount === 0) {
+    await prisma.voyageDestination.create({
+      data: {
+        voyageId: voyage.id,
+        destinationPortId: voyage.destinationPortId,
+        legNumber: 1,
+        voyageNumber: voyage.voyageNumber,
+      },
+    });
+  }
+
   // Create sample customers
   const customer1 = await prisma.customer.upsert({
     where: { code: 'CUS-GLOBAL' },
@@ -375,8 +405,8 @@ async function main() {
       quantity: 20,
       weight: 5000,
       weightUnit: 'KG',
-      inspectionStatus: 'APPROVED',
-      status: 'READY',
+      inspectionStatus: 'DONE',
+      status: 'READY_FOR_LOADING',
       createdById: adminUser.id,
     },
     create: {
@@ -388,8 +418,8 @@ async function main() {
       quantity: 20,
       weight: 5000,
       weightUnit: 'KG',
-      inspectionStatus: 'APPROVED',
-      status: 'READY',
+      inspectionStatus: 'DONE',
+      status: 'READY_FOR_LOADING',
       createdById: adminUser.id,
     },
   });
@@ -435,7 +465,7 @@ async function main() {
       quantity: 100,
       weight: 8000,
       weightUnit: 'KG',
-      inspectionStatus: 'REJECTED',
+      inspectionStatus: 'FAILED',
       status: 'AT_YARD',
       createdById: adminUser.id,
     },
@@ -448,36 +478,8 @@ async function main() {
       quantity: 100,
       weight: 8000,
       weightUnit: 'KG',
-      inspectionStatus: 'REJECTED',
+      inspectionStatus: 'FAILED',
       status: 'AT_YARD',
-      createdById: adminUser.id,
-    },
-  });
-
-  // Create inspections matching the cargo statuses
-  await prisma.inspection.upsert({
-    where: { inspectionNumber: 'INS-2401-00001' },
-    update: {
-      cargoId: cargoApproved.id,
-      status: 'APPROVED',
-      inspectionDate: new Date('2026-09-01T10:00:00Z'),
-      inspectorName: 'John Inspector',
-      findings: 'All items verified, no damage.',
-      verificationNotes: 'Serial numbers match, quantity confirmed.',
-      approvedById: adminUser.id,
-      approvedAt: new Date('2026-09-01T12:00:00Z'),
-      createdById: adminUser.id,
-    },
-    create: {
-      inspectionNumber: 'INS-2401-00001',
-      cargoId: cargoApproved.id,
-      status: 'APPROVED',
-      inspectionDate: new Date('2026-09-01T10:00:00Z'),
-      inspectorName: 'John Inspector',
-      findings: 'All items verified, no damage.',
-      verificationNotes: 'Serial numbers match, quantity confirmed.',
-      approvedById: adminUser.id,
-      approvedAt: new Date('2026-09-01T12:00:00Z'),
       createdById: adminUser.id,
     },
   });
@@ -509,7 +511,7 @@ async function main() {
     where: { inspectionNumber: 'INS-2401-00003' },
     update: {
       cargoId: cargoRejected.id,
-      status: 'REJECTED',
+      status: 'FAILED',
       inspectionDate: new Date('2026-09-01T16:00:00Z'),
       inspectorName: 'Bob Inspector',
       findings: 'Packaging damage on 5 units, missing documentation.',
@@ -522,7 +524,7 @@ async function main() {
     create: {
       inspectionNumber: 'INS-2401-00003',
       cargoId: cargoRejected.id,
-      status: 'REJECTED',
+      status: 'FAILED',
       inspectionDate: new Date('2026-09-01T16:00:00Z'),
       inspectorName: 'Bob Inspector',
       findings: 'Packaging damage on 5 units, missing documentation.',
@@ -560,6 +562,49 @@ async function main() {
   });
 
   console.log('  Phase 7 sample data seeded: vessel, voyage, 3 cargo (approved/pending/rejected), inspections, 1 load list');
+
+  // Phase 2 — portal agent linkage (party-cutover-plan.md §3 addendum / §8 item 0).
+  // Idempotent: links the demo portal user to the demo Agent master ONLY when
+  // both rows exist (both are demo/out-of-band data); re-running is a no-op and
+  // databases without them are skipped without error.
+  const demoPortalUser = await prisma.user.findUnique({
+    where: { email: 'agent@portal.local' },
+    select: { id: true, portalAgentId: true },
+  });
+  const demoAgent = await prisma.agent.findUnique({
+    where: { code: 'AGT-001' },
+    select: { id: true },
+  });
+  if (demoPortalUser && demoAgent && demoPortalUser.portalAgentId !== demoAgent.id) {
+    await prisma.user.update({
+      where: { id: demoPortalUser.id },
+      data: { portalAgentId: demoAgent.id },
+    });
+    console.log('  Portal user agent@portal.local linked to Agent AGT-001');
+  }
+
+  // Phase 2 party cutover (party-cutover-plan.md §8 item 1 / task-unit 1):
+  // the cutover migration nulls manifests.agentId (Customer -> masters); reseed
+  // the DEMO portal manifest with the demo Agent-master id so the portal's
+  // Agent-based scoping keeps showing it. Idempotent — only fills agentId when
+  // NULL, and no-ops when the manifest or AGT-001 do not exist (fresh DBs).
+  const demoManifestAgent = await prisma.agent.findUnique({
+    where: { code: 'AGT-001' },
+    select: { id: true },
+  });
+  if (demoManifestAgent) {
+    const demoManifestRow = await prisma.manifest.findUnique({
+      where: { manifestNumber: 'MAN-2609-00004' },
+      select: { id: true, agentId: true },
+    });
+    if (demoManifestRow && demoManifestRow.agentId === null) {
+      await prisma.manifest.update({
+        where: { id: demoManifestRow.id },
+        data: { agentId: demoManifestAgent.id },
+      });
+      console.log('  Demo manifest MAN-2609-00004 reseeded with Agent AGT-001');
+    }
+  }
 
   console.log('Seeding complete.');
 }

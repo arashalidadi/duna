@@ -118,6 +118,34 @@ export class PortalService {
     return user.portalCustomerId;
   }
 
+  /**
+   * Manifest-scoping ids for a portal user: the linked Agent master id
+   * (`portalAgentId`, plan §3 addendum) PLUS the legacy portal Customer id.
+   *
+   * TEMPORARY FALLBACK (documented deviation, party-cutover-plan.md §8 item 0):
+   * `manifests.agentId` still references Customer until the cutover unit runs,
+   * so both ids are considered — visibility works pre-cutover (Customer leg)
+   * and post-cutover (Agent leg). The cutover unit REMOVES the Customer leg
+   * and re-seeds demo manifests with Agent ids.
+   *
+   * Mirrors portalCustomerIdOf semantics: user not found -> 404; linked to
+   * neither -> the same 403 message as an unlinked portal company.
+   */
+  private async portalManifestScopeIds(actor: PortalActor): Promise<string[]> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: actor.id, deletedAt: null },
+      select: { portalAgentId: true, portalCustomerId: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    const ids = [...new Set([user.portalAgentId, user.portalCustomerId])].filter(
+      (id): id is string => Boolean(id),
+    );
+    if (!ids.length) {
+      throw new ForbiddenException('This account is not linked to a portal company');
+    }
+    return ids;
+  }
+
   private async nextBookingNumber(): Promise<string> {
     const now = new Date();
     const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -136,10 +164,13 @@ export class PortalService {
     });
     if (!customer) throw new NotFoundException('Portal company not found');
 
+    // Manifest scoping goes through portalAgentId (+ legacy Customer fallback —
+    // see portalManifestScopeIds); bookings/statement stay Customer-scoped.
+    const manifestScopeIds = await this.portalManifestScopeIds(actor);
     const [bookingsTotal, bookingsPending, manifestsApproved, ledger] = await Promise.all([
       this.prisma.bookingRequest.count({ where: { customerId, deletedAt: null } }),
       this.prisma.bookingRequest.count({ where: { customerId, deletedAt: null, status: 'PENDING' } }),
-      this.prisma.manifest.count({ where: { agentId: customerId, deletedAt: null, status: 'APPROVED' as ManifestStatus } }),
+      this.prisma.manifest.count({ where: { agentId: { in: manifestScopeIds }, deletedAt: null, status: 'APPROVED' as ManifestStatus } }),
       this.vouchers.ledger({ customerId }).catch(() => null),
     ]);
 
@@ -285,11 +316,13 @@ export class PortalService {
   // ---- Shipments: manifests where this company is the booking agent ----
 
   async shipments(actor: PortalActor, query: { page?: number; pageSize?: number; status?: string; search?: string }) {
-    const customerId = await this.portalCustomerIdOf(actor);
+    // Agent scoping via portalAgentId (+ legacy Customer fallback while
+    // manifests.agentId still references Customer — removed by the cutover unit).
+    const manifestScopeIds = await this.portalManifestScopeIds(actor);
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 20));
     const where: Prisma.ManifestWhereInput = {
-      agentId: customerId,
+      agentId: { in: manifestScopeIds },
       deletedAt: null,
       ...(query.status ? { status: query.status as ManifestStatus } : {}),
       ...(query.search

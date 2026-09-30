@@ -3,1428 +3,1606 @@
     "name": "Shipping ERP",
     "tagline": "عمليات اللوجستيات"
   },
-  "common": {
-    "loading": "جارٍ التحميل…",
-    "signIn": "تسجيل الدخول",
-    "signOut": "تسجيل الخروج",
-    "signingIn": "جاري تسجيل الدخول…",
-    "search": "بحث",
-    "noResults": "لا توجد نتائج",
-    "back": "رجوع",
-    "save": "حفظ",
-    "cancel": "إلغاء",
-    "delete": "حذف",
-    "edit": "تعديل",
-    "create": "إنشاء",
-    "refresh": "تحديث",
-    "error": "حدث خطأ",
-    "unavailable": "غير متاح",
-    "soon": "به‌زودی",
-    "active": "فعال",
-    "actions": {
-      "save": "حفظ",
-      "cancel": "إلغاء",
-      "delete": "حذف",
-      "search": "بحث",
-      "create": "إنشاء",
-      "edit": "تعديل"
-    },
-    "confirm": "تأیید",
-    "workspace": "فضای کاری",
-    "notifications": "اعلان‌ها",
-    "list": {
-      "total": "المجموع",
-      "loading": "جارٍ التحميل…"
-    },
-    "errors": {
-      "generic": "حدث خطأ. حاول مجددًا."
-    },
-    "nav": {
-      "home": "الرئيسية"
-    },
-    "saving": "جارٍ الحفظ…",
-    "select": "اختر…",
-    "reset": "إعادة تعيين"
-  },
-  "nav": {
-    "overview": "نظرة عامة",
-    "dashboard": "لوحة التحكم",
-    "users": "المستخدمون",
-    "roles": "الأدوار",
-    "permissions": "الأذونات",
-    "customers": "العملاء",
-    "port": "ميناء",
-    "yard": "ساحة",
-    "vessel": "سفينة",
-    "manifest": "المانيفست",
-    "invoice": "فاتورة",
-    "quotation": "اقتباس",
-    "proforma": "فاتورة proforma",
-    "loadList": "قائمة تحميل",
-    "yardInventory": "مخزون ساحة",
-    "actualLoading": "الحمولة الفعلية",
-    "inspection": "فحص",
-    "voyage": "رحلة",
-    "cargo": "بضاعة",
-    "accessControl": "الوصول",
-    "administration": "الإدارة",
-    "operations": "العمليات",
-    "commercial": "التجاري",
-    "masterData": "البيانات الرئيسية",
-    "vessels": "السفن",
-    "manifests": "بوليصات الشحن",
-    "invoices": "الفواتير",
-    "quotations": "عروض الأسعار",
-    "proformas": "الفواتير الأولية",
-    "loadLists": "قوائم التحميل",
-    "inspections": "الفحوصات",
-    "voyages": "الرحلات",
-    "ports": "الموانئ",
-    "yards": "الساحات",
-    "insightControl": "التحكم perception",
-    "settings": "تنظیمات",
-    "loadPlanning": "برنامه‌ریزی بار",
-    "billOfLading": "بوليصة الشحن",
-    "discharge": "تخلیه",
-    "deliveryOrders": "دستور تحویل",
-    "jobs": "الخدمات والتكلفة",
-    "payments": "پرداخت‌ها",
-    "release": "أوامر الإفراج",
-    "agents": "نمایندگان",
-    "reports": "گزارش‌ها",
-    "vouchers": "السندات",
-    "ledger": "الدفاتر",
-    "delivery": "أوامر التسليم",
-    "people": "الموظفون والرواتب",
-    "employees": "الموظفون",
-    "salaryRecords": "قسائم الرواتب",
-    "correspondence": "المراسلات",
-    "letters": "الرسائل",
-    "discharges": "التفريغ",
-    "portal": "البوابة",
-    "agentPortal": "بوابة الوكيل",
-    "bookings": "حجوزات الوكلاء"
-  },
-  "dashboard": {
-    "title": "نظرة عامة",
-    "description": "نظام إدارة عمليات الشحن",
-    "checkedAt": "آخر فحص",
-    "operational": "فعال",
-    "issue": "مشكلة",
-    "apiStatus": "حالة API",
-    "apiError": "خطأ في API",
-    "health": "صحة",
-    "dbUnavailable": "غير متوفر",
-    "apiUnreachable": "لا يمكن الوصول إلى API",
-    "implementedModules": "ماژول‌های پیاده‌سازی‌شده",
-    "plannedModules": "ماژول‌های در دست برنامه‌ریزی",
-    "database": "پایگاه داده",
-    "uptime": "زمان فعال",
-    "version": "نسخه",
-    "environment": "محیط",
-    "dbUnavailableDesc": "API در دسترس است اما بررسی سلامت پایگاه داده ناموفق بود.",
-    "apiUnreachableDesc": "اتصال به API برقرار نشد. مطمئن شوید API در حال اجراست.",
-    "quickLinks": "دسترسی سریع"
-  },
-  "users": {
-    "list": "قائمة المستخدمين",
-    "title": "إدارة المستخدمين",
-    "description": "حسابات الموظفين",
-    "noUsersFound": "لا توجد حسابات",
-    "createUser": "إنشاء مستخدم",
-    "roles": "الأدوار",
-    "active": "نشط",
-    "inactive": "غير نشط",
-    "resetPassword": "إعادة تعيين كلمة المرور",
-    "initials": "حروف مبكرة"
-  },
-  "system": {
-    "operational": "سیستم فعال",
-    "issue": "مشکل سیستم",
-    "checking": "در حال بررسی…",
-    "checkedAt": "بررسی {time}"
-  },
-  "login": {
-    "title": "ورود",
-    "subtitle": "برای ادامه، وارد حساب کاربری خود شوید.",
-    "heading": "ورود به سیستم",
-    "description": "برای دسترسی به فضای کاری از حساب کارمندی خود استفاده کنید.",
-    "email": "ایمیل",
-    "password": "رمز عبور",
-    "emailPlaceholder": "you@shipping.local",
-    "enterCredentials": "ایمیل و رمز عبور خود را وارد کنید.",
-    "unableToSignIn": "ورود ممکن نیست. اتصال خود را بررسی و دوباره تلاش کنید.",
-    "restricted": "دسترسی فقط برای کارکنان مجاز است.",
-    "showPassword": "نمایش رمز عبور",
-    "hidePassword": "پنهان کردن رمز عبور"
-  },
-  "topbar": {
-    "signedIn": "وارد شده",
-    "openNav": "باز کردن منو",
-    "language": "زبان",
-    "switchToEnglish": "English",
-    "switchToPersian": "فارسی"
-  },
   "auth": {
     "redirectingHome": "در حال انتقال…"
   },
-  "manifest": {
-    "title": "المانيفستات",
-    "subtitle": "أنشئ المانيفست الرسمي لحمولة الرحلة من عمليات التحميل المكتملة، ثم أرسله للاعتماد.",
-    "register": "سجل المانيفستات",
-    "registerHint": "الموانيفست الرسمية للحمولة. مانيفست واحد لكل رحلة.",
-    "searchPlaceholder": "ابحث برقم المانيفست أو رقم الرحلة أو اسم السفينة",
-    "allStatuses": "جميع الحالات",
-    "allVoyages": "جميع الرحلات",
-    "new": "مانيفست جديد",
-    "loading": "جارٍ التحميل…",
-    "createdFrom": "من",
-    "createdTo": "إلى",
-    "empty": {
-      "title": "لا توجد موانيفست",
-      "description": "جرّب بحثًا أو تصفية أخرى، أو أنشئ مانيفستًا لرحلة بها عمليات تحميل مكتملة."
-    },
+  "booking": {
     "status": {
-      "DRAFT": "مسودة",
-      "SUBMITTED": "مُرسَل",
-      "APPROVED": "معتمَد",
-      "CANCELLED": "ملغى"
-    },
-    "table": {
-      "no": "الرقم",
-      "voyage": "الرحلة / السفينة",
-      "route": "المسار",
-      "status": "الحالة",
-      "items": "الأصناف",
-      "totalWeight": "الوزن الإجمالي",
-      "created": "تاريخ الإنشاء",
-      "actions": "الإجراءات"
-    },
-    "create": {
-      "title": "مانيفست جديد",
-      "description": "اختر الرحلة المراد إنشاء مانيفست لها. تُؤخذ السفينة والمسار والموانئ من الرحلة.",
-      "voyage": "الرحلة *",
-      "selectVoyage": "اختر الرحلة…",
-      "noVoyages": "لا توجد رحلات متاحة.",
-      "shipper": "الشاحن",
-      "consignee": "المرسل إليه",
-      "agent": "الوكيل",
-      "selectCustomer": "بدون",
-      "notifyParty": "الجهة المُخطَرة",
-      "descriptionField": "الوصف",
-      "notes": "ملاحظات",
-      "submit": "إنشاء المانيفست",
-      "errorVoyage": "اختر رحلة."
-    },
-    "detail": {
-      "draftHint": "مسودة — قابلة للتعديل. أضف البضائع ثم أرسلها.",
-      "submittedHint": "مُرسَلة — بانتظار الاعتماد.",
-      "immutable": "الموانيفست المعتمدة أو الملغاة غير قابلة للتعديل.",
-      "cancelReason": "سبب الإلغاء",
-      "submittedAt": "تاريخ الإرسال",
-      "approvedAt": "تاريخ الاعتماد",
-      "parties": "الأطراف",
-      "costs": "التكاليف",
-      "gasCost": "تكلفة الوقود",
-      "lashingCost": "تكلفة التثبيت",
-      "shipperCost": "تكلفة الشاحن",
-      "podCost": "تكلفة ميناء التفريغ",
-      "polCost": "تكلفة ميناء الشحن",
-      "currency": "العملة",
-      "totalWeight": "الوزن الإجمالي",
-      "totalQuantity": "العدد الإجمالي",
-      "totalPackages": "إجمالي الطرود"
-    },
-    "items": {
-      "title": "أصناف المانيفست",
-      "addTitle": "إضافة بضاعة إلى المانيفست",
-      "selectEligible": "اختر البضاعة…",
-      "eligibleEmpty": "لا توجد بضائع مؤهلة. أكمل عملية تحميل فعلية لهذه الرحلة أولاً.",
-      "addLabel": "إضافة بضاعة",
-      "blNumber": "رقم بوليصة الشحن",
-      "empty": "لا توجد أصناف بعد. أضف البضائع المحمّلة لبناء المانيفست.",
-      "seq": "#",
+      "ACCEPTED": "مقبول",
+      "CANCELLED": "ملغى",
+      "DECLINED": "مرفوض",
+      "PENDING": "بانتظار الرد"
+    }
+  },
+  "bookings": {
+    "allCompanies": "كل الشركات",
+    "allStatuses": "كل الحالات",
+    "detail": "التفاصيل",
+    "detailTitle": "الحجز",
+    "empty": "لا توجد طلبات حجز",
+    "fields": {
       "cargo": "البضاعة",
-      "weight": "الوزن",
-      "quantity": "العدد",
-      "packages": "الطرود",
+      "company": "الشركة",
+      "containers": "الحاويات",
+      "created": "تاريخ التقديم",
       "notes": "ملاحظات",
-      "remove": "إزالة",
-      "actions": "الإجراءات"
+      "number": "الرقم",
+      "response": "الرد",
+      "responseNote": "نص الرد",
+      "route": "المسار",
+      "shipDate": "تاريخ الشحن",
+      "status": "الحالة",
+      "weightKg": "الوزن (كغم)"
     },
+    "respond": {
+      "accept": "قبول",
+      "decline": "رفض",
+      "noPermission": "تحتاج صلاحية booking:respond للرد على الطلبات.",
+      "notePlaceholder": "نص الرد (اختياري)…",
+      "submit": "إرسال الرد",
+      "title": "الرد على الطلب"
+    },
+    "searchPlaceholder": "ابحث برقم الحجز أو وصف البضاعة…",
+    "subtitle": "مراجعة طلبات الحجز المقدمة من شركات الوكلاء والرد عليها",
+    "title": "حجوزات الوكلاء"
+  },
+  "common": {
     "actions": {
-      "view": "عرض",
-      "submit": "إرسال",
-      "approve": "اعتماد",
       "cancel": "إلغاء",
+      "create": "إنشاء",
       "delete": "حذف",
-      "close": "إغلاق",
-      "save": "حفظ"
+      "edit": "تعديل",
+      "save": "حفظ",
+      "search": "بحث"
     },
-    "confirm": {
-      "submitTitle": "إرسال المانيفست",
-      "submitBody": "إرسال {no} للاعتماد؟ بعد الإرسال يصبح المانيفست للقراءة فقط.",
-      "approveTitle": "اعتماد المانيفست",
-      "approveBody": "اعتماد {no}؟ الموانيفست المعتمدة نهائية وغير قابلة للتعديل.",
-      "cancelTitle": "إلغاء المانيفست",
-      "cancelBody": "إلغاء {no}؟ يجب ذكر السبب. الموانيفست الملغاة غير قابلة للتعديل.",
-      "deleteTitle": "حذف المانيفست",
-      "deleteBody": "حذف المسودة {no}؟ سيُحذف المانيفست وأصنافه حذفًا منطقيًا.",
-      "reason": "سبب الإلغاء *",
-      "keep": "إبقاء",
-      "confirmSubmit": "إرسال",
-      "confirmApprove": "اعتماد",
-      "confirmCancel": "إلغاء المانيفست",
-      "confirmDelete": "حذف"
-    },
+    "active": "فعال",
+    "back": "رجوع",
+    "cancel": "إلغاء",
+    "confirm": "تأیید",
+    "create": "إنشاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "error": "حدث خطأ",
     "errors": {
-      "loadList": "فشل تحميل الموانيفست",
-      "loadDetail": "فشل تحميل المانيفست",
-      "create": "فشل إنشاء المانيفست",
-      "save": "فشل الحفظ",
-      "addItem": "فشلت إضافة البضاعة",
-      "removeItem": "فشلت إزالة الصنف",
-      "submit": "فشل الإرسال",
-      "approve": "فشل الاعتماد",
-      "cancel": "فشل الإلغاء",
-      "delete": "فشل الحذف",
-      "reasonRequired": "سبب الإلغاء مطلوب.",
-      "blOrNotes": "أدخل رقم بوليصة الشحن أو ملاحظات للحفظ."
-    }
-  },
-  "roles": {
-    "page": {
-      "title": "صفحة الأدوار",
-      "description": "إدارة الأدوار والصلاحيات"
-    },
-    "create": {
-      "title": "دور جديد",
-      "description": "إنشاء دور جديد"
-    },
-    "edit": {
-      "title": "تعديل الدور",
-      "description": "تعديل بيانات الدور"
-    },
-    "permission": "الصلاحية",
-    "status": "الحالة",
-    "actions": "الإجراءات"
-  },
-  "invoice": {
-    "page": {
-      "title": "الفواتير",
-      "description": "مستندات فوترة العملاء"
+      "generic": "حدث خطأ. حاول مجددًا."
     },
     "list": {
-      "title": "الفواتير",
-      "search": "بحث برقم أو عنوان أو عميل",
-      "allStatuses": "كل الحالات",
-      "allPayments": "مدفوعة وغير مدفوعة",
-      "unpaid": "غير المدفوعة فقط",
-      "allDue": "أي تاريخ استحقاق",
-      "overdue": "المتأخرة فقط",
-      "empty": {
-        "title": "لا فواتير بعد",
-        "description": "أنشئ أول فاتورة لعميل."
-      }
-    },
-    "status": {
-      "DRAFT": "مسودة",
-      "ISSUED": "صادرة",
-      "CANCELLED": "ملغاة"
-    },
-    "fields": {
-      "invoiceNumber": "رقم الفاتورة",
-      "customer": "العميل",
-      "title": "العنوان",
-      "description": "الوصف",
-      "status": "الحالة",
-      "currencyCode": "العملة",
-      "issueDate": "تاريخ الإصدار",
-      "dueDate": "تاريخ الاستحقاق",
-      "subtotal": "المجموع الفرعي",
-      "taxRate": "نسبة الضريبة ٪",
-      "taxAmount": "الضريبة",
-      "discountAmount": "الخصم",
-      "totalAmount": "الإجمالي",
-      "paidAmount": "المدفوع",
-      "manifest": "المانيفست",
-      "bill": "بوليصة الشحن",
-      "notes": "ملاحظات"
-    },
-    "detail": {
-      "headerTitle": "ترويسة الفاتورة",
       "loading": "جارٍ التحميل…",
-      "saving": "جارٍ الحفظ…",
-      "paid": "مدفوعة",
-      "unpaid": "غير مدفوعة"
+      "total": "المجموع"
     },
-    "actions": {
-      "create": "فاتورة جديدة",
-      "save": "حفظ",
-      "close": "إغلاق",
-      "issue": "إصدار",
-      "cancel": "إلغاء الفاتورة",
-      "delete": "حذف"
+    "loading": "جارٍ التحميل…",
+    "nav": {
+      "home": "الرئيسية"
     },
-    "create": {
-      "title": "إنشاء فاتورة",
-      "description": "اختر عميلاً؛ اختياري: ربط بمانيفست أو بوليصة.",
-      "selectCustomer": "اختر العميل",
-      "selectManifest": "بدون مانيفست",
-      "selectBill": "بدون بوليصة",
-      "noAnchor": "الروابط اختيارية.",
-      "creating": "جارٍ الإنشاء…",
-      "errors": {
-        "customerRequired": "اختيار العميل إلزامي"
-      }
-    },
-    "items": {
-      "title": "بنود الفاتورة",
-      "empty": "لا بنود بعد.",
-      "add": "إضافة بند",
-      "addTitle": "إضافة بند فاتورة",
-      "addDescription": "الوصف والكمية وسعر الوحدة؛ يُحسب مبلغ البند.",
-      "description": "الوصف",
-      "quantity": "الكمية",
-      "unitPrice": "سعر الوحدة",
-      "amount": "المبلغ",
-      "remove": "إزالة",
-      "saveAll": "حفظ التغييرات",
-      "adding": "جارٍ الإضافة…",
-      "errors": {
-        "lineRequired": "الوصف وسعر وحدة موجب إلزاميان"
-      }
-    },
-    "confirm": {
-      "issue": {
-        "title": "إصدار الفاتورة؟",
-        "description": "الفواتير الصادرة مقفلة وتدخل سجل المدفوعات."
-      },
-      "cancel": {
-        "title": "إلغاء الفاتورة؟",
-        "reason": "سبب الإلغاء",
-        "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة؟",
-        "description": "الفواتير الملغاة نهائية وتبقى للتدقيق."
-      },
-      "delete": {
-        "title": "حذف هذه المسودة؟",
-        "description": "حذف ناعم؛ لن تظهر مجددًا."
-      },
-      "removeItem": {
-        "title": "إزالة هذا البند؟",
-        "description": "سيُعاد حساب المجاميع."
-      }
-    }
+    "noResults": "لا توجد نتائج",
+    "notifications": "اعلان‌ها",
+    "refresh": "تحديث",
+    "reset": "إعادة تعيين",
+    "save": "حفظ",
+    "saving": "جارٍ الحفظ…",
+    "search": "بحث",
+    "select": "اختر…",
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "signingIn": "جاري تسجيل الدخول…",
+    "soon": "به‌زودی",
+    "unavailable": "غير متاح",
+    "workspace": "فضای کاری"
   },
-  "voucher": {
-    "page": {
-      "title": "السندات",
-      "description": "سندات القبض والدفع"
-    },
-    "list": {
-      "title": "سجل السندات",
-      "subtitle": "المستندات المالية المسجلة للعملاء والفواتير",
-      "search": "بحث برقم أو مرجع أو وصف",
-      "allTypes": "كل الأنواع",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا سندات بعد",
-        "description": "سجّل أول سند قبض أو دفع."
-      }
-    },
-    "type": {
-      "RECEIPT": "قبض",
-      "PAYMENT": "دفع"
-    },
-    "status": {
-      "POSTED": "مُسجّل",
-      "CANCELLED": "ملغى"
-    },
-    "method": {
-      "CASH": "نقدي",
-      "BANK_TRANSFER": "حوالة بنكية",
-      "CHEQUE": "شيك",
-      "OTHER": "أخرى"
-    },
-    "fields": {
-      "voucherNumber": "رقم السند",
-      "type": "النوع",
-      "customer": "العميل",
-      "invoice": "الفاتورة",
-      "amount": "المبلغ",
-      "currencyCode": "العملة",
-      "method": "الطريقة",
-      "reference": "المرجع",
-      "description": "الوصف",
-      "note": "ملاحظة",
-      "voucherDate": "تاريخ القيمة",
-      "status": "الحالة",
-      "cancelReason": "سبب الإلغاء"
-    },
-    "actions": {
-      "create": "سند جديد",
-      "save": "حفظ",
-      "cancelVoucher": "إلغاء السند",
-      "cancelling": "جارٍ الإلغاء…"
-    },
-    "create": {
-      "title": "إنشاء سند",
-      "description": "قبض (دخول مال) أو دفع (استرداد). اربط فاتورة لتسويتها.",
-      "selectCustomer": "اختر العميل",
-      "noInvoice": "بدون فاتورة (مستقل)",
-      "creating": "جارٍ الإنشاء…",
-      "errors": {
-        "customerRequired": "اختيار العميل إلزامي",
-        "amountRequired": "يجب أن يكون المبلغ موجبًا"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "إلغاء هذا السند؟",
-        "description": "يُعكس أثره على الفاتورة؛ ويبقى الصف للتدقيق.",
-        "reason": "سبب الإلغاء",
-        "reasonPlaceholder": "لماذا يُلغى هذا السند؟"
-      },
-      "delete": {
-        "title": "حذف هذا السند الملغى؟",
-        "description": "يُحذف الصف الملغى نهائيًا."
-      }
-    }
-  },
-  "ledger": {
-    "page": {
-      "title": "الدفاتر",
-      "description": "كشوف حساب العملاء — الفواتير والتسويات"
-    },
-    "filters": {
-      "title": "مرشحات كشف الحساب",
-      "description": "اختر عميلاً؛ اختياريًا عملة وفترة زمنية."
-    },
-    "fields": {
-      "customer": "العميل",
-      "currency": "العملة",
-      "fromDate": "من",
-      "toDate": "إلى"
-    },
-    "selectCustomer": "اختر عميلاً لبناء كشف الحساب",
-    "allCurrencies": "كل العملات",
-    "actions": {
-      "run": "بناء كشف الحساب",
-      "print": "طباعة"
-    },
-    "columns": {
-      "date": "التاريخ",
-      "kind": "النوع",
-      "document": "المستند",
-      "description": "الوصف",
-      "debit": "مدين",
-      "credit": "دائن",
-      "balance": "الرصيد"
-    },
-    "kind": {
-      "invoice": "فاتورة",
-      "voucher": "سند",
-      "balance": "رصيد"
-    },
-    "statement": {
-      "title": "كشف حساب — {customer}",
-      "subtitle": "{count} قيدًا في الفترة",
-      "opening": "رصيد افتتاحي",
-      "period": "خلال الفترة",
-      "closing": "رصيد ختامي"
-    },
-    "list": {
-      "loading": "جارٍ بناء كشف الحساب…",
-      "empty": {
-        "title": "لا قيود",
-        "description": "لا فواتير أو سندات تطابق هذه المرشحات."
-      }
-    }
+  "dashboard": {
+    "apiError": "خطأ في API",
+    "apiStatus": "حالة API",
+    "apiUnreachable": "لا يمكن الوصول إلى API",
+    "apiUnreachableDesc": "اتصال به API برقرار نشد. مطمئن شوید API در حال اجراست.",
+    "checkedAt": "آخر فحص",
+    "database": "پایگاه داده",
+    "dbUnavailable": "غير متوفر",
+    "dbUnavailableDesc": "API در دسترس است اما بررسی سلامت پایگاه داده ناموفق بود.",
+    "description": "نظام إدارة عمليات الشحن",
+    "environment": "محیط",
+    "health": "صحة",
+    "implementedModules": "ماژول‌های پیاده‌سازی‌شده",
+    "issue": "مشكلة",
+    "operational": "فعال",
+    "plannedModules": "ماژول‌های در دست برنامه‌ریزی",
+    "quickLinks": "دسترسی سریع",
+    "title": "نظرة عامة",
+    "uptime": "زمان فعال",
+    "version": "نسخه"
   },
   "deliveryOrder": {
-    "page": {
-      "title": "أوامر التسليم",
-      "description": "تصاريح تسليم البضاعة مقابل بوليصات الشحن (D/O)"
+    "actions": {
+      "cancelOrder": "إلغاء الأمر",
+      "cancelling": "جارٍ الإلغاء…",
+      "create": "أمر جديد"
     },
-    "list": {
-      "title": "سجل أوامر التسليم",
-      "subtitle": "أوامر صادرة؛ أمر واحد نشط لكل بوليصة",
-      "search": "بحث برقم أو مستلم أو لوحة",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا أوامر تسليم",
-        "description": "أصدر أول أمر تسليم مقابل بوليصة صادرة."
+    "confirm": {
+      "cancel": {
+        "description": "تصبح البوليصة قابلة للتسليم مجددًا؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟",
+        "title": "إلغاء هذا الأمر؟"
+      },
+      "delete": {
+        "description": "يُحذف الصف الملغى نهائيًا.",
+        "title": "حذف هذا الأمر الملغى؟"
       }
     },
-    "status": {
-      "ISSUED": "صادر",
-      "CANCELLED": "ملغى"
-    },
-    "fields": {
-      "docNumber": "رقم الأمر",
-      "bill": "البوليصة",
-      "recipient": "المستلم",
-      "vehiclePlate": "لوحة المركبة",
-      "issueDate": "تاريخ الإصدار",
-      "notes": "ملاحظات",
-      "status": "الحالة",
-      "cancelReason": "سبب الإلغاء"
-    },
-    "actions": {
-      "create": "أمر جديد",
-      "cancelOrder": "إلغاء الأمر",
-      "cancelling": "جارٍ الإلغاء…"
-    },
     "create": {
-      "title": "إنشاء أمر تسليم",
-      "description": "يجب أن تكون البوليصة صادرة؛ أمر واحد نشط لكل بوليصة.",
-      "selectBill": "اختر البوليصة",
-      "recipientPlaceholder": "من يستلم البضاعة؟",
       "creating": "جارٍ الإنشاء…",
+      "description": "يجب أن تكون البوليصة صادرة؛ أمر واحد نشط لكل بوليصة.",
       "errors": {
         "billRequired": "اختيار البوليصة إلزامي",
         "recipientRequired": "المستلم إلزامي"
-      }
-    },
-    "confirm": {
-      "cancel": {
-        "title": "إلغاء هذا الأمر؟",
-        "description": "تصبح البوليصة قابلة للتسليم مجددًا؛ ويبقى الصف للتدقيق.",
-        "reason": "سبب الإلغاء",
-        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟"
       },
-      "delete": {
-        "title": "حذف هذا الأمر الملغى؟",
-        "description": "يُحذف الصف الملغى نهائيًا."
-      }
+      "recipientPlaceholder": "من يستلم البضاعة؟",
+      "selectBill": "اختر البوليصة",
+      "title": "إنشاء أمر تسليم"
     },
     "detail": {
       "headerTitle": "أمر تسليم"
-    }
-  },
-  "releaseOrder": {
-    "page": {
-      "title": "أوامر الإفراج",
-      "description": "تصاريح إفراج البضاعة مقابل بوليصات الشحن (R/O) — مسددة أو بتجاوز معتمد"
-    },
-    "list": {
-      "title": "سجل أوامر الإفراج",
-      "subtitle": "أمر إفراج واحد نشط لكل بوليصة؛ مع تطبيق قاعدة المال",
-      "search": "بحث برقم أو ملاحظات",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا أوامر إفراج",
-        "description": "أصدر أمر إفراج بعد تسوية فواتير البوليصة."
-      }
-    },
-    "status": {
-      "ISSUED": "صادر",
-      "CANCELLED": "ملغى"
     },
     "fields": {
-      "docNumber": "رقم الأمر",
       "bill": "البوليصة",
-      "releaseDate": "تاريخ الإفراج",
-      "financial": "المالية",
-      "override": "تجاوز معتمد",
-      "settled": "مسدد",
-      "invoicesTotal": "مُفوتر",
-      "invoicesPaid": "مدفوع",
-      "overrideReason": "سبب التجاوز",
+      "cancelReason": "سبب الإلغاء",
+      "docNumber": "رقم الأمر",
+      "issueDate": "تاريخ الإصدار",
       "notes": "ملاحظات",
+      "recipient": "المستلم",
       "status": "الحالة",
-      "cancelReason": "سبب الإلغاء"
+      "vehiclePlate": "لوحة المركبة"
     },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أصدر أول أمر تسليم مقابل بوليصة صادرة.",
+        "title": "لا أوامر تسليم"
+      },
+      "search": "بحث برقم أو مستلم أو لوحة",
+      "subtitle": "أوامر صادرة؛ أمر واحد نشط لكل بوليصة",
+      "title": "سجل أوامر التسليم"
+    },
+    "page": {
+      "description": "تصاريح تسليم البضاعة مقابل بوليصات الشحن (D/O)",
+      "title": "أوامر التسليم"
+    },
+    "status": {
+      "CANCELLED": "ملغى",
+      "ISSUED": "صادر"
+    }
+  },
+  "discharge": {
     "actions": {
-      "create": "أمر جديد",
-      "cancelOrder": "إلغاء الأمر",
+      "cancel": "إلغاء التفريغ",
+      "complete": "إنجاز",
+      "create": "تفريغ جديد",
+      "delete": "حذف",
+      "start": "بدء التفريغ",
       "view": "عرض"
     },
-    "create": {
-      "title": "إنشاء أمر إفراج",
-      "description": "يتطلب سداد كل الفواتير الصادرة على البوليصة، أو تجاوزًا معتمدًا.",
-      "selectBill": "اختر البوليصة",
-      "creating": "جارٍ الإنشاء…",
-      "checkingEligibility": "جارٍ فحص التسوية…",
-      "blockedTitle": "رصيد مستحق",
-      "readyTitle": "جاهز للإفراج",
-      "eligibilityLine": "مُفوتر {total} — مدفوع {paid} — مستحق {outstanding}",
-      "blockedNeedsForce": "فواتير غير مسددة: إما أن تسدد، أو فعّل التجاوز مع السبب.",
-      "forceOverride": "تجاوز شرط السداد (مُدقَّق)",
-      "overrideReasonPlaceholder": "لماذا الإفراج رغم الرصيد المستحق؟",
-      "errors": {
-        "billRequired": "اختيار البوليصة إلزامي",
-        "overrideReasonRequired": "سبب التجاوز إلزامي"
-      }
+    "cancel": {
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: تغيير الرصيف",
+      "title": "إلغاء التفريغ"
     },
     "confirm": {
-      "cancel": {
-        "title": "إلغاء هذا الأمر؟",
-        "description": "تصبح البوليصة قابلة للإفراج مجددًا؛ ويبقى الصف للتدقيق.",
-        "reason": "سبب الإلغاء",
-        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟"
+      "complete": {
+        "description": "إنجاز تفريغ {number}؟ البضائع المفرَّغة بالكامل تصبح \"تم التسليم\"؛ والنواقص تبقى لمتابعة المطالبات.",
+        "title": "إنجاز التفريغ"
       },
       "delete": {
-        "title": "حذف هذا الأمر الملغى؟",
-        "description": "يُحذف الصف الملغى نهائيًا."
+        "description": "حذف تفريغ {number}؟ يمكن حذف عمليات التفريغ غير المبدوءة/قيد التنفيذ فقط.",
+        "title": "حذف التفريغ"
+      },
+      "start": {
+        "description": "بدء تفريغ {number}؟ تبقى البنود قابلة للتعديل أثناء التنفيذ.",
+        "title": "بدء التفريغ"
       }
-    },
-    "detail": {
-      "headerTitle": "أمر إفراج"
-    }
-  },
-  "proforma": {
-    "page": {
-      "title": "الفواتير الأولية",
-      "description": "عروض وفواتير أولية — تُحوَّل إلى فاتورة فعلية بنقرة واحدة."
-    },
-    "list": {
-      "title": "قائمة الفواتير الأولية",
-      "subtitle": "المسودات قابلة للتحرير؛ بعد الإصدار تُجمَّد للتحويل.",
-      "search": "ابحث بالرقم أو العنوان أو العميل",
-      "allStatuses": "كل الحالات",
-      "unconvertedOnly": "غير المحوَّلة فقط",
-      "empty": {
-        "title": "لا توجد فواتير أولية",
-        "description": "أنشئ أول عرض للسعر للبدء."
-      }
-    },
-    "fields": {
-      "number": "الرقم",
-      "title": "العنوان",
-      "customer": "العميل",
-      "status": "الحالة",
-      "currency": "العملة",
-      "issueDate": "تاريخ الإصدار",
-      "validUntil": "صالح حتى",
-      "total": "الإجمالي",
-      "discount": "الخصم",
-      "taxRate": "نسبة الضريبة ٪",
-      "description": "الوصف",
-      "notes": "ملاحظات",
-      "cancelReason": "سبب الإلغاء",
-      "convertedTo": "حوِّلت إلى"
-    },
-    "status": {
-      "DRAFT": "مسودة",
-      "ISSUED": "صادر",
-      "CANCELLED": "ملغى"
-    },
-    "actions": {
-      "create": "فاتورة أولية جديدة",
-      "issue": "إصدار",
-      "convert": "تحويل إلى فاتورة",
-      "cancelOrder": "إلغاء الفاتورة الأولية",
-      "cancelling": "جارٍ الإلغاء…"
-    },
-    "totals": {
-      "subtotal": "المجموع الفرعي",
-      "tax": "الضريبة",
-      "total": "الإجمالي"
     },
     "create": {
-      "title": "فاتورة أولية جديدة",
-      "description": "أضف بنودًا وضريبة/خصمًا اختياريًا — تُحسب المجاميع تلقائيًا.",
-      "selectCustomer": "اختر العميل…",
-      "titlePlaceholder": "مثال: عرض سعر الشحن — السفينة علي / الرحلة 12",
-      "itemsTitle": "البنود",
-      "addItem": "إضافة بند",
-      "itemDescription": "الوصف",
-      "qty": "الكمية",
-      "unitPrice": "سعر الوحدة",
-      "creating": "جارٍ الإنشاء…",
+      "description": "تُملأ البنود المتوقعة تلقائيًا مما حُمّل فعليًا.",
       "errors": {
-        "customerRequired": "اختيار العميل إلزامي",
-        "itemsRequired": "أضف بندًا واحدًا على الأقل"
-      }
+        "loadingRequired": "اختيار التحميل مطلوب"
+      },
+      "loadingLabel": "التحميل الفعلي (منجز)",
+      "loadingPlaceholder": "— اختر —",
+      "noLoadings": "لا تحميلات فعلية منجزة متاحة للتفريغ.",
+      "title": "تفريغ جديد"
     },
     "detail": {
-      "title": "تفاصيل الفاتورة الأولية",
-      "items": "البنود",
-      "lineTotal": "المبلغ",
-      "convertedBadge": "محوَّلة"
-    },
-    "convert": {
-      "title": "التحويل إلى فاتورة",
-      "description": "ينشئ هذا فاتورة مسودة بنفس البنود والمجاميع.",
-      "body": "سيُعلَّم المستند كمحوَّل؛ التحويل يمكن مرة واحدة فقط.",
-      "converting": "جارٍ التحويل…",
-      "resultTitle": "تم إنشاء الفاتورة",
-      "resultLine": "أُنشئت الفاتورة المسودة {number} من هذا المستند.",
-      "resultHint": "راجعها في صفحة الفواتير ثم أصدرها."
-    },
-    "confirm": {
-      "issue": {
-        "title": "إصدار الفاتورة الأولية؟",
-        "description": "بعد الإصدار تُجمَّد البنود والترويسة."
-      },
-      "cancel": {
-        "title": "إلغاء الفاتورة الأولية؟",
-        "description": "الإلغاء نهائي ويمكن الحذف بعده.",
-        "reason": "السبب",
-        "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة الأولية؟"
-      }
-    }
-  },
-  "quotation": {
-    "page": {
-      "title": "عروض الأسعار",
-      "description": "عروض أسعار مُرسلة إلى العملاء — قابلة للتحويل إلى فواتير أولية"
-    },
-    "actions": {
-      "create": "عرض سعر جديد",
-      "send": "إرسال",
-      "accept": "قبول",
-      "reject": "رفض",
-      "convert": "تحويل",
-      "cancelling": "جارٍ الإلغاء...",
-      "rejecting": "جارٍ الرفض..."
-    },
-    "status": {
-      "DRAFT": "مسودة",
-      "SENT": "مُرسل",
-      "ACCEPTED": "مقبول",
-      "REJECTED": "مرفوض",
-      "CANCELLED": "ملغي"
-    },
-    "list": {
-      "title": "قائمة عروض الأسعار",
-      "subtitle": "بحث وتصفية وإدارة عروض الأسعار",
-      "search": "بحث...",
-      "allStatuses": "كل الحالات",
-      "convertibleOnly": "القابلة للتحويل فقط",
-      "empty": {
-        "title": "لا توجد عروض أسعار",
-        "description": "أنشئ عرض سعر للبدء."
-      }
+      "cancelledOn": "تاريخ الإلغاء",
+      "completedOn": "تاريخ الإنجاز",
+      "createdOn": "تاريخ الإنشاء",
+      "title": "التفريغ"
     },
     "fields": {
-      "number": "الرقم",
-      "customer": "العميل",
-      "issueDate": "تاريخ الإرسال",
-      "validUntil": "صالح حتى",
-      "total": "الإجمالي",
-      "status": "الحالة",
-      "currency": "العملة",
-      "title": "العنوان",
-      "taxRate": "نسبة الضريبة %",
-      "discount": "الخصم",
+      "discharged": "المفرَّغ",
+      "expected": "المتوقع",
+      "lines": "البنود",
+      "loading": "التحميل الفعلي",
       "notes": "ملاحظات",
-      "description": "الوصف",
-      "cancelReason": "سبب الإلغاء",
-      "rejectReason": "سبب الرفض",
-      "convertedTo": "حُوّل إلى"
+      "number": "رقم التفريغ",
+      "pod": "ميناء الوصول",
+      "status": "الحالة",
+      "vessel": "السفينة",
+      "voyage": "الرحلة"
     },
-    "create": {
-      "title": "إنشاء عرض سعر",
-      "description": "أدخل الرأس والبنود؛ تُحتسب الإجماليات تلقائياً.",
-      "creating": "جارٍ الإنشاء...",
-      "selectCustomer": "اختر العميل...",
-      "itemsTitle": "البنود",
-      "itemDescription": "وصف البند",
-      "qty": "الكمية",
-      "unitPrice": "سعر الوحدة",
-      "addItem": "إضافة بند",
+    "items": {
+      "cargo": "البضاعة",
+      "discharged": "المفرَّغ",
       "errors": {
-        "customerRequired": "اختيار العميل مطلوب",
-        "itemsRequired": "مطلوب بند واحد على الأقل"
-      }
-    },
-    "totals": {
-      "subtotal": "المجموع الفرعي",
-      "tax": "الضريبة",
-      "total": "الإجمالي"
-    },
-    "detail": {
-      "items": "البنود",
-      "lineTotal": "إجمالي السطر",
-      "convertedBadge": "حُوّل إلى {number}"
-    },
-    "convert": {
-      "title": "التحويل إلى فاتورة أولية",
-      "description": "يُحوَّل هذا العرض المقبول مرة واحدة إلى فاتورة أولية مسودة.",
-      "body": "تحويل العرض {number} بإجمالي {total} {currency} إلى فاتورة أولية؟",
-      "converting": "جارٍ التحويل...",
-      "resultTitle": "تم التحويل",
-      "resultLine": "أُنشئت الفاتورة الأولية {number}.",
-      "resultHint": "الفاتورة الأولية مسودة؛ أصدِرْها قبل تحويلها إلى فاتورة."
-    },
-    "confirm": {
-      "send": {
-        "title": "إرسال عرض السعر",
-        "description": "بعد الإرسال لا يمكن تعديل البنود أو المبالغ."
+        "exceeds": "العدد المفرَّغ يتجاوز المتوقع ({expected})",
+        "nonnegative": "يجب أن يكون العدد عددًا صحيحًا غير سالب"
       },
-      "accept": {
-        "title": "قبول عرض السعر",
-        "description": "بعد القبول يصبح التحويل إلى فاتورة أولية ممكناً."
+      "expected": "المتوقع",
+      "result": {
+        "FULL": "كامل",
+        "NOT_DISCHARGED": "غير مفرَّغ",
+        "PARTIAL": "جزئي"
       },
-      "reject": {
-        "title": "رفض عرض السعر",
-        "description": "أدخل سبب الرفض.",
-        "reason": "سبب الرفض",
-        "reasonPlaceholder": "مثال: السعر أعلى من ميزانية العميل"
+      "totals": "الإجماليات"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أنشئ تفريغًا عند وصول تحميل منجز إلى ميناء الوصول.",
+        "title": "لا عمليات تفريغ"
       },
-      "cancel": {
-        "title": "إلغاء عرض السعر",
-        "description": "أدخل سبب الإلغاء.",
-        "reason": "سبب الإلغاء",
-        "reasonPlaceholder": "مثال: استُبدل بغيره"
-      }
+      "search": "رقم التفريغ أو التحميل أو الرحلة أو السفينة…"
+    },
+    "page": {
+      "description": "تفريغ البضاعة في ميناء الوصول — مرآة التحميل الفعلي",
+      "title": "التفريغ"
+    },
+    "status": {
+      "CANCELLED": "ملغى",
+      "COMPLETED": "منجز",
+      "IN_PROGRESS": "قيد التنفيذ",
+      "NOT_STARTED": "لم يبدأ"
     }
   },
   "employee": {
-    "page": {
-      "title": "الموظفون",
-      "description": "بيانات الموارد البشرية — الموظفون والرواتب الأساسية والحالة"
-    },
     "actions": {
       "create": "موظف جديد",
-      "edit": "تعديل",
-      "delete": "حذف"
+      "delete": "حذف",
+      "edit": "تعديل"
+    },
+    "confirm": {
+      "delete": {
+        "description": "حذف {name}؟ لا يمكن التراجع عن هذا الإجراء.",
+        "title": "حذف الموظف"
+      }
     },
     "fields": {
+      "baseSalary": "الراتب الأساسي",
       "code": "الرمز",
-      "name": "الاسم",
-      "nationalId": "الرقم الوطني",
-      "position": "المنصب",
-      "phone": "الهاتف",
+      "currency": "العملة",
       "email": "البريد الإلكتروني",
       "hireDate": "تاريخ التعيين",
-      "baseSalary": "الراتب الأساسي",
-      "currency": "العملة",
-      "status": "الحالة",
+      "name": "الاسم",
+      "nationalId": "الرقم الوطني",
       "notes": "ملاحظات",
-      "salaryRecordsCount": "قسائم الرواتب"
+      "phone": "الهاتف",
+      "position": "المنصب",
+      "salaryRecordsCount": "قسائم الرواتب",
+      "status": "الحالة"
+    },
+    "form": {
+      "codePlaceholder": "تلقائي (EMP-#####)",
+      "description": "الراتب الأساسي والعملة يحددان افتراضيات قسيمة الراتب.",
+      "editTitle": "تعديل الموظف",
+      "errors": {
+        "nameRequired": "الاسم مطلوب"
+      },
+      "saving": "جارٍ الحفظ...",
+      "title": "إنشاء موظف"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أنشئ أول موظف لبدء مسير الرواتب.",
+        "title": "لا يوجد موظفون"
+      },
+      "search": "بحث...",
+      "subtitle": "بحث وإدارة بيانات الموظفين",
+      "title": "قائمة الموظفين"
+    },
+    "page": {
+      "description": "بيانات الموارد البشرية — الموظفون والرواتب الأساسية والحالة",
+      "title": "الموظفون"
     },
     "status": {
       "ACTIVE": "نشط",
       "INACTIVE": "غير نشط"
+    }
+  },
+  "home": {
+    "nav": {
+      "brand": "شحن دونا",
+      "home": "الرئيسية",
+      "about": "معلومات عنا",
+      "services": "الخدمات",
+      "contact": "اتصل بنا",
+      "login": "تسجيل الدخول",
+      "switchToPersian": "الفارسيه",
+      "switchToEnglish": "الانجليزيه",
+      "switchToArabic": "العربيه"
     },
-    "list": {
-      "title": "قائمة الموظفين",
-      "subtitle": "بحث وإدارة بيانات الموظفين",
-      "search": "بحث...",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا يوجد موظفون",
-        "description": "أنشئ أول موظف لبدء مسير الرواتب."
+    "hero": {
+      "tag": "شركة شحن دولية",
+      "title": "شحن البضائع من نقطة المنبع إلى نقطة الوجهة\nبأمان وفي الوقت المحدد، في كل مرة",
+      "subtitle": "الأمان، إعادة التصدير، التوثيق، وخدمة ما بعد البيع.\nكل ذلك في مكان واحد — من التحميل حتى التسوية النهائية.",
+      "ctaPrimary": "تسجيل الدخول",
+      "ctaSecondary": "اعرف المزيد",
+      "stats": {
+        "years": "سنوات الخبرة",
+        "destinations": "أسواق الهدف",
+        "shipments": "شحنات ناجحة"
       }
     },
-    "form": {
-      "title": "إنشاء موظف",
-      "editTitle": "تعديل الموظف",
-      "description": "الراتب الأساسي والعملة يحددان افتراضيات قسيمة الراتب.",
-      "saving": "جارٍ الحفظ...",
-      "codePlaceholder": "تلقائي (EMP-#####)",
-      "errors": {
-        "nameRequired": "الاسم مطلوب"
+    "about": {
+      "eyebrow": "معلومات عنا",
+      "title": "شركة شحن دونا",
+      "paragraph": "شركة شحن دونا، بخبرة تتجاوز 10 سنوات في النقل البحري، تسوية البضائع، إدارة الحاويات وعمليات yard، شريك موثوق للشركات في خلیج الفارس والمناطق الحرة. نقدم مزيجاً من التميز التشغيلي، التوثيق الدقيق، والمحاسبة الشفافة — من التحميل الأولي حتى التسوية النهائية.",
+      "values": {
+        "expertise": "الخبرة والكفاءة",
+        "safety": "السلامة والاستقرار",
+        "timeliness": "الوقت والاعتماد",
+        "transparency": "الشفافية والمحاسبة الواضحة"
       }
     },
-    "confirm": {
-      "delete": {
-        "title": "حذف الموظف",
-        "description": "حذف {name}؟ لا يمكن التراجع عن هذا الإجراء."
+    "services": {
+      "eyebrow": "خدمات مهنية",
+      "title": "خدماتنا",
+      "services": [
+        {
+          "name": "المرسى والمخزن",
+          "icon": "warehouse",
+          "desc": "تسجيل البضائع، عرض المستودع حسب الميناء والمرسى، تتبع الحالات والتقارير."
+        },
+        {
+          "name": "التحميل وقائمة التحميل",
+          "icon": "shipping",
+          "desc": "تتم إتمام قوائم التحميل تدريجياً؛ البضائع المرسومة يلتزم بإقرار نهائي."
+        },
+        {
+          "name": "بوليصة الشحن والبريد الجمركي",
+          "icon": "file-text",
+          "desc": "مصادر كاملة، إنشاء تلقائي لبوليصة الشحن والبريد الجمركي، مراجع بنكية وجمركية."
+        },
+        {
+          "name": "المحاسبة والمالية",
+          "icon": "dollar-sign",
+          "desc": "بروفة، عرض سعر، فاتورة، دفتر، شبكة راتب، والتقارير المالية الكاملة."
+        }
+      ]
+    },
+    "capabilities": {
+      "eyebrow": "لماذا دونا؟",
+      "title": "قدراتنا",
+      "items": [
+        {
+          "title": "تغطية عالمية",
+          "icon": "globe",
+          "desc": "نشط في موانئ خلیج الفارس وخلیج عمان والمناطق الحرة، مع وصول إلى الوجهات الدولية."
+        },
+        {
+          "title": "توثيق دقيق",
+          "icon": "file-check",
+          "desc": "بوليصة الشحن، البريد الجمركي، أوامر التسليم، الفاتورة، والبروفة — بجميعها بجودة معيارية."
+        },
+        {
+          "title": "محاسبة شفافة",
+          "icon": "receipt",
+          "desc": "الدورة المحاسبية الكاملة: من البروفة والعرض السعري إلى الفاتورة والتقارير النهائية."
+        },
+        {
+          "title": "بوابة الوكلاء",
+          "icon": "user-round",
+          "desc": "يمكن للوكلاء الشركاء تقديم طلبات الحجز، تتبع الحالات، وإدارة الشحنات."
+        }
+      ]
+    },
+    "coverage": {
+      "eyebrow": "الموانئ والوجهات",
+      "title": "التغطية الجغرافية",
+      "intro": "نحن نشط في الموانئ الرئيسية لخلیج الفارس والمناطق الحرة الإيرانية، مع وصول إلى الوجهات الدولية.",
+      "ports": [
+        "بندر عباس",
+        "بندر الإمام",
+        "تشابهار",
+        "جزيرة كيش",
+        "بوشهر",
+        "جسك"
+      ]
+    },
+    "cta": {
+      "title": "جاهز للبدء؟",
+      "subtitle": "ادير عمليات شحنك وحساباتك مع دونا اليوم.",
+      "button": "تسجيل الدخول"
+    },
+    "footer": {
+      "brand": "شحن دونا",
+      "legal": "© {year} شحن دونا. جميع الحقوق محفوظة.",
+      "tagline": "عمليات الشحن والمحاسبة",
+      "links": {
+        "about": "معلومات عنا",
+        "services": "الخدمات",
+        "contact": "اتصل بنا",
+        "login": "تسجيل الدخول"
       }
     }
   },
-  "salary": {
-    "page": {
-      "title": "قسائم الرواتب",
-      "description": "قسائم شهرية — مسودة، اعتماد، دفع"
-    },
+  "invoice": {
     "actions": {
-      "create": "قسيمة جديدة",
-      "approve": "اعتماد",
-      "pay": "دفع",
-      "cancel": "إلغاء",
-      "cancelling": "جارٍ الإلغاء...",
+      "cancel": "إلغاء الفاتورة",
+      "close": "إغلاق",
+      "create": "فاتورة جديدة",
       "delete": "حذف",
-      "view": "عرض"
-    },
-    "status": {
-      "DRAFT": "مسودة",
-      "APPROVED": "معتمدة",
-      "PAID": "مدفوعة",
-      "CANCELLED": "ملغاة"
-    },
-    "list": {
-      "title": "القسائم",
-      "subtitle": "تصفية حسب الفترة والموظف والحالة",
-      "search": "بحث...",
-      "allStatuses": "كل الحالات",
-      "allYears": "كل السنوات",
-      "allMonths": "كل الأشهر",
-      "allEmployees": "كل الموظفين",
-      "empty": {
-        "title": "لا توجد قسائم",
-        "description": "أنشئ أول قسيمة لبدء مسير الرواتب."
-      }
-    },
-    "fields": {
-      "number": "الرقم",
-      "employee": "الموظف",
-      "period": "الفترة",
-      "base": "الأساسي",
-      "additions": "الإضافات",
-      "deductions": "الاستقطاعات",
-      "net": "الصافي",
-      "currency": "العملة",
-      "status": "الحالة",
-      "notes": "ملاحظات",
-      "year": "السنة",
-      "month": "الشهر",
-      "paymentMethod": "طريقة الدفع",
-      "paymentRef": "مرجع الدفع",
-      "cancelReason": "سبب الإلغاء"
-    },
-    "method": {
-      "CASH": "نقدي",
-      "BANK_TRANSFER": "تحويل بنكي",
-      "CHEQUE": "شيك",
-      "OTHER": "أخرى"
-    },
-    "create": {
-      "title": "إنشاء قسيمة",
-      "description": "يُفترض الأساسي والعملة من ملف الموظف.",
-      "creating": "جارٍ الإنشاء...",
-      "selectEmployee": "اختر الموظف...",
-      "errors": {
-        "employeeRequired": "اختيار الموظف مطلوب"
-      }
+      "issue": "إصدار",
+      "save": "حفظ"
     },
     "confirm": {
-      "approve": {
-        "title": "اعتماد القسيمة",
-        "description": "اعتماد {number} بصافي {net}؟ لن تكون قابلة للتعديل بعد الاعتماد."
+      "cancel": {
+        "description": "الفواتير الملغاة نهائية وتبقى للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة؟",
+        "title": "إلغاء الفاتورة؟"
       },
       "delete": {
-        "title": "حذف القسيمة",
-        "description": "حذف {number}؟ يمكن حذف المسودات فقط."
+        "description": "حذف ناعم؛ لن تظهر مجددًا.",
+        "title": "حذف هذه المسودة؟"
+      },
+      "issue": {
+        "description": "الفواتير الصادرة مقفلة وتدخل سجل المدفوعات.",
+        "title": "إصدار الفاتورة؟"
+      },
+      "removeItem": {
+        "description": "سيُعاد حساب المجاميع.",
+        "title": "إزالة هذا البند؟"
       }
     },
-    "pay": {
-      "title": "تسجيل الدفع",
-      "description": "يُسجَّل واقِع الدفع على القسيمة.",
-      "paying": "جارٍ التسجيل...",
-      "referencePlaceholder": "مثال: TRF-12345"
-    },
-    "cancel": {
-      "title": "إلغاء القسيمة",
-      "description": "أدخل سبب الإلغاء (للتدقيق).",
-      "reason": "سبب الإلغاء",
-      "reasonPlaceholder": "مثال: ترك العمل"
+    "create": {
+      "creating": "جارٍ الإنشاء…",
+      "description": "اختر عميلاً؛ اختياري: ربط بمانيفست أو بوليصة.",
+      "errors": {
+        "customerRequired": "اختيار العميل إلزامي"
+      },
+      "noAnchor": "الروابط اختيارية.",
+      "selectBill": "بدون بوليصة",
+      "selectCustomer": "اختر العميل",
+      "selectManifest": "بدون مانيفست",
+      "title": "إنشاء فاتورة"
     },
     "detail": {
-      "title": "قسيمة الراتب",
-      "approvedOn": "تاريخ الاعتماد",
-      "paidOn": "تاريخ الدفع",
+      "headerTitle": "ترويسة الفاتورة",
+      "loading": "جارٍ التحميل…",
+      "paid": "مدفوعة",
+      "saving": "جارٍ الحفظ…",
+      "unpaid": "غير مدفوعة"
+    },
+    "fields": {
+      "bill": "بوليصة الشحن",
+      "currencyCode": "العملة",
+      "customer": "العميل",
+      "description": "الوصف",
+      "discountAmount": "الخصم",
+      "dueDate": "تاريخ الاستحقاق",
+      "invoiceNumber": "رقم الفاتورة",
+      "issueDate": "تاريخ الإصدار",
+      "manifest": "المانيفست",
+      "notes": "ملاحظات",
+      "paidAmount": "المدفوع",
+      "status": "الحالة",
+      "subtotal": "المجموع الفرعي",
+      "taxAmount": "الضريبة",
+      "taxRate": "نسبة الضريبة ٪",
+      "title": "العنوان",
+      "totalAmount": "الإجمالي"
+    },
+    "items": {
+      "add": "إضافة بند",
+      "addDescription": "الوصف والكمية وسعر الوحدة؛ يُحسب مبلغ البند.",
+      "addTitle": "إضافة بند فاتورة",
+      "adding": "جارٍ الإضافة…",
+      "amount": "المبلغ",
+      "description": "الوصف",
+      "empty": "لا بنود بعد.",
+      "errors": {
+        "lineRequired": "الوصف وسعر وحدة موجب إلزاميان"
+      },
+      "quantity": "الكمية",
+      "remove": "إزالة",
+      "saveAll": "حفظ التغييرات",
+      "title": "بنود الفاتورة",
+      "unitPrice": "سعر الوحدة"
+    },
+    "list": {
+      "allDue": "أي تاريخ استحقاق",
+      "allPayments": "مدفوعة وغير مدفوعة",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أنشئ أول فاتورة لعميل.",
+        "title": "لا فواتير بعد"
+      },
+      "overdue": "المتأخرة فقط",
+      "search": "بحث برقم أو عنوان أو عميل",
+      "title": "الفواتير",
+      "unpaid": "غير المدفوعة فقط"
+    },
+    "page": {
+      "description": "مستندات فوترة العملاء",
+      "title": "الفواتير"
+    },
+    "status": {
+      "CANCELLED": "ملغاة",
+      "DRAFT": "مسودة",
+      "ISSUED": "صادرة"
+    }
+  },
+  "jobs": {
+    "actions": {
+      "addItem": "إضافة بند",
+      "cancel": "إلغاء الخدمة",
+      "complete": "إنجاز",
+      "create": "خدمة جديدة",
+      "delete": "حذف",
+      "edit": "تعديل",
+      "start": "فتح",
+      "view": "عرض"
+    },
+    "cancel": {
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: ألغى العميل",
+      "title": "إلغاء الخدمة"
+    },
+    "confirm": {
+      "complete": {
+        "description": "إنجاز {number} بربح {profit} {currency}؟ تُقفل البنود بعد الإنجاز.",
+        "title": "إنجاز الخدمة"
+      },
+      "delete": {
+        "description": "حذف {number}؟ يمكن حذف مسودات الخدمات فقط.",
+        "title": "حذف الخدمة"
+      },
+      "start": {
+        "description": "فتح {number}؟ ما زالت بنود الإيراد/التكلفة قابلة للتعديل.",
+        "title": "فتح الخدمة"
+      }
+    },
+    "detail": {
       "cancelledOn": "تاريخ الإلغاء",
-      "createdAt": "تاريخ الإنشاء"
+      "completedOn": "تاريخ الإنجاز",
+      "openedOn": "تاريخ الفتح",
+      "title": "الخدمة"
+    },
+    "fields": {
+      "cancelledOn": "تاريخ الإلغاء",
+      "completedOn": "تاريخ الإنجاز",
+      "cost": "التكلفة",
+      "currency": "العملة",
+      "customer": "العميل",
+      "description": "الوصف",
+      "income": "الإيراد",
+      "jobType": "نوع الخدمة",
+      "notes": "ملاحظات",
+      "number": "رقم الخدمة",
+      "openingDate": "تاريخ الفتح",
+      "profit": "الربح",
+      "status": "الحالة",
+      "title": "العنوان",
+      "totalCost": "التكلفة",
+      "totalIncome": "الإيراد",
+      "voyage": "الرحلة"
+    },
+    "form": {
+      "description": "تُضاف البنود بعد الإنشاء؛ ويُحسب الربح في الخادم.",
+      "editTitle": "تعديل الخدمة",
+      "errors": {
+        "titleRequired": "العنوان مطلوب"
+      },
+      "noCustomer": "— بلا عميل —",
+      "noType": "(بلا نوع)",
+      "noVoyage": "— بلا رحلة —",
+      "title": "إنشاء خدمة"
+    },
+    "items": {
+      "COST": "تكلفة",
+      "INCOME": "إيراد",
+      "add": "إضافة",
+      "addTitle": "إضافة بند",
+      "amount": "المبلغ",
+      "category": "الفئة",
+      "date": "التاريخ",
+      "description": "الشرح",
+      "editTitle": "تعديل البند",
+      "editing": "تعديل البند…",
+      "empty": "لا بنود بعد — أضف بنود الإيراد والتكلفة لحساب الربح.",
+      "errors": {
+        "badAmount": "أدخل مبلغًا صالحًا",
+        "descAmountRequired": "الشرح والمبلغ مطلوبان",
+        "descriptionRequired": "الشرح مطلوب"
+      },
+      "kind": {
+        "COST": "تكلفة",
+        "INCOME": "إيراد"
+      },
+      "title": "بنود التكلفة",
+      "totals": "الإجماليات"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أنشئ أول خدمة لبدء التكلفة.",
+        "title": "لا توجد خدمات"
+      },
+      "search": "الرقم أو العنوان أو العميل…"
+    },
+    "page": {
+      "description": "خدمات العملاء مع بنود الإيراد/التكلفة وربح مباشر لكل خدمة",
+      "title": "الخدمات والتكلفة"
+    },
+    "status": {
+      "CANCELLED": "ملغاة",
+      "COMPLETED": "منجزة",
+      "DRAFT": "مسودة",
+      "OPEN": "مفتوحة"
+    },
+    "type": {
+      "CUSTOMS": "شؤون جمركية",
+      "EXPORT": "صادرات",
+      "IMPORT_CLEARANCE": "تخليص واردات",
+      "OTHER": "أخرى",
+      "TRANSIT": "ترانزيت",
+      "TRANSPORT": "نقل"
+    }
+  },
+  "ledger": {
+    "actions": {
+      "print": "طباعة",
+      "run": "بناء كشف الحساب"
+    },
+    "allCurrencies": "كل العملات",
+    "columns": {
+      "balance": "الرصيد",
+      "credit": "دائن",
+      "date": "التاريخ",
+      "debit": "مدين",
+      "description": "الوصف",
+      "document": "المستند",
+      "kind": "النوع"
+    },
+    "fields": {
+      "currency": "العملة",
+      "customer": "العميل",
+      "fromDate": "من",
+      "toDate": "إلى"
+    },
+    "filters": {
+      "description": "اختر عميلاً؛ اختياريًا عملة وفترة زمنية.",
+      "title": "مرشحات كشف الحساب"
+    },
+    "kind": {
+      "balance": "رصيد",
+      "invoice": "فاتورة",
+      "voucher": "سند"
+    },
+    "list": {
+      "empty": {
+        "description": "لا فواتير أو سندات تطابق هذه المرشحات.",
+        "title": "لا قيود"
+      },
+      "loading": "جارٍ بناء كشف الحساب…"
+    },
+    "page": {
+      "description": "كشوف حساب العملاء — الفواتير والتسويات",
+      "title": "الدفاتر"
+    },
+    "selectCustomer": "اختر عميلاً لبناء كشف الحساب",
+    "statement": {
+      "closing": "رصيد ختامي",
+      "opening": "رصيد افتتاحي",
+      "period": "خلال الفترة",
+      "subtitle": "{count} قيدًا في الفترة",
+      "title": "كشف حساب — {customer}"
     }
   },
   "letters": {
-    "page": {
-      "title": "الرسائل",
-      "description": "سجل المراسلات الرسمية — الواردة والصادرة"
-    },
     "actions": {
+      "archive": "أرشفة",
       "create": "رسالة جديدة",
       "edit": "تعديل",
-      "send": "إرسال",
-      "archive": "أرشفة",
       "reply": "رد",
+      "send": "إرسال",
       "view": "عرض"
     },
-    "status": {
-      "DRAFT": "مسودة",
-      "SENT": "مُرسلة",
-      "RECEIVED": "واردة",
-      "ARCHIVED": "مؤرشفة"
+    "confirm": {
+      "delete": {
+        "description": "حذف {number}؟ يمكن حذف المسودات فقط.",
+        "title": "حذف الرسالة"
+      }
+    },
+    "detail": {
+      "archivedOn": "تاريخ الأرشفة",
+      "inReplyTo": "ردًا على",
+      "sentOn": "تاريخ الإرسال",
+      "title": "الرسالة"
     },
     "direction": {
       "INCOMING": "واردة",
       "OUTGOING": "صادرة"
     },
     "fields": {
-      "number": "الرقم",
-      "direction": "الاتجاه",
-      "subject": "الموضوع",
-      "date": "التاريخ",
-      "contact": "المراسِل",
-      "fromContact": "من (جهة/شخص)",
-      "toContact": "إلى (جهة/شخص)",
-      "refNumber": "رقم المرجع",
       "body": "النص",
+      "contact": "المراسِل",
+      "customer": "العميل",
+      "date": "التاريخ",
+      "direction": "الاتجاه",
+      "fromContact": "من (جهة/شخص)",
       "notes": "ملاحظات",
+      "number": "الرقم",
+      "refNumber": "رقم المرجع",
       "status": "الحالة",
-      "customer": "العميل"
-    },
-    "list": {
-      "title": "الرسائل",
-      "subtitle": "تصفية حسب الاتجاه والحالة والنص",
-      "search": "بحث بالرقم أو الموضوع أو المرجع...",
-      "allStatuses": "كل الحالات",
-      "allDirections": "كل الاتجاهات",
-      "empty": {
-        "title": "لا توجد رسائل",
-        "description": "سجّل أول رسالة واردة أو صادرة."
-      }
+      "subject": "الموضوع",
+      "toContact": "إلى (جهة/شخص)"
     },
     "form": {
-      "title": "رسالة جديدة",
-      "editTitle": "تعديل الرسالة",
       "description": "الرسائل الواردة تُسجَّل «واردة» فورًا؛ والصادرة تبدأ مسودة.",
-      "replyDescription": "يُنشأ الرد كمسودة صادرة مرتبطة بالرسالة الأصلية.",
+      "editTitle": "تعديل الرسالة",
       "errors": {
         "subjectRequired": "الموضوع مطلوب"
       },
-      "replyTitle": "رد على الرسالة"
+      "replyDescription": "يُنشأ الرد كمسودة صادرة مرتبطة بالرسالة الأصلية.",
+      "replyTitle": "رد على الرسالة",
+      "title": "رسالة جديدة"
     },
-    "confirm": {
-      "delete": {
-        "title": "حذف الرسالة",
-        "description": "حذف {number}؟ يمكن حذف المسودات فقط."
-      }
+    "list": {
+      "allDirections": "كل الاتجاهات",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "سجّل أول رسالة واردة أو صادرة.",
+        "title": "لا توجد رسائل"
+      },
+      "search": "بحث بالرقم أو الموضوع أو المرجع...",
+      "subtitle": "تصفية حسب الاتجاه والحالة والنص",
+      "title": "الرسائل"
     },
-    "detail": {
-      "inReplyTo": "ردًا على",
-      "sentOn": "تاريخ الإرسال",
-      "archivedOn": "تاريخ الأرشفة",
-      "title": "الرسالة"
-    }
-  },
-  "jobs": {
     "page": {
-      "title": "الخدمات والتكلفة",
-      "description": "خدمات العملاء مع بنود الإيراد/التكلفة وربح مباشر لكل خدمة"
-    },
-    "actions": {
-      "create": "خدمة جديدة",
-      "edit": "تعديل",
-      "delete": "حذف",
-      "view": "عرض",
-      "start": "فتح",
-      "complete": "إنجاز",
-      "cancel": "إلغاء الخدمة",
-      "addItem": "إضافة بند"
+      "description": "سجل المراسلات الرسمية — الواردة والصادرة",
+      "title": "الرسائل"
     },
     "status": {
+      "ARCHIVED": "مؤرشفة",
       "DRAFT": "مسودة",
-      "OPEN": "مفتوحة",
-      "COMPLETED": "منجزة",
-      "CANCELLED": "ملغاة"
-    },
-    "type": {
-      "IMPORT_CLEARANCE": "تخليص واردات",
-      "EXPORT": "صادرات",
-      "TRANSIT": "ترانزيت",
-      "CUSTOMS": "شؤون جمركية",
-      "TRANSPORT": "نقل",
-      "OTHER": "أخرى"
-    },
-    "fields": {
-      "number": "رقم الخدمة",
-      "title": "العنوان",
-      "description": "الوصف",
-      "jobType": "نوع الخدمة",
-      "customer": "العميل",
-      "voyage": "الرحلة",
-      "currency": "العملة",
-      "status": "الحالة",
-      "openingDate": "تاريخ الفتح",
-      "notes": "ملاحظات",
-      "income": "الإيراد",
-      "cost": "التكلفة",
-      "profit": "الربح",
-      "totalIncome": "الإيراد",
-      "totalCost": "التكلفة",
-      "completedOn": "تاريخ الإنجاز",
-      "cancelledOn": "تاريخ الإلغاء"
-    },
-    "list": {
-      "search": "الرقم أو العنوان أو العميل…",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا توجد خدمات",
-        "description": "أنشئ أول خدمة لبدء التكلفة."
-      }
-    },
-    "items": {
-      "title": "بنود التكلفة",
-      "addTitle": "إضافة بند",
-      "editTitle": "تعديل البند",
-      "editing": "تعديل البند…",
-      "add": "إضافة",
-      "empty": "لا بنود بعد — أضف بنود الإيراد والتكلفة لحساب الربح.",
-      "kind": {
-        "INCOME": "إيراد",
-        "COST": "تكلفة"
-      },
-      "INCOME": "إيراد",
-      "COST": "تكلفة",
-      "totals": "الإجماليات",
-      "category": "الفئة",
-      "description": "الشرح",
-      "amount": "المبلغ",
-      "date": "التاريخ",
-      "errors": {
-        "descriptionRequired": "الشرح مطلوب",
-        "descAmountRequired": "الشرح والمبلغ مطلوبان",
-        "badAmount": "أدخل مبلغًا صالحًا"
-      }
-    },
-    "form": {
-      "title": "إنشاء خدمة",
-      "editTitle": "تعديل الخدمة",
-      "description": "تُضاف البنود بعد الإنشاء؛ ويُحسب الربح في الخادم.",
-      "noType": "(بلا نوع)",
-      "noCustomer": "— بلا عميل —",
-      "noVoyage": "— بلا رحلة —",
-      "errors": {
-        "titleRequired": "العنوان مطلوب"
-      }
-    },
-    "cancel": {
-      "title": "إلغاء الخدمة",
-      "description": "أدخل سبب الإلغاء (للتدقيق).",
-      "reason": "سبب الإلغاء",
-      "reasonPlaceholder": "مثال: ألغى العميل"
-    },
-    "detail": {
-      "title": "الخدمة",
-      "openedOn": "تاريخ الفتح",
-      "completedOn": "تاريخ الإنجاز",
-      "cancelledOn": "تاريخ الإلغاء"
-    },
-    "confirm": {
-      "start": {
-        "title": "فتح الخدمة",
-        "description": "فتح {number}؟ ما زالت بنود الإيراد/التكلفة قابلة للتعديل."
-      },
-      "complete": {
-        "title": "إنجاز الخدمة",
-        "description": "إنجاز {number} بربح {profit} {currency}؟ تُقفل البنود بعد الإنجاز."
-      },
-      "delete": {
-        "title": "حذف الخدمة",
-        "description": "حذف {number}؟ يمكن حذف مسودات الخدمات فقط."
-      }
+      "RECEIVED": "واردة",
+      "SENT": "مُرسلة"
     }
   },
-  "discharge": {
-    "page": {
-      "title": "التفريغ",
-      "description": "تفريغ البضاعة في ميناء الوصول — مرآة التحميل الفعلي"
-    },
+  "login": {
+    "description": "برای دسترسی به فضای کاری از حساب کارمندی خود استفاده کنید.",
+    "email": "ایمیل",
+    "emailPlaceholder": "you@shipping.local",
+    "enterCredentials": "ایمیل و رمز عبور خود را وارد کنید.",
+    "heading": "ورود به سیستم",
+    "hidePassword": "پنهان کردن رمز عبور",
+    "password": "رمز عبور",
+    "restricted": "دسترسی فقط برای کارکنان مجاز است.",
+    "showPassword": "نمایش رمز عبور",
+    "subtitle": "برای ادامه، وارد حساب کاربری خود شوید.",
+    "title": "ورود",
+    "unableToSignIn": "ورود ممکن نیست. اتصال خود را بررسی و دوباره تلاش کنید."
+  },
+  "manifest": {
     "actions": {
-      "create": "تفريغ جديد",
-      "view": "عرض",
-      "start": "بدء التفريغ",
-      "complete": "إنجاز",
-      "cancel": "إلغاء التفريغ",
-      "delete": "حذف"
+      "approve": "اعتماد",
+      "cancel": "إلغاء",
+      "close": "إغلاق",
+      "delete": "حذف",
+      "save": "حفظ",
+      "submit": "إرسال",
+      "view": "عرض"
     },
-    "status": {
-      "NOT_STARTED": "لم يبدأ",
-      "IN_PROGRESS": "قيد التنفيذ",
-      "COMPLETED": "منجز",
-      "CANCELLED": "ملغى"
-    },
-    "fields": {
-      "number": "رقم التفريغ",
-      "loading": "التحميل الفعلي",
-      "voyage": "الرحلة",
-      "vessel": "السفينة",
-      "status": "الحالة",
-      "lines": "البنود",
-      "expected": "المتوقع",
-      "discharged": "المفرَّغ",
-      "notes": "ملاحظات",
-      "pod": "ميناء الوصول"
-    },
-    "list": {
-      "search": "رقم التفريغ أو التحميل أو الرحلة أو السفينة…",
-      "allStatuses": "كل الحالات",
-      "empty": {
-        "title": "لا عمليات تفريغ",
-        "description": "أنشئ تفريغًا عند وصول تحميل منجز إلى ميناء الوصول."
-      }
+    "allStatuses": "جميع الحالات",
+    "allVoyages": "جميع الرحلات",
+    "confirm": {
+      "approveBody": "اعتماد {no}؟ الموانيفست المعتمدة نهائية وغير قابلة للتعديل.",
+      "approveTitle": "اعتماد المانيفست",
+      "cancelBody": "إلغاء {no}؟ يجب ذكر السبب. الموانيفست الملغاة غير قابلة للتعديل.",
+      "cancelTitle": "إلغاء المانيفست",
+      "confirmApprove": "اعتماد",
+      "confirmCancel": "إلغاء المانيفست",
+      "confirmDelete": "حذف",
+      "confirmSubmit": "إرسال",
+      "deleteBody": "حذف المسودة {no}؟ سيُحذف المانيفست وأصنافه حذفًا منطقيًا.",
+      "deleteTitle": "حذف المانيفست",
+      "keep": "إبقاء",
+      "reason": "سبب الإلغاء *",
+      "submitBody": "إرسال {no} للاعتماد؟ بعد الإرسال يصبح المانيفست للقراءة فقط.",
+      "submitTitle": "إرسال المانيفست"
     },
     "create": {
-      "title": "تفريغ جديد",
-      "description": "تُملأ البنود المتوقعة تلقائيًا مما حُمّل فعليًا.",
-      "loadingLabel": "التحميل الفعلي (منجز)",
-      "loadingPlaceholder": "— اختر —",
-      "noLoadings": "لا تحميلات فعلية منجزة متاحة للتفريغ.",
-      "errors": {
-        "loadingRequired": "اختيار التحميل مطلوب"
-      }
+      "agent": "الوكيل",
+      "consignee": "المرسل إليه",
+      "description": "اختر الرحلة المراد إنشاء مانيفست لها. تُؤخذ السفينة والمسار والموانئ من الرحلة.",
+      "descriptionField": "الوصف",
+      "errorVoyage": "اختر رحلة.",
+      "noVoyages": "لا توجد رحلات متاحة.",
+      "notes": "ملاحظات",
+      "notifyParty": "الجهة المُخطَرة",
+      "selectAgent": "اختر الوكيل…",
+      "selectConsignee": "اختر المرسل إليه…",
+      "selectShipper": "اختر الشاحن…",
+      "selectVoyage": "اختر الرحلة…",
+      "shipper": "الشاحن",
+      "submit": "إنشاء المانيفست",
+      "title": "مانيفست جديد",
+      "voyage": "الرحلة *"
+    },
+    "createdFrom": "من",
+    "createdTo": "إلى",
+    "detail": {
+      "approvedAt": "تاريخ الاعتماد",
+      "cancelReason": "سبب الإلغاء",
+      "costs": "التكاليف",
+      "currency": "العملة",
+      "draftHint": "مسودة — قابلة للتعديل. أضف البضائع ثم أرسلها.",
+      "gasCost": "تكلفة الوقود",
+      "immutable": "الموانيفست المعتمدة أو الملغاة غير قابلة للتعديل.",
+      "lashingCost": "تكلفة التثبيت",
+      "parties": "الأطراف",
+      "podCost": "تكلفة ميناء التفريغ",
+      "polCost": "تكلفة ميناء الشحن",
+      "shipperCost": "تكلفة الشاحن",
+      "submittedAt": "تاريخ الإرسال",
+      "submittedHint": "مُرسَلة — بانتظار الاعتماد.",
+      "totalPackages": "إجمالي الطرود",
+      "totalQuantity": "العدد الإجمالي",
+      "totalWeight": "الوزن الإجمالي"
+    },
+    "empty": {
+      "description": "جرّب بحثًا أو تصفية أخرى، أو أنشئ مانيفستًا لرحلة بها عمليات تحميل مكتملة.",
+      "title": "لا توجد موانيفست"
+    },
+    "errors": {
+      "addItem": "فشلت إضافة البضاعة",
+      "approve": "فشل الاعتماد",
+      "blOrNotes": "أدخل رقم بوليصة الشحن أو ملاحظات للحفظ.",
+      "cancel": "فشل الإلغاء",
+      "create": "فشل إنشاء المانيفست",
+      "delete": "فشل الحذف",
+      "loadDetail": "فشل تحميل المانيفست",
+      "loadList": "فشل تحميل الموانيفست",
+      "reasonRequired": "سبب الإلغاء مطلوب.",
+      "removeItem": "فشلت إزالة الصنف",
+      "save": "فشل الحفظ",
+      "submit": "فشل الإرسال"
     },
     "items": {
+      "actions": "الإجراءات",
+      "addLabel": "إضافة بضاعة",
+      "addTitle": "إضافة بضاعة إلى المانيفست",
+      "blNumber": "رقم بوليصة الشحن",
       "cargo": "البضاعة",
-      "result": {
-        "FULL": "كامل",
-        "PARTIAL": "جزئي",
-        "NOT_DISCHARGED": "غير مفرَّغ"
-      },
-      "expected": "المتوقع",
-      "discharged": "المفرَّغ",
-      "totals": "الإجماليات",
-      "errors": {
-        "nonnegative": "يجب أن يكون العدد عددًا صحيحًا غير سالب",
-        "exceeds": "العدد المفرَّغ يتجاوز المتوقع ({expected})"
-      }
+      "eligibleEmpty": "لا توجد بضائع مؤهلة. أكمل عملية تحميل فعلية لهذه الرحلة أولاً.",
+      "empty": "لا توجد أصناف بعد. أضف البضائع المحمّلة لبناء المانيفست.",
+      "notes": "ملاحظات",
+      "packages": "الطرود",
+      "quantity": "العدد",
+      "remove": "إزالة",
+      "selectEligible": "اختر البضاعة…",
+      "seq": "#",
+      "title": "أصناف المانيفست",
+      "weight": "الوزن"
     },
-    "detail": {
-      "title": "التفريغ",
-      "createdOn": "تاريخ الإنشاء",
-      "completedOn": "تاريخ الإنجاز",
-      "cancelledOn": "تاريخ الإلغاء"
+    "loading": "جارٍ التحميل…",
+    "new": "مانيفست جديد",
+    "register": "سجل المانيفستات",
+    "registerHint": "الموانيفست الرسمية للحمولة. مانيفست واحد لكل رحلة.",
+    "searchPlaceholder": "ابحث برقم المانيفست أو رقم الرحلة أو اسم السفينة",
+    "status": {
+      "APPROVED": "معتمَد",
+      "CANCELLED": "ملغى",
+      "DRAFT": "مسودة",
+      "SUBMITTED": "مُرسَل"
     },
-    "confirm": {
-      "start": {
-        "title": "بدء التفريغ",
-        "description": "بدء تفريغ {number}؟ تبقى البنود قابلة للتعديل أثناء التنفيذ."
-      },
-      "complete": {
-        "title": "إنجاز التفريغ",
-        "description": "إنجاز تفريغ {number}؟ البضائع المفرَّغة بالكامل تصبح \"تم التسليم\"؛ والنواقص تبقى لمتابعة المطالبات."
-      },
-      "delete": {
-        "title": "حذف التفريغ",
-        "description": "حذف تفريغ {number}؟ يمكن حذف عمليات التفريغ غير المبدوءة/قيد التنفيذ فقط."
-      }
+    "subtitle": "أنشئ المانيفست الرسمي لحمولة الرحلة من عمليات التحميل المكتملة، ثم أرسله للاعتماد.",
+    "table": {
+      "actions": "الإجراءات",
+      "created": "تاريخ الإنشاء",
+      "items": "الأصناف",
+      "no": "الرقم",
+      "route": "المسار",
+      "status": "الحالة",
+      "totalWeight": "الوزن الإجمالي",
+      "voyage": "الرحلة / السفينة"
     },
-    "cancel": {
-      "title": "إلغاء التفريغ",
-      "description": "أدخل سبب الإلغاء (للتدقيق).",
-      "reason": "سبب الإلغاء",
-      "reasonPlaceholder": "مثال: تغيير الرصيف"
-    }
+    "title": "المانيفستات"
+  },
+  "nav": {
+    "accessControl": "الوصول",
+    "actualLoading": "الحمولة الفعلية",
+    "administration": "الإدارة",
+    "agentPortal": "بوابة الوكيل",
+    "agents": "نمایندگان",
+    "billOfLading": "بوليصة الشحن",
+    "bookings": "حجوزات الوكلاء",
+    "cargo": "بضاعة",
+    "commercial": "التجاري",
+    "correspondence": "المراسلات",
+    "customers": "العملاء",
+    "dashboard": "لوحة التحكم",
+    "delivery": "أوامر التسليم",
+    "deliveryOrders": "دستور تحویل",
+    "discharge": "تخلیه",
+    "discharges": "التفريغ",
+    "employees": "الموظفون",
+    "insightControl": "التحكم perception",
+    "inspection": "فحص",
+    "inspections": "الفحوصات",
+    "invoice": "فاتورة",
+    "invoices": "الفواتير",
+    "jobs": "الخدمات والتكلفة",
+    "ledger": "الدفاتر",
+    "letters": "الرسائل",
+    "loadList": "قائمة تحميل",
+    "loadLists": "قوائم التحميل",
+    "loadPlanning": "برنامه‌ریزی بار",
+    "manifest": "المانيفست",
+    "manifests": "بوليصات الشحن",
+    "masterData": "البيانات الرئيسية",
+    "operations": "العمليات",
+    "overview": "نظرة عامة",
+    "payments": "پرداخت‌ها",
+    "people": "الموظفون والرواتب",
+    "permissions": "الأذونات",
+    "port": "ميناء",
+    "portal": "البوابة",
+    "ports": "الموانئ",
+    "proforma": "فاتورة proforma",
+    "proformas": "الفواتير الأولية",
+    "quotation": "اقتباس",
+    "quotations": "عروض الأسعار",
+    "release": "أوامر الإفراج",
+    "reports": "گزارش‌ها",
+    "roles": "الأدوار",
+    "salaryRecords": "قسائم الرواتب",
+    "settings": "تنظیمات",
+    "users": "المستخدمون",
+    "vessel": "سفينة",
+    "vessels": "السفن",
+    "vouchers": "السندات",
+    "voyage": "رحلة",
+    "voyages": "الرحلات",
+    "yard": "ساحة",
+    "yardInventory": "مخزون ساحة",
+    "yards": "الساحات"
   },
   "portal": {
-    "title": "بوابة الوكيل",
-    "notLinked": "هذا الحساب غير مرتبط بشركة البوابة.",
-    "newBooking": "حجز جديد",
     "cancelBooking": "إلغاء الحجز",
-    "tabs": {
-      "bookings": "الحجوزات",
-      "shipments": "الشحنات",
-      "statement": "كشف الحساب"
-    },
-    "summary": {
-      "bookingsTotal": "إجمالي الحجوزات",
-      "pending": "بانتظار الرد",
-      "approvedManifests": "البيانات المعتمدة",
-      "balanceDue": "الرصيد المستحق"
+    "create": {
+      "hint": "سيُرسَل طلبك إلى مكتب الحجوزات وسيتم الرد عليه قريباً.",
+      "submit": "إرسال الطلب",
+      "title": "طلب حجز جديد"
     },
     "fields": {
-      "number": "الرقم",
+      "actions": "الإجراءات",
       "cargo": "البضاعة",
+      "containers": "الحاويات",
+      "number": "الرقم",
+      "response": "رد المكتب",
       "route": "المسار",
       "shipDate": "تاريخ الشحن",
-      "containers": "الحاويات",
-      "status": "الحالة",
-      "response": "رد المكتب",
-      "actions": "الإجراءات"
+      "status": "الحالة"
     },
     "form": {
       "cargoDescription": "وصف البضاعة",
       "cargoDescriptionPlaceholder": "مثال: لفائف فولاذ، 4 حاويات 20 قدم",
-      "originPort": "ميناء الشحن",
-      "destinationPort": "ميناء الوصول",
-      "requestedShipDate": "تاريخ الشحن المطلوب",
       "containers": "عدد الحاويات (تقريبي)",
       "containersHint": "عدد تقريبي",
-      "weightKg": "الوزن (كغم)",
+      "destinationPort": "ميناء الوصول",
       "notes": "ملاحظات",
-      "notesPlaceholder": "متطلبات وملاحظات خاصة…"
-    },
-    "create": {
-      "title": "طلب حجز جديد",
-      "hint": "سيُرسَل طلبك إلى مكتب الحجوزات وسيتم الرد عليه قريباً.",
-      "submit": "إرسال الطلب"
+      "notesPlaceholder": "متطلبات وملاحظات خاصة…",
+      "originPort": "ميناء الشحن",
+      "requestedShipDate": "تاريخ الشحن المطلوب",
+      "weightKg": "الوزن (كغم)"
     },
     "list": {
       "allStatuses": "كل الحالات",
       "empty": "لا توجد حجوزات بعد",
       "emptyHint": "سجّل أول طلب حجز لك"
     },
+    "manifest": {
+      "APPROVED": "معتمد",
+      "CANCELLED": "ملغى",
+      "DRAFT": "مسودة",
+      "SUBMITTED": "مُرسَل"
+    },
+    "newBooking": "حجز جديد",
+    "notLinked": "هذا الحساب غير مرتبط بشركة البوابة.",
     "shipments": {
       "empty": "لا توجد شحنات مسجلة لشركتك بعد",
-      "manifest": "البيان",
-      "status": "الحالة",
-      "vessel": "السفينة",
-      "route": "المسار",
-      "etd": "تاريخ الإبحار",
       "eta": "تاريخ الوصول",
-      "weight": "الوزن",
-      "units": "الكمية"
+      "etd": "تاريخ الإبحار",
+      "manifest": "البيان",
+      "route": "المسار",
+      "status": "الحالة",
+      "units": "الكمية",
+      "vessel": "السفينة",
+      "weight": "الوزن"
     },
     "statement": {
-      "date": "التاريخ",
-      "doc": "المستند",
-      "description": "الوصف",
-      "debit": "مدين",
-      "credit": "دائن",
       "balance": "الرصيد",
-      "opening": "الرصيد الافتتاحي",
-      "debits": "إجمالي المدين",
-      "credits": "إجمالي الدائن",
       "closing": "الرصيد الختامي",
-      "empty": "لا توجد حركات حساب"
+      "credit": "دائن",
+      "credits": "إجمالي الدائن",
+      "date": "التاريخ",
+      "debit": "مدين",
+      "debits": "إجمالي المدين",
+      "description": "الوصف",
+      "doc": "المستند",
+      "empty": "لا توجد حركات حساب",
+      "opening": "الرصيد الافتتاحي"
     },
     "status": {
-      "PENDING": "بانتظار الرد",
       "ACCEPTED": "مقبول",
+      "CANCELLED": "ملغى",
       "DECLINED": "مرفوض",
-      "CANCELLED": "ملغى"
+      "PENDING": "بانتظار الرد"
     },
-    "manifest": {
-      "DRAFT": "مسودة",
-      "SUBMITTED": "مُرسَل",
-      "APPROVED": "معتمد",
-      "CANCELLED": "ملغى"
+    "summary": {
+      "approvedManifests": "البيانات المعتمدة",
+      "balanceDue": "الرصيد المستحق",
+      "bookingsTotal": "إجمالي الحجوزات",
+      "pending": "بانتظار الرد"
+    },
+    "tabs": {
+      "bookings": "الحجوزات",
+      "shipments": "الشحنات",
+      "statement": "كشف الحساب"
+    },
+    "title": "بوابة الوكيل"
+  },
+  "ports": {
+    "abbreviation": {
+      "column": "الاختصار",
+      "detail": "الاختصار",
+      "empty": "—",
+      "hint": "اختياري. رمز مختصر وفريد للميناء، بحد أقصى ١٠ محارف.",
+      "label": "الاختصار",
+      "placeholder": "مثال: JEA",
+      "validation": "يجب ألا يتجاوز الاختصار ١٠ محارف."
     }
   },
-  "bookings": {
-    "title": "حجوزات الوكلاء",
-    "subtitle": "مراجعة طلبات الحجز المقدمة من شركات الوكلاء والرد عليها",
-    "allCompanies": "كل الشركات",
-    "allStatuses": "كل الحالات",
-    "searchPlaceholder": "ابحث برقم الحجز أو وصف البضاعة…",
-    "detail": "التفاصيل",
-    "detailTitle": "الحجز",
-    "empty": "لا توجد طلبات حجز",
+  "proforma": {
+    "actions": {
+      "cancelOrder": "إلغاء الفاتورة الأولية",
+      "cancelling": "جارٍ الإلغاء…",
+      "convert": "تحويل إلى فاتورة",
+      "create": "فاتورة أولية جديدة",
+      "issue": "إصدار"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "الإلغاء نهائي ويمكن الحذف بعده.",
+        "reason": "السبب",
+        "reasonPlaceholder": "لماذا تُلغى هذه الفاتورة الأولية؟",
+        "title": "إلغاء الفاتورة الأولية؟"
+      },
+      "issue": {
+        "description": "بعد الإصدار تُجمَّد البنود والترويسة.",
+        "title": "إصدار الفاتورة الأولية؟"
+      }
+    },
+    "convert": {
+      "body": "سيُعلَّم المستند كمحوَّل؛ التحويل يمكن مرة واحدة فقط.",
+      "converting": "جارٍ التحويل…",
+      "description": "ينشئ هذا فاتورة مسودة بنفس البنود والمجاميع.",
+      "resultHint": "راجعها في صفحة الفواتير ثم أصدرها.",
+      "resultLine": "أُنشئت الفاتورة المسودة {number} من هذا المستند.",
+      "resultTitle": "تم إنشاء الفاتورة",
+      "title": "التحويل إلى فاتورة"
+    },
+    "create": {
+      "addItem": "إضافة بند",
+      "creating": "جارٍ الإنشاء…",
+      "description": "أضف بنودًا وضريبة/خصمًا اختياريًا — تُحسب المجاميع تلقائيًا.",
+      "errors": {
+        "customerRequired": "اختيار العميل إلزامي",
+        "itemsRequired": "أضف بندًا واحدًا على الأقل"
+      },
+      "itemDescription": "الوصف",
+      "itemsTitle": "البنود",
+      "qty": "الكمية",
+      "selectCustomer": "اختر العميل…",
+      "title": "فاتورة أولية جديدة",
+      "titlePlaceholder": "مثال: عرض سعر الشحن — السفينة علي / الرحلة 12",
+      "unitPrice": "سعر الوحدة"
+    },
+    "detail": {
+      "convertedBadge": "محوَّلة",
+      "items": "البنود",
+      "lineTotal": "المبلغ",
+      "title": "تفاصيل الفاتورة الأولية"
+    },
     "fields": {
-      "number": "الرقم",
-      "company": "الشركة",
-      "cargo": "البضاعة",
-      "route": "المسار",
-      "shipDate": "تاريخ الشحن",
-      "status": "الحالة",
-      "containers": "الحاويات",
-      "weightKg": "الوزن (كغم)",
-      "created": "تاريخ التقديم",
+      "cancelReason": "سبب الإلغاء",
+      "convertedTo": "حوِّلت إلى",
+      "currency": "العملة",
+      "customer": "العميل",
+      "description": "الوصف",
+      "discount": "الخصم",
+      "issueDate": "تاريخ الإصدار",
       "notes": "ملاحظات",
-      "response": "الرد",
-      "responseNote": "نص الرد"
+      "number": "الرقم",
+      "status": "الحالة",
+      "taxRate": "نسبة الضريبة ٪",
+      "title": "العنوان",
+      "total": "الإجمالي",
+      "validUntil": "صالح حتى"
     },
-    "respond": {
-      "title": "الرد على الطلب",
-      "accept": "قبول",
-      "decline": "رفض",
-      "notePlaceholder": "نص الرد (اختياري)…",
-      "submit": "إرسال الرد",
-      "noPermission": "تحتاج صلاحية booking:respond للرد على الطلبات."
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أنشئ أول عرض للسعر للبدء.",
+        "title": "لا توجد فواتير أولية"
+      },
+      "search": "ابحث بالرقم أو العنوان أو العميل",
+      "subtitle": "المسودات قابلة للتحرير؛ بعد الإصدار تُجمَّد للتحويل.",
+      "title": "قائمة الفواتير الأولية",
+      "unconvertedOnly": "غير المحوَّلة فقط"
+    },
+    "page": {
+      "description": "عروض وفواتير أولية — تُحوَّل إلى فاتورة فعلية بنقرة واحدة.",
+      "title": "الفواتير الأولية"
+    },
+    "status": {
+      "CANCELLED": "ملغى",
+      "DRAFT": "مسودة",
+      "ISSUED": "صادر"
+    },
+    "totals": {
+      "subtotal": "المجموع الفرعي",
+      "tax": "الضريبة",
+      "total": "الإجمالي"
     }
   },
-  "booking": {
+  "quotation": {
+    "actions": {
+      "accept": "قبول",
+      "cancelling": "جارٍ الإلغاء...",
+      "convert": "تحويل",
+      "create": "عرض سعر جديد",
+      "reject": "رفض",
+      "rejecting": "جارٍ الرفض...",
+      "send": "إرسال"
+    },
+    "confirm": {
+      "accept": {
+        "description": "بعد القبول يصبح التحويل إلى فاتورة أولية ممكناً.",
+        "title": "قبول عرض السعر"
+      },
+      "cancel": {
+        "description": "أدخل سبب الإلغاء.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "مثال: استُبدل بغيره",
+        "title": "إلغاء عرض السعر"
+      },
+      "reject": {
+        "description": "أدخل سبب الرفض.",
+        "reason": "سبب الرفض",
+        "reasonPlaceholder": "مثال: السعر أعلى من ميزانية العميل",
+        "title": "رفض عرض السعر"
+      },
+      "send": {
+        "description": "بعد الإرسال لا يمكن تعديل البنود أو المبالغ.",
+        "title": "إرسال عرض السعر"
+      }
+    },
+    "convert": {
+      "body": "تحويل العرض {number} بإجمالي {total} {currency} إلى فاتورة أولية؟",
+      "converting": "جارٍ التحويل...",
+      "description": "يُحوَّل هذا العرض المقبول مرة واحدة إلى فاتورة أولية مسودة.",
+      "resultHint": "الفاتورة الأولية مسودة؛ أصدِرْها قبل تحويلها إلى فاتورة.",
+      "resultLine": "أُنشئت الفاتورة الأولية {number}.",
+      "resultTitle": "تم التحويل",
+      "title": "التحويل إلى فاتورة أولية"
+    },
+    "create": {
+      "addItem": "إضافة بند",
+      "creating": "جارٍ الإنشاء...",
+      "description": "أدخل الرأس والبنود؛ تُحتسب الإجماليات تلقائياً.",
+      "errors": {
+        "customerRequired": "اختيار العميل مطلوب",
+        "itemsRequired": "مطلوب بند واحد على الأقل"
+      },
+      "itemDescription": "وصف البند",
+      "itemsTitle": "البنود",
+      "qty": "الكمية",
+      "selectCustomer": "اختر العميل...",
+      "title": "إنشاء عرض سعر",
+      "unitPrice": "سعر الوحدة"
+    },
+    "detail": {
+      "convertedBadge": "حُوّل إلى {number}",
+      "items": "البنود",
+      "lineTotal": "إجمالي السطر"
+    },
+    "fields": {
+      "cancelReason": "سبب الإلغاء",
+      "convertedTo": "حُوّل إلى",
+      "currency": "العملة",
+      "customer": "العميل",
+      "description": "الوصف",
+      "discount": "الخصم",
+      "issueDate": "تاريخ الإرسال",
+      "notes": "ملاحظات",
+      "number": "الرقم",
+      "rejectReason": "سبب الرفض",
+      "status": "الحالة",
+      "taxRate": "نسبة الضريبة %",
+      "title": "العنوان",
+      "total": "الإجمالي",
+      "validUntil": "صالح حتى"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "convertibleOnly": "القابلة للتحويل فقط",
+      "empty": {
+        "description": "أنشئ عرض سعر للبدء.",
+        "title": "لا توجد عروض أسعار"
+      },
+      "search": "بحث...",
+      "subtitle": "بحث وتصفية وإدارة عروض الأسعار",
+      "title": "قائمة عروض الأسعار"
+    },
+    "page": {
+      "description": "عروض أسعار مُرسلة إلى العملاء — قابلة للتحويل إلى فواتير أولية",
+      "title": "عروض الأسعار"
+    },
     "status": {
-      "PENDING": "بانتظار الرد",
       "ACCEPTED": "مقبول",
-      "DECLINED": "مرفوض",
-      "CANCELLED": "ملغى"
+      "CANCELLED": "ملغي",
+      "DRAFT": "مسودة",
+      "REJECTED": "مرفوض",
+      "SENT": "مُرسل"
+    },
+    "totals": {
+      "subtotal": "المجموع الفرعي",
+      "tax": "الضريبة",
+      "total": "الإجمالي"
+    }
+  },
+  "releaseOrder": {
+    "actions": {
+      "cancelOrder": "إلغاء الأمر",
+      "create": "أمر جديد",
+      "view": "عرض"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "تصبح البوليصة قابلة للإفراج مجددًا؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا الأمر؟",
+        "title": "إلغاء هذا الأمر؟"
+      },
+      "delete": {
+        "description": "يُحذف الصف الملغى نهائيًا.",
+        "title": "حذف هذا الأمر الملغى؟"
+      }
+    },
+    "create": {
+      "blockedNeedsForce": "فواتير غير مسددة: إما أن تسدد، أو فعّل التجاوز مع السبب.",
+      "blockedTitle": "رصيد مستحق",
+      "checkingEligibility": "جارٍ فحص التسوية…",
+      "creating": "جارٍ الإنشاء…",
+      "description": "يتطلب سداد كل الفواتير الصادرة على البوليصة، أو تجاوزًا معتمدًا.",
+      "eligibilityLine": "مُفوتر {total} — مدفوع {paid} — مستحق {outstanding}",
+      "errors": {
+        "billRequired": "اختيار البوليصة إلزامي",
+        "overrideReasonRequired": "سبب التجاوز إلزامي"
+      },
+      "forceOverride": "تجاوز شرط السداد (مُدقَّق)",
+      "overrideReasonPlaceholder": "لماذا الإفراج رغم الرصيد المستحق؟",
+      "readyTitle": "جاهز للإفراج",
+      "selectBill": "اختر البوليصة",
+      "title": "إنشاء أمر إفراج"
+    },
+    "detail": {
+      "headerTitle": "أمر إفراج"
+    },
+    "fields": {
+      "bill": "البوليصة",
+      "cancelReason": "سبب الإلغاء",
+      "docNumber": "رقم الأمر",
+      "financial": "المالية",
+      "invoicesPaid": "مدفوع",
+      "invoicesTotal": "مُفوتر",
+      "notes": "ملاحظات",
+      "override": "تجاوز معتمد",
+      "overrideReason": "سبب التجاوز",
+      "releaseDate": "تاريخ الإفراج",
+      "settled": "مسدد",
+      "status": "الحالة"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "description": "أصدر أمر إفراج بعد تسوية فواتير البوليصة.",
+        "title": "لا أوامر إفراج"
+      },
+      "search": "بحث برقم أو ملاحظات",
+      "subtitle": "أمر إفراج واحد نشط لكل بوليصة؛ مع تطبيق قاعدة المال",
+      "title": "سجل أوامر الإفراج"
+    },
+    "page": {
+      "description": "تصاريح إفراج البضاعة مقابل بوليصات الشحن (R/O) — مسددة أو بتجاوز معتمد",
+      "title": "أوامر الإفراج"
+    },
+    "status": {
+      "CANCELLED": "ملغى",
+      "ISSUED": "صادر"
+    }
+  },
+  "roles": {
+    "actions": "الإجراءات",
+    "create": {
+      "description": "إنشاء دور جديد",
+      "title": "دور جديد"
+    },
+    "edit": {
+      "description": "تعديل بيانات الدور",
+      "title": "تعديل الدور"
+    },
+    "page": {
+      "description": "إدارة الأدوار والصلاحيات",
+      "title": "صفحة الأدوار"
+    },
+    "permission": "الصلاحية",
+    "status": "الحالة"
+  },
+  "salary": {
+    "actions": {
+      "approve": "اعتماد",
+      "cancel": "إلغاء",
+      "cancelling": "جارٍ الإلغاء...",
+      "create": "قسيمة جديدة",
+      "delete": "حذف",
+      "pay": "دفع",
+      "view": "عرض"
+    },
+    "cancel": {
+      "description": "أدخل سبب الإلغاء (للتدقيق).",
+      "reason": "سبب الإلغاء",
+      "reasonPlaceholder": "مثال: ترك العمل",
+      "title": "إلغاء القسيمة"
+    },
+    "confirm": {
+      "approve": {
+        "description": "اعتماد {number} بصافي {net}؟ لن تكون قابلة للتعديل بعد الاعتماد.",
+        "title": "اعتماد القسيمة"
+      },
+      "delete": {
+        "description": "حذف {number}؟ يمكن حذف المسودات فقط.",
+        "title": "حذف القسيمة"
+      }
+    },
+    "create": {
+      "creating": "جارٍ الإنشاء...",
+      "description": "يُفترض الأساسي والعملة من ملف الموظف.",
+      "errors": {
+        "employeeRequired": "اختيار الموظف مطلوب"
+      },
+      "selectEmployee": "اختر الموظف...",
+      "title": "إنشاء قسيمة"
+    },
+    "detail": {
+      "approvedOn": "تاريخ الاعتماد",
+      "cancelledOn": "تاريخ الإلغاء",
+      "createdAt": "تاريخ الإنشاء",
+      "paidOn": "تاريخ الدفع",
+      "title": "قسيمة الراتب"
+    },
+    "fields": {
+      "additions": "الإضافات",
+      "base": "الأساسي",
+      "cancelReason": "سبب الإلغاء",
+      "currency": "العملة",
+      "deductions": "الاستقطاعات",
+      "employee": "الموظف",
+      "month": "الشهر",
+      "net": "الصافي",
+      "notes": "ملاحظات",
+      "number": "الرقم",
+      "paymentMethod": "طريقة الدفع",
+      "paymentRef": "مرجع الدفع",
+      "period": "الفترة",
+      "status": "الحالة",
+      "year": "السنة"
+    },
+    "list": {
+      "allEmployees": "كل الموظفين",
+      "allMonths": "كل الأشهر",
+      "allStatuses": "كل الحالات",
+      "allYears": "كل السنوات",
+      "empty": {
+        "description": "أنشئ أول قسيمة لبدء مسير الرواتب.",
+        "title": "لا توجد قسائم"
+      },
+      "search": "بحث...",
+      "subtitle": "تصفية حسب الفترة والموظف والحالة",
+      "title": "القسائم"
+    },
+    "method": {
+      "BANK_TRANSFER": "تحويل بنكي",
+      "CASH": "نقدي",
+      "CHEQUE": "شيك",
+      "OTHER": "أخرى"
+    },
+    "page": {
+      "description": "قسائم شهرية — مسودة، اعتماد، دفع",
+      "title": "قسائم الرواتب"
+    },
+    "pay": {
+      "description": "يُسجَّل واقِع الدفع على القسيمة.",
+      "paying": "جارٍ التسجيل...",
+      "referencePlaceholder": "مثال: TRF-12345",
+      "title": "تسجيل الدفع"
+    },
+    "status": {
+      "APPROVED": "معتمدة",
+      "CANCELLED": "ملغاة",
+      "DRAFT": "مسودة",
+      "PAID": "مدفوعة"
+    }
+  },
+  "system": {
+    "checkedAt": "بررسی {time}",
+    "checking": "در حال بررسی…",
+    "issue": "مشکل سیستم",
+    "operational": "سیستم فعال"
+  },
+  "topbar": {
+    "language": "زبان",
+    "openNav": "باز کردن منو",
+    "signedIn": "وارد شده",
+    "switchToEnglish": "English",
+    "switchToPersian": "فارسی"
+  },
+  "users": {
+    "active": "نشط",
+    "createUser": "إنشاء مستخدم",
+    "description": "حسابات الموظفين",
+    "inactive": "غير نشط",
+    "initials": "حروف مبكرة",
+    "list": "قائمة المستخدمين",
+    "noUsersFound": "لا توجد حسابات",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "roles": "الأدوار",
+    "title": "إدارة المستخدمين"
+  },
+  "voucher": {
+    "actions": {
+      "cancelVoucher": "إلغاء السند",
+      "cancelling": "جارٍ الإلغاء…",
+      "create": "سند جديد",
+      "save": "حفظ"
+    },
+    "confirm": {
+      "cancel": {
+        "description": "يُعكس أثره على الفاتورة؛ ويبقى الصف للتدقيق.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا يُلغى هذا السند؟",
+        "title": "إلغاء هذا السند؟"
+      },
+      "delete": {
+        "description": "يُحذف الصف الملغى نهائيًا.",
+        "title": "حذف هذا السند الملغى؟"
+      }
+    },
+    "create": {
+      "creating": "جارٍ الإنشاء…",
+      "description": "قبض (دخول مال) أو دفع (استرداد). اربط فاتورة لتسويتها.",
+      "errors": {
+        "amountRequired": "يجب أن يكون المبلغ موجبًا",
+        "customerRequired": "اختيار العميل إلزامي"
+      },
+      "noInvoice": "بدون فاتورة (مستقل)",
+      "selectCustomer": "اختر العميل",
+      "title": "إنشاء سند"
+    },
+    "fields": {
+      "amount": "المبلغ",
+      "cancelReason": "سبب الإلغاء",
+      "currencyCode": "العملة",
+      "customer": "العميل",
+      "description": "الوصف",
+      "invoice": "الفاتورة",
+      "method": "الطريقة",
+      "note": "ملاحظة",
+      "reference": "المرجع",
+      "status": "الحالة",
+      "type": "النوع",
+      "voucherDate": "تاريخ القيمة",
+      "voucherNumber": "رقم السند"
+    },
+    "list": {
+      "allStatuses": "كل الحالات",
+      "allTypes": "كل الأنواع",
+      "empty": {
+        "description": "سجّل أول سند قبض أو دفع.",
+        "title": "لا سندات بعد"
+      },
+      "search": "بحث برقم أو مرجع أو وصف",
+      "subtitle": "المستندات المالية المسجلة للعملاء والفواتير",
+      "title": "سجل السندات"
+    },
+    "method": {
+      "BANK_TRANSFER": "حوالة بنكية",
+      "CASH": "نقدي",
+      "CHEQUE": "شيك",
+      "OTHER": "أخرى"
+    },
+    "page": {
+      "description": "سندات القبض والدفع",
+      "title": "السندات"
+    },
+    "status": {
+      "CANCELLED": "ملغى",
+      "POSTED": "مُسجّل"
+    },
+    "type": {
+      "PAYMENT": "دفع",
+      "RECEIPT": "قبض"
+    }
+  },
+  "vessels": {
+    "detail": {
+      "type": "النوع"
+    },
+    "filter": {
+      "allTypes": "كل الأنواع"
+    },
+    "form": {
+      "type": "نوع السفينة"
+    },
+    "type": {
+      "BARGE": "بارج",
+      "BULK": "ناقلة سائبة",
+      "CONTAINER": "حاوية",
+      "GENERAL": "شحن عام",
+      "LANDING_CRAFT": "سفينة الإنزال",
+      "OTHER": "أخرى",
+      "PROJECT": "ناقلة مشاريع",
+      "RORO": "رو-رو",
+      "TANKER": "ناقلة نفط",
+      "TUG": "قارب الجرّ"
+    }
+  },
+  "voyages": {
+    "pairing": {
+      "barge": "بارج",
+      "hint": "اختياري — اقرن قارب الجرّ بالبارج لهذه الرحلة.",
+      "noneBarge": "بدون بارج",
+      "noneTug": "بدون قارب جرّ",
+      "tug": "قارب الجرّ"
+    },
+    "legs": {
+      "title": "الوجهات",
+      "hint": "لكل وجهة رقمها الخاص (مثل 1/26). الوجهة الأولى هي المرحلة 1.",
+      "add": "إضافة وجهة",
+      "remove": "إزالة",
+      "rowLabel": "الوجهة {n}",
+      "selectPlaceholder": "اختيار…",
+      "removeLabel": "إزالة الوجهة {n}",
+      "previewTitle": "رقم الرحلة التالي لهذه الوجهة",
+      "previewPrefix": "الرقم التالي للوجهة الرئيسية:",
+      "emptyRow": "اختر ميناءً لكل صف وجهة.",
+      "duplicate": "وجهة مكررة — يُسمح بتكرار الوجهة مرة واحدة فقط.",
+      "legColumn": "المرحلة",
+      "destinationColumn": "الوجهة",
+      "numberColumn": "رقم الرحلة"
     }
   }
 }

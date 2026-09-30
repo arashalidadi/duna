@@ -82,8 +82,10 @@ const listSelect = {
   deletedAt: true,
   manifest: { select: manifestSummarySelect },
   voyage: { select: voyageSummarySelect },
-  shipper: { select: { id: true, code: true, name: true, shortName: true } },
-  consignee: { select: { id: true, code: true, name: true, shortName: true } },
+  // Party relations now point at the masters (Shipper/Consignee), which have
+  // no shortName — field dropped per party-cutover-plan.md §9.
+  shipper: { select: { id: true, code: true, name: true } },
+  consignee: { select: { id: true, code: true, name: true } },
   createdBy: { select: { id: true, email: true, fullName: true } },
   issuedBy: { select: { id: true, email: true, fullName: true } },
   cancelledBy: { select: { id: true, email: true, fullName: true } },
@@ -201,7 +203,34 @@ export class BillService {
   }
 
   /**
-   * Create a B/L against an APPROVED Manifest.
+   * Party ids written onto a B/L must resolve to live (existing,
+   * non-soft-deleted) master rows since the Customer -> masters cutover
+   * (party-cutover-plan.md §3).
+   *  - explicit dto ids are payload -> unknown/deleted id is 400;
+   *  - ids derived from the manifest are a document-state problem -> 409
+   *    (the manifest itself references a dead master).
+   */
+  private async assertLiveParty(
+    kind: 'shipper' | 'consignee',
+    id: string,
+    fromManifest: boolean,
+  ) {
+    const row =
+      kind === 'shipper'
+        ? await this.prisma.shipper.findUnique({ where: { id }, select: { deletedAt: true } })
+        : await this.prisma.consignee.findUnique({ where: { id }, select: { deletedAt: true } });
+    if (row && !row.deletedAt) return;
+    const label = kind === 'shipper' ? 'Shipper' : 'Consignee';
+    if (fromManifest) {
+      throw new ConflictException(
+        `Cannot issue B/L: manifest ${kind} does not reference a live ${label}`,
+      );
+    }
+    throw new BadRequestException(`Unknown ${kind}Id: no live ${label} with id ${id}`);
+  }
+
+  /**
+   * Create a B/L against an APPROVED manifest.
    * Snapshots vessel + voyageId + parties (defaults from the manifest) so the
    * document stays stable even if the manifest is later edited. Creates in
    * DRAFT state. Generates billNumber: BOL-YYMM-#####.
@@ -228,6 +257,19 @@ export class BillService {
       throw new ConflictException(
         'Bills of Lading can only be issued against an APPROVED manifest',
       );
+    }
+
+    // Effective parties = dto override ?? manifest derivation — each must be a
+    // live master before it is frozen onto the B/L (plan §3).
+    if (dto.shipperId) {
+      await this.assertLiveParty('shipper', dto.shipperId, false);
+    } else if (manifest.shipperId) {
+      await this.assertLiveParty('shipper', manifest.shipperId, true);
+    }
+    if (dto.consigneeId) {
+      await this.assertLiveParty('consignee', dto.consigneeId, false);
+    } else if (manifest.consigneeId) {
+      await this.assertLiveParty('consignee', manifest.consigneeId, true);
     }
 
     const billNumber = await this.generateReference();
@@ -265,6 +307,11 @@ export class BillService {
       ) {
         throw new ConflictException('Could not create B/L: duplicate reference');
       }
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'Invalid reference: party ids must reference existing master records',
+        );
+      }
       throw e;
     }
   }
@@ -278,8 +325,11 @@ export class BillService {
       select: { id: true, status: true, deletedAt: true },
     });
     await this.assertEditable(existing, 'edited');
+    if (dto.shipperId) await this.assertLiveParty('shipper', dto.shipperId, false);
+    if (dto.consigneeId) await this.assertLiveParty('consignee', dto.consigneeId, false);
 
-    return this.prisma.billOfLading.update({
+    try {
+      return await this.prisma.billOfLading.update({
       where: { id },
       data: {
         ...(dto.billType !== undefined ? { billType: dto.billType as BlType } : {}),
@@ -301,8 +351,16 @@ export class BillService {
         ...(dto.shipmentMarks !== undefined ? { shipmentMarks: dto.shipmentMarks } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
-      select: detailSelect,
-    });
+        select: detailSelect,
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'Invalid reference: party ids must reference existing master records',
+        );
+      }
+      throw e;
+    }
   }
 
   /**

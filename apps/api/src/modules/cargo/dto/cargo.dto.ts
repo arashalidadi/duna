@@ -31,6 +31,16 @@ export class CreateCargoDto {
   @MaxLength(40)
   destinationPortId?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pol?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pod?: string;
+
   @IsEnum(CargoType)
   cargoType: CargoType;
 
@@ -77,6 +87,27 @@ export class CreateCargoDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(4000)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  chassis?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  serial?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000000)
+  units?: number;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   packageType?: string;
 
@@ -98,6 +129,37 @@ export class CreateCargoDto {
   @IsString()
   @MaxLength(4000)
   comments?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comment?: string;
+
+  // Phase 3A: party and financial fields
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  shipperId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  consigneeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  jobId?: string;
+
+  @IsOptional()
+  @IsString()
+  // Prisma Decimal(18,2): allow numeric string like "12345.67"
+  cargoValue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  cargoValueCurrency?: string;
 }
 
 export class UpdateCargoDto {
@@ -120,6 +182,16 @@ export class UpdateCargoDto {
   @IsString()
   @MaxLength(40)
   destinationPortId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pol?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pod?: string;
 
   @IsOptional()
   @IsEnum(CargoType)
@@ -168,6 +240,27 @@ export class UpdateCargoDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(4000)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  chassis?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  serial?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000000)
+  units?: number;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   packageType?: string;
 
@@ -191,12 +284,43 @@ export class UpdateCargoDto {
   comments?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  comment?: string;
+
+  @IsOptional()
   @IsBoolean()
   clearYard?: boolean;
 
   @IsOptional()
   @IsBoolean()
   clearDestination?: boolean;
+
+  // Phase 3A: party and financial fields
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  shipperId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  consigneeId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  jobId?: string;
+
+  @IsOptional()
+  @IsString()
+  // Prisma Decimal(18,2): allow numeric string like "12345.67"
+  cargoValue?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  cargoValueCurrency?: string;
 }
 
 export class ChangeCargoStatusDto {
@@ -240,6 +364,16 @@ export class ListCargoQueryDto {
   @IsString()
   @MaxLength(40)
   destinationPortId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pol?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  pod?: string;
 
   @IsOptional()
   @IsEnum(CargoType)

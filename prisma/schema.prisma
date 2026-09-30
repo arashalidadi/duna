@@ -91,6 +91,11 @@ model User {
   jobsCancelled           Job[]            @relation("JobCancelledBy")
   portalCustomerId        String?          @unique @map("portalCustomerId") // customer this user acts for (agent portal)
   portalCustomer          Customer?        @relation("UserPortalCustomer", fields: [portalCustomerId], references: [id])
+  // Phase 2 (party-cutover-plan.md §3 addendum): Agent master this user acts for;
+  // drives portal manifest scoping once manifests.agentId points at agents.
+  // portalCustomerId above is RETAINED (bookings/statement still Customer-scoped).
+  portalAgentId           String?          @unique @map("portalAgentId")
+  portalAgent             Agent?           @relation("UserPortalAgent", fields: [portalAgentId], references: [id])
   bookingsSubmitted       BookingRequest[] @relation("BookingSubmittedBy")
   bookingsHandled         BookingRequest[] @relation("BookingHandledBy")
 
@@ -211,6 +216,7 @@ model Port {
   name                  String
   country               String
   city                  String?
+  abbreviation          String?         @unique @map("abbreviation") // short code e.g. HAM, JEA; nullable during migration
   isActive              Boolean          @default(true)
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
@@ -221,10 +227,12 @@ model Port {
   yardInventories       YardInventory[] // current inventory physically at this port
   voyageOrigins         Voyage[]         @relation("VoyageOrigin") // voyages departing from this port
   voyageDestinations    Voyage[]         @relation("VoyageDestination") // voyages arriving at this port
+  voyageLegs            VoyageDestination[] @relation("VoyageLegPort") // destination legs of voyages
   manifestsAsPol        Manifest[]       @relation("ManifestPol") // manifests loaded at this port
   manifestsAsPod        Manifest[]       @relation("ManifestPod") // manifests discharged at this port
   bookingsAsOrigin      BookingRequest[] @relation("BookingOrigin")
   bookingsAsDestination BookingRequest[] @relation("BookingDestination")
+  agentDestinations     AgentDestination[]
 
   @@index([name])
   @@index([country])
@@ -274,11 +282,6 @@ model Customer {
   updatedAt              DateTime         @updatedAt
   deletedAt              DateTime?
   cargos                 Cargo[] // all cargo consigned to this customer
-  manifestsAsShipper     Manifest[]       @relation("ManifestShipper")
-  manifestsAsConsignee   Manifest[]       @relation("ManifestConsignee")
-  manifestsAsAgent       Manifest[]       @relation("ManifestAgent")
-  billsAsShipper         BillOfLading[]   @relation("BillShipper")
-  billsAsConsignee       BillOfLading[]   @relation("BillConsignee")
   invoicesIssuedTo       Invoice[]        @relation("InvoiceCustomer")
   proformasIssuedTo      Proforma[]       @relation("ProformaCustomer")
   quotationsIssuedTo     Quotation[]      @relation("QuotationCustomer")
@@ -295,7 +298,104 @@ model Customer {
 }
 
 // ---------------------------------------------------------------------------
-// Cargo (operational) — Phase 4
+// Party Masters (Phase 2) — Shipper, Consignee, Agent are separate from
+// Customer. Customer remains the internal commercial counterparty.
+// Customer.type is deprecated for representing these external parties.
+// ---------------------------------------------------------------------------
+
+model Shipper {
+  id          String   @id @default(cuid())
+  code        String   @unique // master-data code, e.g. SPH-001
+  name        String
+  taxId       String?  @map("taxId") // TRN / national ID where applicable
+  address     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([code])
+  @@index([name])
+  @@index([isActive])
+  @@map("shippers")
+
+  cargos Cargo[] @relation("ShipperCargo")
+  manifests Manifest[] @relation("ManifestShipper")
+  bills     BillOfLading[] @relation("BillShipper")
+}
+
+model Consignee {
+  id          String   @id @default(cuid())
+  code        String   @unique // master-data code, e.g. CSG-001
+  name        String
+  taxId       String?  @map("taxId") // TRN / national ID where applicable
+  address     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([code])
+  @@index([name])
+  @@index([isActive])
+  @@map("consignees")
+
+  cargos Cargo[] @relation("ConsigneeCargo")
+  manifests Manifest[] @relation("ManifestConsignee")
+  bills     BillOfLading[] @relation("BillConsignee")
+}
+
+model Agent {
+  id          String   @id @default(cuid())
+  code        String   @unique // master-data code, e.g. AGT-001
+  name        String
+  taxId       String?  @map("taxId") // TRN / national ID where applicable
+  address     String?
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  destinations AgentDestination[]
+  portalUsers  User[] @relation("UserPortalAgent") // portal accounts linked to this agent
+  manifests    Manifest[] @relation("ManifestAgent")
+
+  @@index([code])
+  @@index([name])
+  @@index([isActive])
+  @@map("agents")
+}
+
+model AgentDestination {
+  id          String   @id @default(cuid())
+  agentId     String
+  portId      String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  agent       Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  port        Port      @relation(fields: [portId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, portId])
+  @@index([agentId])
+  @@index([portId])
+  @@index([isActive])
+  @@map("agent_destinations")
+}
+
+// ---------------------------------------------------------------------------
+// Cargo
 // ---------------------------------------------------------------------------
 // Cargo is the core operational record. It references Customers, Ports and
 // Yards through real foreign keys (Phase 3 master data) — it never duplicates
@@ -317,6 +417,20 @@ model Cargo {
   portId            String           @map("portId") // port where the cargo is registered / handled
   yardId            String?          @map("yardId") // current yard assignment (must belong to portId)
   destinationPortId String?          @map("destinationPortId") // relational destination
+  pol               String?          @map("pol") // port of loading
+  pod               String?          @map("pod") // port of discharge
+  // Phase 2: nullable party master refs for B/L generation (Phase 4).
+  // Customer remains the commercial counterparty (customerId above).
+  shipperId        String?          @map("shipperId")
+  consigneeId      String?          @map("consigneeId")
+  // Phase 3: optional cargo value and currency (DB columns already present).
+  cargoValue           Decimal?      @db.Decimal(18, 2)  @map("cargoValue")
+  cargoValueCurrency   String?       @map("cargoValueCurrency")
+  jobId                String?       @map("jobId")
+  description          String?       @map("description")
+  chassis              String?       @map("chassis")
+  serial               String?       @map("serial")
+  units                Int?          @map("units")
   cargoType         CargoType
   specification     String?
   serialNumber      String?          @map("serialNumber")
@@ -334,6 +448,7 @@ model Cargo {
   manifestNumber    String?          @map("manifestNumber") // nullable; manifest in Phase 9
   status            CargoStatus      @default(REGISTERED)
   comments          String?
+  comment           String?          @map("comment")
   createdById       String?          @map("createdById") // audit-readiness (full audit in Phase 19)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -343,6 +458,10 @@ model Cargo {
   port            Port     @relation("CargoPort", fields: [portId], references: [id])
   destinationPort Port?    @relation("DestinationPort", fields: [destinationPortId], references: [id])
   yard            Yard?    @relation(fields: [yardId], references: [id])
+  // Phase 2: nullable party master refs for B/L generation (Phase 4).
+  // Customer remains the commercial counterparty (customerId above).
+  shipper         Shipper?  @relation("ShipperCargo", fields: [shipperId], references: [id])
+  consignee       Consignee? @relation("ConsigneeCargo", fields: [consigneeId], references: [id])
 
   inventory          YardInventory? // one current inventory record per cargo (Phase 4 minimal)
   dischargeItems     DischargeItem[]
@@ -357,6 +476,8 @@ model Cargo {
   @@index([portId])
   @@index([yardId])
   @@index([destinationPortId])
+  @@index([shipperId])
+  @@index([consigneeId])
   @@index([status])
   @@index([inspectionStatus])
   @@index([cargoType])
@@ -492,6 +613,8 @@ model Vessel {
   deletedAt   DateTime? // soft-delete (blocked while voyages reference the vessel)
 
   voyages Voyage[]
+  tugVoyages   Voyage[]      @relation("VoyageTug")
+  bargeVoyages Voyage[]      @relation("VoyageBarge")
 
   @@index([code])
   @@index([name])
@@ -530,6 +653,8 @@ model Voyage {
   id                 String       @id @default(cuid())
   voyageNumber       String       @unique // stable, unique, auto VOY-YYMM-#####
   vesselId           String       @map("vesselId")
+  tugVesselId        String?      @map("tugVesselId")
+  bargeVesselId      String?      @map("bargeVesselId")
   status             VoyageStatus @default(DRAFT)
   originPortId       String       @map("originPortId")
   destinationPortId  String       @map("destinationPortId")
@@ -542,6 +667,8 @@ model Voyage {
   updatedAt          DateTime     @updatedAt
 
   vessel          Vessel         @relation(fields: [vesselId], references: [id])
+  tugVessel       Vessel?       @relation("VoyageTug", fields: [tugVesselId], references: [id])
+  bargeVessel     Vessel?       @relation("VoyageBarge", fields: [bargeVesselId], references: [id])
   originPort      Port           @relation("VoyageOrigin", fields: [originPortId], references: [id])
   destinationPort Port           @relation("VoyageDestination", fields: [destinationPortId], references: [id])
   createdBy       User?          @relation("VoyageCreated", fields: [createdById], references: [id])
@@ -553,11 +680,48 @@ model Voyage {
 
   @@index([voyageNumber])
   @@index([vesselId])
+  @@index([tugVesselId])
+  @@index([bargeVesselId])
   @@index([status])
   @@index([originPortId])
   @@index([destinationPortId])
   @@index([plannedDepartureAt])
   @@index([plannedArrivalAt])
+  @@index([createdAt])
+
+  legs VoyageDestination[] // destination legs with per-destination numbers
+}
+
+// Phase 2 - Voyage per-destination numbering (docs/current-plan
+// 01-final-requirements.md:58-64, 04-final-data-model.md:44).
+//
+// One row per destination leg of a voyage, carrying the destination-scoped
+// voyage number used in documents (e.g. 1/26, 2/26 - one sequence per
+// destination per year). Single-destination voyages have exactly one leg;
+// backfilled legs copy the parent voyageNumber so no historical number changes.
+//
+// NOTE: docs model a Voyage with a single destinationPortId and define no leg
+// structure - this child model is the fallback recorded in the implementation
+// log (deviation). Parent Voyage.voyageNumber (VOY-YYMM-#####) stays the
+// system identifier; downstream Cargo/LoadList/ActualLoading/Discharge keep
+// referencing Voyage.id unchanged (leg cutover is a separate task).
+model VoyageDestination {
+  id                String    @id @default(cuid())
+  voyageId          String
+  destinationPortId String
+  legNumber         Int
+  voyageNumber      String // destination-scoped document number, e.g. 1/26
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime? // soft delete (schema convention)
+
+  voyage          Voyage @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+  destinationPort Port   @relation("VoyageLegPort", fields: [destinationPortId], references: [id])
+
+  @@unique([destinationPortId, voyageNumber])
+  @@unique([voyageId, destinationPortId])
+  @@index([voyageId])
+  @@index([destinationPortId])
   @@index([createdAt])
 }
 
@@ -569,7 +733,7 @@ model Voyage {
 enum CargoStatus {
   REGISTERED
   AT_YARD
-  READY
+  READY_FOR_LOADING
   LOADED // set by later phases; present here as forward-compatible state
   DELIVERED
   CANCELLED
@@ -589,8 +753,10 @@ enum CargoType {
 // Cargo may be added to a Load List only when inspectionStatus = APPROVED.
 enum InspectionStatus {
   PENDING
-  APPROVED
-  REJECTED
+  BOOKED
+  DONE
+  FAILED
+  NEEDS_REINSPECTION
 }
 
 // Readiness field only — Actual Loading is Phase 8. Established here so future
@@ -613,6 +779,18 @@ enum InventoryStatus {
   RESERVED
 }
 
+// Phase 3: per-item selection state for LoadListItem.
+// NOT_SELECTED = not yet picked for loading
+// SELECTED = planned and selected for loading
+// LOADED = confirmed loaded (FULL result in ActualLoadingItem)
+// NOT_LOADED = confirmed not loaded (NOT_LOADED result in ActualLoadingItem)
+enum LoadListItemSelectionStatus {
+  NOT_SELECTED
+  SELECTED
+  LOADED
+  NOT_LOADED
+}
+
 // ---------------------------------------------------------------------------
 // Phase 6 enums
 // ---------------------------------------------------------------------------
@@ -627,6 +805,9 @@ enum VesselType {
   GENERAL
   PROJECT
   OTHER
+  TUG
+  BARGE
+  LANDING_CRAFT
 }
 
 // Voyage lifecycle (ADR-026). DRAFT -> SCHEDULED -> IN_PROGRESS -> COMPLETED;
@@ -644,13 +825,14 @@ enum VoyageStatus {
 // Phase 7: Load Planning & Load Lists
 // ---------------------------------------------------------------------------
 // LoadList represents a planned set of cargo for a specific Voyage.
-// It is created in DRAFT state, then FINALIZED (or CANCELLED).
-// A LoadList belongs to one Voyage. It contains LoadListItem records
-// linking to Cargo that has inspectionStatus = APPROVED.
-// Status transitions: DRAFT -> FINALIZED | CANCELLED. FINALIZED and
-// CANCELLED are terminal. FINALIZED blocks ordinary edits.
+// It is created in DRAFT state, then progresses through the loading lifecycle.
+// Locked lifecycle (Phase 3): DRAFT → IN_PROGRESS → PARTIALLY_LOADED → COMPLETED → FINALIZED
+// Items belong to LoadListItem with per-item selection state.
 enum LoadListStatus {
   DRAFT
+  IN_PROGRESS
+  PARTIALLY_LOADED
+  COMPLETED
   FINALIZED
   CANCELLED
 }
@@ -689,7 +871,8 @@ model LoadList {
 
 // LoadListItem links a Cargo to a LoadList with planned quantity.
 // A cargo may appear only once per LoadList (enforced by unique constraint).
-// Cargo must have inspectionStatus = APPROVED to be added (enforced in service).
+// Selection state lives on LoadListItem (Phase 3): NOT_SELECTED | SELECTED | LOADED | NOT_LOADED
+// Cargo must have inspectionStatus = DONE to be eligible for loading (enforced in service).
 model LoadListItem {
   id              String   @id @default(cuid())
   loadListId      String   @map("loadListId")
@@ -697,6 +880,7 @@ model LoadListItem {
   plannedQuantity Int?     @map("plannedQuantity") // optional; references Cargo.quantity
   sequence        Int? // display order within the list
   notes           String?
+  selectionStatus LoadListItemSelectionStatus @default(NOT_SELECTED) // Phase 3: per-item selection state
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -714,13 +898,14 @@ model LoadListItem {
 // Phase 8: Actual Loading
 // ---------------------------------------------------------------------------
 // ActualLoading represents the executed loading operation for a LoadList.
-// It records what was actually loaded vs planned, with full traceability.
-// Status transitions: NOT_STARTED -> IN_PROGRESS -> COMPLETED | CANCELLED.
-// COMPLETED and CANCELLED are terminal.
+// Locked lifecycle (Phase 3): DRAFT → IN_PROGRESS → PARTIALLY_LOADED → COMPLETED → FINALIZED
+// NOT_LOADED return-to-yard is handled by the service layer.
 enum ActualLoadingStatus {
-  NOT_STARTED
+  DRAFT
   IN_PROGRESS
+  PARTIALLY_LOADED
   COMPLETED
+  FINALIZED
   CANCELLED
 }
 
@@ -757,7 +942,7 @@ model ActualLoading {
   id                  String              @id @default(cuid())
   actualLoadingNumber String              @unique // auto AL-YYMM-#####
   loadListId          String              @map("loadListId")
-  status              ActualLoadingStatus @default(NOT_STARTED)
+  status              ActualLoadingStatus @default(DRAFT)
   notes               String?
   createdById         String?             @map("createdById")
   completedById       String?             @map("completedById")
@@ -922,7 +1107,8 @@ model Manifest {
   polPortId  String  @map("polPortId") // port of loading (snapshot from voyage origin)
   podPortId  String  @map("podPortId") // port of discharge (snapshot from voyage destination)
 
-  // Parties (legacy shipper/consignee/agent models -> unified Customer CRM)
+  // Parties (Phase 2 cutover: party masters Shipper / Consignee / Agent;
+  // previously Customer — values nulled by 20260929231625_party_cutover_party_fks)
   shipperId   String? @map("shipperId")
   consigneeId String? @map("consigneeId")
   agentId     String? @map("agentId")
@@ -961,9 +1147,9 @@ model Manifest {
   voyage        Voyage         @relation(fields: [voyageId], references: [id])
   polPort       Port           @relation("ManifestPol", fields: [polPortId], references: [id])
   podPort       Port           @relation("ManifestPod", fields: [podPortId], references: [id])
-  shipper       Customer?      @relation("ManifestShipper", fields: [shipperId], references: [id])
-  consignee     Customer?      @relation("ManifestConsignee", fields: [consigneeId], references: [id])
-  agent         Customer?      @relation("ManifestAgent", fields: [agentId], references: [id])
+  shipper       Shipper?       @relation("ManifestShipper", fields: [shipperId], references: [id])
+  consignee     Consignee?     @relation("ManifestConsignee", fields: [consigneeId], references: [id])
+  agent         Agent?         @relation("ManifestAgent", fields: [agentId], references: [id])
   items         ManifestItem[]
   billsOfLading BillOfLading[] @relation("BillOfLadingManifest")
   invoices      Invoice[]      @relation("InvoiceManifest")
@@ -1093,8 +1279,8 @@ model BillOfLading {
 
   manifest       Manifest           @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
   voyage         Voyage             @relation("BillOfLadingVoyage", fields: [voyageId], references: [id])
-  shipper        Customer?          @relation("BillShipper", fields: [shipperId], references: [id])
-  consignee      Customer?          @relation("BillConsignee", fields: [consigneeId], references: [id])
+  shipper        Shipper?           @relation("BillShipper", fields: [shipperId], references: [id])
+  consignee      Consignee?         @relation("BillConsignee", fields: [consigneeId], references: [id])
   items          BillOfLadingItem[]
   invoices       Invoice[]          @relation("InvoiceBill")
   deliveryOrders DeliveryOrder[]    @relation("DeliveryOrderBill")
@@ -1772,4 +1958,134 @@ model JobCostItem {
   @@index([jobId])
   @@index([kind])
   @@map("job_cost_items")
+}
+
+// ============================================================================
+// PHASE 1 INFRASTRUCTURE — added 2026-09-21
+// Tables: NumberingSequence, AuditLog, FileAttachment, DocumentTemplate,
+//         DocumentTemplateVersion
+// See: docs/ai-audit/migration-safety.md
+// See: docs/ai-audit/06.5-technical-decision-lock.md (decisions 9,16,17,18)
+// ============================================================================
+
+/// Configurable document numbering sequence (ADR-008).
+/// Supports global, destination-scoped, year, and year-period scoping.
+/// Allocation is performed inside a transaction with row locking in the
+/// NumberingService; the DB unique constraint on `name` protects against
+/// duplicate logical sequences.
+model NumberingSequence {
+  id           String   @id @default(cuid())
+  name         String   @unique @map("name")
+  documentType String   @map("documentType")
+  scopeType    String   @map("scopeType") // GLOBAL | DESTINATION | YEAR | YEAR_PERIOD
+  scopeValue   String?
+  prefix       String   @default("") @map("prefix")
+  padding      Int      @default(5) @map("padding")
+  format       String   @default("{prefix}{sequence}") @map("format")
+  nextSequence Int      @default(1) @map("nextSequence")
+  period       String   @default("YYYY") @map("period") // YYYY | YY | YYYYMM | QUARTER
+  companyId    String?
+  isActive     Boolean  @default(true) @map("isActive")
+  createdAt    DateTime @default(now()) @map("createdAt")
+  updatedAt    DateTime @updatedAt @map("updatedAt")
+
+  @@index([documentType, scopeType, scopeValue, isActive])
+  @@index([isActive])
+  @@map("NumberingSequence")
+}
+
+/// Append-only audit log (ADR-010).
+/// Written in the same transaction as the mutation. Not editable through
+/// normal application CRUD. `id` + `timestamp` is the PK so the same actor
+/// can record multiple events for the same entity over time.
+model AuditLog {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now()) @map("timestamp")
+  actorId     String   @map("actorId")
+  actorEmail  String   @map("actorEmail")
+  action      String   @map("action")
+  entityType  String   @map("entityType")
+  entityId    String   @map("entityId")
+  beforeData  Json?    @map("beforeData")
+  afterData   Json?    @map("afterData")
+  metadata    Json     @default("{}") @map("metadata")
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now()) @map("createdAt")
+
+  @@index([entityType, entityId, timestamp])
+  @@map("AuditLog")
+}
+
+/// Generic file attachment infrastructure (Phase 1).
+/// Storage abstraction with local dev adapter and S3-compatible production
+/// adapter interface. Access control is enforced in the service layer.
+model FileAttachment {
+  id             String   @id @default(cuid())
+  entityType     String   @map("entityType")
+  entityId       String   @map("entityId")
+  category       String   @map("category")
+  storageAdapter String   @default("local") @map("storageAdapter") // local | s3
+  storageKey     String   @map("storageKey")
+  filename       String   @map("filename")
+  mimeType       String   @map("mimeType")
+  size           BigInt   @default(0) @map("size")
+  contentType    String?
+  uploadedById   String?  @map("uploadedById")
+  uploadedAt     DateTime @default(now()) @map("uploadedAt")
+  deletedAt      DateTime? @map("deletedAt")
+  createdAt      DateTime @default(now()) @map("createdAt")
+  updatedAt      DateTime @updatedAt @map("updatedAt")
+
+  @@index([entityType, entityId])
+  @@index([category])
+  @@index([uploadedById])
+  @@index([storageAdapter, storageKey])
+  @@index([deletedAt])
+  @@map("FileAttachment")
+}
+
+/// Document template registry (ADR-009).
+/// One logical template per document type; the active version is tracked
+/// in `currentVersionId` for fast lookup.
+model DocumentTemplate {
+  id              String   @id @default(cuid())
+  documentType    String   @map("documentType")
+  name            String   @unique @map("name")
+  description     String?
+  format          String   @default("PDF") @map("format") // PDF | EXCEL | PDF_EXCEL
+  storageAdapter  String   @default("local") @map("storageAdapter")
+  isActive        Boolean  @default(true) @map("isActive")
+  currentVersionId String? @map("currentVersionId")
+  createdById     String?  @map("createdById")
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+  deletedAt       DateTime? @map("deletedAt")
+
+  versions DocumentTemplateVersion[] @relation("TemplateVersions")
+
+  @@index([documentType])
+  @@index([documentType, isActive])
+  @@map("DocumentTemplate")
+}
+
+/// Versioned document template content reference (ADR-009).
+model DocumentTemplateVersion {
+  id              String   @id @default(cuid())
+  templateId      String   @map("templateId")
+  version         Int      @map("version")
+  label           String?
+  storageKey      String   @map("storageKey")
+  storageAdapter  String   @default("local") @map("storageAdapter")
+  mimeType        String   @map("mimeType")
+  size            BigInt   @default(0) @map("size")
+  isActive        Boolean  @default(false) @map("isActive")
+  createdAt       DateTime @default(now()) @map("createdAt")
+  updatedAt       DateTime @updatedAt @map("updatedAt")
+
+  template DocumentTemplate @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, version])
+  @@index([templateId])
+  @@map("DocumentTemplateVersion")
 }

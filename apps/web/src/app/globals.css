@@ -177,14 +177,47 @@
   }
 }
 
-/* Restrained motion — respect reduced-motion everywhere. */
+/* Entrance animations (subtle, professional) */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out both;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.6s ease-out both;
+}
+
+.animate-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animate-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animate-delay-300 {
+  animation-delay: 0.3s;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  .animate-fade-in,
+  .animate-fade-in-up {
+    animation: none;
+    opacity: 1;
   }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import type { PaginatedResult, VesselListItem, VesselDetail, VesselType } from '@shipping/shared';
 import { Plus, Power, Eye } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
@@ -37,17 +38,10 @@ const VESSEL_TYPES: VesselType[] = [
   'GENERAL',
   'PROJECT',
   'OTHER',
+  'TUG',
+  'BARGE',
+  'LANDING_CRAFT',
 ];
-
-const TYPE_LABELS: Record<VesselType, string> = {
-  CONTAINER: 'Container',
-  BULK: 'Bulk carrier',
-  TANKER: 'Tanker',
-  RORO: 'Ro-Ro',
-  GENERAL: 'General cargo',
-  PROJECT: 'Project',
-  OTHER: 'Other',
-};
 
 interface FormValues {
   code: string;
@@ -83,6 +77,7 @@ function toForm(v: VesselListItem): FormValues {
 
 export default function VesselsPage() {
   const { hasPermission } = useAuth();
+  const t = useTranslations('vessels');
   const [data, setData] = useState<PaginatedResult<VesselListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -246,10 +241,10 @@ export default function VesselsPage() {
               }}
               aria-label="Filter by vessel type"
             >
-              <option value="">All types</option>
-              {VESSEL_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {TYPE_LABELS[t]}
+              <option value="">{t('filter.allTypes')}</option>
+              {VESSEL_TYPES.map((tv) => (
+                <option key={tv} value={tv}>
+                  {t(`type.${tv}`)}
                 </option>
               ))}
             </select>
@@ -309,7 +304,7 @@ export default function VesselsPage() {
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{v.imo ?? '—'}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{v.flag}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {TYPE_LABELS[v.vesselType]}
+                      {t(`type.${v.vesselType}`)}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       {v.capacityTeu ?? '—'}
@@ -425,7 +420,7 @@ export default function VesselsPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="vessel-type" className="block">
-              Type *
+              {t('form.type')} *
             </Label>
             <select
               id="vessel-type"
@@ -433,9 +428,9 @@ export default function VesselsPage() {
               value={form.vesselType}
               onChange={(e) => updateField('vesselType', e.target.value as VesselType)}
             >
-              {VESSEL_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {TYPE_LABELS[t]}
+              {VESSEL_TYPES.map((tv) => (
+                <option key={tv} value={tv}>
+                  {t(`type.${tv}`)}
                 </option>
               ))}
             </select>
@@ -521,8 +516,8 @@ export default function VesselsPage() {
                 <div>{detail.imo ?? '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Type</div>
-                <div>{TYPE_LABELS[detail.vesselType]}</div>
+                <div className="text-xs text-muted-foreground">{t('detail.type')}</div>
+                <div>{t(`type.${detail.vesselType}`)}</div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Capacity (TEU)</div>
@@ -581,9 +576,10 @@ function formInput(f: FormValues): Record<string, string | number> {
   return out;
 }
 
-/** Edit input: code is immutable, and imo needs explicit null when cleared. */
+/** Edit input: code is immutable (UpdateVesselDto rejects it -> 400), and imo
+ *  needs explicit null when cleared. */
 function editInput(f: FormValues): Record<string, string | number | null> {
-  const input = formInput(f);
+  const { code: _immutable, ...input } = formInput(f);
   return {
     ...input,
     imo: f.imo.trim() ? f.imo.trim() : null,

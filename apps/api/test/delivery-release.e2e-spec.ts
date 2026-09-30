@@ -29,6 +29,7 @@ describe('Delivery & Release Orders (e2e)', () => {
   const createdVessels: Ref[] = [];
   const createdVoyages: Ref[] = [];
   const createdCustomers: Ref[] = [];
+  const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
   const createdYards: Ref[] = [];
   const createdCargos: Ref[] = [];
   const loadListIds: string[] = [];
@@ -45,6 +46,7 @@ describe('Delivery & Release Orders (e2e)', () => {
   let noReadToken = '';
 
   let customerId = '';
+  let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
   let billId = ''; // ISSUED B/L
   let draftBillId = ''; // DRAFT B/L (guard test)
   let invoiceId = ''; // ISSUED, unpaid USD invoice on billId
@@ -69,6 +71,20 @@ describe('Delivery & Release Orders (e2e)', () => {
 
     const login = await S().post('/api/v1/auth/login').send({ email: admin.email, password: admin.password }).expect(200);
     adminToken = login.body.data.accessToken;
+
+    // Phase 2 cutover (party-cutover-plan.md §3): fixture Shipper master for the
+    // D/O fixture manifest's party ref (was a Customer id).
+    const { PrismaClient } = require('@prisma/client');
+    const partyFx = new PrismaClient();
+    try {
+      const shp = await partyFx.shipper.create({
+        data: { code: `DRSP-${tag}`, name: `Delivery Test Shipper ${randomTag}` },
+      });
+      fixtureShipperId = shp.id;
+      createdPartyMasters.push({ id: shp.id });
+    } finally {
+      await partyFx.$disconnect();
+    }
 
     readerToken = await createRoleToken(`DRREAD_${tag}`, ['delivery:read', 'release:read'], `dr-read-${emailSuffix}@shipping.local`);
     writerToken = await createRoleToken(
@@ -149,7 +165,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     const cargoB = await mkCargoChain('b');
 
     const mf = await S().post('/api/v1/manifests').set(auth(adminToken))
-      .send({ voyageId, shipperId: customerId, notes: 'DR fixture manifest' }).expect(201);
+      .send({ voyageId, shipperId: fixtureShipperId, notes: 'DR fixture manifest' }).expect(201);
     manifestIds.push(mf.body.data.id);
     const manifestId = mf.body.data.id as string;
     for (const cid of [cargoA, cargoB]) {
@@ -211,6 +227,7 @@ describe('Delivery & Release Orders (e2e)', () => {
       await prisma.vessel.deleteMany({ where: { id: { in: createdVessels.map((v) => v.id) } } });
       await prisma.yard.deleteMany({ where: { id: { in: createdYards.map((y) => y.id) } } });
       await prisma.customer.deleteMany({ where: { id: { in: createdCustomers.map((c) => c.id) } } });
+      await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.user.deleteMany({
         where: { email: { in: ['dr-read', 'dr-writer', 'dr-canc', 'dr-ovr', 'dr-plain', 'dr-noread'].map((p) => `${p}-${emailSuffix}@shipping.local`) } },

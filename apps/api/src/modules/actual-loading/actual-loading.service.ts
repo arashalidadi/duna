@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, ActualLoadingStatus } from '@prisma/client';
+type ActualLoadingStatusFilter = { equals: ActualLoadingStatus } | { in: ActualLoadingStatus[] } | { not: ActualLoadingStatus };
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
@@ -19,17 +20,19 @@ import {
 
 // ---------------------------------------------------------------------------
 // Actual Loading lifecycle (server-side).
-//   NOT_STARTED -> IN_PROGRESS -> COMPLETED | CANCELLED
-//   COMPLETED and CANCELLED are terminal.
+//   DRAFT           -> IN_PROGRESS -> PARTIALLY_LOADED -> COMPLETED | FINALIZED | CANCELLED
+//   COMPLETED, FINALIZED and CANCELLED are terminal.
 // ---------------------------------------------------------------------------
 const ACTUAL_LOADING_TRANSITIONS: Record<ActualLoadingStatus, ActualLoadingStatus[]> = {
-  NOT_STARTED: ['IN_PROGRESS', 'CANCELLED'],
-  IN_PROGRESS: ['COMPLETED', 'CANCELLED'],
+  DRAFT: ['IN_PROGRESS', 'CANCELLED'],
+  IN_PROGRESS: ['PARTIALLY_LOADED', 'COMPLETED', 'CANCELLED'],
+  PARTIALLY_LOADED: ['COMPLETED', 'CANCELLED'],
   COMPLETED: [],
+  FINALIZED: ['CANCELLED'],
   CANCELLED: [],
 };
 
-const EDITABLE_STATUSES: ActualLoadingStatus[] = ['NOT_STARTED', 'IN_PROGRESS'];
+const EDITABLE_STATUSES: ActualLoadingStatus[] = ['DRAFT', 'IN_PROGRESS'];
 
 // ---------------------------------------------------------------------------
 // Select shapes for consistent responses
@@ -173,7 +176,7 @@ export class ActualLoadingService {
 
     const where: Prisma.ActualLoadingWhereInput = {
       deletedAt: null,
-      ...(query.status ? { status: query.status } : {}),
+      ...(query.status ? { status: query.status as unknown as Prisma.ActualLoadingWhereInput['status'] } : {}),
       ...(query.loadListId ? { loadListId: query.loadListId } : {}),
       ...(query.voyageId ? { loadList: { voyageId: query.voyageId } } : {}),
       ...(query.createdFrom || query.createdTo
@@ -223,8 +226,8 @@ export class ActualLoadingService {
 
   /**
    * Create an Actual Loading for a Load List.
-   * Validates: load list exists, is active (not soft-deleted), and in FINALIZED state.
-   * Creates in NOT_STARTED state. Generates stable actualLoadingNumber: AL-YYMM-#####.
+   * Validates: load list exists, is active (not soft-deleted), and in COMPLETED state.
+   * Creates in DRAFT state. Generates stable actualLoadingNumber: AL-YYMM-#####.
    */
   async create(dto: CreateActualLoadingDto, actor?: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
@@ -234,9 +237,9 @@ export class ActualLoadingService {
     if (!loadList) {
       throw new NotFoundException('Load List not found');
     }
-    if (loadList.status !== 'FINALIZED') {
+    if (loadList.status !== 'COMPLETED') {
       throw new ConflictException(
-        `Actual Loading can only be created for FINALIZED Load Lists. Current status: ${loadList.status}`,
+        `Actual Loading can only be created for COMPLETED Load Lists. Current status: ${loadList.status}`,
       );
     }
     if (loadList.items.length === 0) {
@@ -268,7 +271,7 @@ export class ActualLoadingService {
 
   /**
    * Update Actual Loading notes.
-   * Only NOT_STARTED/IN_PROGRESS lists may be edited.
+   * Only DRAFT/IN_PROGRESS lists may be edited.
    */
   async update(id: string, dto: { notes?: string }) {
     const existing = await this.prisma.actualLoading.findUnique({
@@ -280,7 +283,7 @@ export class ActualLoadingService {
     }
     if (!EDITABLE_STATUSES.includes(existing.status)) {
       throw new ConflictException(
-        `Actual Loading is ${existing.status}; only NOT_STARTED/IN_PROGRESS can be edited`,
+        `Actual Loading is ${existing.status}; only DRAFT/IN_PROGRESS can be edited`,
       );
     }
 
@@ -293,7 +296,7 @@ export class ActualLoadingService {
 
   /**
    * Soft delete an Actual Loading.
-   * Only NOT_STARTED/IN_PROGRESS lists may be deleted. FINALIZED/CANCELLED are preserved for audit.
+   * Only DRAFT/IN_PROGRESS lists may be deleted. COMPLETED/FINALIZED/CANCELLED are preserved for audit.
    */
   async remove(id: string) {
     const existing = await this.prisma.actualLoading.findUnique({
@@ -305,7 +308,7 @@ export class ActualLoadingService {
     }
     if (!EDITABLE_STATUSES.includes(existing.status)) {
       throw new ConflictException(
-        `Actual Loading is ${existing.status}; only NOT_STARTED/IN_PROGRESS can be deleted`,
+        `Actual Loading is ${existing.status}; only DRAFT/IN_PROGRESS can be deleted`,
       );
     }
 
@@ -321,7 +324,7 @@ export class ActualLoadingService {
 
   /**
    * Update actual quantity for a single cargo item.
-   * Enforces: actual loading is NOT_STARTED/IN_PROGRESS, quantity constraints.
+   * Enforces: actual loading is DRAFT/IN_PROGRESS, quantity constraints.
    */
   async updateItem(
     actualLoadingId: string,
@@ -338,7 +341,7 @@ export class ActualLoadingService {
     }
     if (!EDITABLE_STATUSES.includes(actualLoading.status)) {
       throw new ConflictException(
-        `Actual Loading is ${actualLoading.status}; items can only be updated in NOT_STARTED/IN_PROGRESS`,
+        `Actual Loading is ${actualLoading.status}; items can only be updated in DRAFT/IN_PROGRESS`,
       );
     }
 
@@ -364,8 +367,8 @@ export class ActualLoadingService {
     if (cargo.status === 'CANCELLED') {
       throw new ConflictException('Cancelled cargo cannot be loaded');
     }
-    if (cargo.inspectionStatus !== 'APPROVED') {
-      throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be APPROVED`);
+    if (cargo.inspectionStatus !== 'DONE') {
+      throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be DONE`);
     }
 
     // Validate actual quantity
@@ -449,7 +452,7 @@ export class ActualLoadingService {
     }
     if (!EDITABLE_STATUSES.includes(actualLoading.status)) {
       throw new ConflictException(
-        `Actual Loading is ${actualLoading.status}; items can only be updated in NOT_STARTED/IN_PROGRESS`,
+        `Actual Loading is ${actualLoading.status}; items can only be updated in DRAFT/IN_PROGRESS`,
       );
     }
 
@@ -478,11 +481,11 @@ export class ActualLoadingService {
         if (loadListItem.cargo.status === 'CANCELLED') {
           return { loadListItemId: itemDto.loadListItemId, success: false, reason: 'Cancelled cargo cannot be loaded' };
         }
-        if (loadListItem.cargo.inspectionStatus !== 'APPROVED') {
+        if (loadListItem.cargo.inspectionStatus !== 'DONE') {
           return {
             loadListItemId: itemDto.loadListItemId,
             success: false,
-            reason: `Cargo inspection is ${loadListItem.cargo.inspectionStatus}; must be APPROVED`,
+            reason: `Cargo inspection is ${loadListItem.cargo.inspectionStatus}; must be DONE`,
           };
         }
         if (itemDto.actualQuantity !== undefined) {
@@ -579,8 +582,7 @@ export class ActualLoadingService {
   }
 
   /**
-   * Remove a cargo item from an Actual Loading.
-   * Only NOT_STARTED/IN_PROGRESS lists. Removes actual loading relationship only.
+   * Only DRAFT/IN_PROGRESS lists. Removes actual loading relationship only.
    */
   async removeItem(actualLoadingId: string, itemId: string) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
@@ -591,7 +593,7 @@ export class ActualLoadingService {
       throw new NotFoundException('Actual Loading not found');
     }
     if (!EDITABLE_STATUSES.includes(actualLoading.status)) {
-      throw new ConflictException(`Actual Loading is ${actualLoading.status}; items can only be removed from NOT_STARTED/IN_PROGRESS lists`);
+      throw new ConflictException(`Actual Loading is ${actualLoading.status}; items can only be removed from DRAFT/IN_PROGRESS lists`);
     }
 
     const item = await this.prisma.actualLoadingItem.findUnique({
@@ -614,7 +616,7 @@ export class ActualLoadingService {
 
   /**
    * Start the loading operation.
-   * Transitions NOT_STARTED -> IN_PROGRESS. Required before recording quantities
+   * Transitions DRAFT -> IN_PROGRESS. Required before recording quantities
    * in the standard flow (quantities may still be recorded while IN_PROGRESS).
    */
   async start(id: string, _actor?: AuthenticatedUser) {
@@ -675,8 +677,8 @@ export class ActualLoadingService {
       if (cargo.status === 'CANCELLED') {
         throw new ConflictException(`Cargo is cancelled; cannot complete loading`);
       }
-      if (cargo.inspectionStatus !== 'APPROVED') {
-        throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be APPROVED`);
+      if (cargo.inspectionStatus !== 'DONE') {
+        throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be DONE`);
       }
       if (item.actualQuantity !== null && cargo.quantity !== null && item.actualQuantity > cargo.quantity) {
         throw new ConflictException(`Actual quantity exceeds cargo quantity`);

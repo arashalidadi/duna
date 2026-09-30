@@ -15,6 +15,7 @@ const select = {
   name: true,
   country: true,
   city: true,
+  abbreviation: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -85,29 +86,70 @@ export class PortsService {
     return port;
   }
 
-  create(dto: CreatePortDto) {
-    return this.prisma.port.create({
-      data: {
-        code: dto.code,
-        name: dto.name,
-        country: dto.country,
-        city: dto.city,
-      },
-    });
+  async create(dto: CreatePortDto) {
+    try {
+      return await this.prisma.port.create({
+        data: {
+          code: dto.code,
+          name: dto.name,
+          country: dto.country,
+          city: dto.city,
+          abbreviation: dto.abbreviation?.trim() || null,
+        },
+        select,
+      });
+    } catch (e) {
+      throw PortsService.mapUniqueViolation(e, dto);
+    }
   }
 
   async update(id: string, dto: UpdatePortDto) {
     await this.findById(id);
-    return this.prisma.port.update({
-      where: { id },
-      data: {
-        code: dto.code,
-        name: dto.name,
-        country: dto.country,
-        city: dto.city,
-        isActive: dto.isActive,
-      },
-    });
+    try {
+      return await this.prisma.port.update({
+        where: { id },
+        data: {
+          code: dto.code,
+          name: dto.name,
+          country: dto.country,
+          city: dto.city,
+          // Only rewrite abbreviation when the client actually sent it, so a
+          // PATCH that omits the field never clears an existing value.
+          ...(dto.abbreviation !== undefined
+            ? { abbreviation: dto.abbreviation.trim() || null }
+            : {}),
+          isActive: dto.isActive,
+        },
+        select,
+      });
+    } catch (e) {
+      throw PortsService.mapUniqueViolation(e, dto);
+    }
+  }
+
+  /**
+   * P2002 on `code` or `abbreviation` -> 409 with a clear, field-specific
+   * message (same pattern as the shippers/agents modules).
+   */
+  private static mapUniqueViolation(e: unknown, dto: Partial<CreatePortDto & UpdatePortDto>): Error {
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === 'P2002'
+    ) {
+      const target = Array.isArray(e.meta?.target)
+        ? (e.meta.target as string[])
+        : [];
+      if (target.includes('abbreviation')) {
+        return new ConflictException(
+          `A port with abbreviation "${dto.abbreviation?.trim()}" already exists`
+        );
+      }
+      if (target.includes('code')) {
+        return new ConflictException('A port with this code already exists');
+      }
+      return new ConflictException('A port with these unique fields already exists');
+    }
+    return e instanceof Error ? e : new Error(String(e));
   }
 
   /**
