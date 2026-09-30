@@ -6,6 +6,128 @@
   "auth": {
     "redirectingHome": "در حال انتقال…"
   },
+  "bill": {
+    "page": {
+      "title": "بارنامه‌ها",
+      "description": "بارنامه‌های مشتق‌شده از مانیفست‌های تأییدشده"
+    },
+    "list": {
+      "title": "بارنامه‌ها",
+      "description": "{count} بارنامه",
+      "search": "جستجو با شماره بارنامه، شناور یا گیرنده",
+      "allStatuses": "همه وضعیت‌ها",
+      "empty": {
+        "title": "هنوز بارنامه‌ای نیست",
+        "description": "اولین بارنامه را از یک مانیفست تأییدشده بسازید."
+      }
+    },
+    "actions": {
+      "create": "بارنامه جدید",
+      "close": "بستن",
+      "save": "ذخیره",
+      "delete": "حذف",
+      "issue": "صدور",
+      "cancel": "لغو"
+    },
+    "create": {
+      "title": "بارنامه جدید",
+      "description": "طرف‌ها را از یک مانیفست تأییدشده استخراج کنید.",
+      "creating": "در حال ایجاد…",
+      "manifest": "مانیفست",
+      "selectManifest": "انتخاب مانیفست…",
+      "manifestInfo": "{items} قلم — وزن ناخالص {weight}",
+      "errors": {
+        "manifestRequired": "ابتدا یک مانیفست انتخاب کنید."
+      }
+    },
+    "detail": {
+      "headerTitle": "سربرگ",
+      "loading": "در حال بارگذاری…",
+      "saving": "در حال ذخیره…",
+      "issuedOn": "صادرشده در {date}"
+    },
+    "fields": {
+      "billNumber": "شماره بارنامه",
+      "status": "وضعیت",
+      "billType": "نوع بارنامه",
+      "manifest": "مانیفست",
+      "vessel": "شناور",
+      "route": "مسیر",
+      "consignee": "گیرنده",
+      "itemsCount": "تعداد اقلام",
+      "totalPackages": "تعداد کل بسته‌ها",
+      "totalGrossWeight": "وزن ناخالص کل",
+      "issuedAt": "زمان صدور",
+      "freightTerms": "شرایط کرایه",
+      "carrierName": "حمل‌کننده",
+      "placeOfIssue": "محل صدور",
+      "originals": "اصل‌ها",
+      "freightAmount": "مبلغ کرایه",
+      "currencyCode": "واحد پول",
+      "notifyParty": "طرف اطلاع‌رسانی",
+      "goodsDescription": "شرح کالا",
+      "shipmentMarks": "علائم بار",
+      "notes": "یادداشت‌ها",
+      "dateOfIssue": "تاریخ صدور",
+      "totalVolume": "حجم کل"
+    },
+    "freightTerms": {
+      "none": "انتخاب شرایط کرایه…",
+      "PREPAID": "پیش‌پرداخت",
+      "COLLECT": "در مقصد"
+    },
+    "items": {
+      "title": "ردیف‌های بارنامه",
+      "add": "افزودن ردیف",
+      "empty": "هنوز ردیفی نیست.",
+      "cargo": "بار",
+      "goodsDescription": "شرح کالا",
+      "marks": "علائم",
+      "packages": "بسته‌ها",
+      "packageType": "نوع بسته",
+      "grossWeight": "وزن ناخالص",
+      "volume": "حجم",
+      "remove": "برداشتن",
+      "addTitle": "افزودن ردیف بارنامه",
+      "addDescription": "یک ردیف بار واجد شرایط از مانیفست اضافه کنید.",
+      "adding": "در حال افزودن…",
+      "selectLine": "ردیف بار",
+      "selectLinePlaceholder": "انتخاب ردیف بار…",
+      "noEligible": "هیچ ردیف بار واجد شرایطی در این مانیفست نیست.",
+      "errors": {
+        "lineRequired": "یک ردیف بار انتخاب کنید."
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "این بارنامه صادر شود؟",
+        "description": "بارنامه صادرشده فقط‌خواندنی است و دیگر قابل ویرایش نیست."
+      },
+      "cancel": {
+        "title": "این بارنامه لغو شود؟",
+        "description": "ذكر دلیل الزامی است؛ بارنامه لغوشده قابل صدور مجدد نیست.",
+        "reason": "دلیل لغو",
+        "reasonPlaceholder": "چرا این بارنامه لغو می‌شود؟"
+      },
+      "delete": {
+        "title": "این پیش‌نویس حذف شود؟",
+        "description": "حذف نرم؛ دیگر نمایش داده نمی‌شود."
+      },
+      "removeItem": {
+        "title": "این ردیف حذف شود؟",
+        "description": "این ردیف از بارنامه حذف می‌شود."
+      }
+    },
+    "status": {
+      "DRAFT": "پیش‌نویس",
+      "ISSUED": "صادرشده",
+      "CANCELLED": "لغوشده"
+    },
+    "billType": {
+      "MASTER": "اصلی",
+      "HOUSE": "فرعی"
+    }
+  },
   "booking": {
     "status": {
       "ACCEPTED": "تأییدشده",
@@ -923,6 +1045,7 @@
     "bookings": "رزروهای ایجنت‌ها",
     "cargo": "بار",
     "commercial": "تجاری",
+    "consignees": "گیرندگان",
     "correspondence": "مکاتبات",
     "customers": "مشتریان",
     "dashboard": "داشبورد",
@@ -960,6 +1083,7 @@
     "roles": "نقش‌ها",
     "salaryRecords": "فیش‌های حقوقی",
     "settings": "تنظیمات",
+    "shippers": "فرستندگان",
     "users": "کاربران",
     "vessel": "vessel",
     "vessels": "کشتی‌ها",
@@ -1458,6 +1582,7 @@
     "language": "زبان",
     "openNav": "باز کردن منو",
     "signedIn": "وارد شده",
+    "switchToArabic": "العربية",
     "switchToEnglish": "English",
     "switchToPersian": "فارسی"
   },

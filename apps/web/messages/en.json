@@ -6,6 +6,128 @@
   "auth": {
     "redirectingHome": "Redirecting…"
   },
+  "bill": {
+    "page": {
+      "title": "Bills of Lading",
+      "description": "Bills of lading derived from approved manifests"
+    },
+    "list": {
+      "title": "Bills of Lading",
+      "description": "{count} bills",
+      "search": "Search by B/L number, vessel or consignee",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No bills of Lading yet",
+        "description": "Create the first bill from an approved manifest."
+      }
+    },
+    "actions": {
+      "create": "New bill of Lading",
+      "close": "Close",
+      "save": "Save",
+      "delete": "Delete",
+      "issue": "Issue",
+      "cancel": "Cancel"
+    },
+    "create": {
+      "title": "New bill of Lading",
+      "description": "Derive parties from an approved manifest.",
+      "creating": "Creating…",
+      "manifest": "Manifest",
+      "selectManifest": "Select manifest…",
+      "manifestInfo": "{items} items — gross weight {weight}",
+      "errors": {
+        "manifestRequired": "Select a manifest first."
+      }
+    },
+    "detail": {
+      "headerTitle": "Header",
+      "loading": "Loading…",
+      "saving": "Saving…",
+      "issuedOn": "Issued {date}"
+    },
+    "fields": {
+      "billNumber": "B/L number",
+      "status": "Status",
+      "billType": "B/L type",
+      "manifest": "Manifest",
+      "vessel": "Vessel",
+      "route": "Route",
+      "consignee": "Consignee",
+      "itemsCount": "Items",
+      "totalPackages": "Total packages",
+      "totalGrossWeight": "Total gross weight",
+      "issuedAt": "Issued at",
+      "freightTerms": "Freight terms",
+      "carrierName": "Carrier",
+      "placeOfIssue": "Place of issue",
+      "originals": "Originals",
+      "freightAmount": "Freight amount",
+      "currencyCode": "Currency",
+      "notifyParty": "Notify party",
+      "goodsDescription": "Goods description",
+      "shipmentMarks": "Shipment marks",
+      "notes": "Notes",
+      "dateOfIssue": "Date of issue",
+      "totalVolume": "Total volume"
+    },
+    "freightTerms": {
+      "none": "Select freight terms…",
+      "PREPAID": "Prepaid",
+      "COLLECT": "Collect"
+    },
+    "items": {
+      "title": "B/L lines",
+      "add": "Add line",
+      "empty": "No lines yet.",
+      "cargo": "Cargo",
+      "goodsDescription": "Goods description",
+      "marks": "Marks",
+      "packages": "Packages",
+      "packageType": "Package type",
+      "grossWeight": "Gross weight",
+      "volume": "Volume",
+      "remove": "Remove",
+      "addTitle": "Add B/L line",
+      "addDescription": "Add an eligible cargo line from the manifest.",
+      "adding": "Adding…",
+      "selectLine": "Cargo line",
+      "selectLinePlaceholder": "Select a cargo line…",
+      "noEligible": "No eligible cargo lines on this manifest.",
+      "errors": {
+        "lineRequired": "Select a cargo line."
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "Issue this bill of Lading?",
+        "description": "Issued bills are read-only and can no longer be edited."
+      },
+      "cancel": {
+        "title": "Cancel this bill?",
+        "description": "A reason is required. Cancelled bills cannot be reissued.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this bill being cancelled?"
+      },
+      "delete": {
+        "title": "Delete this draft?",
+        "description": "Soft-deleted; never shown again."
+      },
+      "removeItem": {
+        "title": "Remove this line?",
+        "description": "The line is removed from the bill."
+      }
+    },
+    "status": {
+      "DRAFT": "Draft",
+      "ISSUED": "Issued",
+      "CANCELLED": "Cancelled"
+    },
+    "billType": {
+      "MASTER": "Master",
+      "HOUSE": "House"
+    }
+  },
   "booking": {
     "status": {
       "ACCEPTED": "Accepted",
@@ -923,6 +1045,7 @@
     "bookings": "Agent Bookings",
     "cargo": "Cargo",
     "commercial": "Commercial",
+    "consignees": "Consignees",
     "correspondence": "Correspondence",
     "customers": "Customers",
     "dashboard": "Dashboard",
@@ -960,6 +1083,7 @@
     "roles": "Roles",
     "salaryRecords": "Salary Records",
     "settings": "Settings",
+    "shippers": "Shippers",
     "users": "Users",
     "vessel": "vessel",
     "vessels": "Vessels",
@@ -1458,6 +1582,7 @@
     "language": "Language",
     "openNav": "Open navigation",
     "signedIn": "Signed in",
+    "switchToArabic": "العربية",
     "switchToEnglish": "English",
     "switchToPersian": "فارسی"
   },

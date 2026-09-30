@@ -6,6 +6,128 @@
   "auth": {
     "redirectingHome": "در حال انتقال…"
   },
+  "bill": {
+    "page": {
+      "title": "بوالص الشحن",
+      "description": "بوالص شحن مستمدة من المانيفست المعتمد"
+    },
+    "list": {
+      "title": "بوالص الشحن",
+      "description": "{count} بوليصة",
+      "search": "بحث برقم البوليصة أو السفينة أو المرسل إليه",
+      "allStatuses": "كل الحالات",
+      "empty": {
+        "title": "لا توجد بوالص شحن بعد",
+        "description": "أنشئ أول بوليصة من مانيفست معتمد."
+      }
+    },
+    "actions": {
+      "create": "بوليصة شحن جديدة",
+      "close": "إغلاق",
+      "save": "حفظ",
+      "delete": "حذف",
+      "issue": "إصدار",
+      "cancel": "إلغاء"
+    },
+    "create": {
+      "title": "بوليصة شحن جديدة",
+      "description": "استخرج الأطراف من مانيفست معتمد.",
+      "creating": "جارٍ الإنشاء…",
+      "manifest": "المانيفست",
+      "selectManifest": "اختر المانيفست…",
+      "manifestInfo": "{items} بند — الوزن الإجمالي {weight}",
+      "errors": {
+        "manifestRequired": "اختر المانيفست أولاً."
+      }
+    },
+    "detail": {
+      "headerTitle": "الترويسة",
+      "loading": "جارٍ التحميل…",
+      "saving": "جارٍ الحفظ…",
+      "issuedOn": "صدرت في {date}"
+    },
+    "fields": {
+      "billNumber": "رقم البوليصة",
+      "status": "الحالة",
+      "billType": "نوع البوليصة",
+      "manifest": "المانيفست",
+      "vessel": "السفينة",
+      "route": "المسار",
+      "consignee": "المرسل إليه",
+      "itemsCount": "عدد البنود",
+      "totalPackages": "إجمالي الطرود",
+      "totalGrossWeight": "إجمالي الوزن الإجمالي",
+      "issuedAt": "تاريخ الإصدار",
+      "freightTerms": "شروط النقل",
+      "carrierName": "الناقل",
+      "placeOfIssue": "مكان الإصدار",
+      "originals": "الأصول",
+      "freightAmount": "قيمة النقل",
+      "currencyCode": "العملة",
+      "notifyParty": "الجهة المُخطَرة",
+      "goodsDescription": "وصف البضائع",
+      "shipmentMarks": "علامات الشحن",
+      "notes": "ملاحظات",
+      "dateOfIssue": "تاريخ الإصدار",
+      "totalVolume": "إجمالي الحجم"
+    },
+    "freightTerms": {
+      "none": "اختر شروط النقل…",
+      "PREPAID": "مدفوع مقدماً",
+      "COLLECT": "يُدفع عند الوصول"
+    },
+    "items": {
+      "title": "بنود البوليصة",
+      "add": "إضافة بند",
+      "empty": "لا بنود بعد.",
+      "cargo": "الشحن",
+      "goodsDescription": "وصف البضائع",
+      "marks": "العلامات",
+      "packages": "الطرود",
+      "packageType": "نوع الطرد",
+      "grossWeight": "الوزن الإجمالي",
+      "volume": "الحجم",
+      "remove": "إزالة",
+      "addTitle": "إضافة بند بوليصة",
+      "addDescription": "أضف بند شحن مؤهلاً من المانيفست.",
+      "adding": "جارٍ الإضافة…",
+      "selectLine": "بند الشحن",
+      "selectLinePlaceholder": "اختر بند الشحن…",
+      "noEligible": "لا توجد بنود شحن مؤهلة في هذا المانيفست.",
+      "errors": {
+        "lineRequired": "اختر بند الشحن."
+      }
+    },
+    "confirm": {
+      "issue": {
+        "title": "إصدار هذه البوليصة؟",
+        "description": "البوالص الصادرة للقراءة فقط ولا يمكن تعديلها بعد."
+      },
+      "cancel": {
+        "title": "إلغاء هذه البوليصة؟",
+        "description": "ذكر السبب إلزامي؛ لا يمكن إعادة إصدار بوليصة ملغاة.",
+        "reason": "سبب الإلغاء",
+        "reasonPlaceholder": "لماذا تُلغى هذه البوليصة؟"
+      },
+      "delete": {
+        "title": "حذف هذه المسودة؟",
+        "description": "حذف ناعم؛ لن تظهر مجددًا."
+      },
+      "removeItem": {
+        "title": "إزالة هذا البند؟",
+        "description": "سيُزال البند من البوليصة."
+      }
+    },
+    "status": {
+      "DRAFT": "مسودة",
+      "ISSUED": "صادرة",
+      "CANCELLED": "ملغاة"
+    },
+    "billType": {
+      "MASTER": "أصلية",
+      "HOUSE": "فرعية"
+    }
+  },
   "booking": {
     "status": {
       "ACCEPTED": "مقبول",
@@ -930,6 +1052,7 @@
     "bookings": "حجوزات الوكلاء",
     "cargo": "بضاعة",
     "commercial": "التجاري",
+    "consignees": "المستلمون",
     "correspondence": "المراسلات",
     "customers": "العملاء",
     "dashboard": "لوحة التحكم",
@@ -969,6 +1092,7 @@
     "roles": "الأدوار",
     "salaryRecords": "قسائم الرواتب",
     "settings": "تنظیمات",
+    "shippers": "الشاحنون",
     "users": "المستخدمون",
     "vessel": "سفينة",
     "vessels": "السفن",
@@ -1467,6 +1591,7 @@
     "language": "زبان",
     "openNav": "باز کردن منو",
     "signedIn": "وارد شده",
+    "switchToArabic": "العربية",
     "switchToEnglish": "English",
     "switchToPersian": "فارسی"
   },

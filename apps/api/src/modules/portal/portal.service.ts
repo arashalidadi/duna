@@ -120,16 +120,19 @@ export class PortalService {
 
   /**
    * Manifest-scoping ids for a portal user: the linked Agent master id
-   * (`portalAgentId`, plan §3 addendum) PLUS the legacy portal Customer id.
+   * (`portalAgentId`, plan §3 addendum).
    *
-   * TEMPORARY FALLBACK (documented deviation, party-cutover-plan.md §8 item 0):
-   * `manifests.agentId` still references Customer until the cutover unit runs,
-   * so both ids are considered — visibility works pre-cutover (Customer leg)
-   * and post-cutover (Agent leg). The cutover unit REMOVES the Customer leg
-   * and re-seeds demo manifests with Agent ids.
+   * The legacy Customer-id leg is REMOVED (follow-up to the party cutover):
+   * `manifests.agentId` now references `agents`, so a Customer id can never
+   * match a manifest agent — carrying it in the scope was dead code at best
+   * and a cross-table id confusion at worst. A user linked only to a portal
+   * Customer therefore scopes to NO manifests (empty list) rather than to
+   * Customer ids; bookings/statement stay Customer-scoped via
+   * `portalCustomerIdOf` and are unaffected.
    *
    * Mirrors portalCustomerIdOf semantics: user not found -> 404; linked to
-   * neither -> the same 403 message as an unlinked portal company.
+   * neither agent nor customer -> the same 403 message as an unlinked portal
+   * company (empty is reserved for "customer-only", which is a real state).
    */
   private async portalManifestScopeIds(actor: PortalActor): Promise<string[]> {
     const user = await this.prisma.user.findFirst({
@@ -137,13 +140,10 @@ export class PortalService {
       select: { portalAgentId: true, portalCustomerId: true },
     });
     if (!user) throw new NotFoundException('User not found');
-    const ids = [...new Set([user.portalAgentId, user.portalCustomerId])].filter(
-      (id): id is string => Boolean(id),
-    );
-    if (!ids.length) {
+    if (!user.portalAgentId && !user.portalCustomerId) {
       throw new ForbiddenException('This account is not linked to a portal company');
     }
-    return ids;
+    return user.portalAgentId ? [user.portalAgentId] : [];
   }
 
   private async nextBookingNumber(): Promise<string> {
@@ -164,8 +164,8 @@ export class PortalService {
     });
     if (!customer) throw new NotFoundException('Portal company not found');
 
-    // Manifest scoping goes through portalAgentId (+ legacy Customer fallback —
-    // see portalManifestScopeIds); bookings/statement stay Customer-scoped.
+    // Manifest scoping goes through portalAgentId only (see
+    // portalManifestScopeIds); bookings/statement stay Customer-scoped.
     const manifestScopeIds = await this.portalManifestScopeIds(actor);
     const [bookingsTotal, bookingsPending, manifestsApproved, ledger] = await Promise.all([
       this.prisma.bookingRequest.count({ where: { customerId, deletedAt: null } }),
@@ -316,8 +316,8 @@ export class PortalService {
   // ---- Shipments: manifests where this company is the booking agent ----
 
   async shipments(actor: PortalActor, query: { page?: number; pageSize?: number; status?: string; search?: string }) {
-    // Agent scoping via portalAgentId (+ legacy Customer fallback while
-    // manifests.agentId still references Customer — removed by the cutover unit).
+    // Agent scoping via portalAgentId only; manifests.agentId references the
+    // Agent master since the party cutover, so no Customer id belongs here.
     const manifestScopeIds = await this.portalManifestScopeIds(actor);
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(200, Math.max(1, query.pageSize ?? 20));

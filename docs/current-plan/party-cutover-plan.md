@@ -2,6 +2,9 @@
 
 Status: APPROVED (decision-maker) — **EXECUTED**: task-unit 0 (portal agent linkage) and task-unit 1 (cutover) both COMPLETE; logs `implementation-log/phase-2-portal-agent-linkage.md` and `implementation-log/phase-2-party-cutover.md` (ends `EXECUTION_STATUS: COMPLETE`, `UI_GATE: PASS`). Independently re-verified 2026-09-30: migration 31 up to date, live FKs → masters, suite 307/232/75 = baseline, UI gate re-checked. §8 item 2 (decision-maker review + state update) — state recorded in `11-implementation-state.md`.
 Followed by: one Hermes implementation task per task-unit below, in order.
+Post-completion follow-ups (decision-maker approved 2026-09-30): i18n gaps, portal fallback-shim
+removal, migration-replay completeness — all executed and verified; see
+`implementation-log/phase-2-followups.md`.
 
 ## 0. Decision basis (from evidence pack)
 

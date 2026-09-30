@@ -100,9 +100,8 @@ describe('Agent Portal (e2e)', () => {
 
     // Manifest fixtures via Prisma directly - only the agentId scoping matters here.
     // Cutover DONE: manifests.agentId FKs the Agent master, so fixtures carry the
-    // fixture AGENT ids; scoping assertions below pass through the portalAgentId
-    // leg of portalManifestScopeIds (the legacy portalCustomerId leg stays in place
-    // as the documented fallback — kept per task-unit 1 scope item 2).
+    // fixture AGENT ids; scoping assertions below pass through portalAgentId —
+    // the legacy portalCustomerId leg has been removed (post-cutover follow-up).
     const port = await prisma.port.findFirst({ select: { id: true } });
     const voyage = await prisma.voyage.findFirst({ select: { id: true } });
     expect(port).not.toBeNull();
@@ -184,15 +183,30 @@ describe('Agent Portal (e2e)', () => {
       .send({ cargoDescription: `orphan ${randomTag}` }).expect(403);
   });
 
-  // approvedManifests counts manifests whose agentId is in the portal scope ids
-  // (portalAgentId + legacy Customer fallback) — mA holds the fixture CUSTOMER id
-  // (FK reality), so this passes via the temporary fallback until the cutover unit.
+  // approvedManifests counts manifests whose agentId equals the user's
+  // portalAgentId; mA carries the fixture AGENT id since the cutover.
   it('linked agent -> 200 me with company + summary counts', async () => {
     const res = await S().get('/api/v1/portal/me').set(auth(agentAToken)).expect(200);
     expect(res.body.data.customer.name).toBe(`Agent Alpha ${randomTag}`);
     expect(res.body.data.summary.bookingsTotal).toBe(0);
     expect(res.body.data.summary.approvedManifests).toBe(1);
     expect(typeof res.body.data.summary.balanceDue).toBe('number');
+  });
+
+  // Post-cutover shim removal: manifest scoping is portalAgentId-only. A user
+  // linked to a portal CUSTOMER but not to an Agent must still get a working
+  // /me (bookings/statement are Customer-scoped) with ZERO manifests, and
+  // /shipments must return an empty page rather than a 403 — scoping to the
+  // Customer id is what the removed fallback did, and it can never match
+  // manifests.agentId now that agentId references the Agent master.
+  it('customer-only portal user -> 200 me with 0 manifests, empty shipments (no 403)', async () => {
+    const me = await S().get('/api/v1/portal/me').set(auth(agentCToken)).expect(200);
+    expect(me.body.data.customer.name).toBe(`Agent Gamma ${randomTag}`);
+    expect(me.body.data.summary.approvedManifests).toBe(0);
+
+    const sh = await S().get('/api/v1/portal/shipments?pageSize=50').set(auth(agentCToken)).expect(200);
+    const rows = sh.body.data.data ?? sh.body.data;
+    expect(rows).toEqual([]);
   });
 
   // ── bookings: create RBAC + numbering ─────────────────────────────────────
@@ -263,8 +277,8 @@ describe('Agent Portal (e2e)', () => {
 
   // ── shipments + statement ──────────────────────────────────────────────────
 
-  // Scoping asserted through the same portal scope ids (portalAgentId + legacy
-  // Customer fallback): A sees exactly its own manifest, never B's.
+  // Scoping asserted through portalAgentId only: A sees exactly its own
+  // manifest, never B's.
   it('shipments: agent A sees only its manifest, not B-s', async () => {
     const res = await S().get('/api/v1/portal/shipments?pageSize=50').set(auth(agentAToken)).expect(200);
     const rows = res.body.data.data ?? res.body.data;
