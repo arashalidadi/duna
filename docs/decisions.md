@@ -557,49 +557,6 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 **Consequences.** Onboarding a real agent costs one user row + one role link — no new auth surface. `BRK-YYMM-#####` follows the shared count+1 numbering pending the Phase 23 numbering service. Deferred deliberately: booking→job conversion, portal document download, and per-agent (not per-company) portal accounts.
 
 
-## ADR-042: ActualLoading materializes its Load List lines at create; manifest eligibility = positive recorded quantity
-
-**Date:** 2026-10-02
-**Status:** Accepted
-**Context:** Phase 3 unit 2b (chain ungate). Unit 2's UI gate exposed that an Actual Loading
-created through the shipped UI had **zero items**: `create()` validated the Load List but never
-copied its lines, the UI's quantity editor renders `detail.items` with **no add-row path**, and
-`complete()` then 400s with "Cannot complete an Actual Loading with no items" — every seed
-Actual Loading is 0-item too. The schema already models the 1:1 shape: `ActualLoadingItem` has
-`loadListItemId String @unique`, i.e. exactly one Actual Loading line per Load List line, and
-ADR-028 defines the per-line semantics (`actualQuantity` per line, derived `result`
-FULL/PARTIAL/NOT_LOADED, cargo leaves the yard only on FULL completion).
-`Discharge.create()` already materializes its lines with the nested
-`items: { create: [...] }` pattern — ActualLoading was the outlier.
-
-**Decision.**
-1. **Copy-on-create**: `ActualLoading.create()` materializes **every** Load List line inside the
-   same create/transaction — one `ActualLoadingItem` per line with `loadListItemId`, `cargoId`,
-   `actualQuantity: null` and `result: 'NOT_LOADED'` (the enum default). All lines are copied;
-   there is no selection filter (`selectionStatus` on `LoadListItem` is **vestigial** — zero
-   references, gates nothing). The nested create rides the existing number-allocation retry, so
-   allocation stays atomic: a `loadListItemId` unique collision rolls back the attempt, never
-   matches the `actualLoadingNumber` retry discriminator, and keeps falling through to the
-   existing 409 path.
-2. **No empty-complete escape**: `complete()`'s shipped 400 for an Actual Loading with no items
-   stays as a backstop; `complete()`/`updateItem(sBulk)` guards are unchanged. Recording stays
-   optional per ADR-028 — an untouched (all-NOT_LOADED) Actual Loading completes and its cargo
-   stays in the yard.
-
-**Consequences.** The UI works end-to-end with no UI change: rows render immediately after
-create, quantities can be recorded, saved and completed. Because unrecorded lines now exist by
-default, **manifest eligibility is tightened to a positive recorded quantity at both sites** —
-the add guard and `eligibleCargo` in `manifest.service.ts` now require
-`actualQuantity > 0` (NULL and 0 excluded). Rationale: **ADR-029 — "the manifest reflects what
-was actually loaded"**, and **ADR-028 — NOT_LOADED cargo stays in the yard and remains eligible
-for later planning** (it is not on board, so it must not be manifested). Discharge is unchanged
-— its own on-board filter (`actualQuantity > 0`, "Nothing was actually loaded" 400) already did
-this. The manifest item quantity keeps snapshotting `loadedOnVoyage.actualQuantity ??
-cargo.quantity`, which now always carries the recorded value for eligible lines. Pre-existing
-0-item seed Actual Loadings are **not backfilled** (their state is recorded; cleanup deferred).
-
-
-
 ## ADR-041: LoadList lifecycle is 3-state — DRAFT → FINALIZED (→ CANCELLED); backend aligned to the shipped model
 
 **Date:** 2026-10-02
@@ -642,3 +599,43 @@ was always designed to offer. No schema change, no new endpoints, no new permiss
 UAT** — this confirmation is **non-blocking**, because the employer workflow (§2.3) specifies no statuses
 at all and the decision follows the four already-shipped layers.
 
+## ADR-042: ActualLoading materializes its Load List lines at create; manifest eligibility = positive recorded quantity
+
+**Date:** 2026-10-02
+**Status:** Accepted
+**Context:** Phase 3 unit 2b (chain ungate). Unit 2's UI gate exposed that an Actual Loading
+created through the shipped UI had **zero items**: `create()` validated the Load List but never
+copied its lines, the UI's quantity editor renders `detail.items` with **no add-row path**, and
+`complete()` then 400s with "Cannot complete an Actual Loading with no items" — every seed
+Actual Loading is 0-item too. The schema already models the 1:1 shape: `ActualLoadingItem` has
+`loadListItemId String @unique`, i.e. exactly one Actual Loading line per Load List line, and
+ADR-028 defines the per-line semantics (`actualQuantity` per line, derived `result`
+FULL/PARTIAL/NOT_LOADED, cargo leaves the yard only on FULL completion).
+`Discharge.create()` already materializes its lines with the nested
+`items: { create: [...] }` pattern — ActualLoading was the outlier.
+
+**Decision.**
+1. **Copy-on-create**: `ActualLoading.create()` materializes **every** Load List line inside the
+   same create/transaction — one `ActualLoadingItem` per line with `loadListItemId`, `cargoId`,
+   `actualQuantity: null` and `result: 'NOT_LOADED'` (the enum default). All lines are copied;
+   there is no selection filter (`selectionStatus` on `LoadListItem` is **vestigial** — zero
+   references, gates nothing). The nested create rides the existing number-allocation retry, so
+   allocation stays atomic: a `loadListItemId` unique collision rolls back the attempt, never
+   matches the `actualLoadingNumber` retry discriminator, and keeps falling through to the
+   existing 409 path.
+2. **No empty-complete escape**: `complete()`'s shipped 400 for an Actual Loading with no items
+   stays as a backstop; `complete()`/`updateItem(sBulk)` guards are unchanged. Recording stays
+   optional per ADR-028 — an untouched (all-NOT_LOADED) Actual Loading completes and its cargo
+   stays in the yard.
+
+**Consequences.** The UI works end-to-end with no UI change: rows render immediately after
+create, quantities can be recorded, saved and completed. Because unrecorded lines now exist by
+default, **manifest eligibility is tightened to a positive recorded quantity at both sites** —
+the add guard and `eligibleCargo` in `manifest.service.ts` now require
+`actualQuantity > 0` (NULL and 0 excluded). Rationale: **ADR-029 — "the manifest reflects what
+was actually loaded"**, and **ADR-028 — NOT_LOADED cargo stays in the yard and remains eligible
+for later planning** (it is not on board, so it must not be manifested). Discharge is unchanged
+— its own on-board filter (`actualQuantity > 0`, "Nothing was actually loaded" 400) already did
+this. The manifest item quantity keeps snapshotting `loadedOnVoyage.actualQuantity ??
+cargo.quantity`, which now always carries the recorded value for eligible lines. Pre-existing
+0-item seed Actual Loadings are **not backfilled** (their state is recorded; cleanup deferred).

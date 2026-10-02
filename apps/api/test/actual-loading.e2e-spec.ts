@@ -986,5 +986,205 @@ describe('Actual Loading (e2e)', () => {
     );
     expect(mine).toHaveLength(0);
     }, 30000);
-    });
-    });
+
+    it('ADR-028 four result states after complete: only FULL leaves the yard (public-API inventory checks)', async () => {
+      // ONE chain, four lines: FULL (q >= planned), PARTIAL (0 < q < planned), explicit 0
+      // (NOT_LOADED) and never recorded (null). ADR-028: cargo leaves the yard ONLY on FULL.
+      // Inventory presence is asserted through the public API — GET /yard-inventory/:id
+      // (ListInventoryQueryDto deliberately has no cargoId param; nothing here adds one).
+      const cFull = await createDoneCargo('state-full');
+      const cPart = await createDoneCargo('state-partial');
+      const cZero = await createDoneCargo('state-zero');
+      const cNull = await createDoneCargo('state-null');
+
+      const invOf: Record<string, string> = {};
+      for (const c of [cFull, cPart, cZero, cNull]) {
+        const inv = await request(app.getHttpServer())
+          .post('/api/v1/yard-inventory')
+          .set(auth(adminToken))
+          .send({ cargoId: c, yardId })
+          .expect(201);
+        invOf[c] = inv.body.data.id as string;
+      }
+
+      const llId = await createLoadList('ADR-028 four result states');
+      const lineOf: Record<string, string> = {};
+      const spec = [
+        ['full', cFull],
+        ['part', cPart],
+        ['zero', cZero],
+        ['null', cNull],
+      ] as const;
+      for (let i = 0; i < spec.length; i++) {
+        const li = await request(app.getHttpServer())
+          .post(`/api/v1/load-lists/${llId}/items`)
+          .set(auth(adminToken))
+          .send({ cargoId: spec[i][1], plannedQuantity: 10, sequence: i + 1 })
+          .expect(201);
+        lineOf[spec[i][0]] = li.body.data.id as string;
+      }
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${llId}/finalize`)
+        .set(auth(adminToken))
+        .expect(200);
+      const al = await request(app.getHttpServer())
+        .post('/api/v1/actual-loading')
+        .set(auth(adminToken))
+        .send({ loadListId: llId })
+        .expect(201);
+      const alId = al.body.data.id as string;
+
+      // record: FULL = planned(10), PARTIAL = 3, explicit 0, null = untouched
+      for (const [key, qty] of [['full', 10], ['part', 3], ['zero', 0]] as const) {
+        await request(app.getHttpServer())
+          .patch(`/api/v1/actual-loading/${alId}/items/${lineOf[key]}`)
+          .set(auth(adminToken))
+          .send({ actualQuantity: qty })
+          .expect(200);
+      }
+      await request(app.getHttpServer())
+        .post(`/api/v1/actual-loading/${alId}/start`)
+        .set(auth(adminToken))
+        .send({})
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/actual-loading/${alId}/complete`)
+        .set(auth(adminToken))
+        .send({})
+        .expect(200);
+
+      // per-line results on the completed AL (ADR-028 derivation: 0 -> NOT_LOADED,
+      // >= planned -> FULL, else PARTIAL; never-recorded materializes as NOT_LOADED)
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/actual-loading/${alId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      const resultByLine = Object.fromEntries(
+        (detail.body.data.items as Array<{ loadListItemId: string; result: string }>).map(
+          (it) => [it.loadListItemId, it.result]
+        )
+      );
+      expect(resultByLine[lineOf.full]).toBe('FULL');
+      expect(resultByLine[lineOf.part]).toBe('PARTIAL');
+      expect(resultByLine[lineOf.zero]).toBe('NOT_LOADED');
+      expect(resultByLine[lineOf.null]).toBe('NOT_LOADED');
+
+      // cargo readiness: ONLY the FULL cargo becomes LOADED; the others are unchanged
+      const expectLoading = async (cid: string, status: string) => {
+        const c = await request(app.getHttpServer())
+          .get(`/api/v1/cargo/${cid}`)
+          .set(auth(adminToken))
+          .expect(200);
+        expect(c.body.data.loadingStatus).toBe(status);
+      };
+      await expectLoading(cFull, 'LOADED');
+      await expectLoading(cPart, 'NOT_LOADED');
+      await expectLoading(cZero, 'NOT_LOADED');
+      await expectLoading(cNull, 'NOT_LOADED');
+
+      // Yard inventory through the public API: LIST ?search=<cargo reference> (the
+      // prompt-sanctioned route; GET /yard-inventory/:id 500s for EVERY id — pre-existing
+      // include/select bug in yard-inventory.service.ts findById — recorded, not fixed).
+      // FULL's row is gone (left the yard); PARTIAL / 0 / null rows are still present.
+      const expectInv = async (cid: string, present: boolean) => {
+        const cg = await request(app.getHttpServer())
+          .get(`/api/v1/cargo/${cid}`)
+          .set(auth(adminToken))
+          .expect(200);
+        const ref = cg.body.data.reference as string;
+        const res = await request(app.getHttpServer())
+          .get(`/api/v1/yard-inventory?search=${encodeURIComponent(ref)}&pageSize=20`)
+          .set(auth(adminToken))
+          .expect(200);
+        const rows = (res.body.data.data as Array<{ cargo: { id: string } }>).filter(
+          (r) => r.cargo.id === cid
+        );
+        if (present) {
+          expect(rows).toHaveLength(1);
+        } else {
+          expect(rows).toHaveLength(0);
+        }
+      };
+      await expectInv(cFull, false);
+      await expectInv(cPart, true);
+      await expectInv(cZero, true);
+      await expectInv(cNull, true);
+    }, 30000);
+
+    it('ADR-028: a NOT_LOADED line\'s cargo remains eligible for a later voyage\'s Load List', async () => {
+      // chain on the suite voyage: DONE cargo -> LL line -> finalize -> AL -> record 0 -> complete
+      const cargoId = await createDoneCargo('replan');
+      const llId = await createLoadList('ADR-028 re-plan source');
+      const li = await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${llId}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId, plannedQuantity: 5, sequence: 1 })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${llId}/finalize`)
+        .set(auth(adminToken))
+        .expect(200);
+      const al = await request(app.getHttpServer())
+        .post('/api/v1/actual-loading')
+        .set(auth(adminToken))
+        .send({ loadListId: llId })
+        .expect(201);
+      const alId = al.body.data.id as string;
+      await request(app.getHttpServer())
+        .patch(`/api/v1/actual-loading/${alId}/items/${li.body.data.id}`)
+        .set(auth(adminToken))
+        .send({ actualQuantity: 0 })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/actual-loading/${alId}/start`)
+        .set(auth(adminToken))
+        .send({})
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/actual-loading/${alId}/complete`)
+        .set(auth(adminToken))
+        .send({})
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/actual-loading/${alId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect((detail.body.data.items as Array<{ result: string }>)[0].result).toBe('NOT_LOADED');
+
+      // ADR-028 "remains eligible for later planning": a LATER Load List on a DIFFERENT
+      // voyage must still see this cargo as eligible (it stayed in the yard).
+      const v2 = await request(app.getHttpServer())
+        .post('/api/v1/voyages')
+        .set(auth(adminToken))
+        .send({ vesselId, originPortId, destinationPortId: destPortId })
+        .expect(201);
+      createdVoyages.push({ id: v2.body.data.id });
+      const cg = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${cargoId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      const ref = cg.body.data.reference as string;
+      const el = await request(app.getHttpServer())
+        .get(
+          `/api/v1/load-lists/eligible-cargo?voyageId=${v2.body.data.id}&search=${encodeURIComponent(ref)}&pageSize=20`
+        )
+        .set(auth(adminToken))
+        .expect(200);
+      const ids = (el.body.data.data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toContain(cargoId);
+
+      // OBSERVED, DELIBERATELY UNASSERTED (recorded as NEEDS_BUSINESS_DECISION in the
+      // unit-3 log): SAME-voyage re-planning is excluded by checkCargoEligibility's
+      // duplicate-assignment rule, which ignores `result` — one active list per cargo per
+      // voyage (load-planning.service.ts, "cancelled load lists don't block"). That looks
+      // like an intentional double-booking guard, but ADR-028's "eligible for later
+      // planning" does not spell out same-voyage re-planning, so no expectation is
+      // encoded here pending a ruling.
+      const sameVoyage = await request(app.getHttpServer())
+        .get(`/api/v1/load-lists/eligible-cargo?voyageId=${voyageId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      void sameVoyage;
+    }, 30000);
+  });
+});
