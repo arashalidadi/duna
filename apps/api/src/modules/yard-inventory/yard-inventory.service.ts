@@ -79,7 +79,7 @@ export class YardInventoryService {
   }
 
   async findById(id: string) {
-    const row = await this.prisma.yardInventory.findUnique({ where: { id }, include: select });
+    const row = await this.prisma.yardInventory.findUnique({ where: { id }, select });
     if (!row) {
       throw new NotFoundException('Yard inventory record not found');
     }

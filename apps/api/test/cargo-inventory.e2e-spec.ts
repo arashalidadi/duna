@@ -559,6 +559,23 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       expect(res.body.data.data.some((i: { id: string }) => i.id === inventoryId)).toBe(true);
     });
 
+    it('gets a single inventory record by id (nested cargo/yard/port) and 404s for an unknown id', async () => {
+      // Regression: findById passed the module-level Select payload as `include:`,
+      // so GET /yard-inventory/:id 500'd for EVERY id (present and absent rows alike).
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/yard-inventory/${inventoryId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(res.body.data.id).toBe(inventoryId);
+      expect(res.body.data.cargo.id).toBe(placedCargoId);
+      expect(res.body.data.yard.code).toBe(`YD-${tag}`);
+      expect(res.body.data.port.code).toBe(`PT-${tag}`);
+      await request(app.getHttpServer())
+        .get('/api/v1/yard-inventory/no-such-inventory-id')
+        .set(auth(adminToken))
+        .expect(404);
+    });
+
     it('moves cargo to another yard and reservation status', async () => {
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/yard-inventory/${inventoryId}`)
