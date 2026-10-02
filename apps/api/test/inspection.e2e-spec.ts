@@ -732,14 +732,14 @@ describe('Inspection (e2e)', () => {
   // load-planning.service.ts:361-367 (eligible-cargo: only inspectionStatus DONE) and
   // :536-542 (addItem: 409 `has inspection status X; only DONE cargo may be added`).
   describe('Phase 3 acceptance: Inspection Done gates Load List', () => {
-    // Same direct-Prisma fixture pattern as the other suites: shipped code has no API driver
-    // from LoadList DRAFT -> COMPLETED (product gap recorded in the implementation log), which
-    // C6 pins explicitly.
-    async function stampLoadListCompleted(id: string) {
+    // Fixture-setup stamp kept from the unit-1 pattern, now stamping FINALIZED per ADR-041's
+    // 3-state lifecycle. (C6 no longer needs it — ADR-041 ships the DRAFT -> FINALIZED edge —
+    // the helper is renamed per the unit-2 instructions and remains for fixture use.)
+    async function stampLoadListFinalized(id: string) {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       try {
-        await prisma.loadList.update({ where: { id }, data: { status: 'COMPLETED' } });
+        await prisma.loadList.update({ where: { id }, data: { status: 'FINALIZED' } });
       } finally {
         await prisma.$disconnect();
       }
@@ -887,7 +887,7 @@ describe('Inspection (e2e)', () => {
       expect(add.body.error.message).toContain('has inspection status PENDING');
     }, 30000);
 
-    it('C6: finalize follows the shipped load-list transitions (DRAFT rejected, COMPLETED ok)', async () => {
+    it('C6: finalize follows ADR-041 (empty DRAFT -> 400; DRAFT + items -> 200 FINALIZED)', async () => {
       const ll = await request(app.getHttpServer())
         .post('/api/v1/load-lists')
         .set(auth(adminToken))
@@ -895,14 +895,14 @@ describe('Inspection (e2e)', () => {
         .expect(201);
       createdLoadLists.push({ id: ll.body.data.id });
 
-      // DRAFT -> FINALIZED is not a shipped transition
-      // (LOAD_LIST_TRANSITIONS, load-planning.service.ts:29-33; checked at :749)
+      // Emptiness rule still applies from DRAFT (transition now legal, so the 400 fires):
+      // "Cannot finalize an empty Load List" (load-planning.service.ts finalize()).
       await request(app.getHttpServer())
         .post(`/api/v1/load-lists/${ll.body.data.id}/finalize`)
         .set(auth(adminToken))
-        .expect(409);
+        .expect(400);
 
-      // non-empty + COMPLETED -> FINALIZED works (stamped COMPLETED: no shipped DRAFT driver)
+      // One eligible (DONE) item, then finalize straight from DRAFT.
       const { cargo, inspId } = await createInspectedCargo('finalize');
       await request(app.getHttpServer())
         .post(`/api/v1/inspections/${inspId}/book`)
@@ -917,7 +917,10 @@ describe('Inspection (e2e)', () => {
         .set(auth(adminToken))
         .send({ cargoId: cargo.id })
         .expect(201);
-      await stampLoadListCompleted(ll.body.data.id);
+
+      // ADR-041: DRAFT -> FINALIZED is the shipped edge. This assertion was pinned to 409 by
+      // unit 1 (pre-ADR-041 backend) and is REWRITTEN here under the decision-maker's explicit
+      // authorization — supersession recorded in ADR-041 and the unit-2 log mapping table.
       await request(app.getHttpServer())
         .post(`/api/v1/load-lists/${ll.body.data.id}/finalize`)
         .set(auth(adminToken))

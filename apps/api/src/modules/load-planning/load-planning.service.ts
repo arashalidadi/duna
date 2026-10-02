@@ -27,7 +27,10 @@ import {
 // (finalize/cancel) — never an arbitrary status edit.
 // ---------------------------------------------------------------------------
 const LOAD_LIST_TRANSITIONS: Record<LoadListStatus, LoadListStatus[]> = {
-  DRAFT: ['IN_PROGRESS', 'CANCELLED'],
+  // ADR-041: shipped lifecycle is DRAFT -> FINALIZED -> (CANCELLED). The intermediate
+  // IN_PROGRESS/PARTIALLY_LOADED/COMPLETED entries below are unreachable (no code writes
+  // them) and are retained deliberately — see ADR-041 for the supersession note.
+  DRAFT: ['IN_PROGRESS', 'FINALIZED', 'CANCELLED'],
   IN_PROGRESS: ['PARTIALLY_LOADED', 'COMPLETED', 'CANCELLED'],
   PARTIALLY_LOADED: ['COMPLETED', 'CANCELLED'],
   COMPLETED: ['FINALIZED', 'CANCELLED'],

@@ -59,18 +59,14 @@ describe('Discharge (e2e)', () => {
   let deliveredCargoId = ''; // second cargo to run FULL discharge -> DELIVERED
 
 
-  // Phase 3A shipped reality: nothing in apps/api/src can transition a LoadList out of
-  // DRAFT (load-planning.service.ts:29-33 maps DRAFT -> IN_PROGRESS/CANCELLED but only
-  // finalize/cancel ever write status), while ActualLoading.create requires the list to be
-  // COMPLETED (actual-loading.service.ts:240-244). Fixture setup therefore stamps the
-  // intermediate COMPLETED state directly — the same direct-Prisma fixture pattern used by
-  // the portal/party-cutover suites. The missing DRAFT->COMPLETED driver is recorded as a
-  // product gap in the implementation log (not fixed here).
-  async function stampLoadListCompleted(loadListId: string) {
+  // Fixture setup stamps the list FINALIZED directly (kept from the unit-1 workaround
+  // pattern). ADR-041 now ships the DRAFT -> FINALIZED edge, so fixtures could equally
+  // finalize via the API — that path is asserted by the dedicated lifecycle tests (ADR-041).
+  async function stampLoadListFinalized(loadListId: string) {
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient();
     try {
-      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'COMPLETED' } });
+      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'FINALIZED' } });
     } finally {
       await prisma.$disconnect();
     }
@@ -238,7 +234,7 @@ describe('Discharge (e2e)', () => {
       .send({ cargoId, plannedQuantity: 20, sequence: 1 })
       .expect(201);
     loadListItemId = item.body.data.id;
-    await stampLoadListCompleted(loadListId);
+    await stampLoadListFinalized(loadListId);
 
     // --- COMPLETED actual loading (20 actually loaded -> FULL) ---
     const al = await request(app.getHttpServer())
@@ -246,10 +242,6 @@ describe('Discharge (e2e)', () => {
       .set(auth(adminToken))
       .send({ loadListId, notes: 'DS source loading' })
       .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${loadListId}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
     actualLoadingId = al.body.data.id;
     await request(app.getHttpServer())
       .patch(`/api/v1/actual-loading/${actualLoadingId}/items/${loadListItemId}`)
@@ -308,16 +300,12 @@ describe('Discharge (e2e)', () => {
       .set(auth(adminToken))
       .send({ cargoId: cargoDraft.body.data.id, plannedQuantity: 5, sequence: 1 })
       .expect(201);
-    await stampLoadListCompleted(llDraft.body.data.id);
+    await stampLoadListFinalized(llDraft.body.data.id);
     const draftLoading = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId: llDraft.body.data.id })
       .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${llDraft.body.data.id}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
     draftLoadingId = draftLoading.body.data.id;
 
     // --- second voyage + cargo chain for the delivered-cargo fixture (planned 10, loaded 7) ---
@@ -358,16 +346,12 @@ describe('Discharge (e2e)', () => {
       .set(auth(adminToken))
       .send({ cargoId: deliveredCargoId, plannedQuantity: 10, sequence: 1 })
       .expect(201);
-    await stampLoadListCompleted(ll3.body.data.id);
+    await stampLoadListFinalized(ll3.body.data.id);
     const al2 = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId: ll3.body.data.id })
       .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${ll3.body.data.id}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
     await request(app.getHttpServer())
       .patch(`/api/v1/actual-loading/${al2.body.data.id}/items/${item3.body.data.id}`)
       .set(auth(adminToken))
@@ -734,16 +718,12 @@ describe('Discharge (e2e)', () => {
       .set(auth(adminToken))
       .send({ cargoId: cargo3.body.data.id, plannedQuantity: 3, sequence: 1 })
       .expect(201);
-    await stampLoadListCompleted(ll4.body.data.id);
+    await stampLoadListFinalized(ll4.body.data.id);
     const al3 = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId: ll4.body.data.id })
       .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${ll4.body.data.id}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
     await request(app.getHttpServer())
       .patch(`/api/v1/actual-loading/${al3.body.data.id}/items/${item4.body.data.id}`)
       .set(auth(adminToken))

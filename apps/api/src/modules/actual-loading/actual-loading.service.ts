@@ -237,9 +237,9 @@ export class ActualLoadingService {
     if (!loadList) {
       throw new NotFoundException('Load List not found');
     }
-    if (loadList.status !== 'COMPLETED') {
+    if (loadList.status !== 'FINALIZED') {
       throw new ConflictException(
-        `Actual Loading can only be created for COMPLETED Load Lists. Current status: ${loadList.status}`,
+        `Actual Loading can only be created for FINALIZED Load Lists. Current status: ${loadList.status}`,
       );
     }
     if (loadList.items.length === 0) {

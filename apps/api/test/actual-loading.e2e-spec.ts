@@ -188,7 +188,7 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargoApprovedId, plannedQuantity: 20, sequence: 1 })
       .expect(201);
     loadListItemId = item.body.data.id;
-    await stampLoadListCompleted(loadListId);
+    await stampLoadListFinalized(loadListId);
 
     // DRAFT load list (create actual loading must be rejected).
     const ld = await request(app.getHttpServer())
@@ -221,9 +221,10 @@ describe('Actual Loading (e2e)', () => {
       });
       await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });
       await prisma.loadList.deleteMany({ where: { id: { in: loadListIds } } });
-      await prisma.inspection.deleteMany({ where: { cargoId: cargoApprovedId } });
-      await prisma.yardInventory.deleteMany({ where: { cargoId: cargoApprovedId } });
-      await prisma.cargo.deleteMany({ where: { id: cargoApprovedId } });
+      const cargoIds = createdCargos.map((c) => c.id);
+      await prisma.inspection.deleteMany({ where: { cargoId: { in: cargoIds } } });
+      await prisma.yardInventory.deleteMany({ where: { cargoId: { in: cargoIds } } });
+      await prisma.cargo.deleteMany({ where: { id: { in: cargoIds } } });
       await prisma.voyage.deleteMany({ where: { id: { in: voyageIds } } });
       await prisma.vessel.deleteMany({ where: { id: { in: createdVessels.map((v) => v.id) } } });
       await prisma.yard.deleteMany({ where: { id: { in: createdYards.map((y) => y.id) } } });
@@ -263,18 +264,14 @@ describe('Actual Loading (e2e)', () => {
   });
 
 
-  // Phase 3A shipped reality: nothing in apps/api/src can transition a LoadList out of
-  // DRAFT (load-planning.service.ts:29-33 maps DRAFT -> IN_PROGRESS/CANCELLED but only
-  // finalize/cancel ever write status), while ActualLoading.create requires the list to be
-  // COMPLETED (actual-loading.service.ts:240-244). Fixture setup therefore stamps the
-  // intermediate COMPLETED state directly — the same direct-Prisma fixture pattern used by
-  // the portal/party-cutover suites. The missing DRAFT->COMPLETED driver is recorded as a
-  // product gap in the implementation log (not fixed here).
-  async function stampLoadListCompleted(loadListId: string) {
+  // Fixture setup stamps the list FINALIZED directly (kept from the unit-1 workaround
+  // pattern). ADR-041 now ships the DRAFT -> FINALIZED edge, so fixtures could equally
+  // finalize via the API — that path is asserted by the dedicated lifecycle tests (ADR-041).
+  async function stampLoadListFinalized(loadListId: string) {
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient();
     try {
-      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'COMPLETED' } });
+      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'FINALIZED' } });
     } finally {
       await prisma.$disconnect();
     }
@@ -556,17 +553,13 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargo2.body.data.id, plannedQuantity: 10, sequence: 1 })
       .expect(201);
     void item2;
-    await stampLoadListCompleted(ll2.body.data.id);
+    await stampLoadListFinalized(ll2.body.data.id);
 
     const al2 = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId: ll2.body.data.id })
       .expect(201);
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${ll2.body.data.id}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
     const al2Id = al2.body.data.id;
 
     // missing / blank reason -> 400
@@ -634,6 +627,204 @@ describe('Actual Loading (e2e)', () => {
       .get('/api/v1/actual-loading?sort=actualLoadingNumber&order=asc&pageSize=5')
       .set(auth(readerToken))
       .expect(200);
-    await request(app.getHttpServer()).get('/api/v1/actual-loading/nonexistent').set(auth(adminToken)).expect(404);
+    await request(app.getHttpServer())
+      .get('/api/v1/actual-loading/nonexistent')
+      .set(auth(adminToken))
+      .expect(404);
   });
-});
+
+    // ─── Phase 3 unit 2 — LoadList lifecycle gates (ADR-041) & ADR-028 creation gate ───
+    describe('LoadList lifecycle gates (ADR-041 / ADR-028)', () => {
+    let gateCargoId = ''; // DONE cargo used by it1's finalized list
+    let gateLoadListId = ''; // finalized in it1; consumed by it2's FINALIZED -> 201 case
+
+    async function createDoneCargo(suffix: string): Promise<string> {
+    const c = await request(app.getHttpServer())
+      .post('/api/v1/cargo')
+      .set(auth(adminToken))
+      .send({ customerId, portId, yardId, cargoType: 'CONTAINER', quantity: 10 })
+      .expect(201);
+    createdCargos.push({ id: c.body.data.id });
+    const insp = await request(app.getHttpServer())
+      .post('/api/v1/inspections')
+      .set(auth(adminToken))
+      .send({ cargoId: c.body.data.id, findings: `adr041 ${suffix}` })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/done`)
+      .set(auth(adminToken))
+      .expect(200);
+    return c.body.data.id as string;
+    }
+
+    async function createLoadList(notes: string): Promise<string> {
+    const ll = await request(app.getHttpServer())
+      .post('/api/v1/load-lists')
+      .set(auth(adminToken))
+      .send({ voyageId, notes })
+      .expect(201);
+    createdLoadLists.push({ id: ll.body.data.id });
+    return ll.body.data.id as string;
+    }
+
+    it('finalize: empty DRAFT -> 400; DRAFT with eligible items -> 200 and FINALIZED', async () => {
+    const emptyId = await createLoadList('ADR-041 empty');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${emptyId}/finalize`)
+      .set(auth(adminToken))
+      .expect(400);
+
+    gateCargoId = await createDoneCargo('gate');
+    gateLoadListId = await createLoadList('ADR-041 finalize from DRAFT');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${gateLoadListId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: gateCargoId, plannedQuantity: 5, sequence: 1 })
+      .expect(201);
+
+    // Required test #1 — the exact path /en/load-lists uses: DRAFT -> FINALIZED (ADR-041).
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${gateLoadListId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/load-lists/${gateLoadListId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(detail.body.data.status).toBe('FINALIZED');
+    }, 30000);
+
+    it('ActualLoading create gate: FINALIZED -> 201; DRAFT -> 409 shipped message; CANCELLED -> 409', async () => {
+    // FINALIZED (it1's list) -> 201
+    await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: gateLoadListId })
+      .expect(201);
+
+    // DRAFT -> 409 with the shipped message (actual-loading.service.ts create gate)
+    const fromDraft = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: loadListDraftId })
+      .expect(409);
+    expect(fromDraft.body.error.message).toContain(
+      'Actual Loading can only be created for FINALIZED Load Lists'
+    );
+    expect(fromDraft.body.error.message).toContain('Current status: DRAFT');
+
+    // CANCELLED -> 409
+    const cancelledId = await createLoadList('ADR-041 cancelled');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${cancelledId}/cancel`)
+      .set(auth(adminToken))
+      .send({ cancelReason: 'adr-041 gate fixture' })
+      .expect(200);
+    const fromCancelled = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: cancelledId })
+      .expect(409);
+    expect(fromCancelled.body.error.message).toContain('Current status: CANCELLED');
+    }, 30000);
+
+    it('full chain via the API with NO status stamping: create LL -> item -> finalize -> AL -> start -> complete', async () => {
+    // Required test #3 — Phase 3 lifecycle-alignment proof.
+    const cargoId = await createDoneCargo('chain');
+    const llId = await createLoadList('ADR-041 full chain');
+    const item = await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId, plannedQuantity: 10, sequence: 1 })
+      .expect(201);
+    const llItemId = item.body.data.id as string;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    const llDetail = await request(app.getHttpServer())
+      .get(`/api/v1/load-lists/${llId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(llDetail.body.data.status).toBe('FINALIZED');
+
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: llId })
+      .expect(201);
+    const alId = al.body.data.id as string;
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/actual-loading/${alId}/items/${llItemId}`)
+      .set(auth(adminToken))
+      .send({ actualQuantity: 10 })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/start`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/complete`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+
+    const alDetail = await request(app.getHttpServer())
+      .get(`/api/v1/actual-loading/${alId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(alDetail.body.data.status).toBe('COMPLETED');
+    const llAfter = await request(app.getHttpServer())
+      .get(`/api/v1/load-lists/${llId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(llAfter.body.data.status).toBe('FINALIZED');
+    // ADR-028: FULL cargo leaves the yard on completion.
+    const cargoAfter = await request(app.getHttpServer())
+      .get(`/api/v1/cargo/${cargoId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(cargoAfter.body.data.loadingStatus).toBe('LOADED');
+    }, 30000);
+
+    it('preserved negatives: finalize with ineligible item -> 409; finalize from CANCELLED -> 409', async () => {
+    // Item eligible at add time (DONE), then the cargo is cancelled -> finalize re-validation 409.
+    const cargoId = await createDoneCargo('ineligible');
+    const llId = await createLoadList('ADR-041 ineligible item');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId, plannedQuantity: 5, sequence: 1 })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/cargo/${cargoId}/status`)
+      .set(auth(adminToken))
+      .send({ status: 'CANCELLED' })
+      .expect(200);
+    const ineligible = await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/finalize`)
+      .set(auth(adminToken))
+      .expect(409);
+    expect(ineligible.body.error.message).toContain('no longer eligible');
+
+    // finalize from CANCELLED -> 409 (CANCELLED is terminal for finalize).
+    const cancelledId = await createLoadList('ADR-041 finalize cancelled');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${cancelledId}/cancel`)
+      .set(auth(adminToken))
+      .send({ cancelReason: 'adr-041 negative fixture' })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${cancelledId}/finalize`)
+      .set(auth(adminToken))
+      .expect(409);
+    }, 30000);
+    });
+    });

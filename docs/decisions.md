@@ -555,3 +555,47 @@ Core validation: `ActualLoading.items[].loadListItemId` must belong to the Actua
 5. The office side is one desk at `/bookings` (`booking:read`/`booking:respond`) — list, detail, respond dialog; no separate navigation area.
 
 **Consequences.** Onboarding a real agent costs one user row + one role link — no new auth surface. `BRK-YYMM-#####` follows the shared count+1 numbering pending the Phase 23 numbering service. Deferred deliberately: booking→job conversion, portal document download, and per-agent (not per-company) portal accounts.
+
+
+## ADR-041: LoadList lifecycle is 3-state — DRAFT → FINALIZED (→ CANCELLED); backend aligned to the shipped model
+
+**Date:** 2026-10-02
+**Status:** Accepted
+**Context:** Phase 3 unit 2 (Operational Flow Reconciliation). The backend `LOAD_LIST_TRANSITIONS` map
+still carried the original six-value lifecycle (`DRAFT → IN_PROGRESS → PARTIALLY_LOADED → COMPLETED →
+FINALIZED`) and gated ActualLoading creation on `COMPLETED`, but no code anywhere could write
+`IN_PROGRESS`/`PARTIALLY_LOADED`/`COMPLETED` — a load list could never leave `DRAFT` via the API, so
+`finalize()` and ActualLoading creation were unreachable (the unit-1 log recorded this as a product gap).
+Four other layers already agreed on the 3-state model: `packages/shared` types
+(`LoadListStatus = 'DRAFT' | 'FINALIZED' | 'CANCELLED'`), the `/en/load-lists` page (its 3-state filters,
+finalize button and cancel actions), the `/en/actual-loading` create dialog (it fetches
+`/load-lists?status=FINALIZED`), and ADR-028 itself, which already says ActualLoading creation requires a
+**FINALIZED** Load List. The backend was the single outlier; inventing start/complete endpoints and
+intermediate statuses would have been unevidenced business rules (employer workflow §2.3 specifies no
+statuses at all).
+
+**Decision.**
+1. LoadList lifecycle is **`DRAFT → FINALIZED → (CANCELLED)`**: `finalize()` from `DRAFT` is the one
+   production path (with the existing empty-list 400 and per-item eligibility 409 checks intact), and
+   `cancel()` with a reason is reachable from `DRAFT`/`FINALIZED`. The `DRAFT → FINALIZED` edge was added
+   to `LOAD_LIST_TRANSITIONS`; the existing intermediate entries were left in place (no row can reach
+   them) and are hereby **superseded**.
+2. The `LoadListStatus` DB enum values `IN_PROGRESS`, `PARTIALLY_LOADED` and `COMPLETED` are
+   **unreachable and superseded**. The DB enum is **retained deliberately** so no migration is required;
+   physical cleanup is **deferred and recorded here** as future low-priority work.
+3. **ActualLoading creation requires the Load List to be `FINALIZED`** (409 otherwise, message keeps the
+   `Current status: <status>` shape) — this re-states ADR-028 as the current rule and aligns the backend
+   with the actual-loading dialog's `status=FINALIZED` filter.
+4. ADR-028's `NOT_STARTED` wording is **stale**: the shipped lifecycle uses `ActualLoadingStatus.DRAFT`
+   (`DRAFT → IN_PROGRESS → COMPLETED`, cancel requires a reason). ADR-028 is otherwise current.
+5. Unit 1's test pinning `finalize` from `DRAFT` → **409** (and the fixture workaround stamping
+   `COMPLETED`) is **superseded**: `finalize` from `DRAFT` now returns **200 / `FINALIZED`**, and the
+   rewritten assertion cites this ADR.
+
+**Consequences.** Previously-dead behavior becomes reachable through the existing, unchanged UI: the
+load-lists page's finalize button works end-to-end and the actual-loading dialog can offer the list it
+was always designed to offer. No schema change, no new endpoints, no new permission codes, no changes to
+`packages/shared` or `apps/web/src`. These lifecycle semantics must be **confirmed with the employer at
+UAT** — this confirmation is **non-blocking**, because the employer workflow (§2.3) specifies no statuses
+at all and the decision follows the four already-shipped layers.
+
