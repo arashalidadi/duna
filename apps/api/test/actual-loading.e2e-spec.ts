@@ -365,7 +365,12 @@ describe('Actual Loading (e2e)', () => {
     expect(created.status).toBe('DRAFT');
     expect(created.actualLoadingNumber).toMatch(/^AL-\d{4}-\d{5}$/);
     expect(created.loadListId).toBe(loadListId);
-    expect(created.items).toEqual([]);
+    // ADR-042 copy-on-create: the list's single line materializes immediately
+    // (was `toEqual([])` before ADR-042 — superseded, cited in decisions.md).
+    expect(created.items).toHaveLength(1);
+    expect(created.items[0].loadListItemId).toBe(loadListItemId);
+    expect(created.items[0].result).toBe('NOT_LOADED');
+    expect(created.items[0].actualQuantity).toBeNull();
     algIng = created.id;
 
     const detail = await request(app.getHttpServer())
@@ -825,6 +830,161 @@ describe('Actual Loading (e2e)', () => {
       .post(`/api/v1/load-lists/${cancelledId}/finalize`)
       .set(auth(adminToken))
       .expect(409);
+    }, 30000);
+
+    it('ADR-042 copy-on-create: N load list lines -> N ActualLoadingItems (NOT_LOADED, null quantity)', async () => {
+    const c1 = await createDoneCargo('copy1');
+    const c2 = await createDoneCargo('copy2');
+    const llId = await createLoadList('ADR-042 copy-on-create');
+    const i1 = (await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: c1, plannedQuantity: 5, sequence: 1 })
+      .expect(201)).body.data.id as string;
+    const i2 = (await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: c2, plannedQuantity: 7, sequence: 2 })
+      .expect(201)).body.data.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: llId })
+      .expect(201);
+    const items = al.body.data.items as Array<{
+      loadListItemId: string; result: string; actualQuantity: number | null;
+    }>;
+    expect(items).toHaveLength(2);
+    expect(items.map((it) => it.loadListItemId).sort()).toEqual([i1, i2].sort());
+    for (const it of items) {
+      expect(it.result).toBe('NOT_LOADED');
+      expect(it.actualQuantity).toBeNull();
+    }
+    // detail agrees (this is what the UI renders)
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/actual-loading/${al.body.data.id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(detail.body.data.items).toHaveLength(2);
+    }, 30000);
+
+    it('ADR-042: an untouched Actual Loading (no quantities recorded) completes 200 and cargo stays in the yard', async () => {
+    const cargoId = await createDoneCargo('untouched');
+    // live yard inventory row so "stays in the yard" is observable
+    await request(app.getHttpServer())
+      .post('/api/v1/yard-inventory')
+      .set(auth(adminToken))
+      .send({ cargoId, yardId })
+      .expect(201);
+    const llId = await createLoadList('ADR-042 untouched complete');
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId, plannedQuantity: 5, sequence: 1 })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: llId })
+      .expect(201);
+    const alId = al.body.data.id as string;
+
+    // NO recording at all: start -> complete straight through
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/start`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+    const done = await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/complete`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+    expect(done.body.data.status).toBe('COMPLETED');
+    // the unrecorded line stayed NOT_LOADED — ADR-028: cargo does NOT leave the yard
+    expect((done.body.data.items as Array<{ result: string }>)[0].result).toBe('NOT_LOADED');
+    const cargoAfter = await request(app.getHttpServer())
+      .get(`/api/v1/cargo/${cargoId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(cargoAfter.body.data.loadingStatus).toBe('NOT_LOADED');
+    const inv = await request(app.getHttpServer())
+      .get(`/api/v1/yard-inventory?pageSize=100`)
+      .set(auth(adminToken))
+      .expect(200);
+    // NOTE: the list endpoint declares a cargoId query param but does not apply it
+    // (pre-existing, recorded in the unit-2b log) — filter client-side on cargo.id.
+    const mine = (inv.body.data.data as Array<{ cargo: { id: string } }>).filter(
+      (r) => r.cargo.id === cargoId
+    );
+    expect(mine.length).toBeGreaterThanOrEqual(1);
+    }, 30000);
+
+    it('ADR-042/028: recording >= planned -> FULL -> complete marks cargo LOADED and deletes its yard inventory', async () => {
+    const cargoId = await createDoneCargo('full-record');
+    await request(app.getHttpServer())
+      .post('/api/v1/yard-inventory')
+      .set(auth(adminToken))
+      .send({ cargoId, yardId })
+      .expect(201);
+    const llId = await createLoadList('ADR-042 full record');
+    const li = (await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId, plannedQuantity: 10, sequence: 1 })
+      .expect(201)).body.data.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${llId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: llId })
+      .expect(201);
+    const alId = al.body.data.id as string;
+
+    const patched = await request(app.getHttpServer())
+      .patch(`/api/v1/actual-loading/${alId}/items/${li}`)
+      .set(auth(adminToken))
+      .send({ actualQuantity: 10 })
+      .expect(200);
+    expect(patched.body.data.result).toBe('FULL');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/start`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/complete`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+
+    const cargoAfter = await request(app.getHttpServer())
+      .get(`/api/v1/cargo/${cargoId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(cargoAfter.body.data.loadingStatus).toBe('LOADED');
+    const inv = await request(app.getHttpServer())
+      .get(`/api/v1/yard-inventory?pageSize=100`)
+      .set(auth(adminToken))
+      .expect(200);
+    // cargoId query param is ignored by the list endpoint (see T2 note) — filter client-side.
+    const mine = (inv.body.data.data as Array<{ cargo: { id: string } }>).filter(
+      (r) => r.cargo.id === cargoId
+    );
+    expect(mine).toHaveLength(0);
     }, 30000);
     });
     });

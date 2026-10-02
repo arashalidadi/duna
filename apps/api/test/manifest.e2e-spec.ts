@@ -724,4 +724,125 @@ describe('Manifest (e2e)', () => {
       .expect(200);
     expect(search.body.data.data.length).toBeGreaterThan(0);
   });
-});
+
+    it('manifest eligibility requires a POSITIVE recorded quantity (ADR-029/ADR-042): null and zero lines excluded, positive snapshots the recorded quantity', async () => {
+      // Full chain helper: DONE cargo -> LL line -> finalize -> AL (materializes the line) ->
+      // optional recording -> start -> complete. Pushes cargo/list to this suite's registries.
+      const mkLoadedLine = async (suffix: string, qty: number | null): Promise<string> => {
+        const cargo = await request(app.getHttpServer())
+          .post('/api/v1/cargo')
+          .set(auth(adminToken))
+          .send({ customerId, portId: originPortId, yardId, cargoType: 'CONTAINER', quantity: 30 })
+          .expect(201);
+        createdCargos.push({ id: cargo.body.data.id });
+        const cid = cargo.body.data.id as string;
+        const insp = await request(app.getHttpServer())
+          .post('/api/v1/inspections')
+          .set(auth(adminToken))
+          .send({ cargoId: cid, findings: `adr042 ${suffix}` })
+          .expect(201);
+        await request(app.getHttpServer())
+          .post(`/api/v1/inspections/${insp.body.data.id}/book`)
+          .set(auth(adminToken))
+          .expect(200);
+        await request(app.getHttpServer())
+          .post(`/api/v1/inspections/${insp.body.data.id}/done`)
+          .set(auth(adminToken))
+          .expect(200);
+        const ll = await request(app.getHttpServer())
+          .post('/api/v1/load-lists')
+          .set(auth(adminToken))
+          .send({ voyageId: voyage3Id, notes: `ADR-042 ${suffix}` })
+          .expect(201);
+        createdLoadLists.push({ id: ll.body.data.id });
+        const li = await request(app.getHttpServer())
+          .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+          .set(auth(adminToken))
+          .send({ cargoId: cid, plannedQuantity: 10, sequence: 1 })
+          .expect(201);
+        await stampLoadListFinalized(ll.body.data.id);
+        const al = await request(app.getHttpServer())
+          .post('/api/v1/actual-loading')
+          .set(auth(adminToken))
+          .send({ loadListId: ll.body.data.id })
+          .expect(201);
+        if (qty !== null) {
+          await request(app.getHttpServer())
+            .patch(`/api/v1/actual-loading/${al.body.data.id}/items/${li.body.data.id}`)
+            .set(auth(adminToken))
+            .send({ actualQuantity: qty })
+            .expect(200);
+        }
+        await request(app.getHttpServer())
+          .post(`/api/v1/actual-loading/${al.body.data.id}/start`)
+          .set(auth(adminToken))
+          .send({})
+          .expect(200);
+        await request(app.getHttpServer())
+          .post(`/api/v1/actual-loading/${al.body.data.id}/complete`)
+          .set(auth(adminToken))
+          .send({})
+          .expect(200);
+        return cid;
+      };
+
+      const unrecorded = await mkLoadedLine('null', null); // materialized line, quantity null
+      const zero = await mkLoadedLine('zero', 0); // recorded 0 -> NOT_LOADED
+      const positive = await mkLoadedLine('positive', 10); // recorded 10 of cargo quantity 30
+
+      // The delete-flow fixture recreates a live DRAFT manifest on voyage3
+      // (manifest.e2e-spec.ts delete test, `manifest3Id = m3b...`) — one-per-voyage
+      // (manifest.service.ts:240) is satisfied by it and it is still DRAFT (fixture
+      // manifest1 is APPROVED by earlier tests, so unusable). This test is last, so
+      // manifest3's item set is not asserted afterwards.
+      const mfId = manifest3Id;
+
+      // null line -> 409 with the shipped message
+      const addNull = await request(app.getHttpServer())
+        .post(`/api/v1/manifests/${mfId}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: unrecorded })
+        .expect(409);
+      expect(addNull.body.error.message).toBe(
+        'Cargo was not actually loaded on this voyage; only cargo from a completed Actual Loading may be manifested'
+      );
+
+      // zero line -> 409 with the shipped message
+      const addZero = await request(app.getHttpServer())
+        .post(`/api/v1/manifests/${mfId}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: zero })
+        .expect(409);
+      expect(addZero.body.error.message).toBe(
+        'Cargo was not actually loaded on this voyage; only cargo from a completed Actual Loading may be manifested'
+      );
+
+      // both are absent from the voyage's eligible list; the positive fixture line is present
+      const el = await request(app.getHttpServer())
+        .get(`/api/v1/manifests/eligible-cargo?voyageId=${voyage3Id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      const ids = (el.body.data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).not.toContain(unrecorded);
+      expect(ids).not.toContain(zero);
+
+      // positive line: eligible and the manifest item snapshots the RECORDED actualQuantity
+      // (10), not the cargo's quantity (30) — ADR-029 "the manifest reflects what was
+      // actually loaded".
+      expect(ids).toContain(positive);
+      await request(app.getHttpServer())
+        .post(`/api/v1/manifests/${mfId}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: positive })
+        .expect(201);
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/manifests/${mfId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      const row = (detail.body.data.items as Array<{ cargoId: string; quantity: string }>).find(
+        (it) => it.cargoId === positive
+      );
+      expect(row).toBeDefined();
+      expect(Number(row!.quantity)).toBe(10);
+    }, 30000);
+  });

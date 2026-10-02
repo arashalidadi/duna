@@ -232,7 +232,7 @@ export class ActualLoadingService {
   async create(dto: CreateActualLoadingDto, actor?: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id: dto.loadListId },
-      select: { id: true, status: true, loadListNumber: true, voyageId: true, items: { select: { cargoId: true } } },
+      select: { id: true, status: true, loadListNumber: true, voyageId: true, items: { select: { id: true, cargoId: true } } },
     });
     if (!loadList) {
       throw new NotFoundException('Load List not found');
@@ -255,12 +255,26 @@ export class ActualLoadingService {
     for (let attempt = 1; ; attempt += 1) {
       const actualLoadingNumber = await this.generateReference();
       try {
+        // ADR-042 copy-on-create: materialize every Load List line as an ActualLoadingItem
+        // (actualQuantity null, result NOT_LOADED — the enum default) in the SAME create, so
+        // the number-allocation retry stays atomic: a loadListItemId unique collision rolls
+        // this attempt back, does NOT match the actualLoadingNumber retry discriminator below,
+        // and falls through to the existing 409 path. Mirrors Discharge.create()'s nested
+        // `items: { create: [...] }` shape.
         return await this.prisma.actualLoading.create({
           data: {
             actualLoadingNumber,
             loadListId: dto.loadListId,
             notes: dto.notes,
             createdById: actor?.id,
+            items: {
+              create: loadList.items.map((line) => ({
+                loadListItemId: line.id,
+                cargoId: line.cargoId,
+                actualQuantity: null,
+                result: 'NOT_LOADED' as const,
+              })),
+            },
           },
           select: detailSelect,
         });

@@ -415,10 +415,14 @@ export class ManifestService {
       throw new ConflictException('Cargo is already on this manifest');
     }
 
-    // The cargo must have been actually loaded on this voyage.
+    // The cargo must have been actually loaded on this voyage — a POSITIVE recorded
+    // quantity, not merely a materialized line: ADR-029 "the manifest reflects what was
+    // actually loaded"; ADR-028 — NOT_LOADED cargo stays in the yard and remains eligible
+    // for later planning. (NULL/0 lines only exist since ADR-042 copy-on-create.)
     const loadedOnVoyage = await this.prisma.actualLoadingItem.findFirst({
       where: {
         cargoId: dto.cargoId,
+        actualQuantity: { gt: 0 },
         actualLoading: {
           status: 'COMPLETED',
           deletedAt: null,
@@ -525,8 +529,13 @@ export class ManifestService {
       throw new NotFoundException('Voyage not found');
     }
 
+    // Only lines with a POSITIVE recorded quantity are "actually loaded" for manifesting
+    // (ADR-029 "the manifest reflects what was actually loaded"; ADR-028 — NOT_LOADED lines
+    // stay in the yard and remain eligible for later planning). NULL/0 lines materialized by
+    // ADR-042 copy-on-create are excluded.
     const loaded = await this.prisma.actualLoadingItem.findMany({
       where: {
+        actualQuantity: { gt: 0 },
         actualLoading: {
           status: 'COMPLETED',
           deletedAt: null,

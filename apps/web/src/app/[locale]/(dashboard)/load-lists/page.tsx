@@ -288,7 +288,7 @@ export default function LoadListsPage() {
     }
     setSaving(true);
     try {
-      await api.post('/load-lists/${addItemLoadListId}/items', {
+      await api.post(`/load-lists/${addItemLoadListId}/items`, {
         cargoId: addItemForm.cargoId,
         plannedQuantity: plannedQty,
         notes: addItemForm.notes.trim() || undefined,
@@ -315,7 +315,7 @@ export default function LoadListsPage() {
     }
     setSaving(true);
     try {
-      await api.post('/load-lists/${addItemLoadListId}/items/bulk', {
+      await api.post(`/load-lists/${addItemLoadListId}/items/bulk`, {
         items: selectedIds.map((id: string) => ({ cargoId: id })),
       });
       setAddItemOpen(false);
@@ -339,9 +339,9 @@ export default function LoadListsPage() {
     if (!confirmingDeleteItem || !viewing) return;
     setSaving(true);
     try {
-      await api.del('/load-lists/${viewing.id}/items/${confirmingDeleteItem.id}');
+      await api.del(`/load-lists/${viewing.id}/items/${confirmingDeleteItem.id}`);
       setConfirmingDeleteItem(null);
-      const d = await api.get('/load-lists/${viewing.id}');
+      const d = await api.get(`/load-lists/${viewing.id}`);
       setDetail(d);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Failed to remove cargo');
@@ -354,7 +354,7 @@ export default function LoadListsPage() {
     if (!confirmingFinalize) return;
     setSaving(true);
     try {
-      const updated = await api.post('/load-lists/${confirmingFinalize.id}/finalize');
+      const updated = await api.post(`/load-lists/${confirmingFinalize.id}/finalize`);
       setConfirmingFinalize(null);
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
@@ -380,7 +380,7 @@ export default function LoadListsPage() {
     }
     setSaving(true);
     try {
-      const updated = await api.post('/load-lists/${confirmingCancel.id}/cancel', { cancelReason: cancelReason.trim() });
+      const updated = await api.post(`/load-lists/${confirmingCancel.id}/cancel`, { cancelReason: cancelReason.trim() });
       setConfirmingCancel(null);
       setCancelReason('');
       if (viewing) setDetail(updated);

@@ -797,4 +797,68 @@ describe('Discharge (e2e)', () => {
     expect(Array.isArray(res.body.data.items)).toBe(true);
     expect(res.body.data.actualLoading.loadList.voyage.voyageNumber).toBeTruthy();
   });
+
+  it('ADR-042: an all-unrecorded Actual Loading cannot discharge (400 Nothing was actually loaded)', async () => {
+    // Full chain with NO quantity recorded: copy-on-create materializes the line as
+    // NOT_LOADED/null, so the AL completes, but nothing is on board.
+    const cargo = await request(app.getHttpServer())
+      .post('/api/v1/cargo')
+      .set(auth(adminToken))
+      .send({ customerId, portId: originPortId, yardId, cargoType: 'CONTAINER', quantity: 10 })
+      .expect(201);
+    createdCargoIds.push(cargo.body.data.id);
+    const cid = cargo.body.data.id as string;
+    const insp = await request(app.getHttpServer())
+      .post('/api/v1/inspections')
+      .set(auth(adminToken))
+      .send({ cargoId: cid, findings: 'adr042 unrecorded' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/done`)
+      .set(auth(adminToken))
+      .expect(200);
+    const ll = await request(app.getHttpServer())
+      .post('/api/v1/load-lists')
+      .set(auth(adminToken))
+      .send({ voyageId, notes: 'ADR-042 unrecorded line' })
+      .expect(201);
+    createdLoadListIds.push(ll.body.data.id);
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: cid, plannedQuantity: 10, sequence: 1 })
+      .expect(201);
+    await stampLoadListFinalized(ll.body.data.id);
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: ll.body.data.id })
+      .expect(201);
+    const alId = al.body.data.id as string;
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/start`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${alId}/complete`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(200);
+
+    // Discharge's own on-board filter (discharge.service.ts:247-255) is unchanged: all lines
+    // are NOT_LOADED/null -> 400 with the shipped message.
+    const dis = await request(app.getHttpServer())
+      .post('/api/v1/discharge')
+      .set(auth(adminToken))
+      .send({ actualLoadingId: alId })
+      .expect(400);
+    expect(dis.body.error.message).toBe(
+      'Nothing was actually loaded on this Actual Loading; there is nothing to discharge'
+    );
+  }, 30000);
 });
