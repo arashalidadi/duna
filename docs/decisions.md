@@ -639,3 +639,38 @@ for later planning** (it is not on board, so it must not be manifested). Dischar
 this. The manifest item quantity keeps snapshotting `loadedOnVoyage.actualQuantity ??
 cargo.quantity`, which now always carries the recorded value for eligible lines. Pre-existing
 0-item seed Actual Loadings are **not backfilled** (their state is recorded; cleanup deferred).
+
+
+## ADR-043: Two Phase 3 unit-3 business rulings — same-voyage re-plan exclusion stands; §2.3 "removed from Load List" means functional removal only
+
+**Date:** 2026-10-02
+**Status:** Accepted (decision-maker ruling on the two NEEDS_BUSINESS_DECISION items raised in
+`implementation-log/2026-10-02-phase3-unit3-not-loaded-to-yard.md`)
+**Context:** Unit 3 proved the four `complete()` result states and different-voyage re-planning
+(both green) but hit two questions it was forbidden to answer itself.
+
+**Decision.**
+
+1. **Same-voyage re-planning of not-loaded cargo stays EXCLUDED.** The assigned-cargo filter in
+   `getEligibleCargo()` / `checkCargoEligibility()` ignores `result`, so a cargo holding a
+   `NOT_LOADED` line on voyage A cannot join voyage A's list again while that list is active
+   (cancelled lists still don't block). This is an intentional **one active list per cargo per
+   voyage** double-booking guard, consistent with ADR-029's one-per-voyage philosophy. ADR-028's
+   *"remains eligible for later planning"* is read as **different-voyage** planning, which is
+   asserted and green. The previously unasserted same-voyage probe is now asserted as
+   `not.toContain(cargoId)` in `actual-loading.e2e-spec.ts`. No service code changes.
+
+2. **§2.3 step 7 "removed from Load List" = functional removal, not row deletion.** A finalized
+   Load List stays immutable (ADR-041); `ActualLoadingItem`/`LoadListItem` rows persist with
+   `result: NOT_LOADED` as the record of what did not sail (ADR-039 keeps them out of discharge
+   expectations). "Removed from the load plan" is satisfied by: manifest eligibility
+   (`actualQuantity > 0`, ADR-042), discharge exclusion (ADR-039), the same-voyage duplicate
+   guard (ruling 1), and cargo physically remaining in Yard Inventory (ADR-028, unit-3 tested).
+   §2.4's wording for the same event carries no removal language. **No row-deletion feature will
+   be built**; if the employer later asks for literal deletion, that is a new ruling superseding
+   this one.
+
+**Consequences.** Unit 3's two NEEDS_BUSINESS_DECISION items are closed; the same-voyage
+assertion is added inside an existing test (test count unchanged). §2.3's removal half is
+documented as satisfied functionally, so **no Phase 3 removal work exists**. Nothing in
+`apps/api/src` changes.

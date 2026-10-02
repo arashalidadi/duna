@@ -1173,18 +1173,19 @@ describe('Actual Loading (e2e)', () => {
       const ids = (el.body.data.data as Array<{ id: string }>).map((r) => r.id);
       expect(ids).toContain(cargoId);
 
-      // OBSERVED, DELIBERATELY UNASSERTED (recorded as NEEDS_BUSINESS_DECISION in the
-      // unit-3 log): SAME-voyage re-planning is excluded by checkCargoEligibility's
-      // duplicate-assignment rule, which ignores `result` — one active list per cargo per
-      // voyage (load-planning.service.ts, "cancelled load lists don't block"). That looks
-      // like an intentional double-booking guard, but ADR-028's "eligible for later
-      // planning" does not spell out same-voyage re-planning, so no expectation is
-      // encoded here pending a ruling.
+      // ADR-028 + decision 2026-10-02 (recorded ADR-043): SAME-voyage re-planning of
+      // not-loaded cargo is EXCLUDED — one active list per cargo per voyage is an
+      // intentional double-booking guard (checkCargoEligibility's assigned-cargo rule
+      // ignores `result`; cancelled lists don't block). Asserted here, search-scoped
+      // like the other-voyage probe so foreign cargos can't mask the result.
       const sameVoyage = await request(app.getHttpServer())
-        .get(`/api/v1/load-lists/eligible-cargo?voyageId=${voyageId}`)
+        .get(
+          `/api/v1/load-lists/eligible-cargo?voyageId=${voyageId}&search=${encodeURIComponent(ref)}&pageSize=20`
+        )
         .set(auth(adminToken))
         .expect(200);
-      void sameVoyage;
+      const sameVoyageIds = (sameVoyage.body.data.data as Array<{ id: string }>).map((r) => r.id);
+      expect(sameVoyageIds).not.toContain(cargoId);
     }, 30000);
   });
 });

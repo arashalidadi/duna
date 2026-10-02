@@ -369,3 +369,26 @@ Verified independently of this log; all claims re-executed rather than read:
 
 UI verification: **NOT APPLICABLE** (backend/test-only unit; no file under `apps/web/src`
 changed by the unit or by the follow-ups).
+
+
+## Business decisions closed (2026-10-02, decision-maker)
+
+Both NEEDS_BUSINESS_DECISION items above are **ruled and recorded as ADR-043** (`docs/decisions.md`):
+
+1. **Same-voyage re-planning stays excluded** — the assigned-cargo guard is an intentional
+   one-active-list-per-cargo-per-voyage double-booking rule; ADR-028's *"eligible for later
+   planning"* = different-voyage. The deliberately unasserted probe in Part 2 is now a real
+   assertion (`expect(sameVoyageIds).not.toContain(cargoId)`, search-scoped like its sibling).
+   **Test count unchanged (19 in-suite, 365 total)** — the assertion was added inside the
+   existing test. No `apps/api/src` change.
+2. **§2.3 step 7 removal = functional only** — no row deletion, ADR-041 immutability stands.
+   The removal item is therefore **closed, not outstanding**: nothing to build. Part 3's
+   stop-and-record was the correct outcome.
+
+Post-ruling verification: full suite **365/365/0 (22/22)**, `npx tsc -p apps/api` **0**,
+`-p apps/web` **exactly the 3 pre-existing errors**.
+
+Also recorded on the same day (outside this unit's scope, see `11-implementation-state.md`):
+the **inspection page defect** — dead `/approve`/`/reject` calls + stale 3-value status
+vocabulary crashing the list render — classified with terminal evidence and promoted to
+Phase 3 unit 4.
