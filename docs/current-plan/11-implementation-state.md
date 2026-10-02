@@ -28,7 +28,7 @@ Party Masters — COMPLETE. Port abbreviation — COMPLETE. Vessel type & tug/ba
 
 ## Incomplete or transitional work
 
-- **LoadList status machine is unreachable via API** (Phase 3 unit 1 `UNRESOLVED ISSUES`, independently re-verified by the decision-maker): `PATCH /load-lists/:id` writes only `notes`; only `finalize` → FINALIZED and `cancel` → CANCELLED write status; nothing can reach IN_PROGRESS / PARTIALLY_LOADED / COMPLETED; `finalize` requires COMPLETED; ActualLoading creation requires COMPLETED ⇒ circular. Additionally the shipped AL gate **contradicts locked ADR-028**, which requires the Load List to be **FINALIZED**. Resolution designed and delegated as Phase 3 unit 2 (new `start`/`complete` endpoints + gate realignment to ADR-028 + ADR-041).
+- **LoadList status machine is unreachable via API** (Phase 3 unit 1 `UNRESOLVED ISSUES`, independently re-verified by the decision-maker): `PATCH /load-lists/:id` writes only `notes`; only `finalize` → FINALIZED and `cancel` → CANCELLED write status; nothing can reach IN_PROGRESS / PARTIALLY_LOADED / COMPLETED; `finalize` requires COMPLETED; ActualLoading creation requires COMPLETED ⇒ circular. Additionally the shipped AL gate **contradicts locked ADR-028**, which requires the Load List to be **FINALIZED**. Resolution designed and delegated as Phase 3 unit 2: add the missing `DRAFT → FINALIZED` edge and realign the gate to ADR-028's `FINALIZED` — aligning the backend to the 3-state model already expressed by `packages/shared`, both pages, and ADR-028 (no new endpoints, no permissions, no web changes, no migration), recorded as ADR-041.
 
 - B/L/Manifest party references now point at Shipper/Consignee/Agent masters (cutover executed); remaining transitional item: portal fallback shim (`portalManifestScopeIds` still ORs the legacy `portalCustomerId`) awaits a cleanup decision.
 - B/L/Manifest ordering and party model still reflect the old Manifest-first approach in code.
@@ -57,11 +57,20 @@ Party Masters — COMPLETE. Port abbreviation — COMPLETE. Vessel type & tug/ba
 
 **Phase 3 unit 1 CLOSED** (decision-maker verification 2026-10-01, commit `e2233b8`): baseline deterministic (5 consecutive runs 353/353/0), roadmap acceptance *"Inspection Done gates Load List"* now covered by 6 green tests.
 
-**Next: Phase 3 — Operational Flow Reconciliation, unit 2 — LoadList status driver + ADR-028 alignment.** The LoadList → ActualLoading chain is unreachable via API (circular: `finalize` needs COMPLETED, AL create needs COMPLETED, nothing can write COMPLETED) and the shipped AL gate contradicts locked **ADR-028** (*"Creation additionally requires the Load List to be FINALIZED"*). Decision made from evidence, delegated as one task:
-- add `POST /load-lists/:id/start` (DRAFT→IN_PROGRESS) and `POST /load-lists/:id/complete` (IN_PROGRESS→COMPLETED) — the ADR-026 voyage / ADR-028 action-endpoint house pattern, `@HttpCode(200)`, gated on the existing `load_list:update` permission so the seeded registry stays unchanged (ADR-016);
-- realign the ActualLoading creation gate from `COMPLETED` → **`FINALIZED`** to comply with ADR-028 (the 6 fixtures that stamp `COMPLETED` stamp `FINALIZED` instead — fixtures, not assertions);
-- record the design as **ADR-041** (supersedes ADR-028's stale `NOT_STARTED` wording → shipped `DRAFT`; documents that `PARTIALLY_LOADED` stays unreachable rather than inventing semantics for it);
-- prove the whole chain through the API: build → start → complete → finalize → create AL → start → complete, plus negatives (AL create from DRAFT/IN_PROGRESS/COMPLETED → 409) and illegal-transition 409s.
+**Next: Phase 3 — Operational Flow Reconciliation, unit 2 — LoadList lifecycle alignment to the shipped 3-state model (+ ADR-041).** The LoadList → ActualLoading chain is unreachable end-to-end, and four independent artifacts agree on a **3-state** model (`DRAFT | FINALIZED | CANCELLED`) while only `load-planning.service.ts` asserts a driverless 6-state map:
+- `packages/shared/src/load-planning.ts:6` → `LoadListStatus = 'DRAFT' | 'FINALIZED' | 'CANCELLED'`;
+- `load-lists/page.tsx` → status filter is those 3, finalize button fires on `status === "DRAFT"`, copy *"Draft lists can be edited; finalized lists are immutable"*;
+- `actual-loading/page.tsx:164` → the create dialog fetches `/load-lists?status=FINALIZED`, dialog text *"Select a FINALIZED load list to start loading"*; no web call to any start/complete endpoint exists;
+- **locked ADR-028** → *"Creation additionally requires the Load List to be FINALIZED"*.
+
+Contradicted today by (a) `actual-loading.service.ts:240` requiring `COMPLETED`, and (b) `LOAD_LIST_TRANSITIONS` having no `DRAFT → FINALIZED` edge — so the shipped UI can neither finalize a list nor create an Actual Loading (live DB: all 5 LoadLists still DRAFT, 0 FINALIZED).
+
+Decision (made from the evidence above; no employer evidence specifies load-list statuses and `12-open-business-decisions.md` has no load-list entry):
+- add the missing `DRAFT → FINALIZED` edge to `LOAD_LIST_TRANSITIONS` (no new endpoints, no new permission codes, no web changes, no migration — the DB enum keeps its unreachable values, documented as superseded);
+- realign the ActualLoading creation gate `COMPLETED` → **`FINALIZED`** (satisfies ADR-028 *and* the existing dialog filter);
+- re-point the 6 `stampLoadListCompleted` fixtures to `FINALIZED` (fixtures, not assertions) and rewrite unit 1's C6, which pinned the old `DRAFT finalize → 409` rule — explicitly authorized and to be cited as ADR-041 in the log;
+- record **ADR-041**: the 3-state lifecycle, the gate, and ADR-028's stale `NOT_STARTED` wording → shipped `ActualLoadingStatus.DRAFT`;
+- prove the chain through the API *and* through the existing UI (finalize a DRAFT list → create AL → start → complete).
 
 **Not in unit 2 (later Phase 3 units):** not-loaded-returns-to-yard acceptance test, Comment editing/visibility (unbuilt — needs its own design), Phase 3 UI (inspection / LoadList / ActualLoading status UI).
 
