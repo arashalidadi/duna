@@ -289,11 +289,19 @@ describe('Auth & RBAC (e2e)', () => {
 
     it('lists roles with user counts and permissions', async () => {
       const s = await adminServer();
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/roles?pageSize=100')
-        .set('Authorization', `Bearer ${s.accessToken}`)
-        .expect(200);
-      const roles = res.body.data.data as { code: string; userCount: number }[];
+      // Walk the paginated list (pageSize caps at 100) until exhausted: parallel e2e suites
+      // transiently mint dozens of fixture roles, which can push seeded roles past page 1.
+      // The assertion is unchanged — ADMIN and OPERATIONS must be listable via the API.
+      const roles: { code: string; userCount: number }[] = [];
+      for (let page = 1; page <= 3; page += 1) {
+        const res = await request(app.getHttpServer())
+          .get(`/api/v1/roles?pageSize=100&page=${page}`)
+          .set('Authorization', `Bearer ${s.accessToken}`)
+          .expect(200);
+        const rows = res.body.data.data as { code: string; userCount: number }[];
+        roles.push(...rows);
+        if (rows.length < 100) break;
+      }
       expect(roles.some((r) => r.code === 'ADMIN')).toBe(true);
       expect(roles.some((r) => r.code === 'OPERATIONS')).toBe(true);
     });

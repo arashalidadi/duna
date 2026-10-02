@@ -253,12 +253,17 @@ export class ManifestService {
       agentId: dto.agentId,
     });
 
-    const manifestNumber = await this.generateReference();
-
-    try {
-      return await this.prisma.manifest.create({
-        data: {
-          manifestNumber,
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): four e2e
+    // suites create manifests in parallel and generateReference() is read-then-write, so the
+    // loser of a MAN-YYMM-##### race hits the unique number index. Re-read the committed max
+    // and retry; other P2002/P2018/P2003 keep their existing mapping.
+    const MAX_MANIFEST_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const manifestNumber = await this.generateReference();
+      try {
+        return await this.prisma.manifest.create({
+          data: {
+            manifestNumber,
           voyageId: dto.voyageId,
           vesselName: voyage.vessel.name,
           vesselImo: voyage.vessel.imo,
@@ -269,24 +274,35 @@ export class ManifestService {
           agentId: dto.agentId,
           notifyParty: dto.notifyParty,
           description: dto.description,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: detailSelect,
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException('Could not create Manifest: duplicate reference');
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_MANIFEST_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'manifestNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create Manifest: duplicate reference');
+        }
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+          throw new BadRequestException(
+            'Invalid reference: party ids must reference existing master records',
+          );
+        }
+        throw e;
       }
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-        throw new BadRequestException(
-          'Invalid reference: party ids must reference existing master records',
-        );
-      }
-      throw e;
     }
   }
 

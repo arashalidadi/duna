@@ -241,6 +241,62 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       createdCargos.push({ id: d.id });
     });
 
+    it(
+      'allocates strictly distinct references under concurrent creates (atomic allocation)',
+      async () => {
+        const N = 8;
+        const results = await Promise.all(
+          Array.from({ length: N }, (_, i) =>
+            request(app.getHttpServer())
+              .post('/api/v1/cargo')
+              .set(auth(adminToken))
+              .send({ ...cargoBase(), vin: `conc${randomTag}${i}` })
+              .expect(201)
+          )
+        );
+        const refs = results.map((r) => r.body.data.reference as string);
+        for (const ref of refs) {
+          expect(ref).toMatch(/^CRG-\d{4}-\d{5}$/);
+        }
+        // strictly distinct: no two parallel creates may share a reference
+        expect(new Set(refs).size).toBe(N);
+        createdCargos.push(...results.map((r) => ({ id: r.body.data.id as string })));
+      },
+      30000
+    );
+
+    it(
+      'soft-deleted highest sequence is never reused (monotonic, same month)',
+      async () => {
+        const a = await request(app.getHttpServer())
+          .post('/api/v1/cargo')
+          .set(auth(adminToken))
+          .send({ ...cargoBase(), vin: `monoa${randomTag}` })
+          .expect(201);
+        createdCargos.push({ id: a.body.data.id });
+        const refA = a.body.data.reference as string;
+        await request(app.getHttpServer())
+          .delete(`/api/v1/cargo/${a.body.data.id}`)
+          .set(auth(adminToken))
+          .expect(200);
+
+        const b = await request(app.getHttpServer())
+          .post('/api/v1/cargo')
+          .set(auth(adminToken))
+          .send({ ...cargoBase(), vin: `monob${randomTag}` })
+          .expect(201);
+        createdCargos.push({ id: b.body.data.id });
+        const refB = b.body.data.reference as string;
+
+        expect(refB).toMatch(/^CRG-\d{4}-\d{5}$/);
+        const seq = (ref: string) => Number(ref.split('-')[2]);
+        const yymm = (ref: string) => ref.split('-')[1];
+        expect(yymm(refB)).toBe(yymm(refA)); // same month
+        expect(seq(refB)).toBeGreaterThan(seq(refA)); // soft-deleted A's number is not freed
+      },
+      30000
+    );
+
     it('rejects an unknown customer/port/yard and inactive yard (409/404)', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/cargo')

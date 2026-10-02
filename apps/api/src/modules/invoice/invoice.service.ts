@@ -194,36 +194,54 @@ export class InvoiceService {
     }
 
     const anchors = await this.resolveAnchors(dto.billOfLadingId, dto.manifestId);
-    const invoiceNumber = await this.generateReference();
 
-    try {
-      return await this.prisma.invoice.create({
-        data: {
-          invoiceNumber,
-          customerId: dto.customerId,
-          title: dto.title,
-          description: dto.description,
-          taxRate: dto.taxRate ?? 0,
-          discountAmount: dto.discountAmount ?? 0,
-          currencyCode: dto.currencyCode ?? 'USD',
-          issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
-          dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
-          billOfLadingId: anchors.billOfLadingId,
-          manifestId: anchors.manifestId,
-          voyageId: anchors.voyageId,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: detailSelect,
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException('Could not create invoice: duplicate reference');
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): invoice,
+    // voucher, proforma-convert and delivery-release suites create invoices in parallel and
+    // generateReference() is read-then-write, so the loser of an INV-YYMM-##### race hits the
+    // unique number index. Re-read the committed max and retry; other P2002/P2018 keep the
+    // existing 409 semantics.
+    const MAX_INVOICE_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const invoiceNumber = await this.generateReference();
+      try {
+        return await this.prisma.invoice.create({
+          data: {
+            invoiceNumber,
+            customerId: dto.customerId,
+            title: dto.title,
+            description: dto.description,
+            taxRate: dto.taxRate ?? 0,
+            discountAmount: dto.discountAmount ?? 0,
+            currencyCode: dto.currencyCode ?? 'USD',
+            issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
+            billOfLadingId: anchors.billOfLadingId,
+            manifestId: anchors.manifestId,
+            voyageId: anchors.voyageId,
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_INVOICE_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'invoiceNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create invoice: duplicate reference');
+        }
+        throw e;
       }
-      throw e;
     }
   }
 

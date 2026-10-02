@@ -167,43 +167,61 @@ export class InspectionService {
     const inspectorName =
       dto.inspectorName?.trim() || actor?.email?.split('@')[0] || 'Unnamed inspector';
 
-    const inspectionNumber = await this.generateReference();
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): six e2e
+    // suites create inspections in parallel and generateReference() is read-then-write, so two
+    // requests can compute the same INS-YYMM-##### and the loser hits the
+    // Inspection_inspectionNumber_key unique index. On that collision we re-read the committed
+    // max and retry; every other P2002/P2018 (the one-pending-per-cargo rule) keeps the
+    // existing 409 semantics.
+    const MAX_INSPECTION_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const inspectionNumber = await this.generateReference();
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          const inspection = await tx.inspection.create({
+            data: {
+              inspectionNumber,
+              cargoId: dto.cargoId,
+              inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : new Date(),
+              inspectorId: actor?.id,
+              inspectorName,
+              findings: dto.findings,
+              condition: dto.condition,
+              verificationNotes: dto.verificationNotes,
+              remarks: dto.remarks,
+              createdById: actor?.id,
+            },
+            select: createSelect,
+          });
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const inspection = await tx.inspection.create({
-          data: {
-            inspectionNumber,
-            cargoId: dto.cargoId,
-            inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : new Date(),
-            inspectorId: actor?.id,
-            inspectorName,
-            findings: dto.findings,
-            condition: dto.condition,
-            verificationNotes: dto.verificationNotes,
-            remarks: dto.remarks,
-            createdById: actor?.id,
-          },
-          select: createSelect,
+          await tx.cargo.update({
+            where: { id: dto.cargoId },
+            data: { inspectionStatus: 'PENDING' },
+          });
+
+          return inspection;
         });
-
-        await tx.cargo.update({
-          where: { id: dto.cargoId },
-          data: { inspectionStatus: 'PENDING' },
-        });
-
-        return inspection;
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException(
-          'This cargo already has a pending inspection. Resolve it before creating another.'
-        );
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_INSPECTION_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'inspectionNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException(
+            'This cargo already has a pending inspection. Resolve it before creating another.'
+          );
+        }
+        throw e;
       }
-      throw e;
     }
   }
 

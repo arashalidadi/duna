@@ -148,47 +148,68 @@ export class CargoService {
   async create(dto: CreateCargoDto, actor?: AuthenticatedUser) {
     await this.validateRelations(dto.portId, dto.customerId, dto.yardId, dto.destinationPortId);
 
-    const reference = await this.generateReference();
-
-    return this.prisma.cargo
-      .create({
-        data: {
-          reference,
-          customerId: dto.customerId,
-          portId: dto.portId,
-          yardId: dto.yardId,
-          destinationPortId: dto.destinationPortId,
-          pol: dto.pol ?? null,
-          pod: dto.pod ?? null,
-          cargoType: dto.cargoType,
-          specification: dto.specification,
-          serialNumber: dto.serialNumber,
-          chassisNumber: dto.chassisNumber,
-          vin: dto.vin,
-          weight: dto.weight ?? null,
-          weightUnit: dto.weightUnit ?? null,
-          quantity: dto.quantity,
-          packages: dto.packages,
-          packageType: dto.packageType,
-          arrivalDate: dto.arrivalDate ? new Date(dto.arrivalDate) : null,
-          arrivalReference: dto.arrivalReference,
-          manifestNumber: dto.manifestNumber,
-          comments: dto.comments,
-          comment: dto.comment ?? null,
-          description: dto.description ?? null,
-          chassis: dto.chassis ?? null,
-          serial: dto.serial ?? null,
-          units: dto.units,
-          shipperId: dto.shipperId ?? null,
-          consigneeId: dto.consigneeId ?? null,
-          jobId: dto.jobId ?? null,
-          cargoValue: dto.cargoValue ?? null,
-          cargoValueCurrency: dto.cargoValueCurrency ?? null,
-          createdById: actor?.id,
-        },
-        select,
-      })
-      .then((row) => this.normalize(row));
+    // Atomic reference allocation by BOUNDED RETRY on P2002. generateReference() is
+    // read-then-write (read the current max, then create), so under concurrent creates two
+    // requests can compute the same CRG-YYMM-##### and the loser hits the unique index
+    // (P2002 -> 409 via the exception filter). On collision we re-read the max — the
+    // winner's row is committed, so max has advanced — and allocate again. generateReference
+    // counts soft-deleted rows too (no deletedAt filter), so numbers are never reused, and
+    // the format + "highest existing sequence for the current month + 1" semantics are
+    // preserved without any schema/sequence change.
+    const MAX_REFERENCE_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const reference = await this.generateReference();
+      try {
+        return await this.prisma.cargo
+          .create({
+            data: {
+              reference,
+              customerId: dto.customerId,
+              portId: dto.portId,
+              yardId: dto.yardId,
+              destinationPortId: dto.destinationPortId,
+              pol: dto.pol ?? null,
+              pod: dto.pod ?? null,
+              cargoType: dto.cargoType,
+              specification: dto.specification,
+              serialNumber: dto.serialNumber,
+              chassisNumber: dto.chassisNumber,
+              vin: dto.vin,
+              weight: dto.weight ?? null,
+              weightUnit: dto.weightUnit ?? null,
+              quantity: dto.quantity,
+              packages: dto.packages,
+              packageType: dto.packageType,
+              arrivalDate: dto.arrivalDate ? new Date(dto.arrivalDate) : null,
+              arrivalReference: dto.arrivalReference,
+              manifestNumber: dto.manifestNumber,
+              comments: dto.comments,
+              comment: dto.comment ?? null,
+              description: dto.description ?? null,
+              chassis: dto.chassis ?? null,
+              serial: dto.serial ?? null,
+              units: dto.units,
+              shipperId: dto.shipperId ?? null,
+              consigneeId: dto.consigneeId ?? null,
+              jobId: dto.jobId ?? null,
+              cargoValue: dto.cargoValue ?? null,
+              cargoValueCurrency: dto.cargoValueCurrency ?? null,
+              createdById: actor?.id,
+            },
+            select,
+          })
+          .then((row) => this.normalize(row));
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_REFERENCE_ATTEMPTS
+        ) {
+          continue; // lost the allocation race: re-read the committed max and retry
+        }
+        throw e;
+      }
+    }
   }
 
   async update(id: string, dto: UpdateCargoDto, _actor?: AuthenticatedUser) {

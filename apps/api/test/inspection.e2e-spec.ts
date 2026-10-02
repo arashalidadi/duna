@@ -28,6 +28,10 @@ describe('Inspection (e2e)', () => {
   const createdPorts: Ref[] = [];
   const createdYards: Ref[] = [];
   const createdCargos: Ref[] = [];
+  const createdVessels: Ref[] = [];
+  const createdVoyages: Ref[] = [];
+  const createdLoadLists: Ref[] = [];
+  let loadPlanningVoyageId = ''; // Part C: one voyage for the load-list acceptance tests
 
   let adminToken = '';
   let inspectorCreatorToken = ''; // inspection:create + read only
@@ -108,6 +112,30 @@ describe('Inspection (e2e)', () => {
       .send({ code: `IYD-${tag}`, name: `Insp Yard ${randomTag}`, portId: port.body.data.id })
       .expect(201);
     createdYards.push({ id: yd.body.data.id });
+
+    // Part C fixtures: one vessel + voyage for the "Inspection Done gates Load List"
+    // acceptance tests (load lists require a DRAFT/SCHEDULED voyage).
+    // destination needs its own port row: the voyage service counts origin/destination
+    // lookups and the same id twice fails its existence check.
+    const portB = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `IPT2-${tag}`, name: `Insp Port 2 ${randomTag}`, country: 'AE' })
+      .expect(201);
+    createdPorts.push({ id: portB.body.data.id });
+    const ves = await request(app.getHttpServer())
+      .post('/api/v1/vessels')
+      .set(auth(adminToken))
+      .send({ code: `IVES-${tag}`, name: `Insp Vessel ${randomTag}`, flag: 'PA', vesselType: 'CONTAINER' })
+      .expect(201);
+    createdVessels.push({ id: ves.body.data.id });
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId: ves.body.data.id, originPortId: port.body.data.id, destinationPortId: portB.body.data.id })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    loadPlanningVoyageId = voy.body.data.id;
   }, 60000);
 
   afterAll(async () => {
@@ -115,6 +143,11 @@ describe('Inspection (e2e)', () => {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       const cargoIds = createdCargos.map((c) => c.id);
+      const loadListIds = createdLoadLists.map((l) => l.id);
+      await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });
+      await prisma.loadList.deleteMany({ where: { id: { in: loadListIds } } });
+      await prisma.voyage.deleteMany({ where: { id: { in: createdVoyages.map((v) => v.id) } } });
+      await prisma.vessel.deleteMany({ where: { id: { in: createdVessels.map((v) => v.id) } } });
       await prisma.inspection.deleteMany({ where: { cargoId: { in: cargoIds } } });
       await prisma.yardInventory.deleteMany({ where: { cargoId: { in: cargoIds } } });
       await prisma.cargo.deleteMany({ where: { id: { in: cargoIds } } });
@@ -241,25 +274,34 @@ describe('Inspection (e2e)', () => {
         .expect(201);
       const insId = created.body.data.id;
 
-      // creator cannot approve/reject
+      // creator cannot complete (POST /done -> inspection:approve) or fail
+      // (POST /fail -> inspection:reject) — shipped permission map (inspection.controller.ts:66,77).
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${insId}/approve`)
+        .post(`/api/v1/inspections/${insId}/done`)
         .set(auth(inspectorCreatorToken))
         .expect(403);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${insId}/reject`)
+        .post(`/api/v1/inspections/${insId}/fail`)
         .set(auth(inspectorCreatorToken))
         .send({ rejectionReason: 'x' })
         .expect(403);
 
-      // approver cannot create; but can approve (approver has :read + :approve)
+      // approver cannot create; but can complete: done() requires BOOKED first
+      // (assertTransition, inspection.service.ts:280 — PENDING cannot go straight
+      // to DONE), and /book needs inspection:update which the approver lacks, so
+      // admin books, then the approver-only token proves /done is gated by
+      // inspection:approve alone.
       await request(app.getHttpServer())
         .post('/api/v1/inspections')
         .set(auth(inspectionApproverToken))
         .send({ cargoId: cargo.id })
         .expect(403);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${insId}/approve`)
+        .post(`/api/v1/inspections/${insId}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${insId}/done`)
         .set(auth(inspectionApproverToken))
         .expect(200);
 
@@ -298,11 +340,11 @@ describe('Inspection (e2e)', () => {
         .send({ cargoId: cargo.id })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
         .set(auth(inspectionReaderToken))
         .expect(403);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/reject`)
+        .post(`/api/v1/inspections/${created.body.data.id}/fail`)
         .set(auth(inspectionReaderToken))
         .send({ rejectionReason: 'x' })
         .expect(403);
@@ -408,8 +450,13 @@ describe('Inspection (e2e)', () => {
         .set(auth(adminToken))
         .send({ cargoId: cargo.id })
         .expect(201);
+      // Finalize = book then done (done() rejects PENDING: assertTransition).
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${created.body.data.id}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
         .set(auth(adminToken))
         .expect(200);
       await request(app.getHttpServer())
@@ -420,8 +467,8 @@ describe('Inspection (e2e)', () => {
     });
   });
 
-  describe('Approve / Reject workflow', () => {
-    it('approving sets the cargo inspection-approved (eligible for future load planning)', async () => {
+  describe('Book -> Done / Fail workflow', () => {
+    it('done() sets cargo.inspectionStatus to DONE (authoritative load-planning gate)', async () => {
       const cargo = await createCargo();
       // Place in a yard so the cargo is AT_YARD, which is a valid READY source state.
       await request(app.getHttpServer())
@@ -434,24 +481,33 @@ describe('Inspection (e2e)', () => {
         .set(auth(adminToken))
         .send({ cargoId: cargo.id })
         .expect(201);
-      const appr = await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+      // done() sets inspection DONE (terminal success, inspection.service.ts:18-29)
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/book`)
         .set(auth(adminToken))
         .expect(200);
-      expect(appr.body.data.status).toBe('APPROVED');
-      expect(appr.body.data.approvedAt).toBeDefined();
+      const doneRes = await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(doneRes.body.data.status).toBe('DONE');
+      expect(doneRes.body.data.approvedAt).toBeDefined();
 
       const cargoAfter = await request(app.getHttpServer())
         .get(`/api/v1/cargo/${cargo.id}`)
         .set(auth(adminToken))
         .expect(200);
-      expect(cargoAfter.body.data.inspectionStatus).toBe('APPROVED');
-      // The cargo can now be moved to READY (inspection approved + at yard).
-      await request(app.getHttpServer())
+      // done() writes cargo.inspectionStatus = 'DONE' — the authoritative rule
+      // for load-list eligibility (inspection.service.ts:265-296).
+      expect(cargoAfter.body.data.inspectionStatus).toBe('DONE');
+      // The cargo can now move AT_YARD -> READY_FOR_LOADING: cargo.service.ts:271
+      // requires inspectionStatus === 'DONE' (shipped name; 'READY' no longer exists).
+      const ready = await request(app.getHttpServer())
         .patch(`/api/v1/cargo/${cargo.id}/status`)
         .set(auth(adminToken))
-        .send({ status: 'READY' })
+        .send({ status: 'READY_FOR_LOADING' })
         .expect(200);
+      expect(ready.body.data.status).toBe('READY_FOR_LOADING');
     });
 
     it('rejecting requires a reason (400 without, 200 with) and makes cargo ineligible', async () => {
@@ -462,37 +518,47 @@ describe('Inspection (e2e)', () => {
         .send({ cargoId: cargo.id })
         .expect(201);
 
-      // no reason -> 400
+      // no reason -> 400 (fail() requires a rejection reason, inspection.service.ts:317)
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/reject`)
+        .post(`/api/v1/inspections/${created.body.data.id}/fail`)
         .set(auth(adminToken))
         .send({})
         .expect(400);
 
-      const rej = await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/reject`)
+      const failed = await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/fail`)
         .set(auth(adminToken))
         .send({ rejectionReason: 'Chassis damage found' })
         .expect(200);
-      expect(rej.body.data.status).toBe('REJECTED');
-      expect(rej.body.data.rejectionReason).toBe('Chassis damage found');
-      expect(rej.body.data.rejectedAt).toBeDefined();
+      // Shipped enum: fail() sets inspection FAILED (never 'REJECTED').
+      expect(failed.body.data.status).toBe('FAILED');
+      expect(failed.body.data.rejectionReason).toBe('Chassis damage found');
+      expect(failed.body.data.rejectedAt).toBeDefined();
 
       const cargoAfter = await request(app.getHttpServer())
         .get(`/api/v1/cargo/${cargo.id}`)
         .set(auth(adminToken))
         .expect(200);
-      expect(cargoAfter.body.data.inspectionStatus).toBe('REJECTED');
+      // fail() also writes cargo.inspectionStatus = 'FAILED' (inspection.service.ts:333).
+      expect(cargoAfter.body.data.inspectionStatus).toBe('FAILED');
 
-      // Rejected cargo cannot be marked READY (inspection not approved).
+      // Put it AT_YARD so the AT_YARD -> READY_FOR_LOADING transition is legal and
+      // the attempt reaches the inspection gate: cargo.service.ts:271 rejects
+      // inspectionStatus !== 'DONE' with a 409.
       await request(app.getHttpServer())
+        .post('/api/v1/yard-inventory')
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id, yardId: createdYards[0].id })
+        .expect(201);
+      const notReady = await request(app.getHttpServer())
         .patch(`/api/v1/cargo/${cargo.id}/status`)
         .set(auth(adminToken))
-        .send({ status: 'READY' })
+        .send({ status: 'READY_FOR_LOADING' })
         .expect(409);
+      expect(notReady.body.error.message).toContain('inspection status is DONE');
     });
 
-    it('double actions are rejected (approve after approve, reject after reject) (409)', async () => {
+    it('double actions are rejected (done after done, fail after done) (409)', async () => {
       const cargo = await createCargo();
       const created = await request(app.getHttpServer())
         .post('/api/v1/inspections')
@@ -500,21 +566,28 @@ describe('Inspection (e2e)', () => {
         .send({ cargoId: cargo.id })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${created.body.data.id}/book`)
         .set(auth(adminToken))
         .expect(200);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
+        .set(auth(adminToken))
+        .expect(200);
+      // DONE is terminal: done->done is rejected by assertTransition
+      // ("Inspection is already DONE", inspection.service.ts:405).
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
         .set(auth(adminToken))
         .expect(409);
+      // DONE -> FAILED is not a shipped transition (inspection.service.ts:18-29).
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/reject`)
+        .post(`/api/v1/inspections/${created.body.data.id}/fail`)
         .set(auth(adminToken))
         .send({ rejectionReason: 'x' })
         .expect(409);
     });
 
-    it('an approved inspection cannot later be rejected (state machine) (409)', async () => {
+    it('a DONE inspection cannot later be failed (state machine) (409)', async () => {
       const cargo = await createCargo();
       const created = await request(app.getHttpServer())
         .post('/api/v1/inspections')
@@ -522,11 +595,15 @@ describe('Inspection (e2e)', () => {
         .send({ cargoId: cargo.id })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${created.body.data.id}/book`)
         .set(auth(adminToken))
         .expect(200);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${created.body.data.id}/reject`)
+        .post(`/api/v1/inspections/${created.body.data.id}/done`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${created.body.data.id}/fail`)
         .set(auth(adminToken))
         .send({ rejectionReason: 'x' })
         .expect(409);
@@ -534,7 +611,7 @@ describe('Inspection (e2e)', () => {
   });
 
   describe('History, list, search, filters', () => {
-    it('rejected then approved shows full history (newest first)', async () => {
+    it('failed then done shows full history (newest first)', async () => {
       const cargo = await createCargo();
       const one = await request(app.getHttpServer())
         .post('/api/v1/inspections')
@@ -542,35 +619,40 @@ describe('Inspection (e2e)', () => {
         .send({ cargoId: cargo.id, findings: 'first pass' })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${one.body.data.id}/reject`)
+        .post(`/api/v1/inspections/${one.body.data.id}/fail`)
         .set(auth(adminToken))
         .send({ rejectionReason: 'needs repair' })
         .expect(200);
 
+      // FAILED allows a fresh inspection (create blocks only an open PENDING one).
       const two = await request(app.getHttpServer())
         .post('/api/v1/inspections')
         .set(auth(adminToken))
         .send({ cargoId: cargo.id, findings: 'repaired' })
         .expect(201);
       await request(app.getHttpServer())
-        .post(`/api/v1/inspections/${two.body.data.id}/approve`)
+        .post(`/api/v1/inspections/${two.body.data.id}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${two.body.data.id}/done`)
         .set(auth(adminToken))
         .expect(200);
 
-      // Cargo is inspection-approved.
+      // Cargo readiness is DONE after the successful cycle.
       const cargoAfter = await request(app.getHttpServer())
         .get(`/api/v1/cargo/${cargo.id}`)
         .set(auth(adminToken))
         .expect(200);
-      expect(cargoAfter.body.data.inspectionStatus).toBe('APPROVED');
+      expect(cargoAfter.body.data.inspectionStatus).toBe('DONE');
 
       const hist = await request(app.getHttpServer())
         .get(`/api/v1/inspections/cargo/${cargo.id}/history`)
         .set(auth(adminToken))
         .expect(200);
       expect(hist.body.data.length).toBe(2);
-      expect(hist.body.data[0].status).toBe('APPROVED'); // newest first
-      expect(hist.body.data[1].status).toBe('REJECTED');
+      expect(hist.body.data[0].status).toBe('DONE'); // newest first
+      expect(hist.body.data[1].status).toBe('FAILED');
     });
 
     it('lists with pagination meta', async () => {
@@ -643,6 +725,209 @@ describe('Inspection (e2e)', () => {
         .set(auth(adminToken))
         .expect(400);
     });
+  });
+
+  // ───────── Phase 3 acceptance: Inspection Done gates Load List ─────────
+  // Roadmap 09-final §3 acceptance: "Inspection Done gates Load List." The shipped gates are
+  // load-planning.service.ts:361-367 (eligible-cargo: only inspectionStatus DONE) and
+  // :536-542 (addItem: 409 `has inspection status X; only DONE cargo may be added`).
+  describe('Phase 3 acceptance: Inspection Done gates Load List', () => {
+    // Same direct-Prisma fixture pattern as the other suites: shipped code has no API driver
+    // from LoadList DRAFT -> COMPLETED (product gap recorded in the implementation log), which
+    // C6 pins explicitly.
+    async function stampLoadListCompleted(id: string) {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      try {
+        await prisma.loadList.update({ where: { id }, data: { status: 'COMPLETED' } });
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
+
+    async function eligibleCargoIds(): Promise<string[]> {
+      // customerId-scoped so parallel suites' cargo cannot crowd this fixture's rows out of the page
+      const res = await request(app.getHttpServer())
+        .get(
+          `/api/v1/load-lists/eligible-cargo?voyageId=${loadPlanningVoyageId}&customerId=${createdCustomers[0].id}&pageSize=100`
+        )
+        .set(auth(adminToken))
+        .expect(200);
+      return (res.body.data.data as { id: string }[]).map((c) => c.id);
+    }
+
+    async function createInspectedCargo(suffix: string) {
+      const cargo = await createCargo();
+      const insp = await request(app.getHttpServer())
+        .post('/api/v1/inspections')
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id, findings: `gate ${suffix}` })
+        .expect(201);
+      return { cargo, inspId: insp.body.data.id as string };
+    }
+
+    it('C1: PENDING cargo is not eligible and cannot be added to a load list', async () => {
+      const { cargo, inspId } = await createInspectedCargo('pending');
+      const ll = await request(app.getHttpServer())
+        .post('/api/v1/load-lists')
+        .set(auth(adminToken))
+        .send({ voyageId: loadPlanningVoyageId, notes: 'Part C gating' })
+        .expect(201);
+      createdLoadLists.push({ id: ll.body.data.id });
+
+      expect(await eligibleCargoIds()).not.toContain(cargo.id);
+      const add = await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id })
+        .expect(409);
+      expect(add.body.error.message).toContain('has inspection status PENDING');
+      expect(inspId).toBeTruthy();
+    }, 30000);
+
+    it('C2: cargo with a BOOKED inspection is still not eligible and cannot be added', async () => {
+      const { cargo, inspId } = await createInspectedCargo('booked');
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+
+      // Shipped semantics: book() transitions the INSPECTION to BOOKED but does not touch
+      // cargo.inspectionStatus — only done()/fail()/needsReInspection() write cargo readiness,
+      // so it stays PENDING until an outcome (inspection.service.ts:243-267 vs :265-296,
+      // :305-340, :343-370). Prove both fields explicitly.
+      const insp = await request(app.getHttpServer())
+        .get(`/api/v1/inspections/${inspId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(insp.body.data.status).toBe('BOOKED');
+      const cargoMid = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${cargo.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(cargoMid.body.data.inspectionStatus).toBe('PENDING');
+
+      expect(await eligibleCargoIds()).not.toContain(cargo.id);
+      const add = await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${createdLoadLists[0].id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id })
+        .expect(409);
+      expect(add.body.error.message).toContain('has inspection status PENDING');
+    }, 30000);
+
+    it('C3: after /book + /done the cargo is DONE (source of truth), eligible and addable', async () => {
+      const { cargo, inspId } = await createInspectedCargo('done');
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/done`)
+        .set(auth(adminToken))
+        .expect(200);
+
+      // eligibility source of truth: cargo.inspectionStatus === 'DONE' (inspection.service.ts:265-296)
+      const cargoAfter = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${cargo.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(cargoAfter.body.data.inspectionStatus).toBe('DONE');
+
+      expect(await eligibleCargoIds()).toContain(cargo.id);
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${createdLoadLists[0].id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id, plannedQuantity: 5 })
+        .expect(201);
+    }, 30000);
+
+    it('C4: FAILED cargo is not eligible and cannot be added', async () => {
+      const { cargo, inspId } = await createInspectedCargo('failed');
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/fail`)
+        .set(auth(adminToken))
+        .send({ rejectionReason: 'gate test failure' })
+        .expect(200);
+
+      expect(await eligibleCargoIds()).not.toContain(cargo.id);
+      const add = await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${createdLoadLists[0].id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id })
+        .expect(409);
+      expect(add.body.error.message).toContain('has inspection status FAILED');
+    }, 30000);
+
+    it('C5: cargo whose inspection is NEEDS_REINSPECTION is not eligible', async () => {
+      const { cargo, inspId } = await createInspectedCargo('reinspect');
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/fail`)
+        .set(auth(adminToken))
+        .send({ rejectionReason: 'needs another pass' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/needs-re-inspection`)
+        .set(auth(adminToken))
+        .expect(200);
+      // shipped rule: the inspection is NEEDS_REINSPECTION while cargo readiness resets to
+      // PENDING (inspection.service.ts:364-368) — still not DONE, therefore still gated.
+      const inspAfter = await request(app.getHttpServer())
+        .get(`/api/v1/inspections/${inspId}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(inspAfter.body.data.status).toBe('NEEDS_REINSPECTION');
+
+      expect(await eligibleCargoIds()).not.toContain(cargo.id);
+      const add = await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${createdLoadLists[0].id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id })
+        .expect(409);
+      expect(add.body.error.message).toContain('has inspection status PENDING');
+    }, 30000);
+
+    it('C6: finalize follows the shipped load-list transitions (DRAFT rejected, COMPLETED ok)', async () => {
+      const ll = await request(app.getHttpServer())
+        .post('/api/v1/load-lists')
+        .set(auth(adminToken))
+        .send({ voyageId: loadPlanningVoyageId, notes: 'Part C finalize transitions' })
+        .expect(201);
+      createdLoadLists.push({ id: ll.body.data.id });
+
+      // DRAFT -> FINALIZED is not a shipped transition
+      // (LOAD_LIST_TRANSITIONS, load-planning.service.ts:29-33; checked at :749)
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${ll.body.data.id}/finalize`)
+        .set(auth(adminToken))
+        .expect(409);
+
+      // non-empty + COMPLETED -> FINALIZED works (stamped COMPLETED: no shipped DRAFT driver)
+      const { cargo, inspId } = await createInspectedCargo('finalize');
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/book`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/inspections/${inspId}/done`)
+        .set(auth(adminToken))
+        .expect(200);
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+        .set(auth(adminToken))
+        .send({ cargoId: cargo.id })
+        .expect(201);
+      await stampLoadListCompleted(ll.body.data.id);
+      await request(app.getHttpServer())
+        .post(`/api/v1/load-lists/${ll.body.data.id}/finalize`)
+        .set(auth(adminToken))
+        .expect(200);
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/load-lists/${ll.body.data.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(detail.body.data.status).toBe('FINALIZED');
+    }, 30000);
   });
 
   // Helpers

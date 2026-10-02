@@ -254,26 +254,43 @@ export class LoadPlanningService {
       );
     }
 
-    const loadListNumber = await this.generateReference();
-
-    try {
-      return await this.prisma.loadList.create({
-        data: {
-          loadListNumber,
-          voyageId: dto.voyageId,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: detailSelect,
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException('Could not create load list: duplicate reference');
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): six e2e
+    // suites create load lists in parallel and generateReference() is read-then-write, so the
+    // loser of an LL-YYMM-##### race hits the unique number index (observed blocking the
+    // deterministic full run). Re-read the committed max and retry; other P2002/P2018 keep
+    // the existing 409 semantics.
+    const MAX_LL_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const loadListNumber = await this.generateReference();
+      try {
+        return await this.prisma.loadList.create({
+          data: {
+            loadListNumber,
+            voyageId: dto.voyageId,
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_LL_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'loadListNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create load list: duplicate reference');
+        }
+        throw e;
       }
-      throw e;
     }
   }
 

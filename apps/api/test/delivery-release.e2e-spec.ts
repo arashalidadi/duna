@@ -56,6 +56,23 @@ describe('Delivery & Release Orders (e2e)', () => {
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
   const S = () => request(app.getHttpServer());
 
+  // Phase 3A shipped reality: nothing in apps/api/src can transition a LoadList out of
+  // DRAFT (load-planning.service.ts:29-33 maps DRAFT -> IN_PROGRESS/CANCELLED but only
+  // finalize/cancel ever write status), while ActualLoading.create requires the list to be
+  // COMPLETED (actual-loading.service.ts:240-244). Fixture setup therefore stamps the
+  // intermediate COMPLETED state directly — the same direct-Prisma fixture pattern used by
+  // the portal/party-cutover suites. The missing DRAFT->COMPLETED driver is recorded as a
+  // product gap in the implementation log (not fixed here).
+  async function stampLoadListCompleted(loadListId: string) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'COMPLETED' } });
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
+
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -144,17 +161,19 @@ describe('Delivery & Release Orders (e2e)', () => {
 
       const insp = await S().post('/api/v1/inspections').set(auth(adminToken))
         .send({ cargoId, findings: `ok ${suffix}` }).expect(201);
-      await S().post(`/api/v1/inspections/${insp.body.data.id}/approve`).set(auth(adminToken)).expect(200);
+      await S().post(`/api/v1/inspections/${insp.body.data.id}/book`).set(auth(adminToken)).expect(200);
+      await S().post(`/api/v1/inspections/${insp.body.data.id}/done`).set(auth(adminToken)).expect(200);
 
       const ll = await S().post('/api/v1/load-lists').set(auth(adminToken))
         .send({ voyageId, notes: `DR fixture ${suffix}` }).expect(201);
       loadListIds.push(ll.body.data.id);
       const li = await S().post(`/api/v1/load-lists/${ll.body.data.id}/items`).set(auth(adminToken))
         .send({ cargoId, plannedQuantity: 10, sequence: 1 }).expect(201);
-      await S().post(`/api/v1/load-lists/${ll.body.data.id}/finalize`).set(auth(adminToken)).expect(200);
+      await stampLoadListCompleted(ll.body.data.id);
 
       const al = await S().post('/api/v1/actual-loading').set(auth(adminToken))
         .send({ loadListId: ll.body.data.id }).expect(201);
+      await S().post(`/api/v1/load-lists/${ll.body.data.id}/finalize`).set(auth(adminToken)).expect(200);
       await S().patch(`/api/v1/actual-loading/${al.body.data.id}/items/${li.body.data.id}`).set(auth(adminToken))
         .send({ actualQuantity: 10 }).expect(200);
       await S().post(`/api/v1/actual-loading/${al.body.data.id}/start`).set(auth(adminToken)).expect(200);

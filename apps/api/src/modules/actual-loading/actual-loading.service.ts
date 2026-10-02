@@ -246,26 +246,43 @@ export class ActualLoadingService {
       throw new BadRequestException('Cannot create Actual Loading for an empty Load List');
     }
 
-    const actualLoadingNumber = await this.generateReference();
-
-    try {
-      return await this.prisma.actualLoading.create({
-        data: {
-          actualLoadingNumber,
-          loadListId: dto.loadListId,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: detailSelect,
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException('Could not create Actual Loading: duplicate reference');
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): several e2e
+    // suites create Actual Loadings in parallel and generateReference() is read-then-write, so
+    // two requests can compute the same AL-YYMM-##### and the loser hits the unique number index.
+    // On that collision we re-read the committed max and retry; any other P2002/P2018 (e.g. the
+    // one-per-load-list rule) keeps the existing 409 semantics.
+    const MAX_AL_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const actualLoadingNumber = await this.generateReference();
+      try {
+        return await this.prisma.actualLoading.create({
+          data: {
+            actualLoadingNumber,
+            loadListId: dto.loadListId,
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_AL_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'actualLoadingNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create Actual Loading: duplicate reference');
+        }
+        throw e;
       }
-      throw e;
     }
   }
 

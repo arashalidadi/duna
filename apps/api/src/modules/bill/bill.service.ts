@@ -272,12 +272,17 @@ export class BillService {
       await this.assertLiveParty('consignee', manifest.consigneeId, true);
     }
 
-    const billNumber = await this.generateReference();
-
-    try {
-      return await this.prisma.billOfLading.create({
-        data: {
-          billNumber,
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): the bill
+    // and delivery-release suites create B/Ls in parallel and generateReference() is
+    // read-then-write, so the loser of a BOL-YYMM-##### race hits the unique number index.
+    // Re-read the committed max and retry; other P2002/P2018/P2003 keep their existing mapping.
+    const MAX_BILL_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const billNumber = await this.generateReference();
+      try {
+        return await this.prisma.billOfLading.create({
+          data: {
+            billNumber,
           manifestId: dto.manifestId,
           voyageId: manifest.voyageId,
           vesselName: manifest.vesselName,
@@ -295,24 +300,35 @@ export class BillService {
           currencyCode: dto.currencyCode,
           goodsDescription: dto.goodsDescription,
           shipmentMarks: dto.shipmentMarks,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: detailSelect,
-      });
-    } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        (e.code === 'P2002' || e.code === 'P2018')
-      ) {
-        throw new ConflictException('Could not create B/L: duplicate reference');
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_BILL_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'billNumber'
+          )
+        ) {
+          continue; // lost the number race: re-read the committed max and retry
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create B/L: duplicate reference');
+        }
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+          throw new BadRequestException(
+            'Invalid reference: party ids must reference existing master records',
+          );
+        }
+        throw e;
       }
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
-        throw new BadRequestException(
-          'Invalid reference: party ids must reference existing master records',
-        );
-      }
-      throw e;
     }
   }
 

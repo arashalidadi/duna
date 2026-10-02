@@ -165,7 +165,11 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargoApprovedId, findings: 'ok' })
       .expect(201);
     await request(app.getHttpServer())
-      .post(`/api/v1/inspections/${inspection.body.data.id}/approve`)
+      .post(`/api/v1/inspections/${inspection.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${inspection.body.data.id}/done`)
       .set(auth(adminToken))
       .expect(200);
 
@@ -184,10 +188,7 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargoApprovedId, plannedQuantity: 20, sequence: 1 })
       .expect(201);
     loadListItemId = item.body.data.id;
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${loadListId}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
+    await stampLoadListCompleted(loadListId);
 
     // DRAFT load list (create actual loading must be rejected).
     const ld = await request(app.getHttpServer())
@@ -260,6 +261,24 @@ describe('Actual Loading (e2e)', () => {
     }
     await app.close();
   });
+
+
+  // Phase 3A shipped reality: nothing in apps/api/src can transition a LoadList out of
+  // DRAFT (load-planning.service.ts:29-33 maps DRAFT -> IN_PROGRESS/CANCELLED but only
+  // finalize/cancel ever write status), while ActualLoading.create requires the list to be
+  // COMPLETED (actual-loading.service.ts:240-244). Fixture setup therefore stamps the
+  // intermediate COMPLETED state directly — the same direct-Prisma fixture pattern used by
+  // the portal/party-cutover suites. The missing DRAFT->COMPLETED driver is recorded as a
+  // product gap in the implementation log (not fixed here).
+  async function stampLoadListCompleted(loadListId: string) {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'COMPLETED' } });
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
 
   function auth(token: string) {
     return { Authorization: `Bearer ${token}` };
@@ -337,14 +356,16 @@ describe('Actual Loading (e2e)', () => {
       .expect(404);
   });
 
-  it('create + get + list as admin; number is AL-YYMM-##### and status NOT_STARTED', async () => {
+  it('create + get + list as admin; number is AL-YYMM-##### and status DRAFT', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId, notes: 'Phase 8 init' })
       .expect(201);
     const created = res.body.data;
-    expect(created.status).toBe('NOT_STARTED');
+    // Shipped enum ActualLoadingStatus starts at DRAFT (schema.prisma:945);
+    // 'NOT_STARTED' no longer exists for ActualLoading.
+    expect(created.status).toBe('DRAFT');
     expect(created.actualLoadingNumber).toMatch(/^AL-\d{4}-\d{5}$/);
     expect(created.loadListId).toBe(loadListId);
     expect(created.items).toEqual([]);
@@ -425,13 +446,13 @@ describe('Actual Loading (e2e)', () => {
     expect(full.body.data.result).toBe('FULL');
   });
 
-  it('lifecycle: start (NOT_STARTED->IN_PROGRESS); complete (IN_PROGRESS->COMPLETED); further transitions 409', async () => {
+  it('lifecycle: start (DRAFT->IN_PROGRESS); complete (IN_PROGRESS->COMPLETED); further transitions 409', async () => {
     await request(app.getHttpServer())
       .post(`/api/v1/actual-loading/${algIng}/start`)
       .set(auth(noReadToken))
       .expect(403);
 
-    // NOT_STARTED -> IN_PROGRESS
+    // DRAFT -> IN_PROGRESS
     await request(app.getHttpServer())
       .post(`/api/v1/actual-loading/${algIng}/start`)
       .set(auth(creatorToken))
@@ -487,7 +508,7 @@ describe('Actual Loading (e2e)', () => {
       .expect(409);
   });
 
-  it('cancel requires a reason and is allowed only from NOT_STARTED/IN_PROGRESS', async () => {
+  it('cancel requires a reason and is allowed only from DRAFT/IN_PROGRESS', async () => {
     // fresh actual loading from a second finalized load list (reuse main load list → 409),
     // so we need another FINALIZED load list on a second voyage.
     const portC = await request(app.getHttpServer())
@@ -515,7 +536,11 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargo2.body.data.id, findings: 'ok' })
       .expect(201);
     await request(app.getHttpServer())
-      .post(`/api/v1/inspections/${insp2.body.data.id}/approve`)
+      .post(`/api/v1/inspections/${insp2.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp2.body.data.id}/done`)
       .set(auth(adminToken))
       .expect(200);
 
@@ -531,16 +556,17 @@ describe('Actual Loading (e2e)', () => {
       .send({ cargoId: cargo2.body.data.id, plannedQuantity: 10, sequence: 1 })
       .expect(201);
     void item2;
-    await request(app.getHttpServer())
-      .post(`/api/v1/load-lists/${ll2.body.data.id}/finalize`)
-      .set(auth(adminToken))
-      .expect(200);
+    await stampLoadListCompleted(ll2.body.data.id);
 
     const al2 = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))
       .send({ loadListId: ll2.body.data.id })
       .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${ll2.body.data.id}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
     const al2Id = al2.body.data.id;
 
     // missing / blank reason -> 400
@@ -555,7 +581,7 @@ describe('Actual Loading (e2e)', () => {
       .send({ cancelReason: '   ' })
       .expect(400);
 
-    // NOT_STARTED -> CANCELLED
+    // DRAFT -> CANCELLED
     await request(app.getHttpServer())
       .post(`/api/v1/actual-loading/${al2Id}/cancel`)
       .set(auth(cancellerToken))
@@ -579,8 +605,8 @@ describe('Actual Loading (e2e)', () => {
       .expect(409);
   });
 
-  it('complete() requires IN_PROGRESS: from NOT_STARTED gives 409; unknown id 404', async () => {
-    // create a fresh NOT_STARTED actual loading from ll2 (voyage2 list; al2 was cancelled so a new one is allowed)
+  it('complete() requires IN_PROGRESS: from DRAFT gives 409; unknown id 404', async () => {
+    // create a fresh DRAFT actual loading from ll2 (voyage2 list; al2 was cancelled so a new one is allowed)
     const al3 = await request(app.getHttpServer())
       .post('/api/v1/actual-loading')
       .set(auth(adminToken))

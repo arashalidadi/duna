@@ -171,7 +171,16 @@ export class VoucherService {
   async create(dto: { type: VoucherType; customerId: string; invoiceId?: string; amount: number; currencyCode?: string; exchangeRate?: number; method?: any; reference?: string; description?: string; note?: string; voucherDate?: string }, user?: { id: string }) {
     if (dto.amount <= 0) throw new BadRequestException('amount must be positive');
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): the voucher
+    // and delivery-release suites create vouchers in parallel, and nextNumber() is
+    // find-then-insert without a lock, so the loser of an RCP/PMT-YYMM-##### race hits the
+    // unique voucherNumber index (P2002 -> 409 via the filter). On that collision we re-run
+    // the transaction so nextNumber() sees the committed winner and moves to the next free
+    // sequence; every other error keeps its existing behavior.
+    const MAX_VOUCHER_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const created = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({ where: { id: dto.customerId, deletedAt: null } });
       if (!customer) throw new NotFoundException('customer not found');
 
@@ -209,11 +218,25 @@ export class VoucherService {
         },
       });
 
-      if (invoice) await this.recomputeInvoicePaid(tx, invoice.id);
-      return voucher;
-    });
+          if (invoice) await this.recomputeInvoicePaid(tx, invoice.id);
+          return voucher;
+        });
 
-    return this.detail(created.id);
+        return this.detail(created.id);
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_VOUCHER_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+            'voucherNumber'
+          )
+        ) {
+          continue; // lost the number race: re-run so nextNumber() sees the winner
+        }
+        throw e;
+      }
+    }
   }
 
   async update(id: string, dto: { method?: any; reference?: string; description?: string; note?: string; voucherDate?: string; amount?: number; exchangeRate?: number }) {
