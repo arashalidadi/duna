@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -30,10 +31,35 @@ const BillTypeValues = ['MASTER', 'HOUSE'] as const;
 const FreightTermsValues = ['PREPAID', 'COLLECT'] as const;
 
 export class CreateBillDto {
-  @ApiProperty({ description: 'ID of the APPROVED Manifest this B/L is issued against' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({
+    description:
+      'LEGACY transitional input (ADR-045 decision 1 / P4-U2): ID of the APPROVED Manifest. ' +
+      'Kept accepted until P4-U7 switches the shipped web page; provide voyageId instead for ' +
+      'the standalone path (manifestId stored null).',
+  })
+  @IsOptional()
   @IsString()
-  manifestId: string;
+  manifestId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Target input (ADR-045 decision 1): voyage the cargo was actually loaded on; ' +
+      'B/L is built standalone with no manifest involvement.',
+  })
+  @IsOptional()
+  @IsString()
+  voyageId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Cargo lines for the voyage-mode B/L (each must be in a COMPLETED Actual Loading ' +
+      'with actualQuantity > 0 on this voyage and not on another live B/L of the voyage).',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  cargoIds?: string[];
 
   @ApiPropertyOptional({ enum: BillTypeValues, default: 'HOUSE' })
   @IsOptional()
@@ -205,10 +231,21 @@ export class UpdateBillDto {
 }
 
 export class AddBillItemDto {
-  @ApiProperty({ description: 'ID of the ManifestItem this B/L line documents' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({
+    description:
+      'LEGACY transitional input: ID of the ManifestItem this B/L line documents ' +
+      '(manifest-linked bills until P4-U7).',
+  })
+  @IsOptional()
   @IsString()
-  manifestItemId: string;
+  manifestItemId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Cargo line for a voyage-mode B/L (no manifest involved; ADR-045 decision 1).',
+  })
+  @IsOptional()
+  @IsString()
+  cargoId?: string;
 
   @ApiPropertyOptional({ description: 'Line goods description (defaults from the cargo)' })
   @IsOptional()

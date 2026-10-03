@@ -1230,10 +1230,17 @@ enum FreightTerms {
 }
 
 model BillOfLading {
-  id         String   @id @default(cuid())
-  billNumber String   @unique // auto BOL-YYMM-#####
-  manifestId String   @map("manifestId")
-  voyageId   String   @map("voyageId") // denormalized via manifest for queries
+  id         String  @id @default(cuid())
+  billNumber String  @unique // auto BOL-YYMM-#####
+  // Legacy manifest linkage (ADR-045 decision 1, P4-U2): nullable — kept for rows created
+  // before the decoupling and for the transitional manifest path until U7; new bills are
+  // created voyage+cargo with manifestId null. Dropped only after Phase 5 (approval required).
+  manifestId String? @map("manifestId")
+  // Self-owned voyage (no longer "denormalized via manifest") — required on every bill.
+  voyageId String @map("voyageId")
+  // Denormalized destination = the per-destination numbering scope key for P4-U3
+  // (plain column, no FK: the scope key must outlive any port lifecycle, like billNumber).
+  destinationPortId String? @map("destinationPortId")
   status     BlStatus @default(DRAFT)
   billType   BlType   @default(HOUSE)
 
@@ -1277,7 +1284,7 @@ model BillOfLading {
   cancelledAt DateTime? @map("cancelledAt")
   deletedAt   DateTime?
 
-  manifest       Manifest           @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
+  manifest       Manifest?          @relation("BillOfLadingManifest", fields: [manifestId], references: [id])
   voyage         Voyage             @relation("BillOfLadingVoyage", fields: [voyageId], references: [id])
   shipper        Shipper?           @relation("BillShipper", fields: [shipperId], references: [id])
   consignee      Consignee?         @relation("BillConsignee", fields: [consigneeId], references: [id])
@@ -1295,6 +1302,7 @@ model BillOfLading {
   // Manifest.voyageId: soft-delete conflicts with a DB @@unique).
   @@index([manifestId])
   @@index([voyageId])
+  @@index([destinationPortId])
   @@index([status])
   @@index([shipperId])
   @@index([consigneeId])
@@ -1306,7 +1314,9 @@ model BillOfLading {
 model BillOfLadingItem {
   id             String @id @default(cuid())
   billOfLadingId String @map("billOfLadingId")
-  manifestItemId String @map("manifestItemId")
+  // Legacy manifest-line key (ADR-045 decision 1, P4-U2): nullable — pre-decoupling rows
+  // keep pointing at their manifest line; voyage-mode items are keyed by cargoId only.
+  manifestItemId String? @map("manifestItemId")
   cargoId        String @map("cargoId")
   sequence       Int
 
@@ -1322,7 +1332,7 @@ model BillOfLadingItem {
   updatedAt DateTime @updatedAt
 
   billOfLading BillOfLading @relation(fields: [billOfLadingId], references: [id], onDelete: Cascade)
-  manifestItem ManifestItem @relation("BillOfLadingItemManifestItem", fields: [manifestItemId], references: [id])
+  manifestItem   ManifestItem?      @relation("BillOfLadingItemManifestItem", fields: [manifestItemId], references: [id])
   cargo        Cargo        @relation("BillOfLadingItemCargo", fields: [cargoId], references: [id])
 
   @@index([billOfLadingId])

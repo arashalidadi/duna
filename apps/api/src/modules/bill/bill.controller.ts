@@ -41,8 +41,11 @@ export class BillController {
 
   @Get('eligible-items')
   @RequirePermissions('bill:read')
-  eligibleItems(@Query('manifestId') manifestId: string) {
-    return this.service.eligibleItems(manifestId);
+  eligibleItems(@Query('manifestId') manifestId?: string, @Query('voyageId') voyageId?: string) {
+    // Two modes (transition contract A): ?manifestId= legacy transitional (shipped page),
+    // ?voyageId= target (ADR-045 decision 1). Primitive @Query params bypass the DTO
+    // whitelist, so adding voyageId is not a forbidNonWhitelisted concern.
+    return this.service.eligibleItems(manifestId, voyageId);
   }
 
   @Get(':id')

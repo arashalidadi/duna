@@ -51,6 +51,7 @@ const listSelect = {
   billNumber: true,
   manifestId: true,
   voyageId: true,
+  destinationPortId: true,
   status: true,
   billType: true,
   vesselName: true,
@@ -124,6 +125,19 @@ const detailSelect = {
     orderBy: { sequence: 'asc' as const },
   },
 } satisfies Prisma.BillOfLadingSelect;
+
+/** A cargo line eligible for a voyage-mode B/L (ADR-045 decision 1). */
+interface EligibleCargoLine {
+  cargoId: string;
+  sequence: number;
+  goodsDescription: string | null;
+  marksAndNumbers: string | null;
+  packages: number | null;
+  packageType: string | null;
+  grossWeight: Prisma.Decimal | null;
+  volume: Prisma.Decimal | null;
+  cargo: { id: string; reference: string; shipperId: string | null; consigneeId: string | null };
+}
 
 @Injectable()
 export class BillService {
@@ -230,12 +244,36 @@ export class BillService {
   }
 
   /**
-   * Create a B/L against an APPROVED manifest.
-   * Snapshots vessel + voyageId + parties (defaults from the manifest) so the
-   * document stays stable even if the manifest is later edited. Creates in
-   * DRAFT state. Generates billNumber: BOL-YYMM-#####.
+   * Create a B/L — two input modes (transition contract A; ADR-045 decision 1 / P4-U2):
+   *  - legacy `{ manifestId }` — kept accepted until P4-U7 switches the shipped web page
+   *    (the page REQUIRES manifestId today; transitional, marked here and in the DTO);
+   *  - target `{ voyageId, cargoIds? }` — standalone from voyage + actually-loaded cargo
+   *    (ADR-029/042 predicate: COMPLETED Actual Loading with actualQuantity > 0);
+   *    no manifest involved, `manifestId` stored null, vessel snapshot from the voyage,
+   *    destinationPortId stored as the P4-U3 numbering scope key.
+   * Both modes allocate BOL-YYMM-##### (the NumberingSequence swap is P4-U3) and
+   * create in DRAFT.
    */
   async create(dto: CreateBillDto, actor?: AuthenticatedUser) {
+    if (dto.manifestId && dto.voyageId) {
+      throw new BadRequestException(
+        'Provide either manifestId (legacy transitional input) or voyageId, not both',
+      );
+    }
+    if (!dto.manifestId && !dto.voyageId) {
+      throw new BadRequestException('manifestId (legacy) or voyageId is required');
+    }
+    if (dto.cargoIds?.length && !dto.voyageId) {
+      throw new BadRequestException('cargoIds requires voyageId');
+    }
+    if (dto.manifestId) {
+      return this.createFromManifest(dto, actor);
+    }
+    return this.createFromCargo(dto, actor);
+  }
+
+  /** Legacy transitional path — unchanged behaviour; retires at P4-U7. */
+  private async createFromManifest(dto: CreateBillDto, actor?: AuthenticatedUser) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id: dto.manifestId },
       select: {
@@ -248,6 +286,7 @@ export class BillService {
         shipperId: true,
         consigneeId: true,
         notifyParty: true,
+        voyage: { select: { destinationPortId: true } },
       },
     });
     if (!manifest || manifest.deletedAt) {
@@ -285,6 +324,7 @@ export class BillService {
             billNumber,
           manifestId: dto.manifestId,
           voyageId: manifest.voyageId,
+          destinationPortId: manifest.voyage.destinationPortId,
           vesselName: manifest.vesselName,
           vesselImo: manifest.vesselImo,
           billType: (dto.billType as BlType) ?? 'HOUSE',
@@ -330,6 +370,198 @@ export class BillService {
         throw e;
       }
     }
+  }
+
+
+  /**
+   * Target path (ADR-045 decision 1): standalone B/L from voyage + cargo lines.
+   * Vessel snapshot derives from the voyage; parties = explicit DTO ids first
+   * (Phase-2 masters), else derived from the selected cargo lines — never a manifest.
+   * Item snapshots default from cargo/loading facts. Totals computed from the lines.
+   */
+  private async createFromCargo(dto: CreateBillDto, actor?: AuthenticatedUser) {
+    const voyage = await this.prisma.voyage.findUnique({
+      where: { id: dto.voyageId! },
+      select: {
+        id: true,
+        destinationPortId: true,
+        vessel: { select: { name: true, imo: true } },
+      },
+    });
+    if (!voyage) {
+      throw new NotFoundException('Voyage not found');
+    }
+
+    const cargoIds = dto.cargoIds ?? [];
+    const lines: EligibleCargoLine[] = [];
+    for (let i = 0; i < cargoIds.length; i += 1) {
+      lines.push(await this.loadEligibleCargoLine(voyage.id, cargoIds[i], undefined, i + 1));
+    }
+
+    // Parties: explicit DTO (masters) win; otherwise first non-null per field across the
+    // selected lines, in the order given (deterministic). Every chosen id must be live.
+    const shipperId = dto.shipperId ?? lines.map((l) => l.cargo.shipperId).find((x) => x);
+    const consigneeId = dto.consigneeId ?? lines.map((l) => l.cargo.consigneeId).find((x) => x);
+    if (shipperId) await this.assertLiveParty('shipper', shipperId, false);
+    if (consigneeId) await this.assertLiveParty('consignee', consigneeId, false);
+
+    const totalPackages = lines.reduce((s, l) => s + (l.packages ?? 0), 0);
+    const totalGrossWeight = lines.reduce(
+      (s, l) => s + Number(l.grossWeight ?? new Prisma.Decimal(0)),
+      0,
+    );
+    const totalVolume = lines.reduce((s, l) => s + Number(l.volume ?? new Prisma.Decimal(0)), 0);
+
+    const MAX_BILL_ATTEMPTS = 10;
+    for (let attempt = 1; ; attempt += 1) {
+      const billNumber = await this.generateReference();
+      try {
+        return await this.prisma.billOfLading.create({
+          data: {
+            billNumber,
+            manifestId: null,
+            voyageId: voyage.id,
+            destinationPortId: voyage.destinationPortId,
+            vesselName: voyage.vessel.name,
+            vesselImo: voyage.vessel.imo,
+            billType: (dto.billType as BlType) ?? 'HOUSE',
+            shipperId: shipperId ?? null,
+            consigneeId: consigneeId ?? null,
+            notifyParty: dto.notifyParty,
+            freightTerms: dto.freightTerms as FreightTerms | undefined,
+            carrierName: dto.carrierName,
+            placeOfIssue: dto.placeOfIssue,
+            dateOfIssue: dto.dateOfIssue ? new Date(dto.dateOfIssue) : undefined,
+            originals: dto.originals,
+            freightAmount: dto.freightAmount ?? undefined,
+            currencyCode: dto.currencyCode,
+            goodsDescription: dto.goodsDescription,
+            shipmentMarks: dto.shipmentMarks,
+            notes: dto.notes,
+            createdById: actor?.id,
+            totalPackages,
+            totalGrossWeight: new Prisma.Decimal(totalGrossWeight.toFixed(3)),
+            totalVolume: new Prisma.Decimal(totalVolume.toFixed(3)),
+            items: {
+              create: lines.map((l) => ({
+                cargoId: l.cargoId,
+                sequence: l.sequence,
+                goodsDescription: l.goodsDescription,
+                marksAndNumbers: l.marksAndNumbers,
+                packages: l.packages,
+                packageType: l.packageType,
+                grossWeight: l.grossWeight,
+                volume: l.volume,
+              })),
+            },
+          },
+          select: detailSelect,
+        });
+      } catch (e) {
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          e.code === 'P2002' &&
+          attempt < MAX_BILL_ATTEMPTS &&
+          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes('billNumber')
+        ) {
+          continue; // lost the number race: re-read and retry (same pattern as legacy)
+        }
+        if (
+          e instanceof Prisma.PrismaClientKnownRequestError &&
+          (e.code === 'P2002' || e.code === 'P2018')
+        ) {
+          throw new ConflictException('Could not create B/L: duplicate reference');
+        }
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+          throw new BadRequestException(
+            'Invalid reference: party ids must reference existing master records',
+          );
+        }
+        throw e;
+      }
+    }
+  }
+
+  /**
+   * The ADR-045/042 eligibility predicate, shared by create-from-cargo, addItem { cargoId }
+   * and eligible-items?voyageId= — cargo must sit in a COMPLETED Actual Loading of this
+   * voyage with actualQuantity > 0 (ADR-029 "actually loaded", ADR-042 positive quantity,
+   * ADR-039 keeps not-loaded lines out) and must not already sit on a live (non-cancelled,
+   * non-deleted) B/L of the SAME voyage — one live bill per cargo line per voyage,
+   * application-level, same soft-delete rationale as ADR-030/029.
+   */
+  private async loadEligibleCargoLine(
+    voyageId: string,
+    cargoId: string,
+    excludeBillId?: string,
+    sequence = 1,
+  ): Promise<EligibleCargoLine> {
+    const cargo = await this.prisma.cargo.findUnique({
+      where: { id: cargoId },
+      select: {
+        id: true,
+        reference: true,
+        deletedAt: true,
+        specification: true,
+        serialNumber: true,
+        vin: true,
+        packages: true,
+        packageType: true,
+        weight: true,
+        shipperId: true,
+        consigneeId: true,
+      },
+    });
+    if (!cargo || cargo.deletedAt) {
+      throw new NotFoundException(`Cargo not found: ${cargoId}`);
+    }
+    const loaded = await this.prisma.actualLoadingItem.findFirst({
+      where: {
+        cargoId,
+        actualQuantity: { gt: 0 },
+        actualLoading: {
+          status: 'COMPLETED',
+          deletedAt: null,
+          loadList: { voyageId, deletedAt: null },
+        },
+      },
+      select: { id: true },
+    });
+    if (!loaded) {
+      throw new ConflictException(
+        `Cargo ${cargo.reference} is not eligible for this voyage's B/L ` +
+          '(requires a COMPLETED Actual Loading with a recorded quantity greater than 0)',
+      );
+    }
+    const claimed = await this.prisma.billOfLadingItem.findFirst({
+      where: {
+        cargoId,
+        ...(excludeBillId ? { NOT: { billOfLadingId: excludeBillId } } : {}),
+        billOfLading: { voyageId, deletedAt: null, status: { not: 'CANCELLED' } },
+      },
+      select: { billOfLading: { select: { billNumber: true } } },
+    });
+    if (claimed) {
+      throw new ConflictException(
+        `Cargo ${cargo.reference} is already on live B/L ${claimed.billOfLading.billNumber}`,
+      );
+    }
+    return {
+      cargoId: cargo.id,
+      sequence,
+      goodsDescription: cargo.specification,
+      marksAndNumbers: cargo.serialNumber ?? cargo.vin,
+      packages: cargo.packages,
+      packageType: cargo.packageType,
+      grossWeight: cargo.weight,
+      volume: null, // Cargo has no volume column; line keeps its own editable value
+      cargo: {
+        id: cargo.id,
+        reference: cargo.reference,
+        shipperId: cargo.shipperId,
+        consigneeId: cargo.consigneeId,
+      },
+    };
   }
 
   /**
@@ -411,12 +643,58 @@ export class BillService {
   async addItem(id: string, dto: AddBillItemDto) {
     const bill = await this.prisma.billOfLading.findUnique({
       where: { id },
-      select: { id: true, status: true, manifestId: true, deletedAt: true },
+      select: { id: true, status: true, manifestId: true, voyageId: true, deletedAt: true },
     });
     await this.assertEditable(bill, 'modified');
 
+    if (dto.manifestItemId && dto.cargoId) {
+      throw new BadRequestException('Provide either manifestItemId (legacy) or cargoId, not both');
+    }
+    if (!dto.manifestItemId && !dto.cargoId) {
+      throw new BadRequestException('manifestItemId (legacy) or cargoId is required');
+    }
+
+    // Voyage-mode bill (manifestId null): add by cargoId under the ADR-045 predicate.
+    if (dto.cargoId) {
+      if (bill!.manifestId) {
+        throw new ConflictException(
+          'This B/L was created from a manifest (legacy); add lines with manifestItemId',
+        );
+      }
+      const line = await this.loadEligibleCargoLine(bill!.voyageId, dto.cargoId, id);
+      const maxSeq = await this.prisma.billOfLadingItem.aggregate({
+        where: { billOfLadingId: id },
+        _max: { sequence: true },
+      });
+      line.sequence = (maxSeq._max.sequence ?? 0) + 1;
+      return this.prisma.$transaction(async (tx) => {
+        await tx.billOfLadingItem.create({
+          data: {
+            billOfLadingId: id,
+            cargoId: line.cargoId,
+            manifestItemId: null,
+            sequence: line.sequence,
+            goodsDescription: dto.goodsDescription ?? line.goodsDescription ?? undefined,
+            marksAndNumbers: dto.marksAndNumbers ?? line.marksAndNumbers ?? undefined,
+            packages: dto.packages ?? line.packages ?? undefined,
+            packageType: dto.packageType ?? line.packageType ?? undefined,
+            grossWeight: line.grossWeight ?? undefined,
+            volume: dto.volume ?? undefined,
+          },
+        });
+        await this.recomputeTotals(tx, id);
+        return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      });
+    }
+
+    // Legacy transitional path (manifest-linked bills until P4-U7).
+    if (!bill!.manifestId) {
+      throw new ConflictException(
+        'This B/L has no manifest (created from voyage+cargo); add lines with cargoId',
+      );
+    }
     const manifestItem = await this.prisma.manifestItem.findUnique({
-      where: { id: dto.manifestItemId },
+      where: { id: dto.manifestItemId! },
       select: {
         id: true,
         manifestId: true,
@@ -439,7 +717,7 @@ export class BillService {
 
     const claimed = await this.prisma.billOfLadingItem.findFirst({
       where: {
-        manifestItemId: dto.manifestItemId,
+        manifestItemId: dto.manifestItemId!, // narrow: legacy branch guarantees presence
         billOfLading: { deletedAt: null, status: { not: 'CANCELLED' } },
       },
       select: { id: true, billOfLading: { select: { billNumber: true } } },
@@ -460,7 +738,7 @@ export class BillService {
       await tx.billOfLadingItem.create({
         data: {
           billOfLadingId: id,
-          manifestItemId: dto.manifestItemId,
+          manifestItemId: dto.manifestItemId!, // narrow: legacy branch guarantees presence
           cargoId: manifestItem.cargoId,
           sequence,
           goodsDescription: dto.goodsDescription ?? manifestItem.cargo.specification ?? undefined,
@@ -539,11 +817,97 @@ export class BillService {
   }
 
   /**
+   * Two picker modes (transition contract A; ADR-045 decision 1):
+   *  - `?manifestId=` — legacy transitional path, kept for the shipped web page
+   *    (bills/page.tsx) until P4-U7;
+   *  - `?voyageId=` — target path: actually-loaded cargo (ADR-029/042 predicate)
+   *    minus cargo already on a live B/L of this voyage.
+   */
+  async eligibleItems(manifestId?: string, voyageId?: string) {
+    if (manifestId && voyageId) {
+      throw new BadRequestException('Provide either manifestId or voyageId, not both');
+    }
+    if (!manifestId && !voyageId) {
+      throw new BadRequestException('manifestId (legacy) or voyageId is required');
+    }
+    if (voyageId) {
+      return this.eligibleCargoForVoyage(voyageId);
+    }
+    return this.eligibleItemsFromManifest(manifestId!);
+  }
+
+  /** Target picker rows: loaded cargo of the voyage not yet claimed by a live B/L. */
+  private async eligibleCargoForVoyage(voyageId: string) {
+    const voyage = await this.prisma.voyage.findUnique({
+      where: { id: voyageId },
+      select: { id: true },
+    });
+    if (!voyage) {
+      throw new NotFoundException('Voyage not found');
+    }
+    const loaded = await this.prisma.actualLoadingItem.findMany({
+      where: {
+        actualQuantity: { gt: 0 },
+        actualLoading: {
+          status: 'COMPLETED',
+          deletedAt: null,
+          loadList: { voyageId, deletedAt: null },
+        },
+      },
+      select: {
+        cargoId: true,
+        cargo: {
+          select: {
+            id: true,
+            reference: true,
+            specification: true,
+            serialNumber: true,
+            vin: true,
+            packages: true,
+            packageType: true,
+            weight: true,
+            cargoType: true,
+          },
+        },
+      },
+    });
+    const claimed = await this.prisma.billOfLadingItem.findMany({
+      where: {
+        cargoId: { in: loaded.map((l) => l.cargoId) },
+        billOfLading: { voyageId, deletedAt: null, status: { not: 'CANCELLED' } },
+      },
+      select: { cargoId: true },
+    });
+    const claimedCargos = new Set(claimed.map((r) => r.cargoId));
+    return loaded
+      .filter((row) => !claimedCargos.has(row.cargoId))
+      .map((row) => ({
+        id: row.cargoId, // cargo-keyed row (voyage mode has no manifest line id)
+        manifestId: null,
+        cargoId: row.cargoId,
+        sequence: null,
+        blNumber: null,
+        weight: row.cargo.weight,
+        quantity: null,
+        packages: row.cargo.packages,
+        packageType: row.cargo.packageType,
+        cargo: {
+          id: row.cargo.id,
+          reference: row.cargo.reference,
+          specification: row.cargo.specification,
+          cargoType: row.cargo.cargoType,
+        },
+        marksAndNumbers: row.cargo.serialNumber ?? row.cargo.vin,
+      }));
+  }
+
+  /**
    * Manifest lines eligible for a B/L: items of the given manifest not claimed
    * by any live (non-cancelled, non-deleted) B/L — including the given bill's
    * own lines (a line already on a bill, even this one, is not eligible).
+   * LEGACY transitional path (kept for the shipped page until P4-U7).
    */
-  async eligibleItems(manifestId: string) {
+  private async eligibleItemsFromManifest(manifestId: string) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id: manifestId },
       select: { id: true, status: true, deletedAt: true },
@@ -629,11 +993,17 @@ export class BillService {
         where: { billOfLadingId: id },
         select: { manifestItemId: true },
       });
-      const itemIds = items.map((i) => i.manifestItemId);
-      await tx.manifestItem.updateMany({
-        where: { id: { in: itemIds } },
-        data: { blNumber: existing.billNumber },
-      });
+      // ADR-045/P4-U2: only legacy manifest-linked lines get stamped; voyage-mode items
+      // have manifestItemId null (the stamp direction reverses in Phase 5).
+      const itemIds = items
+        .map((i) => i.manifestItemId)
+        .filter((x): x is string => x !== null);
+      if (itemIds.length > 0) {
+        await tx.manifestItem.updateMany({
+          where: { id: { in: itemIds } },
+          data: { blNumber: existing.billNumber },
+        });
+      }
 
       return tx.billOfLading.update({
         where: { id },
@@ -668,7 +1038,9 @@ export class BillService {
         where: { billOfLadingId: id },
         select: { manifestItemId: true },
       });
-      const itemIds = items.map((i) => i.manifestItemId);
+      const itemIds = items
+        .map((i) => i.manifestItemId)
+        .filter((x): x is string => x !== null); // voyage-mode lines never stamped (P4-U2)
       if (itemIds.length > 0) {
         await tx.manifestItem.updateMany({
           where: { id: { in: itemIds }, blNumber: existing.billNumber },

@@ -40,6 +40,7 @@ describe('BillOfLading (e2e)', () => {
   const createdLoadLists: Ref[] = [];
   const createdManifests: Ref[] = [];
   const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
+  const createdStandaloneBills: Ref[] = []; // P4-U2: voyage-mode bills (manifestId null)
 
   let adminToken = '';
   let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
@@ -63,6 +64,7 @@ describe('BillOfLading (e2e)', () => {
   let cargo1Id = ''; // loaded on the voyage
   let cargo2Id = ''; // loaded too (second manifest line for cancel-release test)
   let manifestId = ''; // APPROVED manifest
+  let voyageModeBillId = ''; // P4-U2: voyage-mode bill used by the mode-mismatch test
   let manifestItemId1 = ''; // line for cargo1
   let manifestItemId2 = ''; // line for cargo2
 
@@ -379,6 +381,12 @@ describe('BillOfLading (e2e)', () => {
       await prisma.manifestItem.deleteMany({ where: { manifestId: { in: manifestIds } } });
       await prisma.manifest.deleteMany({ where: { id: { in: manifestIds } } });
       await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
+      await prisma.consignee.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
+      // P4-U2: voyage-mode bills have manifestId null, so the manifestId clause above
+      // misses them — delete by id (items first) so no soft/hard litter survives.
+      const standaloneIds = createdStandaloneBills.map((b) => b.id);
+      await prisma.billOfLadingItem.deleteMany({ where: { billOfLadingId: { in: standaloneIds } } });
+      await prisma.billOfLading.deleteMany({ where: { id: { in: standaloneIds } } });
       await prisma.actualLoadingItem.deleteMany({ where: { actualLoading: { loadListId: { in: loadListIds } } } });
       await prisma.actualLoading.deleteMany({ where: { loadListId: { in: loadListIds } } });
       await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });
@@ -845,4 +853,284 @@ describe('BillOfLading (e2e)', () => {
       .expect(200);
     expect(search.body.data.data.some((b: { id: string }) => b.id === bill1Id)).toBe(true);
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U2 — ADR-045 decision 1 (decoupling): roadmap Tests 1-2 — "B/L creation
+  // without Manifest dependency" + "Party master usage"; Acceptance 1-2.
+  // ---------------------------------------------------------------------------
+
+  // Full actually-loaded chain (cargo -> inspection DONE -> load list -> finalize ->
+  // Actual Loading -> record -> complete), mirroring the suite's own cargo3 fixture.
+  // `recorded` = the quantity written on the line (0 = explicit NOT_LOADED, excluded
+  // by the ADR-042 positive-quantity predicate).
+  async function mkLoadedCargoOn(
+    voyageForChain: string,
+    qty: number,
+    recorded: number,
+    parties: { shipperId?: string; consigneeId?: string } = {},
+  ): Promise<string> {
+    const cargo = await request(app.getHttpServer())
+      .post('/api/v1/cargo')
+      .set(auth(adminToken))
+      .send({
+        customerId,
+        portId: originPortId,
+        yardId,
+        cargoType: 'CONTAINER',
+        quantity: qty,
+        weight: '4.5',
+        packages: 2,
+        packageType: 'CARTONS',
+        ...parties,
+      })
+      .expect(201);
+    createdCargos.push({ id: cargo.body.data.id });
+    const cid = cargo.body.data.id as string;
+    const insp = await request(app.getHttpServer())
+      .post('/api/v1/inspections')
+      .set(auth(adminToken))
+      .send({ cargoId: cid, findings: 'P4U2 chain' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/done`)
+      .set(auth(adminToken))
+      .expect(200);
+    const ll = await request(app.getHttpServer())
+      .post('/api/v1/load-lists')
+      .set(auth(adminToken))
+      .send({ voyageId: voyageForChain, notes: 'P4U2 decoupling chain' })
+      .expect(201);
+    createdLoadLists.push({ id: ll.body.data.id });
+    const item = await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: cid, plannedQuantity: qty, sequence: 1 })
+      .expect(201);
+    await stampLoadListFinalized(ll.body.data.id);
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: ll.body.data.id })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/actual-loading/${al.body.data.id}/items/${item.body.data.id}`)
+      .set(auth(adminToken))
+      .send({ actualQuantity: recorded })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${al.body.data.id}/start`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${al.body.data.id}/complete`)
+      .set(auth(adminToken))
+      .expect(200);
+    return cid;
+  }
+
+  it('create WITHOUT a manifest: voyage + cargo lines; parties from masters/derived cargo, never a manifest (roadmap Tests 1-2, Acceptance 1-2)', async () => {
+    const cons = await request(app.getHttpServer())
+      .post('/api/v1/consignees')
+      .set(auth(adminToken))
+      .send({ code: `BLCON-${tag}`, name: `BL Test Consignee ${randomTag}` })
+      .expect(201);
+    createdPartyMasters.push({ id: cons.body.data.id });
+    const shp2 = await request(app.getHttpServer())
+      .post('/api/v1/shippers')
+      .set(auth(adminToken))
+      .send({ code: `BLSP2-${tag}`, name: `BL Override Shipper ${randomTag}` })
+      .expect(201);
+    createdPartyMasters.push({ id: shp2.body.data.id });
+
+    const voy3 = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy3.body.data.id });
+
+    const c1 = await mkLoadedCargoOn(voy3.body.data.id, 10, 10, {
+      shipperId: fixtureShipperId,
+      consigneeId: cons.body.data.id,
+    });
+    const c2 = await mkLoadedCargoOn(voy3.body.data.id, 5, 5, {
+      shipperId: fixtureShipperId,
+      consigneeId: cons.body.data.id,
+    });
+
+    // --- create with NO manifestId anywhere in the request ---
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: voy3.body.data.id, cargoIds: [c1, c2] })
+      .expect(201);
+    const d = res.body.data;
+    expect(d.manifestId).toBeNull(); // no Manifest dependency (Acceptance 1)
+    expect(d.voyageId).toBe(voy3.body.data.id); // voyageId self-owned, not via manifest
+    expect(d.destinationPortId).toBe(destPortId); // P4-U3 numbering scope key stored
+    expect(d.vesselName).toBe(`MV BL ${randomTag}`); // vessel snapshot from the VOYAGE
+    // parties derived from the cargo lines' masters — no manifest involved (Acceptance 2)
+    expect(d.shipperId).toBe(fixtureShipperId);
+    expect(d.consigneeId).toBe(cons.body.data.id);
+    expect(d.status).toBe('DRAFT');
+    expect(d.billNumber).toMatch(/^BOL-\d{4}-\d{5}$/);
+    expect(d.items).toHaveLength(2);
+    const itemCargoIds = d.items.map((i: { cargoId: string }) => i.cargoId).sort();
+    expect(itemCargoIds).toEqual([c1, c2].sort());
+    for (const line of d.items) {
+      expect(line.manifestItemId).toBeNull(); // keyed by cargo, not a manifest line
+      expect(line.packages).toBe(2); // snapshot defaulted from the cargo
+    }
+    expect(d.totalPackages).toBe(4);
+    createdStandaloneBills.push({ id: d.id });
+
+    // explicit DTO master ids beat derivation (dto first, then cargo lines)
+    const c3 = await mkLoadedCargoOn(voy3.body.data.id, 3, 3, {
+      shipperId: fixtureShipperId,
+      consigneeId: cons.body.data.id,
+    });
+    const res2 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({
+        voyageId: voy3.body.data.id,
+        cargoIds: [c3],
+        shipperId: shp2.body.data.id,
+        consigneeId: cons.body.data.id,
+      })
+      .expect(201);
+    expect(res2.body.data.shipperId).toBe(shp2.body.data.id); // explicit override wins
+    expect(res2.body.data.consigneeId).toBe(cons.body.data.id);
+    createdStandaloneBills.push({ id: res2.body.data.id });
+  });
+
+  it('voyage-mode eligibility: not-in-loading and zero-quantity rejected, one live bill per cargo, eligible-items = unclaimed positive cargo only (ADR-029/042)', async () => {
+    const voy4 = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy4.body.data.id });
+
+    // cargo never loaded on any voyage -> rejected
+    const w = await request(app.getHttpServer())
+      .post('/api/v1/cargo')
+      .set(auth(adminToken))
+      .send({
+        customerId,
+        portId: originPortId,
+        yardId,
+        cargoType: 'CONTAINER',
+        quantity: 6,
+        weight: '2.5',
+        packages: 1,
+        packageType: 'CARTONS',
+      })
+      .expect(201);
+    createdCargos.push({ id: w.body.data.id });
+    const e1 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: voy4.body.data.id, cargoIds: [w.body.data.id] })
+      .expect(409);
+    expect(e1.body.error.message).toContain('COMPLETED Actual Loading');
+
+    // loaded line recorded as explicit zero -> excluded by actualQuantity > 0
+    const y = await mkLoadedCargoOn(voy4.body.data.id, 5, 0);
+    const e2 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: voy4.body.data.id, cargoIds: [y] })
+      .expect(409);
+    expect(e2.body.error.message).toContain('COMPLETED Actual Loading');
+
+    const z = await mkLoadedCargoOn(voy4.body.data.id, 7, 7);
+    const q = await mkLoadedCargoOn(voy4.body.data.id, 4, 4);
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: voy4.body.data.id, cargoIds: [z] })
+      .expect(201);
+    createdStandaloneBills.push({ id: b.body.data.id });
+    voyageModeBillId = b.body.data.id;
+
+    // one live bill per cargo per voyage (application level, ADR-030 rationale retargeted)
+    const e3 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: voy4.body.data.id, cargoIds: [z] })
+      .expect(409);
+    expect(e3.body.error.message).toContain('already on live B/L');
+
+    // target picker: only unclaimed, positive-quantity cargo -> exactly Q
+    const el = await request(app.getHttpServer())
+      .get(`/api/v1/bills/eligible-items?voyageId=${voy4.body.data.id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const elIds = (el.body.data as Array<{ cargoId: string }>).map((r) => r.cargoId);
+    expect(elIds).toContain(q);
+    expect(elIds).toHaveLength(1); // W not loaded, Y zero, Z claimed
+
+    // source-mode validation (transition contract A)
+    const both = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ manifestId, voyageId: voy4.body.data.id })
+      .expect(400);
+    expect(both.body.error.message).toContain('not both');
+    await request(app.getHttpServer()).post('/api/v1/bills').set(auth(adminToken)).send({}).expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ cargoIds: [q] })
+      .expect(400);
+    await request(app.getHttpServer())
+      .get(`/api/v1/bills/eligible-items?manifestId=${manifestId}&voyageId=${voy4.body.data.id}`)
+      .set(auth(adminToken))
+      .expect(400);
+    await request(app.getHttpServer()).get('/api/v1/bills/eligible-items').set(auth(adminToken)).expect(400);
+  });
+
+  it('addItem source modes are exclusive; both/neither rejected (transition contract A)', async () => {
+    // legacy (manifest-linked) bill rejects cargoId
+    const legacy = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ manifestId })
+      .expect(201);
+    const legacyId = legacy.body.data.id as string;
+    expect(legacy.body.data.manifestId).toBe(manifestId);
+    const m1 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${legacyId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: 'x'.repeat(24) })
+      .expect(409);
+    expect(m1.body.error.message).toContain('legacy');
+    createdStandaloneBills.push({ id: legacyId }); // hard-cleaned by afterAll (also manifest-linked)
+
+    // voyage-mode bill rejects manifestItemId (checked BEFORE loading the id)
+    const m2 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${voyageModeBillId}/items`)
+      .set(auth(adminToken))
+      .send({ manifestItemId: 'x'.repeat(24) })
+      .expect(409);
+    expect(m2.body.error.message).toContain('no manifest');
+
+    // both / neither
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${voyageModeBillId}/items`)
+      .set(auth(adminToken))
+      .send({ manifestItemId: 'x'.repeat(24), cargoId: 'y'.repeat(24) })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${voyageModeBillId}/items`)
+      .set(auth(adminToken))
+      .send({})
+      .expect(400);
+  });
 });
+
