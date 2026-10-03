@@ -785,3 +785,170 @@ later unit in the order 1a → 1b → approval → 1c). Carried to the employer:
 Phase 3 UI unit gains this scope: cargo-create required comment, always-send clear-to-empty,
 plus the unit-4 coverage-note items. Guard unaffected — the design adds no status union and no
 `api.post` route.
+
+
+## ADR-045: B/L Rewrite (Phase 4) — source of truth = actually-loaded cargo, Draft/Final/Approved/Released lifecycle with configurable names, release separation, snapshot revisions, per-destination numbering
+
+**Date:** 2026-10-03
+**Status:** Accepted (Phase 4 unit 1, design-first — decisions 1–6; three NEEDS_BUSINESS_DECISION
+items derived from open decisions §1.1/§1.2 are listed under *Open questions*, plus the
+carried ADR-044 (d))
+**Context:** Roadmap §3 Phase 4 — *"rebuild B/L as a standalone document from finalized/eligible
+cargo/loading, with correct parties, per-destination numbering, lifecycle, release concept, and
+revisions"*; Scope = Remove Manifest dependency · Shipper/Consignee masters on B/L ·
+per-destination numbering · Draft/Final/Approved/Released lifecycle · revisions for customer
+review · number stability through revisions · document output hooks; Acceptance = B/L no longer
+depends on Manifest / parties from masters / numbering per destination / lifecycle and release
+separation correct; Risks = incomplete Manifest decoupling, revision complexity. Dependencies
+Phases 2+3 (both CLOSED) + NumberingSequence (ADR-008).
+Employer evidence read verbatim this unit: `03-final-workflows.md` §3.1 steps 1–10
+(lines 67–76: prepared *from eligible cargo/loading data*; created in Draft; Draft watermark;
+sent to Customer for review; corrections; revised; *finalized/approved and issued*;
+**"B/L number is per destination"** (74); **"B/L status includes Released/Unreleased as a
+separate permission concept"** (75); PDF/Excel output), §3.2 (80–84: Manifest is built *from
+issued B/Ls* — Phase 5), §3.7 (124–128: ReleaseOrder after arrival, shows B/L + payment status);
+`06-final-ui-blueprint.md` §5.1 (132–137: list by status/voyage/destination, create from
+eligible cargo, *Draft/Final/Released states shown*, revision history, PDF/Excel), :200
+(distinct state colours); `08-requirement-traceability.md` §2.10 (303–360: from
+cargo/loading not Manifest; field list; destination-scoped sequence; Draft watermark; revision
+model; Final/Approved; release separate from finalization; parties from masters; PDF Phase 7);
+`12-open-business-decisions.md` **§1.1** ("target expects Draft, Final/Approved, and separate
+release permission, but **exact status names and release modeling are not fully confirmed**;
+can proceed with configurable design and explicit decision record") and **§1.2** ("**no money,
+no cargo principle is confirmed**; exact partial payment, credit, and approver rules are not;
+can proceed with configurable eligibility and audit, **without hard-coding final policy**").
+Shipped state surveyed this unit (detail in the unit-1 log): `schema.prisma:1232`
+BillOfLading with **REQUIRED `manifestId`** (FK), `voyageId` *"denormalized via manifest"*,
+vessel snapshot copied from the manifest, parties defaulted from the manifest;
+`BillOfLadingItem:1306` keyed by **required `manifestItemId`** (frozen snapshots);
+`BlStatus:1216` = `DRAFT | ISSUED | CANCELLED`; `billNumber` `@unique` *"auto BOL-YYMM-#####"*;
+`ManifestItem.blNumber:1181` stamped by `issue` / cleared by `cancel`
+(`bill.service.ts:635/:674`); `bill.service.ts` create() requires an **APPROVED manifest**
+(:255-259) with `assertLiveParty` liveness on manifest-derived parties; `eligible-items` is a
+per-manifest endpoint (:546-585); **one live bill per manifest line** (ADR-030, claim check
+:414-449); numbering is a local read-then-write `generateReference()` (:740-755) —
+NumberingSequence is used today only by `numbering.service.ts` and `voyages.service.ts`
+(per-destination leg numbers: `scopeType: 'DESTINATION', scopeValue: destinationPortId`,
+`voyages.service.ts:278-289`); `bill.e2e-spec.ts` 14 tests; consumers: Invoice (optional
+`billOfLadingId`, reads `bill.voyageId`, bill/manifest voyage-consistency check
+`invoice.service.ts:513`), DeliveryOrder + ReleaseOrder (**required** `billOfLadingId`, gates
+`requireIssuedBill` + `eligibility` asserting **`status === 'ISSUED'`**,
+`delivery-release.service.ts:37-46/:88-94`), portal: **zero** B/L references, Discharge: zero,
+web `bills` page is manifest-driven.
+
+**Decision.**
+
+1. **DECOUPLING — source of truth becomes voyage + actually-loaded cargo.** B/L create takes a
+   `voyageId` and cargo lines selected from the same eligibility predicate the rest of the chain
+   already trusts: cargo in a **COMPLETED Actual Loading with a positive recorded quantity**
+   (ADR-029 + ADR-042 `actualQuantity > 0`; ADR-039 keeps not-loaded lines out of downstream
+   documents). Concretely: `manifestId` becomes **nullable legacy linkage** (kept on existing
+   rows, never required for new bills); `voyageId` stops being "denormalized via manifest" and
+   becomes **self-owned** (explicit input at create); the **vessel snapshot derives from the
+   voyage** (its vessel) instead of the manifest; `destinationPortId` is added (additive) as the
+   denormalized destination for numbering and scoping; `BillOfLadingItem` keys on **`cargoId`
+   (+ optional `actualLoadingItemId` for traceability)** with `manifestItemId` demoted to
+   **nullable legacy** (no destructive drop); item snapshots keep freezing values, now defaulted
+   from the cargo/loading facts rather than a manifest line. **Parties**: explicit DTO first
+   (masters, Phase-2 cutover already on `shipperId`/`consigneeId`), else derived from the
+   selected cargo lines' parties — never from a manifest. **The one-live-document rule
+   retargets** from "one live bill per manifest line" to *one live bill per cargo line per
+   voyage* (application-level, same soft-delete rationale as ADR-029/030).
+   **Blast radius (roadmap Risk #1), enumerated and sequenced:** (a) bill module's ~15
+   `manifestId` sites (DTO required field, create gate, per-manifest `eligible-items`, claim
+   check, list filter, selects) → rewritten in the decoupling unit; (b) `ManifestItem.blNumber`
+   stamp at issue/cancel → becomes **conditional** (only bills that still carry legacy
+   manifest-linked items) and is **reversed in direction by Phase 5** (Manifest rebuilt from
+   issued B/Ls per workflows §3.2); (c) Invoice — benign: optional FK + `voyageId` read (kept)
+   + the bill/manifest voyage-consistency check only fires when both documents exist; (d)
+   DeliveryOrder/ReleaseOrder — **required** FKs survive unchanged, but their
+   `status === 'ISSUED'` gates must move to the issued-equivalent in the lifecycle unit; (e)
+   portal — zero current references (destination-scoped B/L visibility stays the known
+   carry-over); (f) web `bills` page (manifest-driven picker) → belongs to the UI unit.
+   **Migration strategy (additive-only):** one additive migration per execution unit
+   (nullable `manifestId`, nullable `manifestItemId`, `destinationPortId`, later enum ADD VALUE
+   + revision table); **no column drops in Phase 4** — dropping `manifestId`/`manifestItemId`
+   happens only after Phase 5 proves the new chain and requires **explicit decision-maker
+   approval** (destructive).
+2. **LIFECYCLE — new target `DRAFT | FINAL | APPROVED | RELEASED (+ CANCELLED)`, shipped
+   `DRAFT | ISSUED | CANCELLED` mapped, names configurable.** Proposed mapping (recorded as the
+   configurable default, per open decision §1.1): existing `DRAFT → DRAFT`, **`ISSUED →
+   APPROVED`** (the shipped "issued" state is the closest terminal-document state; `CANCELLED →
+   CANCELLED`), enum extended **additively** (Postgres `ALTER TYPE … ADD VALUE`), backfill is a
+   single recorded UPDATE executed in its unit with the mapping above as the explicit decision
+   record. Edges: `DRAFT → FINAL → APPROVED` replaces `DRAFT → ISSUED` (issue endpoint aliased
+   during transition, then renamed), `FINAL/DRAFT → CANCELLED` keeps the mandatory reason path
+   (`cancel`), `APPROVED → RELEASED` is the separate release transition (decision 3).
+   Delivery/Release gates switch to the issued-equivalent (`APPROVED`, plus `RELEASED` where the
+   flow demands a released document) in the same unit so nothing breaks mid-sequence.
+   Whether **Final and Approved are two states or one**, and the exact names, remain an open
+   question (NBD below) — the enum and transition table are the configurable surface, no other
+   code may assume specific labels.
+3. **RELEASE SEPARATION — B/L `RELEASED` state with its own permission, ReleaseOrder
+   untouched, eligibility policy configurable.** Workflows §3.1 step 9 and blueprint §5.1 put
+   Released/Unreleased **on the B/L status**, so `RELEASED` is a BlStatus value reached only by
+   `APPROVED → RELEASED` under a **separate permission (`bill:release`, seeded later per
+   ADR-016)**, writing an `AuditLog` entry (ADR-010). Document finalization (Draft/Final/
+   Approved) and release are therefore independent axes: approval never releases, release never
+   re-opens. The **ReleaseOrder document** (workflows §3.7, ADR-033) keeps its current shape;
+   its eligibility computation (`delivery-release.service.ts eligibility`) becomes **policy-
+   driven and configurable** — proposed default = bill in issued-equivalent state + invoices
+   fully paid ("no money, no cargo" principle, §1.2) — with override allowed only through an
+   audited override path; **no payment/credit/approver rule is hard-coded** (NBD below).
+4. **REVISIONS — minimal snapshot model; number frozen; deliberately no diff engine.**
+   `BillOfLadingRevision { billId, revisionNumber, note?, snapshot (JSON), createdById,
+   createdAt }` (additive table) + `revision Int @default(1)` on the bill. Flow mirrors
+   workflows §3.1 steps 4–7: while `DRAFT`, `POST /:id/revisions` freezes the current document
+   as the next immutable revision and re-opens editing (customer-review corrections = new
+   revision); `FINAL/APPROVED/RELEASED` freeze revisions; revision history is list-only
+   (blueprint "Revision history"). **`billNumber` is never re-allocated across revisions**
+   (roadmap "number stability through revisions") — uniqueness and printed numbers survive.
+   Deliberately left out (gold-plating guard): field-level diffs/compare UI, per-item version
+   trees, multi-approver/workflow engine, revision deletion or editing, revision branching;
+   restoring an old revision = read-back into the draft, not a new data path.
+5. **NUMBERING — per-destination via NumberingSequence (`scopeType DESTINATION`), destination
+   embedded in the number, existing numbers immutable.** `generateReference()` (read-then-write,
+   `BOL-YYMM-#####`, `bill.service.ts:740`) is replaced by `NumberingService.allocateNumber`
+   (ADR-008; the transactional pattern already used by voyages: `scopeType: 'DESTINATION',
+   scopeValue: destinationPortId`), with a **destination segment in the rendered number** —
+   proposed format `BOL-{DEST}-YYMM-#####` — because `billNumber` is globally `@unique` and
+   independent per-destination counters with today's format would collide (uniqueness preserved
+   with **no constraint change**; leg-style bare counters like voyages' `{sequence}/{yy}` are
+   not globally unique and do not apply). The bill stores `destinationPortId` (decision 1) as
+   the scope key. **Existing `BOL-YYMM-#####` numbers are never renumbered** (stability),
+   sequences start at 1 per destination for new numbers, and the format blast radius is
+   enumerated: `bill.service.ts`, `bill.e2e-spec.ts`, `delivery-release.e2e-spec.ts` (format
+   assertions updated in the numbering unit only).
+6. **PHASED PLAN (execution units, each independently verifiable):** **P4-U2 decoupling**
+   (additive migration + create/eligible/items rewrite; Tests 1–2; Acceptance 1–2);
+   **P4-U3 per-destination numbering** (NumberingService swap + format; Test 3; Acceptance 3);
+   **P4-U4 lifecycle** (enum ADD VALUE + backfill + transition table + D-O/R-O gates;
+   Test 4 part 1; Acceptance 4 part 1); **P4-U5 revisions** (table/endpoints/stability; Test 4
+   part 2); **P4-U6 release separation** (`bill:release`, RELEASED transition, configurable
+   ReleaseOrder eligibility + audit; Test 5; Acceptance 4 part 2); **P4-U7 UI + document output
+   hooks** (B/L create/edit/detail, revision history, release display, Draft watermark,
+   template hooks per ADR-009 — full PDF/Excel engine stays Phase 7 per traceability).
+   Order = risk-first (decoupling before lifecycle) so roadmap Risk #1 is retired first.
+
+**Open questions (NEEDS_BUSINESS_DECISION, recorded not invented).**
+- **§1.1a — exact lifecycle names / is Final distinct from Approved?** Evidence: roadmap lists
+  Draft/Final/Approved/Released (4), workflows step 7 conflates "finalized/approved and issued",
+  blueprint shows Draft/Final/Released (3), open decision says names unconfirmed. Decision 2's
+  mapping is the configurable default; the employer confirms or the decision-maker rules.
+- **§1.1b — Released modeling depth**: BlStatus value + separate permission (this design, per
+  workflows step 9) vs a side flag vs ReleaseOrder-only; and whether Released implies anything
+  about the ReleaseOrder document.
+- **§1.2 — ReleaseOrder eligibility/override policy**: "no money, no cargo" principle confirmed;
+  exact partial-payment/credit/approver rules are not. Design exposes a configurable policy
+  (default: fully paid) + audited override; the numeric/business rules await the employer.
+- **Carried: ADR-044 (d)** — single mutable comment field vs append-only activity log (still
+  with the employer; unaffected by Phase 4).
+
+**Consequences.** ADR-030 is **superseded in part**: its create-source (APPROVED manifest) and
+manifest-line uniqueness retire as designed above; its snapshot-freezing, DRAFT-only editing,
+cancel-releases-the-line semantics and soft-delete rationale are *retained* and re-expressed on
+cargo lines. ADR-029/039/042 (actually-loaded semantics) and the Phase-2 party cutover are
+*inherited* unchanged. No code, schema or tests change in this unit — the optional slice was
+declined (as in unit 5): every candidate touches schema/service/DTOs or rewrites number-format
+test assertions, so nothing is self-contained; execution starts at P4-U2 after this design's
+verification.
