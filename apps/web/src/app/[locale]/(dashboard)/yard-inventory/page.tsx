@@ -38,7 +38,7 @@ const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
 const INV_STATUSES: InventoryStatus[] = ['IN_YARD', 'RESERVED'];
-const CARGO_STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY', 'LOADED', 'DELIVERED', 'CANCELLED'];
+const CARGO_STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY_FOR_LOADING', 'LOADED', 'DELIVERED', 'CANCELLED'];
 
 const INV_META: Record<InventoryStatus, { label: string; variant: 'info' | 'success' }> = {
   IN_YARD: { label: 'In yard', variant: 'info' },

@@ -11,7 +11,7 @@ import type {
   CustomerListItem,
   YardListItem,
 } from '@shipping/shared';
-import { Plus, Eye, CheckCircle2, XCircle, ArrowUpDown, MapPin } from 'lucide-react';
+import { Plus, Eye, CheckCircle2, XCircle, ArrowUpDown, MapPin, CalendarCheck, RotateCcw } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -38,16 +38,36 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const STATUSES: InspectionStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
+const STATUSES: InspectionStatus[] = ['PENDING', 'BOOKED', 'DONE', 'FAILED', 'NEEDS_REINSPECTION'];
 
+// Badge variants chosen deliberately: neutral = awaiting, info = scheduled/booked,
+// success = done, danger = failed, warning = needs re-inspection (design-system §2.2:
+// label always present, colour never the only signal).
 const STATUS_META: Record<
   InspectionStatus,
-  { label: string; variant: 'neutral' | 'success' | 'warning' }
+  { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
 > = {
   PENDING: { label: 'Pending', variant: 'neutral' },
-  APPROVED: { label: 'Approved', variant: 'success' },
-  REJECTED: { label: 'Rejected', variant: 'warning' },
+  BOOKED: { label: 'Booked', variant: 'info' },
+  DONE: { label: 'Done', variant: 'success' },
+  FAILED: { label: 'Failed', variant: 'danger' },
+  NEEDS_REINSPECTION: { label: 'Needs re-inspection', variant: 'warning' },
 };
+
+// ?? fallback (bookings/portal pattern): a future/unknown enum value renders a readable
+// label instead of a render-time TypeError — STATUS_META[x].variant with no fallback was
+// the live white-screen (22 of 25 rows are DONE).
+const statusMeta = (s: InspectionStatus) =>
+  STATUS_META[s] ?? { label: s.replace(/_/g, ' '), variant: 'neutral' as const };
+
+// Shipped transitions (inspection.service.ts TRANSITIONS). A button only renders when
+// the endpoint accepts that transition FROM the row's current status — e.g. `done`
+// requires BOOKED (POST /done on PENDING is a live 409), and PENDING/NEEDS_REINSPECTION
+// offer book+fail, BOOKED offers done+fail, FAILED offers needs-re-inspection, DONE is terminal.
+const bookable = (s: InspectionStatus) => s === 'PENDING' || s === 'NEEDS_REINSPECTION';
+const donable = (s: InspectionStatus) => s === 'BOOKED';
+const failable = (s: InspectionStatus) => s === 'PENDING' || s === 'BOOKED';
+const reinspectable = (s: InspectionStatus) => s === 'FAILED';
 
 interface FormValues {
   cargoId: string;
@@ -102,6 +122,8 @@ export default function InspectionsPage() {
   const [history, setHistory] = useState<InspectionListItem[]>([]);
   const [confirmingApprove, setConfirmingApprove] = useState<InspectionListItem | null>(null);
   const [confirmingReject, setConfirmingReject] = useState<InspectionListItem | null>(null);
+  const [confirmingBook, setConfirmingBook] = useState<InspectionListItem | null>(null);
+  const [confirmingReInspect, setConfirmingReInspect] = useState<InspectionListItem | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -211,14 +233,53 @@ export default function InspectionsPage() {
 
   async function submitApprove() {
     if (!confirmingApprove) return;
+    setFormError(null);
     setSaving(true);
     try {
-      const updated = await api.post<InspectionDetail>(`/inspections/${confirmingApprove.id}/approve`);
+      // shipped route: POST /inspections/:id/done (permission inspection:approve);
+      // /approve was renamed away in 4a39653 and 404'd.
+      const updated = await api.post<InspectionDetail>(`/inspections/${confirmingApprove.id}/done`);
       setConfirmingApprove(null);
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to approve inspection');
+      setFormError(err instanceof ApiError ? err.message : 'Failed to complete inspection');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitBook() {
+    if (!confirmingBook) return;
+    setFormError(null);
+    setSaving(true);
+    try {
+      // shipped route: POST /inspections/:id/book (permission inspection:update)
+      const updated = await api.post<InspectionDetail>(`/inspections/${confirmingBook.id}/book`);
+      setConfirmingBook(null);
+      if (viewing) setDetail(updated);
+      await load(page, search, statusFilter, customerFilter, yardFilter);
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Failed to book inspection');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitReInspect() {
+    if (!confirmingReInspect) return;
+    setFormError(null);
+    setSaving(true);
+    try {
+      // shipped route: POST /inspections/:id/needs-re-inspection (permission inspection:update)
+      const updated = await api.post<InspectionDetail>(
+        `/inspections/${confirmingReInspect.id}/needs-re-inspection`
+      );
+      setConfirmingReInspect(null);
+      if (viewing) setDetail(updated);
+      await load(page, search, statusFilter, customerFilter, yardFilter);
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Failed to re-open inspection');
     } finally {
       setSaving(false);
     }
@@ -233,7 +294,9 @@ export default function InspectionsPage() {
     }
     setSaving(true);
     try {
-      const updated = await api.post<InspectionDetail>(`/inspections/${confirmingReject.id}/reject`, {
+      // shipped route: POST /inspections/:id/fail (permission inspection:reject), same
+      // { rejectionReason } body — /reject was renamed away in 4a39653 and 404'd.
+      const updated = await api.post<InspectionDetail>(`/inspections/${confirmingReject.id}/fail`, {
         rejectionReason: rejectReason.trim(),
       });
       setConfirmingReject(null);
@@ -255,6 +318,21 @@ export default function InspectionsPage() {
     setRejectReason('');
     setFormError(null);
     setConfirmingReject(row);
+  }
+
+  function approveOpen(row: InspectionListItem) {
+    setFormError(null);
+    setConfirmingApprove(row);
+  }
+
+  function bookOpen(row: InspectionListItem) {
+    setFormError(null);
+    setConfirmingBook(row);
+  }
+
+  function reInspectOpen(row: InspectionListItem) {
+    setFormError(null);
+    setConfirmingReInspect(row);
   }
 
   return (
@@ -306,7 +384,7 @@ export default function InspectionsPage() {
               <option value="">All statuses</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_META[s].label}
+                  {statusMeta(s).label}
                 </option>
               ))}
             </select>
@@ -401,8 +479,8 @@ export default function InspectionsPage() {
                     <td className="px-3 py-2">{inspectorName(row)}</td>
                     <td className="px-3 py-2">{fmtShortDate(row.inspectionDate)}</td>
                     <td className="px-3 py-2">
-                      <Badge variant={STATUS_META[row.status].variant} dot>
-                        {STATUS_META[row.status].label}
+                      <Badge variant={statusMeta(row.status).variant} dot>
+                        {statusMeta(row.status).label}
                       </Badge>
                     </td>
                     <td className="px-3 py-2">
@@ -418,18 +496,29 @@ export default function InspectionsPage() {
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        {canApprove && row.status === 'PENDING' && (
+                        {canUpdate && bookable(row.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => bookOpen(row)}
+                            aria-label={`Book ${row.inspectionNumber}`}
+                          >
+                            <CalendarCheck className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                        {canApprove && donable(row.status) && (
                           <Button
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                            onClick={() => setConfirmingApprove(row)}
+                            onClick={() => approveOpen(row)}
                             aria-label={`Approve ${row.inspectionNumber}`}
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        {canReject && row.status === 'PENDING' && (
+                        {canReject && failable(row.status) && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -438,6 +527,17 @@ export default function InspectionsPage() {
                             aria-label={`Reject ${row.inspectionNumber}`}
                           >
                             <XCircle className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                        {canUpdate && reinspectable(row.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => reInspectOpen(row)}
+                            aria-label={`Re-inspect ${row.inspectionNumber}`}
+                          >
+                            <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
                       </div>
@@ -527,8 +627,8 @@ export default function InspectionsPage() {
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Current inspection</dt>
                   <dd className="text-right">
-                    <Badge variant={STATUS_META[selectedCargo.inspectionStatus].variant}>
-                      {STATUS_META[selectedCargo.inspectionStatus].label}
+                    <Badge variant={statusMeta(selectedCargo.inspectionStatus).variant}>
+                      {statusMeta(selectedCargo.inspectionStatus).label}
                     </Badge>
                   </dd>
                 </div>
@@ -618,18 +718,28 @@ export default function InspectionsPage() {
         description={viewing ? `${viewing.cargo.reference} — ${viewing.cargo.customer.name}` : undefined}
         footer={
           <>
-            {detail?.status === 'PENDING' && canApprove && (
+            {canUpdate && detail && bookable(detail.status) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bookOpen(detail)}
+              >
+                <CalendarCheck className="h-4 w-4" />
+                Book
+              </Button>
+            )}
+            {canApprove && detail && donable(detail.status) && (
               <Button
                 size="sm"
                 variant="outline"
                 className="text-emerald-700"
-                onClick={() => setConfirmingApprove(detail)}
+                onClick={() => approveOpen(detail)}
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Approve
               </Button>
             )}
-            {detail?.status === 'PENDING' && canReject && (
+            {canReject && detail && failable(detail.status) && (
               <Button
                 size="sm"
                 variant="outline"
@@ -638,6 +748,16 @@ export default function InspectionsPage() {
               >
                 <XCircle className="h-4 w-4" />
                 Reject
+              </Button>
+            )}
+            {canUpdate && detail && reinspectable(detail.status) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => reInspectOpen(detail)}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Re-inspection
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
@@ -650,8 +770,8 @@ export default function InspectionsPage() {
           <div className="space-y-4 text-sm">
             <div>
               <div className="mb-1 flex items-center gap-2">
-                <Badge variant={STATUS_META[detail.status].variant} dot>
-                  {STATUS_META[detail.status].label}
+                <Badge variant={statusMeta(detail.status).variant} dot>
+                  {statusMeta(detail.status).label}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
                   Inspection {fmtInspectionDate(detail.inspectionDate)}
@@ -700,10 +820,10 @@ export default function InspectionsPage() {
                 <div>
                   <div className="text-xs text-muted-foreground">Readiness</div>
                   <div>
-                    {detail.cargo.inspectionStatus === 'APPROVED'
+                    {detail.cargo.inspectionStatus === 'DONE'
                       ? 'Eligible for load planning'
-                      : detail.cargo.inspectionStatus === 'REJECTED'
-                        ? 'Ineligible — rejected'
+                      : detail.cargo.inspectionStatus === 'FAILED'
+                        ? 'Ineligible — failed inspection'
                         : 'Pending review'}
                   </div>
                 </div>
@@ -755,7 +875,7 @@ export default function InspectionsPage() {
               </div>
             )}
 
-            {detail.status === 'REJECTED' && detail.rejectionReason && (
+            {detail.status === 'FAILED' && detail.rejectionReason && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-destructive">
                   Rejection reason
@@ -791,7 +911,7 @@ export default function InspectionsPage() {
                       <span className="flex items-center gap-2">
                         <span className="text-muted-foreground">{inspectorName(h)}</span>
                         <span>{fmtShortDate(h.inspectionDate)}</span>
-                        <Badge variant={STATUS_META[h.status].variant}>{STATUS_META[h.status].label}</Badge>
+                        <Badge variant={statusMeta(h.status).variant}>{statusMeta(h.status).label}</Badge>
                       </span>
                     </li>
                   ))}
@@ -810,15 +930,55 @@ export default function InspectionsPage() {
         )}
       </Dialog>
 
-      {/* Approve confirm */}
+      {/* Approve confirm (shipped route: /done — cargo inspection becomes DONE) */}
       <ConfirmDialog
         open={!!confirmingApprove}
-        onOpenChange={(open) => !open && setConfirmingApprove(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingApprove(null);
+            setFormError(null);
+          }
+        }}
         title="Approve inspection"
-        description={`Approve ${confirmingApprove?.inspectionNumber}? This marks the cargo inspection-approved and eligible for future load planning.`}
+        description={`Approve ${confirmingApprove?.inspectionNumber}? This marks the inspection DONE — the cargo becomes eligible for future load planning.`}
         confirmLabel="Approve"
         loading={saving}
+        error={formError}
         onConfirm={submitApprove}
+      />
+
+      {/* Book confirm (shipped route: /book — PENDING|NEEDS_REINSPECTION -> BOOKED) */}
+      <ConfirmDialog
+        open={!!confirmingBook}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingBook(null);
+            setFormError(null);
+          }
+        }}
+        title="Book inspection"
+        description={`Book ${confirmingBook?.inspectionNumber}? Books the inspection for execution (status becomes BOOKED).`}
+        confirmLabel="Book"
+        loading={saving}
+        error={formError}
+        onConfirm={submitBook}
+      />
+
+      {/* Re-inspection confirm (shipped route: /needs-re-inspection — FAILED -> NEEDS_REINSPECTION) */}
+      <ConfirmDialog
+        open={!!confirmingReInspect}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmingReInspect(null);
+            setFormError(null);
+          }
+        }}
+        title="Request re-inspection"
+        description={`Re-open ${confirmingReInspect?.inspectionNumber}? The cargo returns to pending review and can be booked for a new inspection cycle.`}
+        confirmLabel="Re-open"
+        loading={saving}
+        error={formError}
+        onConfirm={submitReInspect}
       />
 
       {/* Reject dialog */}
@@ -828,6 +988,7 @@ export default function InspectionsPage() {
           if (!open) {
             setConfirmingReject(null);
             setRejectReason('');
+            setFormError(null);
           }
         }}
         title="Reject inspection"

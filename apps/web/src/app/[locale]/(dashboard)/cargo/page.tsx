@@ -42,7 +42,7 @@ const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
 const CARGO_TYPES: CargoType[] = ['GENERAL', 'VEHICLE', 'HEAVY_LIFT', 'CONTAINER', 'BULK', 'PROJECT'];
-const STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY', 'LOADED', 'DELIVERED', 'CANCELLED'];
+const STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY_FOR_LOADING', 'LOADED', 'DELIVERED', 'CANCELLED'];
 const WEIGHT_UNITS: WeightUnit[] = ['KG', 'MT'];
 
 interface FormValues {
@@ -110,7 +110,7 @@ function toForm(c: CargoDetail): FormValues {
 const STATUS_META: Record<CargoStatus, { label: string; variant: 'success' | 'neutral' | 'warning' | 'info' }> = {
   REGISTERED: { label: 'Registered', variant: 'neutral' },
   AT_YARD: { label: 'At yard', variant: 'info' },
-  READY: { label: 'Ready', variant: 'success' },
+  READY_FOR_LOADING: { label: 'Ready for loading', variant: 'success' },
   LOADED: { label: 'Loaded', variant: 'success' },
   DELIVERED: { label: 'Delivered', variant: 'success' },
   CANCELLED: { label: 'Cancelled', variant: 'warning' },
@@ -118,9 +118,17 @@ const STATUS_META: Record<CargoStatus, { label: string; variant: 'success' | 'ne
 
 const INSPECTION_META: Record<InspectionStatus, string> = {
   PENDING: 'Pending',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
+  BOOKED: 'Booked',
+  DONE: 'Done',
+  FAILED: 'Failed',
+  NEEDS_REINSPECTION: 'Needs re-inspection',
 };
+
+// ?? fallbacks (bookings/portal pattern): an unknown/future enum value must render a
+// readable label instead of crashing the page (STATUS_META[x].variant was a live TypeError).
+const statusMeta = (s: CargoStatus) =>
+  STATUS_META[s] ?? { label: s.replace(/_/g, ' '), variant: 'neutral' as const };
+const inspectionLabel = (s: InspectionStatus) => INSPECTION_META[s] ?? s.replace(/_/g, ' ');
 
 const LOADING_META: Record<LoadingStatus, string> = {
   NOT_LOADED: 'Not loaded',
@@ -346,7 +354,7 @@ export default function CargoPage() {
               <option value="">All statuses</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_META[s].label}
+                  {statusMeta(s).label}
                 </option>
               ))}
             </select>
@@ -439,7 +447,7 @@ export default function CargoPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <Badge variant={STATUS_META[c.status].variant}>{STATUS_META[c.status].label}</Badge>
+                      <Badge variant={statusMeta(c.status).variant}>{statusMeta(c.status).label}</Badge>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -792,8 +800,8 @@ export default function CargoPage() {
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <div className="text-xs text-muted-foreground">Status</div>
-                <Badge variant={STATUS_META[detail.status].variant}>
-                  {STATUS_META[detail.status].label}
+                <Badge variant={statusMeta(detail.status).variant}>
+                  {statusMeta(detail.status).label}
                 </Badge>
               </div>
               <div>
@@ -802,7 +810,7 @@ export default function CargoPage() {
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">Inspection</div>
-                <div>{INSPECTION_META[detail.inspectionStatus]}</div>
+                <div>{inspectionLabel(detail.inspectionStatus)}</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

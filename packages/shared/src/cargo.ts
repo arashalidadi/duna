@@ -11,7 +11,7 @@
 export type CargoStatus =
   | 'REGISTERED'
   | 'AT_YARD'
-  | 'READY'
+  | 'READY_FOR_LOADING'
   | 'LOADED'
   | 'DELIVERED'
   | 'CANCELLED';
@@ -24,7 +24,15 @@ export type CargoType =
   | 'BULK'
   | 'PROJECT';
 
-export type InspectionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+// Shipped lifecycle (prisma schema `enum InspectionStatus`, Phase 3A):
+// PENDING -> book -> BOOKED -> done -> DONE; PENDING|BOOKED -> fail -> FAILED;
+// FAILED -> needs-re-inspection -> NEEDS_REINSPECTION -> book|fail. DONE terminal.
+export type InspectionStatus =
+  | 'PENDING'
+  | 'BOOKED'
+  | 'DONE'
+  | 'FAILED'
+  | 'NEEDS_REINSPECTION';
 
 export type LoadingStatus = 'NOT_LOADED' | 'LOADED';
 

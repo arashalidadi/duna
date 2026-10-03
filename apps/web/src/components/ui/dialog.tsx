@@ -114,6 +114,8 @@ export function Dialog({
 }
 
 export interface ConfirmDialogProps {
+  /** Rendered under the description in the dialog body — surfaces 404/409 action failures. */
+  error?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
@@ -135,6 +137,7 @@ export function ConfirmDialog({
   destructive = false,
   onConfirm,
   loading,
+  error,
 }: ConfirmDialogProps) {
   return (
     <Dialog
@@ -161,6 +164,11 @@ export function ConfirmDialog({
       }
     >
       {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      {error && (
+        <p className="mt-2 text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      )}
     </Dialog>
   );
 }

@@ -8,7 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "echo 'No web unit tests yet - see root'"
+    "test": "node scripts/check-contract.mjs"
   },
   "dependencies": {
     "@shipping/shared": "workspace:*",
