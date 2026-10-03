@@ -674,3 +674,114 @@ cargo.quantity`, which now always carries the recorded value for eligible lines.
 assertion is added inside an existing test (test count unchanged). §2.3's removal half is
 documented as satisfied functionally, so **no Phase 3 removal work exists**. Nothing in
 `apps/api/src` changes.
+
+
+## ADR-044: Cargo Comment — `comments` is canonical; required-at-create, clear-to-empty deletability, cargo:read visibility; field-vs-log needs the employer
+
+**Date:** 2026-10-02
+**Status:** Accepted (Phase 3 unit 5, design-first — decisions 1–4; decision 5 recorded as
+NEEDS_BUSINESS_DECISION for the employer)
+**Context:** Phase 3 roadmap `Scope: "Comment editing and visibility"`, `Tests: "Comment edit/
+delete visibility"`, `Acceptance: "Comment is editable and visible to relevant users."`
+Employer evidence read verbatim this unit: `01-final-requirements.md:69-73` ("Cargo captures …
+Comment"; **"Comment is required, editable, and deletable"**; "Comments capture operational
+events so that accountants and others can see history without relying on informal channels"),
+`03-final-workflows.md:15` (Customer 360 shows "comments/activity"), `:25/:28` (intake:
+"User enters … comment"; "Office adds Comment for operational notes"),
+`06-final-ui-blueprint.md:93` (Customer 360 tabs include "comments/activity"), `:102-103`
+(cargo create/edit … comment; **"Comment visible and editable"**),
+`08-requirement-traceability.md:199-203` ("Comment field editable/deletable; visible where
+relevant"; "operational notes visible to accountants and others"; Phase 3).
+`12-open-business-decisions.md` has **no comment entry** (nothing pre-ruled).
+Shipped reality: `schema.prisma:450-451` carries TWO columns — `comments String?` and
+`comment String? @map("comment")`; DTOs expose both as optional (`cargo.dto.ts:131/136` create,
+`:284/289` update) so "required" is enforced nowhere; `cargo.service.ts` selects both
+(`:56/:57`) and writes both (`:186-187` create, `:256-257` update); the web binds **only**
+`comments` (form state `cargo/page.tsx:65/:85/:106`, textarea `:772-779`, detail `:862-866`,
+payload `:927`); `packages/shared` types **only** `comments` (`cargo.ts:97`); a repo-wide grep
+finds **zero** other consumers of the singular `comment` (no endpoint, no seed row, no portal or
+web send/read, no second API module); live DB at design time: **`comment` non-null in 0 of 56
+cargo rows** (the orphan column is empty); API tests mention `comments` **zero** times while
+4 assertions exercise the orphan `comment` (`cargo-inventory.e2e-spec.ts:385/:404/:439/:448`).
+No comment audit/history table; no Customer 360 (`09-final-implementation-roadmap.md` §2.2
+"No Customer 360 page/endpoint").
+
+**Decision.**
+
+1. **Canonical column = `comments` (technical ruling, not an employer question).** The
+   convergence is one-directional: the employer-facing Comment (blueprint §4.1 create/edit
+   field, workflow intake step, traceability "Comment field") is the web-bound `comments`
+   textarea and detail line; `shared` already types only it; the singular `comment` is a
+   Phase-3A duplicate consumed by nothing and holding **zero rows**. Two columns with the same
+   purpose and divergent writes is a latent data-integrity defect. **Cleanup path — specified
+   here, execution deferred to a later unit (this unit changes no code, schema or tests):**
+   a. *Code unwire (no migration needed):* drop `comment: true` from the select
+   (`cargo.service.ts:56`), the two writes (`:187`, `:257`), and the DTO fields
+   (`cargo.dto.ts:136`, `:289`). Repoint the 4 orphan round-trip assertions
+   (`cargo-inventory.e2e-spec.ts:385/:404/:439/:448`, title `:427`) to `comments`, citing this
+   ADR — that move *adds* coverage: the canonical field currently has **no** test mentions.
+   b. *Data:* `UPDATE "Cargo" SET comments = COALESCE(comments, comment) WHERE comment IS NOT
+   NULL AND comments IS NULL;` before any drop — a no-op against today's live data (0/56),
+   kept as the idempotent safety step.
+   c. *Column drop:* destructive and therefore **not authorized by default** (additive-only
+   migration rule) — it requires explicit decision-maker approval at execution time; until
+   then the column stays dormant-but-present, harmless once (a) lands. Order: (a) → (b) →
+   approval → (c).
+2. **(a) Required — enforced at cargo creation, form first; DTO enforcement sequenced later.**
+   The employer text is unambiguous that Comment is required at cargo registration (§1.5,
+   intake steps 4/7, traceability heading). Reconciled with "deletable": required **at
+   creation** — otherwise "deletable" would contradict it (a required-at-all-times field could
+   never be deleted). Decision: enforce in the cargo **create form** in the Phase 3 UI unit
+   (required textarea carrying the operational-notes guidance), keep `CreateCargoDto.comments`
+   optional for this phase — DTO-level `@IsNotEmpty` would invalidate every comment-less cargo
+   creation across all 22 e2e suites and the seed (zero fixtures send `comments` today), which
+   is neither self-contained nor reversible without churn. Recorded as follow-up hardening:
+   once forms and fixtures carry comments, the DTO constraint can be added with them. This is
+   a sequencing choice, not employer ambiguity — intent is settled.
+3. **(b) Deletable = clear-to-empty (field-level), conditional on (d).** The shipped model is
+   one string with no versions, so the only faithful delete primitive is writing an empty
+   value. The API **already supports it** (`PATCH /cargo` → `comments: dto.comments` — `''`
+   clears, `undefined` leaves unchanged, `cargo.service.ts:256`); the gap is web-only
+   (`cargo/page.tsx:927` sends the field only when non-empty, so a comment can never be
+   cleared from the UI). Fix: the Phase 3 UI unit always sends `comments`. No soft-history or
+   per-entry hard delete is designed here — both presuppose (d). If the employer rules
+   append-only (5), this clause is re-opened as "entries deletable per log policy".
+4. **(c) Visibility = the existing `cargo:read` (view) / `cargo:update` (edit); no new
+   permission codes; Customer 360 surface deferred with Customer 360 itself.** The comment is
+   rendered wherever cargo detail is (cargo page detail panel, gated `cargo:read`) and editable
+   via the cargo form (`cargo:update`) — "visible where relevant" rides the permissions that
+   already decide who sees cargo. "Accountants and others": the seed provisions only
+   **Administrator and Operations** roles (`seed.ts:219-243`) — there is **no accountant
+   role** — so when a finance/accounting role is later provisioned as pure role configuration
+   (no code), granting `cargo:read` automatically grants comment visibility. The Customer 360
+   "comments/activity" tab (blueprint §3, workflow §1.2) is scoped **out of Phase 3** because
+   Customer 360 does not exist (roadmap §2.2); when built, its tab reads the same canonical
+   `comments` column (this ruling carries over unchanged). Acceptance mapping: *editable* =
+   cargo form via `cargo:update` (+ UI-unit required/clear fixes); *visible to relevant users*
+   = cargo detail via `cargo:read` now, C360 tab later.
+5. **(d) Single mutable field vs append-only comment/activity log — NEEDS_BUSINESS_DECISION
+   (employer).** The evidence splits — and partially conflicts *within the employer's own
+   texts*: field-side — "Comment is required, **editable, and deletable**", "Comment visible
+   and editable", traceability "Comment field editable/deletable"; log-side — "**Comments
+   capture operational events** so that accountants and others can **see history** without
+   relying on informal channels", Customer 360 "comments/activity" (plural), intake "Office
+   adds Comment for operational notes". The shipped model (bare string, no versions, no
+   per-comment author or timestamp) **cannot express history beyond the current value**, so
+   this cannot be resolved by inspection. The question for the employer: (i) one mutable field
+   — current model sufficient, "history" read as the visible notes trail (deletable/editable
+   fully honoured, no audit trail) — versus (ii) an append-only comment/activity log — new
+   `CargoComment` table (cargoId, author, timestamp, body), entries never silently rewritten —
+   with the follow-on sub-questions: how (ii) reconciles with "deletable", what happens to the
+   existing `comments` text (seed it as the first entry), and where it renders (cargo detail,
+   future Customer 360). **Neither is implemented.** The decisions above are invariant under
+   both options (canonical column, form requirement, clear-to-empty and visibility hold either
+   way), so this NBD does not block the Phase 3 UI unit beyond which of the two shapes that
+   work should take.
+
+**Consequences.** No code, schema or test change in this unit (design-first; the optional
+implementation slice was deliberately not taken: every employer-facing change belongs to the
+Phase 3 UI unit or to 2's later hardening, and the column cleanup executes as one coherent
+later unit in the order 1a → 1b → approval → 1c). Carried to the employer: **NBD (d)**.
+Phase 3 UI unit gains this scope: cargo-create required comment, always-send clear-to-empty,
+plus the unit-4 coverage-note items. Guard unaffected — the design adds no status union and no
+`api.post` route.
