@@ -41,6 +41,7 @@ describe('BillOfLading (e2e)', () => {
   const createdManifests: Ref[] = [];
   const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
   const createdStandaloneBills: Ref[] = []; // P4-U2: voyage-mode bills (manifestId null)
+  const createdSeqNames: string[] = []; // P4-U3: NumberingSequence rows created by tests (id = name)
 
   let adminToken = '';
   let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
@@ -382,6 +383,8 @@ describe('BillOfLading (e2e)', () => {
       await prisma.manifest.deleteMany({ where: { id: { in: manifestIds } } });
       await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       await prisma.consignee.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
+      // P4-U3: remove test-created numbering sequences (explicit id/name filters only)
+      await prisma.numberingSequence.deleteMany({ where: { name: { in: createdSeqNames } } });
       // P4-U2: voyage-mode bills have manifestId null, so the manifestId clause above
       // misses them — delete by id (items first) so no soft/hard litter survives.
       const standaloneIds = createdStandaloneBills.map((b) => b.id);
@@ -527,7 +530,7 @@ describe('BillOfLading (e2e)', () => {
       .expect(409);
   });
 
-  it('create + get + list as admin; BOL-YYMM-##### number, DRAFT, snapshot from manifest', async () => {
+  it('create + get + list as admin; BOL-{DEST}-YYMM-##### per-destination number, DRAFT, snapshot from manifest', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/bills')
       .set(auth(writerToken))
@@ -535,7 +538,8 @@ describe('BillOfLading (e2e)', () => {
       .expect(201);
     const created = res.body.data;
     expect(created.status).toBe('DRAFT');
-    expect(created.billNumber).toMatch(/^BOL-\d{4}-\d{5}$/);
+    // P4-U3: per-destination format BOL-{DEST}-YYMM-##### (ADR-045 decision 5)
+    expect(created.billNumber).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
     expect(created.manifestId).toBe(manifestId);
     expect(created.voyageId).toBe(voyageId);
     expect(created.items).toEqual([]);
@@ -977,7 +981,7 @@ describe('BillOfLading (e2e)', () => {
     expect(d.shipperId).toBe(fixtureShipperId);
     expect(d.consigneeId).toBe(cons.body.data.id);
     expect(d.status).toBe('DRAFT');
-    expect(d.billNumber).toMatch(/^BOL-\d{4}-\d{5}$/);
+    expect(d.billNumber).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
     expect(d.items).toHaveLength(2);
     const itemCargoIds = d.items.map((i: { cargoId: string }) => i.cargoId).sort();
     expect(itemCargoIds).toEqual([c1, c2].sort());
@@ -1132,5 +1136,150 @@ describe('BillOfLading (e2e)', () => {
       .send({})
       .expect(400);
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U3 — ADR-045 decision 5: per-destination numbering (roadmap Test 3,
+  // Acceptance "Numbering is per destination"). Recorded decisions: format
+  // BOL-{DEST}-YYMM-#####, {DEST} = Port.abbreviation ?? code, counter scope =
+  // per destination per month (sequence name embeds dest id + YYYYMM), rows
+  // lazily upserted by NumberingService (no seed/migration), null edge = 400
+  // (defensive; inputs guaranteed non-null by NOT NULL source columns).
+  // ---------------------------------------------------------------------------
+
+  const yymmNow = () =>
+    `${String(new Date().getUTCFullYear() % 100).padStart(2, '0')}${String(
+      new Date().getUTCMonth() + 1,
+    ).padStart(2, '0')}`;
+
+  async function portSegment(portId: string): Promise<string> {
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/ports/${portId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const p = res.body.data;
+    return (p.abbreviation || p.code) as string;
+  }
+
+  it('format matches the recorded decision: BOL-{DEST}-YYMM-##### with the destination segment, destination key stored', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId }) // suite voyage, destination = destPortId
+      .expect(201);
+    const n = res.body.data.billNumber as string;
+    createdStandaloneBills.push({ id: res.body.data.id });
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`);
+
+    expect(n).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
+    const seg = await portSegment(destPortId); // decision (b): abbreviation ?? code
+    expect(n).toContain(`BOL-${seg}-`);
+    expect(n).toContain(`-${yymmNow()}-`);
+    // decision (c): destination scope key always stored on create (null edge inputs are
+    // NOT NULL source columns; the defensive 400 branch is unreachable with legal data)
+    expect(res.body.data.destinationPortId).toBe(destPortId);
+  });
+
+  it('two destinations number independently: a fresh destination starts at 00001', async () => {
+    const p3 = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `BLNP3-${tag}`, name: `BL Numbering Dest ${randomTag}`, country: 'IN' })
+      .expect(201);
+    createdPorts.push({ id: p3.body.data.id });
+    const v3 = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: p3.body.data.id })
+      .expect(201);
+    createdVoyages.push({ id: v3.body.data.id });
+    createdSeqNames.push(`bill-${p3.body.data.id}-${yymmNow()}`);
+
+    const first = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId: v3.body.data.id })
+      .expect(201);
+    createdStandaloneBills.push({ id: first.body.data.id });
+    const seg3 = await portSegment(p3.body.data.id);
+    expect(first.body.data.billNumber).toBe(`BOL-${seg3}-${yymmNow()}-00001`); // fresh dest+month
+
+    // a different destination numbers on its own counter (both can hold 00001-style
+    // suffixes without colliding — the destination segment keeps @unique intact)
+    const other = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    createdStandaloneBills.push({ id: other.body.data.id });
+    expect(other.body.data.billNumber).not.toBe(first.body.data.billNumber);
+    expect(other.body.data.billNumber).not.toContain(`BOL-${seg3}-`);
+  });
+
+  it('same destination + same period: strictly increasing distinct numbers', async () => {
+    const a = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    createdStandaloneBills.push({ id: a.body.data.id }, { id: b.body.data.id });
+    const na = a.body.data.billNumber as string;
+    const nb = b.body.data.billNumber as string;
+    expect(na).not.toBe(nb);
+    expect(na.split('-').slice(0, -1).join('-')).toBe(nb.split('-').slice(0, -1).join('-')); // same dest+period prefix
+    const sa = Number(na.slice(-5));
+    const sb = Number(nb.slice(-5));
+    expect(sb).toBeGreaterThan(sa); // strictly increasing
+  });
+
+  it('concurrent creates never collide (regression for the replaced read-then-write race)', async () => {
+    const results = await Promise.all(
+      [0, 1, 2, 3].map(() =>
+        request(app.getHttpServer())
+          .post('/api/v1/bills')
+          .set(auth(adminToken))
+          .send({ voyageId })
+          .expect(201)
+      ),
+    );
+    const numbers = results.map((r) => r.body.data.billNumber as string);
+    for (const id of results.map((r) => r.body.data.id)) {
+      createdStandaloneBills.push({ id });
+    }
+    expect(new Set(numbers).size).toBe(4); // FOR UPDATE allocation: no duplicates
+    for (const n of numbers) {
+      expect(n).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
+    }
+  });
+
+  it('legacy-format numbers are immutable and coexist with the new format under the global unique index', async () => {
+    const list = await request(app.getHttpServer())
+      .get('/api/v1/bills?pageSize=100')
+      .set(auth(adminToken))
+      .expect(200);
+    const rows = list.body.data.data as Array<{ billNumber: string; destinationPortId: string | null }>;
+    const legacy = rows.filter((r) => /^BOL-\d{4}-\d{5}$/.test(r.billNumber));
+    const fresh = rows.filter((r) => /^BOL-.+-\d{4}-\d{5}$/.test(r.billNumber));
+    expect(legacy.length).toBeGreaterThanOrEqual(1); // the shipped BOL-2609-* bills survive untouched
+    expect(fresh.length).toBeGreaterThanOrEqual(1); // new-format numbers minted this suite
+    // both formats live in the same table => the @unique index accepted both (no violation)
+    // decision (c) evidence: every row carries its destination scope key
+    for (const r of rows) {
+      expect(r.destinationPortId).not.toBeNull();
+    }
+    // one more create alongside both formats
+    const extra = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    createdStandaloneBills.push({ id: extra.body.data.id });
+    expect(extra.body.data.billNumber).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
+  });
 });
+
 

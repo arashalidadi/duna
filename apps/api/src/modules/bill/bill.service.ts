@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, BlStatus, BlType, FreightTerms } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -141,7 +142,10 @@ interface EligibleCargoLine {
 
 @Injectable()
 export class BillService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // B/L CRUD
@@ -251,8 +255,8 @@ export class BillService {
    *    (ADR-029/042 predicate: COMPLETED Actual Loading with actualQuantity > 0);
    *    no manifest involved, `manifestId` stored null, vessel snapshot from the voyage,
    *    destinationPortId stored as the P4-U3 numbering scope key.
-   * Both modes allocate BOL-YYMM-##### (the NumberingSequence swap is P4-U3) and
-   * create in DRAFT.
+   * Both modes allocate a per-destination number `BOL-{DEST}-YYMM-#####` via
+   * NumberingService (ADR-045 decision 5, P4-U3) and create in DRAFT.
    */
   async create(dto: CreateBillDto, actor?: AuthenticatedUser) {
     if (dto.manifestId && dto.voyageId) {
@@ -311,13 +315,22 @@ export class BillService {
       await this.assertLiveParty('consignee', manifest.consigneeId, true);
     }
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): the bill
-    // and delivery-release suites create B/Ls in parallel and generateReference() is
-    // read-then-write, so the loser of a BOL-YYMM-##### race hits the unique number index.
-    // Re-read the committed max and retry; other P2002/P2018/P2003 keep their existing mapping.
+    // Per-destination numbering (ADR-045 decision 5): the legacy path also stores the
+    // destination scope key derived from the manifest's voyage.
+    const destinationPortId = manifest.voyage.destinationPortId;
+    if (!destinationPortId) {
+      throw new BadRequestException(
+        'destinationPortId is required to number a B/L per destination (ADR-045 decision 5)',
+      );
+    }
+
+    // Number allocation is now transactional (NumberingService, SELECT ... FOR UPDATE), so
+    // the historical billNumber read-then-write race no longer exists; the bounded-retry
+    // loop is retained for other unique/reference conflicts (P2002/P2018/P2003 mapping
+    // unchanged). Any sequence number consumed by a failed attempt simply leaves a gap.
     const MAX_BILL_ATTEMPTS = 10;
     for (let attempt = 1; ; attempt += 1) {
-      const billNumber = await this.generateReference();
+      const billNumber = await this.allocateBillNumber(destinationPortId);
       try {
         return await this.prisma.billOfLading.create({
           data: {
@@ -412,9 +425,15 @@ export class BillService {
     );
     const totalVolume = lines.reduce((s, l) => s + Number(l.volume ?? new Prisma.Decimal(0)), 0);
 
+    if (!voyage.destinationPortId) {
+      throw new BadRequestException(
+        'destinationPortId is required to number a B/L per destination (ADR-045 decision 5)',
+      );
+    }
+
     const MAX_BILL_ATTEMPTS = 10;
     for (let attempt = 1; ; attempt += 1) {
-      const billNumber = await this.generateReference();
+      const billNumber = await this.allocateBillNumber(voyage.destinationPortId);
       try {
         return await this.prisma.billOfLading.create({
           data: {
@@ -1109,22 +1128,51 @@ export class BillService {
     });
   }
 
-  /** Stable, ordered B/L number: BOL-YYMM-##### (mirrors MAN/AL/LL/VOY). */
-  private async generateReference(): Promise<string> {
+  /**
+   * Per-destination B/L number (ADR-045 decision 5; recorded details in the P4-U3 log):
+   *  - format `BOL-{DEST}-YYMM-#####` — the destination segment is what keeps the existing
+   *    global `billNumber @unique` intact (no constraint change);
+   *  - `{DEST}` = Port `abbreviation` when present, else `code` (decision b);
+   *  - counter scope = per destination PER MONTH: NumberingSequence name embeds the
+   *    destination id + YYYYMM (decision a; the same name-embeds-period pattern voyages
+   *    uses), `period: 'YYYYMM'`, so each (destination, month) starts at 00001 — matching
+   *    the legacy monthly cadence. Rows are created lazily by allocateNumber (decision d),
+   *    so no seed/migration is needed;
+   *  - allocation is transactional under SELECT ... FOR UPDATE — concurrent creates cannot
+   *    collide (regression-tested).
+   * Existing `BOL-YYMM-#####` numbers are never renumbered (decision: immutability) and
+   * coexist with the new format under the same @unique index.
+   */
+  private async allocateBillNumber(destinationPortId: string): Promise<string> {
+    if (!destinationPortId) {
+      // Defensive (decision c): unreachable with legal data — both source columns
+      // (voyage.destinationPortId, and the manifest's voyage by extension) are NOT NULL.
+      throw new BadRequestException(
+        'destinationPortId is required to number a B/L per destination (ADR-045 decision 5)',
+      );
+    }
+    const port = await this.prisma.port.findUnique({
+      where: { id: destinationPortId },
+      select: { code: true, abbreviation: true },
+    });
+    if (!port) {
+      throw new BadRequestException(`Unknown destination port: ${destinationPortId}`);
+    }
+    const destinationSegment = port.abbreviation || port.code;
     const now = new Date();
     const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
+      now.getUTCMonth() + 1,
     ).padStart(2, '0')}`;
-    const prefix = `BOL-${yymm}-`;
-
-    const latest = await this.prisma.billOfLading.findFirst({
-      where: { billNumber: { startsWith: prefix } },
-      orderBy: { billNumber: 'desc' },
-      select: { billNumber: true },
+    const allocated = await this.numbering.allocateNumber({
+      name: `bill-${destinationPortId}-${yymm}`,
+      documentType: 'BILL',
+      scopeType: 'DESTINATION',
+      scopeValue: destinationPortId,
+      prefix: `BOL-${destinationSegment}-${yymm}-`,
+      padding: 5,
+      format: '{prefix}{sequence}',
+      period: 'YYYYMM',
     });
-
-    const lastSeq = latest ? Number(latest.billNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
+    return allocated.sequence;
   }
 }
