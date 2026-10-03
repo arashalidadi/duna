@@ -448,6 +448,53 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       expect(res.body.data.comment).toBe('Updated comment');
     });
 
+    it('canonical comments round-trip: create shows it, PATCH without the field leaves it, PATCH "" clears (ADR-044)', async () => {
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/cargo')
+        .set(auth(adminToken))
+        .send({
+          customerId: createdCustomers[0].id,
+          portId: createdPorts[0].id,
+          yardId: createdYards[0].id,
+          cargoType: 'GENERAL',
+          units: 3,
+          comments: 'Unit 6 canonical comment',
+        })
+        .expect(201);
+      // visibility: the canonical field round-trips on create (ADR-044 decision 1)
+      expect(created.body.data.comments).toBe('Unit 6 canonical comment');
+      const id = created.body.data.id as string;
+      createdCargos.push({ id });
+
+      const got = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(got.body.data.comments).toBe('Unit 6 canonical comment');
+
+      // PATCH that omits `comments` must leave it unchanged (undefined = skip)
+      const untouched = await request(app.getHttpServer())
+        .patch(`/api/v1/cargo/${id}`)
+        .set(auth(adminToken))
+        .send({ specification: 'unit6 spec' })
+        .expect(200);
+      expect(untouched.body.data.comments).toBe('Unit 6 canonical comment');
+
+      // clear-to-empty (ADR-044 decision 3): PATCH comments '' clears the column
+      const cleared = await request(app.getHttpServer())
+        .patch(`/api/v1/cargo/${id}`)
+        .set(auth(adminToken))
+        .send({ comments: '' })
+        .expect(200);
+      expect(cleared.body.data.comments).toBe('');
+
+      const after = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(after.body.data.comments).toBe('');
+    });
+
     it('updates Phase 3A shipper/consignee/job/cargoValue/cargoValueCurrency fields', async () => {
       const target = createdCargos[0];
       const res = await request(app.getHttpServer())

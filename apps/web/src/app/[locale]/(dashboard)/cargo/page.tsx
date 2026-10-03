@@ -254,6 +254,14 @@ export default function CargoPage() {
       setFormError('Customer, port and cargo type are required.');
       return;
     }
+    // ADR-044 decision 2: Comment is required AT CREATION only (01-final-requirements
+    // "Comment is required, editable, and deletable" — deletable implies it cannot stay
+    // mandatory afterwards). Edit keeps the field optional; CreateCargoDto stays optional
+    // (DTO enforcement is the deferred follow-up, not this unit).
+    if (!editing && !form.comments.trim()) {
+      setFormError('Comment is required — add the operational notes for this cargo.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = buildPayload(form);
@@ -770,14 +778,23 @@ export default function CargoPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cargo-comments" className="block">
-              Comments
+              {editing ? 'Comments' : 'Comments *'}
             </Label>
             <textarea
               id="cargo-comments"
               className="min-h-[64px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               value={form.comments}
               onChange={(e) => updateField('comments', e.target.value)}
+              required={!editing}
+              aria-required={!editing}
             />
+            <p className="text-xs text-muted-foreground">
+              Operational notes for this cargo — visible to accountants and others with
+              cargo access.
+              {editing
+                ? ' Editable and clearable at any time.'
+                : ' Required at creation; editable and clearable later.'}
+            </p>
           </div>
         </div>
         {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
@@ -859,14 +876,12 @@ export default function CargoPage() {
               <div className="flex justify-between"><dt className="text-muted-foreground">Destination</dt><dd className="text-right">{detail.destinationPort?.name ?? '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-foreground">In yard</dt><dd className="text-right">{detail.inventory ? `Yes · ${detail.inventory.status}` : 'No'}</dd></div>
             </dl>
-            {detail.comments && (
-              <div>
-                <div className="mb-1 text-xs text-muted-foreground">Comments</div>
-                <p className="whitespace-pre-wrap rounded-md border border-border px-3 py-2 text-xs">
-                  {detail.comments}
-                </p>
-              </div>
-            )}
+            <div>
+              <div className="mb-1 text-xs text-muted-foreground">Comments</div>
+              <p className="whitespace-pre-wrap rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
+                {detail.comments || '—'}
+              </p>
+            </div>
           </div>
         ) : (
           <PageLoader label="Loading cargo details…" />
@@ -904,7 +919,10 @@ export default function CargoPage() {
   );
 }
 
-/** Build a JSON payload omitting empty optional strings so optional fields are not sent. */
+/** Build a JSON payload omitting empty optional strings so optional fields are not sent.
+ *  Exception (ADR-044 decision 3): `comments` is ALWAYS sent — an emptied textarea must
+ *  reach the API as '' so clearing the comment persists (PATCH treats undefined as
+ *  "leave unchanged", so conditionally omitting it made the field impossible to clear). */
 function buildPayload(f: FormValues): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     customerId: f.customerId,
@@ -924,6 +942,6 @@ function buildPayload(f: FormValues): Record<string, unknown> {
   if (f.packageType.trim()) payload.packageType = f.packageType.trim();
   if (f.arrivalDate) payload.arrivalDate = f.arrivalDate;
   if (f.arrivalReference.trim()) payload.arrivalReference = f.arrivalReference.trim();
-  if (f.comments.trim()) payload.comments = f.comments.trim();
+  payload.comments = f.comments.trim();
   return payload;
 }

@@ -4,12 +4,16 @@
  *
  * Architecture: Inspection rows are the *traceable history* of inspection
  * attempts against a Cargo. Cargo.inspectionStatus (Phase 4 field) is the single
- * authoritative *current* readiness state; `approve`/`reject` update both in one
- * transaction so they can never diverge (ADR-024).
+ * authoritative *current* readiness state; the lifecycle actions (book/done/fail/
+ * needs-re-inspection) update both in one transaction so they can never diverge
+ * (ADR-024).
  *
- * Lifecycle (see docs/workflows.md): PENDING -> APPROVED | REJECTED. Reinspection
- * is modelled as a NEW Inspection record for the same cargo (history preserved),
- * not as an extra status.
+ * Shipped lifecycle (Phase 3A — matches prisma enum InspectionStatus; the status
+ * union itself lives in cargo.ts):
+ *   PENDING --book--> BOOKED --done--> DONE (terminal)
+ *   PENDING | BOOKED --fail(reason required)--> FAILED
+ *   FAILED --needs-re-inspection--> NEEDS_REINSPECTION --book|fail--> ...
+ * Cargo.inspectionStatus mirrors the row status (DONE => loading-eligible).
  */
 
 import type {

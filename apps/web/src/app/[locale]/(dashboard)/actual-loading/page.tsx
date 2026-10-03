@@ -51,7 +51,7 @@ const STATUS_META: Record<
   ActualLoadingStatus,
   { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' | 'info' }
 > = {
-  DRAFT: { label: 'Not started', variant: 'neutral' },
+  DRAFT: { label: 'Draft', variant: 'neutral' },
   IN_PROGRESS: { label: 'In progress', variant: 'info' },
   PARTIALLY_LOADED: { label: 'Partially loaded', variant: 'warning' },
   COMPLETED: { label: 'Completed', variant: 'success' },
