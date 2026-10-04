@@ -14,8 +14,10 @@ type Ref = { id: string };
  * cargo -> inspection -> load list -> actual loading -> manifest (APPROVED),
  * because a Bill of Lading is issued only against an approved manifest.
  *
- * Lifecycle under test:
- *   DRAFT -> ISSUED | CANCELLED ; DRAFT -> CANCELLED ; ISSUED -> CANCELLED
+ * Lifecycle under test (P4-U4, ADR-046 ruling 1):
+ *   DRAFT -> FINAL -> APPROVED (the /issue endpoint is the recorded alias walking
+ *   both edges); DRAFT|FINAL -> CANCELLED; APPROVED -> RELEASED exists in the table
+ *   but is inert (no endpoint until U6) — no transition ever leaves RELEASED.
  * Items may only change while DRAFT; one LIVE (non-cancelled, non-deleted)
  * bill per manifest item; issuing stamps ManifestItem.blNumber, cancelling
  * releases it.
@@ -69,7 +71,8 @@ describe('BillOfLading (e2e)', () => {
   let manifestItemId1 = ''; // line for cargo1
   let manifestItemId2 = ''; // line for cargo2
 
-  let bill1Id = ''; // main flow: item -> issue -> cancel
+  let bill1Id = '';
+  let cancelledBillId = ''; // P4-U4: the FINAL->CANCELLED bill (list-filter assertion) // main flow: item -> issue -> cancel
   let bill2Id = ''; // delete-flow bill
   let bill1ItemId = '';
 
@@ -708,7 +711,7 @@ describe('BillOfLading (e2e)', () => {
       .expect(404);
   });
 
-  it('issue requires bill:issue (403 for writer) and >=1 item (400 on empty); DRAFT->ISSUED stamps blNumber and locks editing', async () => {
+  it('issue requires bill:issue (403 for writer) and >=1 item (400 on empty); DRAFT->APPROVED (issue alias) stamps blNumber and locks editing', async () => {
     await request(app.getHttpServer())
       .post(`/api/v1/bills/${bill1Id}/issue`)
       .set(auth(writerToken))
@@ -726,7 +729,7 @@ describe('BillOfLading (e2e)', () => {
       .expect(200);
     const issued = iss.body.data;
     const billNumber = issued.billNumber as string;
-    expect(issued.status).toBe('ISSUED');
+    expect(issued.status).toBe('APPROVED'); // ADR-046: issued-equivalent state
     expect(issued.issuedAt).toBeTruthy();
     expect(issued.dateOfIssue).toBeTruthy();
 
@@ -759,42 +762,74 @@ describe('BillOfLading (e2e)', () => {
       .expect(409);
   });
 
-  it('cancel requires bill:cancel + reason; ISSUED->CANCELLED releases the line and clears blNumber', async () => {
+  it('cancel requires bill:cancel + reason; FINAL->CANCELLED releases the line (P4-U4 edge set); APPROVED cannot cancel', async () => {
+    // P4-U4 re-point: ADR-046 ruling 1 allows cancellation only from DRAFT|FINAL, so the
+    // flow now cancels a fresh finalized bill (bill1 reaches APPROVED and stays there).
+    const b4 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ manifestId })
+      .expect(201);
+    const b4Id = b4.body.data.id as string;
+    expect(b4.body.data.status).toBe('DRAFT');
     await request(app.getHttpServer())
-      .post(`/api/v1/bills/${bill1Id}/cancel`)
+      .post(`/api/v1/bills/${b4Id}/items`)
+      .set(auth(adminToken))
+      .send({ manifestItemId: manifestItemId2 })
+      .expect(201);
+
+    // reason is mandatory from any cancellable source state
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b4Id}/cancel`)
       .set(auth(cancellerToken))
       .send({ cancelReason: '' })
       .expect(400);
 
+    // DRAFT -> FINAL via the explicit finalize edge (bill:issue permission)
+    const fin = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b4Id}/finalize`)
+      .set(auth(issuerToken))
+      .expect(200);
+    expect(fin.body.data.status).toBe('FINAL');
+
     const canc = await request(app.getHttpServer())
-      .post(`/api/v1/bills/${bill1Id}/cancel`)
+      .post(`/api/v1/bills/${b4Id}/cancel`)
       .set(auth(cancellerToken))
       .send({ cancelReason: 'wrong consignee' })
       .expect(200);
     expect(canc.body.data.status).toBe('CANCELLED');
     expect(canc.body.data.cancelReason).toBe('wrong consignee');
 
-    // blNumber cleared on the manifest line
+    // line has no stamp (cancel never leaves one — the stamp-clear branch is now
+    // unreachable by design: APPROVED bills cannot be cancelled per ADR-046)
     const mf = await request(app.getHttpServer())
       .get(`/api/v1/manifests/${manifestId}`)
       .set(auth(adminToken))
       .expect(200);
-    const line = mf.body.data.items.find((i: { id: string }) => i.id === manifestItemId1);
+    const line = mf.body.data.items.find((i: { id: string }) => i.id === manifestItemId2);
     expect(line.blNumber).toBeNull();
 
-    // line is eligible again (cancelled bill releases it)
+    // line is eligible again (cancelled bill releases its claim)
     const el = await request(app.getHttpServer())
       .get(`/api/v1/bills/eligible-items?manifestId=${manifestId}`)
       .set(auth(readerToken))
       .expect(200);
-    expect((el.body.data as Array<{ id: string }>).some((r) => r.id === manifestItemId1)).toBe(true);
+    expect((el.body.data as Array<{ id: string }>).some((r) => r.id === manifestItemId2)).toBe(true);
+    cancelledBillId = b4Id; // consumed by the list-filter test below
 
-    // terminal: cancel again -> 409; delete cancelled -> 409
+    // CANCELLED is terminal: cancel again -> 409
     await request(app.getHttpServer())
-      .post(`/api/v1/bills/${bill1Id}/cancel`)
+      .post(`/api/v1/bills/${cancelledBillId}/cancel`)
       .set(auth(adminToken))
       .send({ cancelReason: 'again' })
       .expect(409);
+    // APPROVED (issued-equivalent) is not cancellable under the ADR-046 edge set
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bill1Id}/cancel`)
+      .set(auth(cancellerToken))
+      .send({ cancelReason: 'surrender attempt' })
+      .expect(409);
+    // delete stays DRAFT-only (only DRAFT bills can be deleted)
     await request(app.getHttpServer())
       .delete(`/api/v1/bills/${bill1Id}`)
       .set(auth(adminToken))
@@ -843,7 +878,16 @@ describe('BillOfLading (e2e)', () => {
       .set(auth(readerToken))
       .expect(200);
     expect(cancelled.body.data.data.every((b: { status: string }) => b.status === 'CANCELLED')).toBe(true);
-    expect(cancelled.body.data.data.some((b: { id: string }) => b.id === bill1Id)).toBe(true);
+    // P4-U4 re-point: bill1 is APPROVED (issue alias) and can no longer cancel — the
+    // cancelled-bucket assertion moved to the fresh FINAL->CANCELLED bill, and the
+    // issued-equivalent bucket is now asserted directly.
+    expect(cancelled.body.data.data.some((b: { id: string }) => b.id === cancelledBillId)).toBe(true);
+    const approved = await request(app.getHttpServer())
+      .get('/api/v1/bills?status=APPROVED')
+      .set(auth(readerToken))
+      .expect(200);
+    expect(approved.body.data.data.every((b: { status: string }) => b.status === 'APPROVED')).toBe(true);
+    expect(approved.body.data.data.some((b: { id: string }) => b.id === bill1Id)).toBe(true);
 
     const masters = await request(app.getHttpServer())
       .get('/api/v1/bills?billType=MASTER')
@@ -1280,6 +1324,148 @@ describe('BillOfLading (e2e)', () => {
     createdStandaloneBills.push({ id: extra.body.data.id });
     expect(extra.body.data.billNumber).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U4 — lifecycle (roadmap Tests 4 part 1, Acceptance 4 part 1 lifecycle half):
+  // backfill, the ADR-046 four-state edge set, the issue alias, and the inert
+  // APPROVED -> RELEASED edge (no endpoint until U6: bill:release + AuditLog).
+  // ---------------------------------------------------------------------------
+
+  it('backfill: no ISSUED rows remain; the live legacy bills carry APPROVED (ADR-046 ruling 1)', async () => {
+    const list = await request(app.getHttpServer())
+      .get('/api/v1/bills?pageSize=100')
+      .set(auth(adminToken))
+      .expect(200);
+    const rows = list.body.data.data as Array<{ billNumber: string; status: string }>;
+    // the ISSUED -> APPROVED UPDATE ran with the migration and is idempotent
+    expect(rows.filter((b) => b.status === 'ISSUED')).toHaveLength(0);
+    const byNumber = (n: string) => rows.find((b) => b.billNumber === n);
+    // the two shipped legacy-issued bills were backfilled...
+    expect(byNumber('BOL-2609-00001')?.status).toBe('APPROVED');
+    expect(byNumber('BOL-2609-00002')?.status).toBe('APPROVED');
+    // ...while DRAFT is untouched (backfill touches ISSUED only)
+    expect(byNumber('BOL-2609-00003')?.status).toBe('DRAFT');
+    const statuses = new Set(rows.map((b) => b.status));
+    for (const s of statuses) {
+      expect(['DRAFT', 'FINAL', 'APPROVED', 'RELEASED', 'CANCELLED']).toContain(s);
+    }
+  });
+
+  it('lifecycle edge set: finalize DRAFT->FINAL, approve FINAL->APPROVED, alias walks both, invalid edges 409, RELEASED terminal + no release route', async () => {
+    // explicit edge: DRAFT -> FINAL (b5 uses the second fixture manifest's free line;
+    // approve/issue both require >= 1 line)
+    const b5 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ manifestId: manifest2Id, billType: 'MASTER' })
+      .expect(201);
+    const b5Id = b5.body.data.id as string;
+    expect(b5.body.data.status).toBe('DRAFT');
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/items`)
+      .set(auth(adminToken))
+      .send({ manifestItemId: manifest2ItemId })
+      .expect(201);
+    const fin = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/finalize`)
+      .set(auth(issuerToken)) // bill:issue guard (no new permission codes)
+      .expect(200);
+    expect(fin.body.data.status).toBe('FINAL');
+    // FINAL -> FINAL is not an edge
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/finalize`)
+      .set(auth(adminToken))
+      .expect(409);
+
+    // invalid edge: DRAFT -> APPROVED direct (approve requires FINAL)
+    const b6 = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ manifestId })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b6.body.data.id}/approve`)
+      .set(auth(adminToken))
+      .expect(409);
+    // b6 takes the line the cancelled bill released (issue from FINAL needs >= 1 line)
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b6.body.data.id}/items`)
+      .set(auth(adminToken))
+      .send({ manifestItemId: manifestItemId2 })
+      .expect(201);
+
+    // explicit edge: FINAL -> APPROVED
+    const appr = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/approve`)
+      .set(auth(issuerToken))
+      .expect(200);
+    expect(appr.body.data.status).toBe('APPROVED');
+
+    // alias-from-FINAL: issue on a FINAL bill lands APPROVED (single click from either
+    // DRAFT or FINAL — the shipped page only ever shows the button on DRAFT/FINAL)
+    const fin2 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b6.body.data.id}/finalize`)
+      .set(auth(issuerToken))
+      .expect(200);
+    expect(fin2.body.data.status).toBe('FINAL');
+    const iss = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b6.body.data.id}/issue`)
+      .set(auth(issuerToken))
+      .expect(200);
+    expect(iss.body.data.status).toBe('APPROVED');
+
+    // invalid edges out of APPROVED: APPROVED->FINAL, re-issue, cancel
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/finalize`)
+      .set(auth(adminToken))
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/issue`)
+      .set(auth(adminToken))
+      .expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${b5Id}/cancel`)
+      .set(auth(cancellerToken))
+      .send({ cancelReason: 'attempt' })
+      .expect(409);
+
+    // RELEASED is terminal for every transition (forced via prisma — no endpoint
+    // ever writes this state before U6)
+    const { PrismaClient } = require('@prisma/client');
+    const rxFx = new PrismaClient();
+    try {
+      await rxFx.billOfLading.update({
+        where: { id: b5Id },
+        data: { status: 'RELEASED' },
+      });
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${b5Id}/issue`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${b5Id}/finalize`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${b5Id}/approve`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${b5Id}/cancel`)
+        .set(auth(cancellerToken))
+        .send({ cancelReason: 'attempt' })
+        .expect(409);
+      // inert guard: APPROVED -> RELEASED has NO dispatcher — the route does not exist
+      // (U6 adds POST /bills/:id/release behind bill:release + an AuditLog entry)
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${b5Id}/release`)
+        .set(auth(adminToken))
+        .expect(404);
+    } finally {
+      await rxFx.$disconnect();
+    }
+  });
 });
+
 
 

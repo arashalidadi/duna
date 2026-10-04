@@ -50,7 +50,9 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const STATUSES: BillStatus[] = ['DRAFT', 'ISSUED', 'CANCELLED'];
+// P4-U4 (ADR-046 ruling 1): four-state lifecycle. ISSUED is retained in the enum
+// (additive migration) but unreachable post-backfill, so it is not offered as a filter.
+const STATUSES: BillStatus[] = ['DRAFT', 'FINAL', 'APPROVED', 'RELEASED', 'CANCELLED'];
 const BILL_TYPES: BillType[] = ['HOUSE', 'MASTER'];
 const FREIGHT_TERMS: FreightTerms[] = ['PREPAID', 'COLLECT'];
 
@@ -60,9 +62,14 @@ function statusVariant(
   switch (s) {
     case 'DRAFT':
       return 'neutral';
-    case 'ISSUED':
+    case 'FINAL':
+      return 'warning';
+    case 'APPROVED':
+    case 'RELEASED':
+    case 'ISSUED': // legacy value (backfilled rows are APPROVED)
       return 'success';
     default:
+      // CANCELLED, plus a ?? fallback for any future value (no blank/undefined badge)
       return 'danger';
   }
 }
@@ -1006,19 +1013,19 @@ export default function BillsOfLadingPage() {
                   {t('actions.delete')}
                 </Button>
               )}
-              {detail.status === 'DRAFT' && canIssue && (
+              {(detail.status === 'DRAFT' || detail.status === 'FINAL') && canIssue && (
                 <Button onClick={() => setConfirmIssue(true)}>
                   <Stamp className="ms-1 h-4 w-4" />
                   {t('actions.issue')}
                 </Button>
               )}
-              {(detail.status === 'DRAFT' || detail.status === 'ISSUED') && canCancel && (
+              {(detail.status === 'DRAFT' || detail.status === 'FINAL') && canCancel && (
                 <Button variant="destructive" onClick={() => setConfirmCancel(true)}>
                   <XCircle className="ms-1 h-4 w-4" />
                   {t('actions.cancel')}
                 </Button>
               )}
-              {detail.status === 'ISSUED' && (
+              {detail.status === 'APPROVED' && (
                 <Badge variant="success">
                   <CheckCircle2 className="ms-1 h-3.5 w-3.5" />
                   {t('detail.issuedOn', {

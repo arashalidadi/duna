@@ -120,6 +120,9 @@
     },
     "status": {
       "DRAFT": "پیش‌نویس",
+      "FINAL": "نهایی",
+      "APPROVED": "تأییدشده",
+      "RELEASED": "آزادشده",
       "ISSUED": "صادرشده",
       "CANCELLED": "لغوشده"
     },

@@ -9,7 +9,7 @@ type Ref = { id: string };
 
 /**
  * Phase 13 — Delivery Orders (D/O) & Release Orders (R/O).
- * Covers: RBAC, B/L must be ISSUED, one-active-per-B/L, update/cancel/delete
+ * Covers: RBAC, B/L must be APPROVED (issued-equivalent, P4-U4), one-active-per-B/L, update/cancel/delete
  * lifecycle, release eligibility, money rule (outstanding blocks release),
  * authorized override (permission + reason), override audit trail.
  */
@@ -47,7 +47,7 @@ describe('Delivery & Release Orders (e2e)', () => {
 
   let customerId = '';
   let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
-  let billId = ''; // ISSUED B/L
+  let billId = ''; // APPROVED B/L (issued-equivalent after the P4-U4 issue alias)
   let draftBillId = ''; // DRAFT B/L (guard test)
   let invoiceId = ''; // ISSUED, unpaid USD invoice on billId
   let do1Id = '';
@@ -122,7 +122,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     );
     noReadToken = await createRoleToken(`DRNOREAD_${tag}`, ['cargo:read'], `dr-noread-${emailSuffix}@shipping.local`);
 
-    // ── full ops chain → approved manifest → ISSUED bill ──
+    // ── full ops chain → approved manifest → APPROVED bill (issue alias) ──
     const portA = await S().post('/api/v1/ports').set(auth(adminToken))
       .send({ code: `DRP1-${tag}`, name: `DR Origin ${randomTag}`, country: 'AE' }).expect(201);
     createdPorts.push({ id: portA.body.data.id });
@@ -291,7 +291,7 @@ describe('Delivery & Release Orders (e2e)', () => {
       .send({ billOfLadingId: draftBillId, recipient: 'X' }).expect(409);
   });
 
-  it('DO create against ISSUED bill; DO-YYMM-##### number; list + detail', async () => {
+  it('DO create against APPROVED bill (issued-equivalent); DO-YYMM-##### number; list + detail', async () => {
     const res = await S().post('/api/v1/delivery-orders').set(auth(writerToken))
       .send({ billOfLadingId: billId, recipient: `Ali Reza ${randomTag}`, vehiclePlate: 'IR11-22B-33', notes: 'gate 4 pickup' })
       .expect(201);
@@ -403,5 +403,43 @@ describe('Delivery & Release Orders (e2e)', () => {
     const dos = await S().get(`/api/v1/delivery-orders?search=${encodeURIComponent('Hossein')}&pageSize=100`).set(auth(readerToken)).expect(200);
     expect(dos.body.data.data.length).toBe(1);
     expect(dos.body.data.data[0].recipient).toContain('Hossein');
+  });
+
+  it('P4-U4 gate vocabulary: FINAL/CANCELLED/RELEASED bills rejected with the APPROVED issued-equivalent (DRAFT covered above)', async () => {
+    // finalize the DRAFT guard bill (bill:issue permission — admin holds it)
+    await S().post(`/api/v1/bills/${draftBillId}/finalize`).set(auth(adminToken)).expect(200);
+    let r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
+      .send({ billOfLadingId: draftBillId, recipient: 'X' });
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body)).toContain('APPROVED'); // new vocabulary, not ISSUED
+
+    // FINAL -> CANCELLED (mandatory reason path), then the cancelled gate
+    await S().post(`/api/v1/bills/${draftBillId}/cancel`).set(auth(adminToken))
+      .send({ cancelReason: 'P4-U4 gate vocabulary test' }).expect(200);
+    r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
+      .send({ billOfLadingId: draftBillId, recipient: 'X' });
+    expect(r.status).toBe(409);
+    expect(JSON.stringify(r.body)).toContain('APPROVED');
+
+    // RELEASED (forced via prisma — unreachable through the API until U6): both
+    // the D-O and the R-O creation gates reject it with the same vocabulary
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      await fx.billOfLading.update({
+        where: { id: draftBillId },
+        data: { status: 'RELEASED' },
+      });
+      r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
+        .send({ billOfLadingId: draftBillId, recipient: 'X' });
+      expect(r.status).toBe(409);
+      expect(JSON.stringify(r.body)).toContain('APPROVED');
+      const ro = await S().post('/api/v1/release-orders').set(auth(adminToken))
+        .send({ billOfLadingId: draftBillId });
+      expect(ro.status).toBe(409);
+      expect(JSON.stringify(ro.body)).toContain('APPROVED');
+    } finally {
+      await fx.$disconnect();
+    }
   });
 });

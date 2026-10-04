@@ -1215,6 +1215,12 @@ model ManifestItem {
 // ISSUED is frozen; only cancellation remains.
 enum BlStatus {
   DRAFT
+  // P4-U4 (ADR-045 decision 2 + ADR-046 ruling 1): four-state lifecycle
+  // DRAFT -> FINAL -> APPROVED -> RELEASED (+ CANCELLED). ISSUED retained
+  // until an approved later cleanup removes it (backfill maps it to APPROVED).
+  FINAL
+  APPROVED
+  RELEASED
   ISSUED
   CANCELLED
 }

@@ -120,6 +120,9 @@
     },
     "status": {
       "DRAFT": "Draft",
+      "FINAL": "Final",
+      "APPROVED": "Approved",
+      "RELEASED": "Released",
       "ISSUED": "Issued",
       "CANCELLED": "Cancelled"
     },

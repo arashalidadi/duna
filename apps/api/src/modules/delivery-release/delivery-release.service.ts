@@ -33,14 +33,14 @@ export class DeliveryReleaseService {
     throw new ConflictException(`doc number space exhausted for ${head}`);
   }
 
-  /** B/L must exist, be live and ISSUED. */
+  /** B/L must exist, be live and APPROVED (the issued-equivalent — P4-U4). */
   private async requireIssuedBill(tx: Tx, billOfLadingId: string) {
     const bill = await tx.billOfLading.findFirst({
       where: { id: billOfLadingId, deletedAt: null },
     });
     if (!bill) throw new NotFoundException('bill of lading not found');
-    if (bill.status !== 'ISSUED') {
-      throw new ConflictException(`bill of lading must be ISSUED (current: ${bill.status})`);
+    if (bill.status !== 'APPROVED') {
+      throw new ConflictException(`bill of lading must be APPROVED (current: ${bill.status})`);
     }
     return bill;
   }
@@ -87,7 +87,9 @@ export class DeliveryReleaseService {
   async eligibility(billOfLadingId: string): Promise<ReleaseEligibility> {
     const bill = await this.prisma.billOfLading.findFirst({ where: { id: billOfLadingId, deletedAt: null } });
     if (!bill) throw new NotFoundException('bill of lading not found');
-    if (bill.status !== 'ISSUED') {
+    // P4-U4: issued-equivalent swap (ADR-046 ruling 1). Eligibility POLICY (ruling 3:
+    // APPROVED + fully paid) is P4-U6's job — only the state token changes here.
+    if (bill.status !== 'APPROVED') {
       return {
         billOfLadingId, billNumber: bill.billNumber,
         invoicesTotal: '0.00', invoicesPaid: '0.00', outstanding: '0.00',

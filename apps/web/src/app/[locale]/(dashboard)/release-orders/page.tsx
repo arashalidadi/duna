@@ -114,7 +114,7 @@ export default function ReleaseOrdersPage() {
     setOverrideReason('');
     setBillsLoading(true);
     try {
-      const res = await api.get<PaginatedResult<BillOfLading>>('/bills?status=ISSUED&pageSize=100');
+      const res = await api.get<PaginatedResult<BillOfLading>>('/bills?status=APPROVED&pageSize=100');
       setBills(res.data);
     } catch (e: any) {
       setCreateError(errMsg(e));

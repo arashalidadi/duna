@@ -98,6 +98,26 @@ export class BillController {
   // Lifecycle
   // -------------------------------------------------------------------------
 
+  /**
+   * P4-U4 lifecycle edges (ADR-045 d2 + ADR-046 ruling 1). Same bill:issue
+   * operational permission as /issue — no new permission codes in this unit.
+   * No /release route exists: APPROVED -> RELEASED stays inert until U6
+   * adds bill:release + the AuditLog entry.
+   */
+  @Post(':id/finalize')
+  @HttpCode(200)
+  @RequirePermissions('bill:issue')
+  finalize(@Param('id') id: string) {
+    return this.service.finalize(id);
+  }
+
+  @Post(':id/approve')
+  @HttpCode(200)
+  @RequirePermissions('bill:issue')
+  approve(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.approve(id, user);
+  }
+
   @Post(':id/issue')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('bill:issue')

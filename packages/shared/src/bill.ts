@@ -1,7 +1,8 @@
 import type { UserRef } from './auth';
 import type { PaginatedResult } from './api';
 
-export type BillStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED';
+// P4-U4 (ADR-046 ruling 1): four-state lifecycle + retained legacy value.
+export type BillStatus = 'DRAFT' | 'FINAL' | 'APPROVED' | 'RELEASED' | 'ISSUED' | 'CANCELLED';
 export type BillType = 'MASTER' | 'HOUSE';
 export type FreightTerms = 'PREPAID' | 'COLLECT';
 

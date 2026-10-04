@@ -21,12 +21,23 @@ import {
 // ---------------------------------------------------------------------------
 // B/L lifecycle (server-side).
 //   DRAFT -> ISSUED | CANCELLED
-//   ISSUED -> CANCELLED (surrender; releases the manifest lines)
-//   CANCELLED is terminal.
+//   P4-U4 / ADR-045 decision 2 + ADR-046 ruling 1 — four-state lifecycle:
+//     DRAFT   -> FINAL | CANCELLED
+//     FINAL   -> APPROVED | CANCELLED   (mandatory cancel reason preserved)
+//     APPROVED-> RELEASED                (INERT: no endpoint dispatches this edge —
+//                                         U6 adds bill:release + AuditLog)
+//     RELEASED, CANCELLED                -> terminal
+//   ISSUED is retained in the enum (additive migration; backfill mapped live rows to
+//   APPROVED) but is not a source or target of any transition. Note the shipped
+//   surrender edge (ISSUED -> CANCELLED) is NOT carried forward: ADR-046 ruling 1
+//   defines "exactly this set", so APPROVED bills cannot be cancelled.
 // ---------------------------------------------------------------------------
 const BILL_TRANSITIONS: Record<BlStatus, BlStatus[]> = {
-  DRAFT: ['ISSUED', 'CANCELLED'],
-  ISSUED: ['CANCELLED'],
+  DRAFT: ['FINAL', 'CANCELLED'],
+  FINAL: ['APPROVED', 'CANCELLED'],
+  APPROVED: ['RELEASED'],
+  RELEASED: [],
+  ISSUED: [],
   CANCELLED: [],
 };
 
@@ -982,9 +993,14 @@ export class BillService {
   // -------------------------------------------------------------------------
 
   /**
-   * DRAFT -> ISSUED. Requires at least one line. Stamps
-   * ManifestItem.blNumber with the B/L number (the link shown in the
-   * manifest UI) and freezes the document.
+   * ISSUE ENDPOINT — recorded alias per ADR-045 decision 2 ("aliased during
+   * transition, then renamed"): the shipped UI's single Issue click implements the
+   * two table edges DRAFT -> FINAL -> APPROVED atomically (FINAL -> APPROVED when the
+   * bill is already FINAL), landing on the issued-equivalent APPROVED state
+   * (workflows §3.1 step 7's single "finalized/approved and issued" moment; ADR-046
+   * ruling 1). Requires at least one line. Stamps
+   * ManifestItem.blNumber with the B/L number and freezes the document (now at
+   * APPROVED). Any other source state -> 409 from the transition table.
    */
   async issue(id: string, actor?: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
@@ -1001,11 +1017,81 @@ export class BillService {
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Bill of Lading not found');
     }
-    this.assertTransition(existing.status, 'ISSUED');
+    // Composite alias: walk the table's own edges so no direct DRAFT -> APPROVED
+    // entry is ever required. DRAFT: finalize step, then approve step. FINAL: approve.
+    if (existing.status === 'DRAFT') {
+      this.assertTransition(existing.status, 'FINAL');
+      this.assertTransition('FINAL', 'APPROVED');
+    } else {
+      this.assertTransition(existing.status, 'APPROVED');
+    }
     if (existing._count.items === 0) {
       throw new BadRequestException('Cannot issue a B/L with no cargo lines');
     }
 
+    return this.approveCore(existing, actor);
+  }
+
+  /**
+   * DRAFT -> FINAL (P4-U4): the explicit finalize step, exposed for API/automation.
+   * The shipped page reaches its issued-equivalent through the issue alias instead
+   * (single Issue click = DRAFT -> FINAL -> APPROVED), so the web never strands a bill:
+   * FINAL bills still expose Issue (alias from FINAL) and Cancel. No stamp at FINAL —
+   * lines are stamped when the bill reaches APPROVED. Guarded by bill:issue (same
+   * operational permission as the alias; no new permission codes in this unit).
+   */
+  async finalize(id: string) {
+    const existing = await this.prisma.billOfLading.findUnique({
+      where: { id },
+      select: { id: true, status: true, deletedAt: true },
+    });
+    if (!existing || existing.deletedAt) {
+      throw new NotFoundException('Bill of Lading not found');
+    }
+    this.assertTransition(existing.status, 'FINAL');
+    return this.prisma.billOfLading.update({
+      where: { id },
+      data: { status: 'FINAL' },
+      select: detailSelect,
+    });
+  }
+
+  /**
+   * FINAL -> APPROVED (P4-U4): the explicit edge behind the issue alias, with the
+   * identical stamp/freeze semantics (shared approveCore). Guarded by bill:issue.
+   */
+  async approve(id: string, actor?: AuthenticatedUser) {
+    const existing = await this.prisma.billOfLading.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        billNumber: true,
+        status: true,
+        deletedAt: true,
+        dateOfIssue: true,
+        _count: { select: { items: true } },
+      },
+    });
+    if (!existing || existing.deletedAt) {
+      throw new NotFoundException('Bill of Lading not found');
+    }
+    this.assertTransition(existing.status, 'APPROVED');
+    if (existing._count.items === 0) {
+      throw new BadRequestException('Cannot approve a B/L with no cargo lines');
+    }
+    return this.approveCore(existing, actor);
+  }
+
+  /** Shared APPROVED write used by both the issue alias and the explicit approve edge. */
+  private async approveCore(
+    existing: {
+      id: string;
+      billNumber: string;
+      dateOfIssue: Date | null;
+    },
+    actor?: AuthenticatedUser,
+  ) {
+    const id = existing.id;
     return this.prisma.$transaction(async (tx) => {
       // Re-check nothing claimed our lines meanwhile (paranoia under tx).
       const items = await tx.billOfLadingItem.findMany({
@@ -1027,7 +1113,8 @@ export class BillService {
       return tx.billOfLading.update({
         where: { id },
         data: {
-          status: 'ISSUED',
+          // issued-equivalent state per ADR-046 ruling 1 (alias lands DRAFT|FINAL -> APPROVED)
+          status: 'APPROVED',
           issuedAt: new Date(),
           issuedById: actor?.id,
           dateOfIssue: existing.dateOfIssue ?? new Date(),
@@ -1037,7 +1124,7 @@ export class BillService {
     });
   }
 
-  /** DRAFT|ISSUED -> CANCELLED. Reason required. Releases the manifest lines. */
+  /** DRAFT|FINAL -> CANCELLED (ADR-046 ruling 1). Reason required. Releases the manifest lines. */
   async cancel(id: string, dto: CancelBillDto, actor?: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },

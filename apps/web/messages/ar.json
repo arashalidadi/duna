@@ -120,6 +120,9 @@
     },
     "status": {
       "DRAFT": "مسودة",
+      "FINAL": "نهائية",
+      "APPROVED": "معتمدة",
+      "RELEASED": "مُفرَجة",
       "ISSUED": "صادرة",
       "CANCELLED": "ملغاة"
     },

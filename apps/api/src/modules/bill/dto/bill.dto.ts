@@ -26,7 +26,16 @@ const ToDecimal = () =>
     return Number(value);
   });
 
-const BillStatusValues = ['DRAFT', 'ISSUED', 'CANCELLED'] as const;
+// P4-U4: BlStatus gained FINAL/APPROVED/RELEASED (ADR-046 ruling 1); ISSUED retained
+// (additive enum — live rows backfilled to APPROVED).
+const BillStatusValues = [
+  'DRAFT',
+  'FINAL',
+  'APPROVED',
+  'RELEASED',
+  'ISSUED',
+  'CANCELLED',
+] as const;
 const BillTypeValues = ['MASTER', 'HOUSE'] as const;
 const FreightTermsValues = ['PREPAID', 'COLLECT'] as const;
 

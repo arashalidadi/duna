@@ -85,7 +85,7 @@ export default function DeliveryOrdersPage() {
     if (!createOpen) return;
     void (async () => {
       try {
-        const res = await api.get<PaginatedResult<BillOfLading>>('/bills?status=ISSUED&pageSize=100');
+        const res = await api.get<PaginatedResult<BillOfLading>>('/bills?status=APPROVED&pageSize=100');
         setBills(res.data);
       } catch { /* best-effort */ }
     })();
