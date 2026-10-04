@@ -952,3 +952,47 @@ cargo lines. ADR-029/039/042 (actually-loaded semantics) and the Phase-2 party c
 declined (as in unit 5): every candidate touches schema/service/DTOs or rewrites number-format
 test assertions, so nothing is self-contained; execution starts at P4-U2 after this design's
 verification.
+
+## ADR-046: Three Phase 4 business rulings — lifecycle state names, Released modeling, ReleaseOrder default policy (closes ADR-045's open questions)
+
+**Date:** 2026-10-04
+**Status:** Accepted (decision-maker ruling on the three NEEDS_BUSINESS_DECISION items ADR-045
+deferred — §1.1a, §1.1b and §1.2 of `12-open-business-decisions.md`)
+**Context:** ADR-045 (Phase 4 unit 1 design) deliberately left three questions open rather than
+invent employer intent, and prescribed configurable design + an explicit decision record. The
+employer texts genuinely conflict on the lifecycle: the roadmap lists Draft/Final/Approved/
+Released (4 states), `03-final-workflows.md` §3.1 step 7 conflates "finalized/approved and
+issued" into one moment, and `06-final-ui-blueprint.md` §5.1 shows Draft/Final/Released (3).
+P4-U4 extends the `BlStatus` enum and therefore hard-codes these names, so the ruling was put
+to the decision-maker before execution began (asked and answered 2026-10-04).
+
+**Decision.**
+
+1. **§1.1a — Four states, exact roadmap names: `DRAFT → FINAL → APPROVED → RELEASED`
+   (plus `CANCELLED`); Final IS distinct from Approved.** ADR-045 decision 2's configurable
+   default is hereby the confirmed mapping: existing rows **`ISSUED → APPROVED`** (backfill),
+   `DRAFT → DRAFT`, `CANCELLED → CANCELLED`. The names are fixed for this phase; the
+   transition table in P4-U4 implements exactly this set.
+2. **§1.1b — `RELEASED` is a `BlStatus` value**, reached only by `APPROVED → RELEASED`,
+   enforced by its own **`bill:release` permission** (seeded per the ADR-016 permission
+   pattern) writing an **`AuditLog` entry** (ADR-010) — exactly ADR-045 decision 3 and
+   workflows §3.1 step 9 ("B/L status includes Released/Unreleased as a separate permission
+   concept"). No side flag; the ReleaseOrder document (workflows §3.7, ADR-033) keeps its own
+   shape and is unaffected by this ruling.
+3. **§1.2 — ReleaseOrder eligibility default policy = the bill is in `APPROVED` state AND all
+   of its invoices are fully paid** (the confirmed "no money, no cargo" principle); overrides
+   are permitted **only** through the audited override path, and the policy stays
+   configurable — no other payment/credit/approver rule may be hard-coded. This ruling fixes
+   the default policy and the override mechanism, not the fine-grained numbers: what counts
+   as partial payment, credit terms, and who may approve an override remain configurable
+   policy inputs. If the employer later specifies them, that is a policy-config change, not a
+   schema change, and is not blocking.
+
+**Consequences.** ADR-045's *Open questions* §1.1a/§1.1b/§1.2 are **closed**. **P4-U4
+(lifecycle) is unblocked**: additive enum extension (`FINAL`, `APPROVED`, `RELEASED` added to
+`BlStatus`; `ISSUED` retained until a later approved cleanup removes it after backfill), the
+idempotent `ISSUED → APPROVED` backfill, the transition table, and the DeliveryOrder/
+ReleaseOrder `status === 'ISSUED'` gates moving to the issued-equivalent `APPROVED`. **P4-U6
+(release separation)** now has its confirmed shape (ruling 2 + ruling 3's default). The only
+open NBD carried forward is **ADR-044 (d)** (single mutable comment field vs append-only
+activity log), which is unrelated to Phase 4 and non-blocking.
