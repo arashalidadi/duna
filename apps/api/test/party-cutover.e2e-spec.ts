@@ -172,6 +172,12 @@ describe('Party cutover: Manifest/B-L -> master refs (e2e)', () => {
       await prisma.manifest.deleteMany({ where: { id: manifestId } });
       await prisma.voyage.deleteMany({ where: { id: { in: createdVoyages.map((v) => v.id) } } });
       await prisma.vessel.deleteMany({ where: { id: { in: createdVessels.map((v) => v.id) } } });
+      // follow-up (g): this suite's B/L creates allocate a per-destination BILL
+      // sequence on its own fixture ports — sweep by EXACT scope ids (in: [] on an
+      // empty list matches nothing, so it can never collapse into a wildcard)
+      await prisma.numberingSequence.deleteMany({
+        where: { documentType: 'BILL', scopeValue: { in: createdPorts.map((p) => p.id) } },
+      });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.shipper.deleteMany({
         where: { id: { in: createdMasters.filter((m) => m.kind === 'shipper').map((m) => m.id) } },

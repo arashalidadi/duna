@@ -154,6 +154,14 @@ export class CreateBillDto {
   notes?: string;
 }
 
+export class CreateRevisionDto {
+  @ApiPropertyOptional({ description: 'Why this revision exists (customer review note)', maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 export class UpdateBillDto {
   @ApiPropertyOptional({ enum: BillTypeValues })
   @IsOptional()

@@ -388,6 +388,11 @@ describe('BillOfLading (e2e)', () => {
       await prisma.consignee.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       // P4-U3: remove test-created numbering sequences (explicit id/name filters only)
       await prisma.numberingSequence.deleteMany({ where: { name: { in: createdSeqNames } } });
+      // follow-up (g) second bite: sweep ANY BILL sequence allocated on this suite's
+      // fixture ports by exact scope ids (in: [] = no match, never a wildcard)
+      await prisma.numberingSequence.deleteMany({
+        where: { documentType: 'BILL', scopeValue: { in: createdPorts.map((p) => p.id) } },
+      });
       // P4-U2: voyage-mode bills have manifestId null, so the manifestId clause above
       // misses them — delete by id (items first) so no soft/hard litter survives.
       const standaloneIds = createdStandaloneBills.map((b) => b.id);
@@ -1465,7 +1470,361 @@ describe('BillOfLading (e2e)', () => {
       await rxFx.$disconnect();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U5 — revisions (roadmap Tests 4 part 2, "Lifecycle and revisions"):
+  // DRAFT-only source, 1->2->3 numbering, immutable snapshots, frozen billNumber,
+  // list-only history (404 on PUT/DELETE), bill:update gate, restore read-back.
+  // ---------------------------------------------------------------------------
+
+  it('revisions: DRAFT-only source, revisionNumbers 1->2->3 (+parallel distinct), note + actor recorded, billNumber frozen, reader 403', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g): push what we allocate
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    const originalNumber = b.body.data.billNumber as string;
+    createdStandaloneBills.push({ id: bId });
+
+    // recorded permission decision: bill:update writes, bill:read reads, no new codes
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(readerToken))
+      .send({ note: 'nope' })
+      .expect(403);
+
+    const rev1 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(writerToken)) // writer has bill:update — the recorded gate
+      .send({ note: 'Customer review round 1' })
+      .expect(201);
+    expect(rev1.body.data.revisionNumber).toBe(1);
+    expect(rev1.body.data.note).toBe('Customer review round 1');
+    expect(rev1.body.data.createdById).toBeTruthy();
+    expect(rev1.body.data.createdBy.email).toBe(`bl-writer-${emailSuffix}@shipping.local`);
+
+    const rev2 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(writerToken))
+      .send({ note: 'Customer review round 2' })
+      .expect(201);
+    expect(rev2.body.data.revisionNumber).toBe(2);
+    const rev3 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(writerToken))
+      .send({})
+      .expect(201);
+    expect(rev3.body.data.revisionNumber).toBe(3);
+    expect(rev3.body.data.note).toBeNull(); // note is optional
+
+    // number stability: the billNumber never changes across revisions (and the
+    // @unique index accepted every freeze)
+    const mid = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(mid.body.data.billNumber).toBe(originalNumber);
+    expect(mid.body.data.revision).toBe(4); // label of the NEXT freeze
+
+    // concurrency (recorded: row lock + @@unique backstop): parallel freezes never
+    // collide — distinct, consecutive revision numbers
+    const [pa, pb] = await Promise.all([
+      request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/revisions`)
+        .set(auth(writerToken))
+        .send({ note: 'parallel A' }),
+      request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/revisions`)
+        .set(auth(writerToken))
+        .send({ note: 'parallel B' }),
+    ]);
+    expect(pa.status).toBe(201);
+    expect(pb.status).toBe(201);
+    const parallelNums = [pa.body.data.revisionNumber, pb.body.data.revisionNumber].sort(
+      (x: number, y: number) => x - y
+    );
+    expect(parallelNums).toEqual([4, 5]);
+
+    // history is ascending, list-readable with bill:read, and the billNumber is
+    // still the original after all five freezes
+    const hist = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(readerToken))
+      .expect(200);
+    const rows = hist.body.data as Array<{ revisionNumber: number; note: string | null; createdBy: { email: string } }>;
+    expect(rows.map((r) => r.revisionNumber)).toEqual([1, 2, 3, 4, 5]);
+    // Sequential notes are ordered; the two PARALLEL freezes are serialized by the
+    // row lock but WHO wins the race is nondeterministic — the guarantee is two
+    // distinct consecutive revisions carrying exactly these notes (asserted as a set),
+    // never which request took the lower number.
+    expect(rows.slice(0, 3).map((r) => r.note)).toEqual([
+      'Customer review round 1',
+      'Customer review round 2',
+      null,
+    ]);
+    expect(
+      rows
+        .slice(3)
+        .map((r) => r.note)
+        .sort()
+    ).toEqual(['parallel A', 'parallel B']);
+    for (const r of rows) {
+      expect(r.createdBy.email).toBe(`bl-writer-${emailSuffix}@shipping.local`);
+    }
+    const after = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(after.body.data.billNumber).toBe(originalNumber);
+  });
+
+  it('snapshot immutability: live edits after rev 1 never change stored history (byte-for-byte); history is list-only (PUT/DELETE 404)', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g)
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({
+        voyageId,
+        carrierName: 'Revision Original Co',
+        notes: 'original notes',
+        goodsDescription: 'Frozen goods description',
+      })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    createdStandaloneBills.push({ id: bId });
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .send({ note: 'v1' })
+      .expect(201);
+
+    const readRev1 = async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/bills/${bId}/revisions`)
+        .set(auth(adminToken))
+        .expect(200);
+      return (res.body.data as Array<{ revisionNumber: number; snapshot: unknown }>).find(
+        (r) => r.revisionNumber === 1
+      )!;
+    };
+    const before = JSON.stringify((await readRev1()).snapshot);
+
+    // live edits after the freeze
+    await request(app.getHttpServer())
+      .patch(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .send({
+        carrierName: 'Edited After Freeze',
+        notes: 'edited notes',
+        goodsDescription: 'Edited description',
+      })
+      .expect(200);
+
+    const afterSnap = await readRev1();
+    const after = JSON.stringify(afterSnap.snapshot);
+    // byte-for-byte: the stored snapshot is untouched by the live edit...
+    expect(after).toBe(before);
+    // ...and it still carries the original values while the live document differs
+    const snapObj = afterSnap.snapshot as { carrierName: string; notes: string; goodsDescription: string };
+    expect(snapObj.carrierName).toBe('Revision Original Co');
+    expect(snapObj.notes).toBe('original notes');
+    expect(snapObj.goodsDescription).toBe('Frozen goods description');
+    const live = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(live.body.data.carrierName).toBe('Edited After Freeze');
+    expect(live.body.data.billNumber).toBe(b.body.data.billNumber);
+
+    // list-only history: no PUT/DELETE route exists (404 by construction — decision 4
+    // excludes revision editing and deletion outright)
+    await request(app.getHttpServer())
+      .put(`/api/v1/bills/${bId}/revisions/1`)
+      .set(auth(adminToken))
+      .send({ note: 'tamper' })
+      .expect(404);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/bills/${bId}/revisions/1`)
+      .set(auth(adminToken))
+      .expect(404);
+    // unknown bill -> 404
+    await request(app.getHttpServer())
+      .get('/api/v1/bills/cmesxxxxxxxxxxxxxxxx/revisions')
+      .set(auth(adminToken))
+      .expect(404);
+  });
+
+  it('every non-DRAFT status is frozen: FINAL/APPROVED/RELEASED/CANCELLED/ISSUED revisions 409; restore also 409', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g)
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    createdStandaloneBills.push({ id: bId });
+
+    // DRAFT works (control) — no line needed for a freeze
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .send({ note: 'draft control' })
+      .expect(201);
+
+    // FINAL
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    let res = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .send({});
+    expect(res.status).toBe(409);
+    expect(JSON.stringify(res.body)).toContain('DRAFT'); // recorded message
+
+    // CANCELLED (from FINAL — mandatory reason path)
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/cancel`)
+      .set(auth(adminToken))
+      .send({ cancelReason: 'freeze proof' })
+      .expect(200);
+    res = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .send({});
+    expect(res.status).toBe(409);
+    // restore into a non-DRAFT is rejected too (recorded restore decision)
+    res = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions/1/restore`)
+      .set(auth(adminToken));
+    expect(res.status).toBe(409);
+
+    // APPROVED / RELEASED / legacy ISSUED — forced directly (the status gate is the
+    // unit under test; every one of these states is unreachable-or-terminal through
+    // the API for this bill, exactly as U4 established)
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      for (const forced of ['APPROVED', 'RELEASED', 'ISSUED'] as const) {
+        await fx.billOfLading.update({ where: { id: bId }, data: { status: forced } });
+        const r = await request(app.getHttpServer())
+          .post(`/api/v1/bills/${bId}/revisions`)
+          .set(auth(adminToken))
+          .send({});
+        expect(r.status).toBe(409);
+        expect(JSON.stringify(r.body)).toContain(forced); // message names the state
+      }
+    } finally {
+      await fx.$disconnect();
+    }
+  });
+
+  it('restore = read-back into the draft: pre-restore capture keeps the edited state, header + items restored, billNumber never changes, unknown revision 404', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g)
+    // two actually-loaded cargos -> a voyage-mode bill with two items (ADR-045/042
+    // eligibility, same chain helper the suite already uses)
+    const c1 = await mkLoadedCargoOn(voyageId, 9, 9);
+    const c2 = await mkLoadedCargoOn(voyageId, 6, 6);
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId, cargoIds: [c1, c2], carrierName: 'Original Restore Co', notes: 'original note' })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    const originalNumber = b.body.data.billNumber as string;
+    createdStandaloneBills.push({ id: bId });
+    expect(b.body.data.items).toHaveLength(2);
+
+    const r1 = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .send({ note: 'v1 before corrections' })
+      .expect(201);
+    expect(r1.body.data.revisionNumber).toBe(1);
+
+    // edit the draft: header change + drop one line
+    await request(app.getHttpServer())
+      .patch(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .send({ carrierName: 'Edited Restore Co', notes: 'edited note' })
+      .expect(200);
+    const liveDetail = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(liveDetail.body.data.items).toHaveLength(2);
+    const itemId = liveDetail.body.data.items[0].id as string;
+    await request(app.getHttpServer())
+      .delete(`/api/v1/bills/${bId}/items/${itemId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const edited = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(edited.body.data.items).toHaveLength(1);
+    expect(edited.body.data.carrierName).toBe('Edited Restore Co');
+
+    // restore rev 1 -> read-back into the SAME draft (no new bill, no new path)
+    const restored = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions/1/restore`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(restored.body.data.carrierName).toBe('Original Restore Co');
+    expect(restored.body.data.notes).toBe('original note');
+    expect(restored.body.data.items).toHaveLength(2);
+    expect(restored.body.data.billNumber).toBe(originalNumber); // number frozen
+    // totals recomputed from the restored items (server rule, not snapshot copying):
+    // item packages come from the cargo facts (mkLoadedCargoOn fixture = 2 each), so
+    // the round-trip total equals the original create's total
+    expect(restored.body.data.totalPackages).toBe(b.body.data.totalPackages);
+    expect(restored.body.data.totalPackages).toBe(4); // 2 + 2
+    const restoredCargos = (restored.body.data.items as Array<{ cargoId: string }>)
+      .map((i) => i.cargoId)
+      .sort();
+    expect(restoredCargos).toEqual([c1, c2].sort());
+
+    // history: rev 1 intact + the automatic pre-restore capture keeps the edited
+    // state, so nothing was lost
+    const hist = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .expect(200);
+    const rows = hist.body.data as Array<{
+      revisionNumber: number;
+      note: string | null;
+      snapshot: { carrierName: string; items: unknown[] };
+    }>;
+    expect(rows.map((r) => r.revisionNumber)).toEqual([1, 2]);
+    expect(rows[0].snapshot.carrierName).toBe('Original Restore Co');
+    expect(rows[0].snapshot.items).toHaveLength(2);
+    expect(rows[1].note).toBe('Pre-restore capture before restoring revision 1');
+    expect(rows[1].snapshot.carrierName).toBe('Edited Restore Co');
+    expect(rows[1].snapshot.items).toHaveLength(1); // the edited state survived
+
+    // unknown revision -> 404 (after the capture? no: 404 fires BEFORE any capture —
+    // a failed restore must not consume a revision number)
+    const histLenBefore = rows.length;
+    const miss = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions/999/restore`)
+      .set(auth(adminToken));
+    expect(miss.status).toBe(404);
+    const hist2 = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/revisions`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect((hist2.body.data as unknown[]).length).toBe(histLenBefore); // no capture on 404
+    // non-integer revision param -> 400
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/revisions/abc/restore`)
+      .set(auth(adminToken))
+      .expect(400);
+  });
 });
+
 
 
 

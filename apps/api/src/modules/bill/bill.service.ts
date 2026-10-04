@@ -7,6 +7,7 @@ import {
 import { Prisma, BlStatus, BlType, FreightTerms } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
+import { CreateRevisionDto } from './dto/bill.dto';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -61,6 +62,7 @@ const voyageSummarySelect = {
 const listSelect = {
   id: true,
   billNumber: true,
+  revision: true, // P4-U5: next revision label (ADR-045 decision 4)
   manifestId: true,
   voyageId: true,
   destinationPortId: true,
@@ -137,6 +139,39 @@ const detailSelect = {
     orderBy: { sequence: 'asc' as const },
   },
 } satisfies Prisma.BillOfLadingSelect;
+
+/**
+ * Shape of a frozen detailSelect snapshot (P4-U5): detailSelect always emits these
+ * keys, so restore reads them back defensively (`?? null` for nullable columns).
+ * Decimals arrive as strings, dates as ISO strings (JSON.stringify round-trip).
+ */
+interface RevisionSnapshot {
+  billType?: string;
+  shipperId?: string | null;
+  consigneeId?: string | null;
+  notifyParty?: string | null;
+  freightTerms?: string | null;
+  carrierName?: string | null;
+  placeOfIssue?: string | null;
+  dateOfIssue?: string | null;
+  originals?: number | null;
+  freightAmount?: string | null;
+  currencyCode?: string | null;
+  goodsDescription?: string | null;
+  shipmentMarks?: string | null;
+  notes?: string | null;
+  items?: Array<{
+    manifestItemId?: string | null;
+    cargoId: string; // NOT NULL column — always present in a detailSelect snapshot
+    sequence?: number;
+    goodsDescription?: string | null;
+    marksAndNumbers?: string | null;
+    packages?: number | null;
+    packageType?: string | null;
+    grossWeight?: string | null;
+    volume?: string | null;
+  }>;
+}
 
 /** A cargo line eligible for a voyage-mode B/L (ADR-045 decision 1). */
 interface EligibleCargoLine {
@@ -1165,6 +1200,210 @@ export class BillService {
         select: detailSelect,
       });
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // P4-U5 — revisions (ADR-045 decision 4)
+  // -------------------------------------------------------------------------
+  //
+  // Recorded decisions (the details decision 4 left to this unit):
+  //  - SNAPSHOT SHAPE: the verbatim `detailSelect` row — header scalars + party/
+  //    voyage/manifest summaries + item snapshots — via JSON.stringify (Decimal ->
+  //    string, Date -> ISO). No parallel serializer: it is exactly what
+  //    GET /bills/:id returns, i.e. the document state the customer reviews.
+  //  - PERMISSION: `bill:update` — freezing is bookkeeping inside the draft-editing
+  //    loop (customer-review corrections = edit -> next revision); `bill:issue` stays
+  //    the forward-transition gate. No new permission codes.
+  //  - CONCURRENCY: `SELECT ... FOR UPDATE` row lock inside one interactive tx, with
+  //    the snapshot read performed UNDER the lock; @@unique(billId, revisionNumber)
+  //    is the DB backstop.
+  //  - NUMBERING: `bill.revision` is the label the NEXT freeze receives (snapshots
+  //    come out 1, 2, 3, ...). billNumber is never re-allocated or changed.
+  //  - RESTORE: read-back into the DRAFT (not a new data path) — the current state
+  //    is captured as the NEXT revision first, then the target snapshot's document
+  //    fields + items overwrite the draft. billNumber/status/stamps/audit/totals are
+  //    never restored (totals recompute from the restored items).
+  //  - Binding exclusions NOT built (decision 4): field diffs/compare, per-item
+  //    version trees, multi-approver workflow engine, revision deletion/editing,
+  //    branching.
+
+  /** P4-U5 list-only history: ascending, immutable; no PUT/DELETE route exists. */
+  async listRevisions(id: string) {
+    const bill = await this.prisma.billOfLading.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!bill || bill.deletedAt) {
+      throw new NotFoundException('Bill of Lading not found');
+    }
+    return this.prisma.billOfLadingRevision.findMany({
+      where: { billId: id },
+      orderBy: { revisionNumber: 'asc' },
+      select: {
+        id: true,
+        revisionNumber: true,
+        note: true,
+        snapshot: true,
+        createdAt: true,
+        createdById: true,
+        createdBy: { select: { id: true, email: true, fullName: true } },
+      },
+    });
+  }
+
+  /** Freeze the CURRENT document as the next immutable revision (lock held by caller). */
+  private async freezeRevision(
+    tx: Prisma.TransactionClient,
+    row: { id: string; revision: number } & Record<string, unknown>,
+    note: string | null,
+    actor: AuthenticatedUser
+  ) {
+    const revisionNumber = row.revision;
+    const snapshot = JSON.parse(JSON.stringify(row)) as Prisma.InputJsonValue;
+    const created = await tx.billOfLadingRevision.create({
+      data: {
+        billId: row.id,
+        revisionNumber,
+        note,
+        snapshot,
+        createdById: actor.id,
+      },
+      select: {
+        id: true,
+        revisionNumber: true,
+        note: true,
+        createdAt: true,
+        createdById: true,
+        createdBy: { select: { id: true, email: true, fullName: true } },
+      },
+    });
+    await tx.billOfLading.update({
+      where: { id: row.id },
+      data: { revision: revisionNumber + 1 },
+    });
+    return created;
+  }
+
+  /** Serialize snapshot writes against concurrent edits/issue (P4-U5 concurrency). */
+  private async lockBill(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "bills_of_lading" WHERE "id" = ${id} FOR UPDATE`;
+  }
+
+  /**
+   * POST /bills/:id/revisions — freeze the current DRAFT as the next revision.
+   * Every non-DRAFT status (FINAL/APPROVED/RELEASED/CANCELLED/ISSUED) is frozen:
+   * 409 with the recorded message.
+   */
+  async createRevision(id: string, dto: CreateRevisionDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockBill(tx, id);
+      const bill = await tx.billOfLading.findUnique({ where: { id }, select: detailSelect });
+      if (!bill || bill.deletedAt) {
+        throw new NotFoundException('Bill of Lading not found');
+      }
+      if (bill.status !== 'DRAFT') {
+        throw new ConflictException(
+          `B/L revisions can only be created while DRAFT (current: ${bill.status})`
+        );
+      }
+      return this.freezeRevision(tx, bill, dto.note?.trim() || null, actor);
+    });
+  }
+
+  /**
+   * POST /bills/:id/revisions/:n/restore — read-back into the DRAFT per ADR-045:
+   * current state captured as the next revision first (nothing is lost), then the
+   * target snapshot's document fields + items overwrite the draft, atomically.
+   */
+  async restoreRevision(id: string, revisionParam: string, actor: AuthenticatedUser) {
+    const n = Number(revisionParam);
+    if (!Number.isInteger(n) || n < 1) {
+      throw new BadRequestException('revision must be a positive integer');
+    }
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockBill(tx, id);
+        const bill = await tx.billOfLading.findUnique({ where: { id }, select: detailSelect });
+        if (!bill || bill.deletedAt) {
+          throw new NotFoundException('Bill of Lading not found');
+        }
+        if (bill.status !== 'DRAFT') {
+          throw new ConflictException(
+            `B/L can only be restored into a DRAFT document (current: ${bill.status})`
+          );
+        }
+        const target = await tx.billOfLadingRevision.findFirst({
+          where: { billId: id, revisionNumber: n },
+        });
+        if (!target) {
+          throw new NotFoundException(`Revision ${n} not found for this B/L`);
+        }
+
+        // 1) capture CURRENT state first — the pre-restore revision keeps everything
+        await this.freezeRevision(
+          tx,
+          bill,
+          `Pre-restore capture before restoring revision ${n}`,
+          actor
+        );
+
+        // 2) read-back: only document-owned fields (UpdateBillDto set). Never restored:
+        //    billNumber, status, revision, voyage/manifest/destination linkage, audit
+        //    stamps (issued*/cancelled*), totals (recomputed below).
+        const s = target.snapshot as unknown as RevisionSnapshot;
+        await tx.billOfLading.update({
+          where: { id },
+          data: {
+            billType: (s.billType as BlType | undefined) ?? bill.billType,
+            shipperId: s.shipperId ?? null,
+            consigneeId: s.consigneeId ?? null,
+            notifyParty: s.notifyParty ?? null,
+            freightTerms: (s.freightTerms as FreightTerms | null | undefined) ?? null,
+            carrierName: s.carrierName ?? null,
+            placeOfIssue: s.placeOfIssue ?? null,
+            dateOfIssue: s.dateOfIssue ? new Date(s.dateOfIssue) : null,
+            originals: s.originals ?? null,
+            freightAmount: s.freightAmount ?? null,
+            currencyCode: s.currencyCode ?? null,
+            goodsDescription: s.goodsDescription ?? null,
+            shipmentMarks: s.shipmentMarks ?? null,
+            notes: s.notes ?? null,
+          },
+        });
+
+        // 3) items read-back: replace the collection with the snapshot's rows (ids are
+        //    intentionally NOT restored — new rows, same document identity), then
+        //    recompute totals the way every other item write does.
+        await tx.billOfLadingItem.deleteMany({ where: { billOfLadingId: id } });
+        const snapItems = Array.isArray(s.items) ? s.items : [];
+        for (const it of snapItems) {
+          await tx.billOfLadingItem.create({
+            data: {
+              billOfLadingId: id,
+              manifestItemId: it.manifestItemId ?? null,
+              cargoId: it.cargoId,
+              sequence: it.sequence ?? 1,
+              goodsDescription: it.goodsDescription ?? null,
+              marksAndNumbers: it.marksAndNumbers ?? null,
+              packages: it.packages ?? null,
+              packageType: it.packageType ?? null,
+              grossWeight: it.grossWeight ?? null,
+              volume: it.volume ?? null,
+            },
+          });
+        }
+        await this.recomputeTotals(tx, id);
+
+        return tx.billOfLading.findUnique({ where: { id }, select: detailSelect });
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new BadRequestException(
+          'Invalid reference: party ids must reference existing master records'
+        );
+      }
+      throw e;
+    }
   }
 
   // -------------------------------------------------------------------------

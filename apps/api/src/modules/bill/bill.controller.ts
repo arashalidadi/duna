@@ -19,6 +19,7 @@ import {
   AddBillItemDto,
   CancelBillDto,
   CreateBillDto,
+  CreateRevisionDto,
   ListBillQueryDto,
   UpdateBillDto,
   UpdateBillItemDto,
@@ -92,6 +93,42 @@ export class BillController {
   @RequirePermissions('bill:update')
   removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
     return this.service.removeItem(id, itemId);
+  }
+
+  // -------------------------------------------------------------------------
+  // P4-U5 revisions (ADR-045 decision 4)
+  // -------------------------------------------------------------------------
+  // List-only history + DRAFT-only freeze/restore. bill:update for writes (the
+  // draft-editing loop), bill:read for history — no new permission codes. There is
+  // deliberately no PUT/DELETE on revisions (decision 4 excludes revision editing
+  // and deletion): those paths 404 by construction.
+
+  @Post(':id/revisions')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('bill:update')
+  createRevision(
+    @Param('id') id: string,
+    @Body() dto: CreateRevisionDto,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.service.createRevision(id, dto, user);
+  }
+
+  @Get(':id/revisions')
+  @RequirePermissions('bill:read')
+  listRevisions(@Param('id') id: string) {
+    return this.service.listRevisions(id);
+  }
+
+  @Post(':id/revisions/:n/restore')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('bill:update')
+  restoreRevision(
+    @Param('id') id: string,
+    @Param('n') n: string,
+    @CurrentUser() user: AuthenticatedUser
+  ) {
+    return this.service.restoreRevision(id, n, user);
   }
 
   // -------------------------------------------------------------------------

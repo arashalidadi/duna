@@ -242,6 +242,13 @@ describe('Delivery & Release Orders (e2e)', () => {
       await prisma.yard.deleteMany({ where: { id: { in: createdYards.map((y) => y.id) } } });
       await prisma.customer.deleteMany({ where: { id: { in: createdCustomers.map((c) => c.id) } } });
       await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
+      // follow-up (g): this suite's bill creates allocate per-destination BILL
+      // sequences on its own fixture ports — remove them by EXACT scope ids
+      // (in: [] matches nothing, so an empty list can never collapse into a
+      // wildcard — the unit-2 incident pattern)
+      await prisma.numberingSequence.deleteMany({
+        where: { documentType: 'BILL', scopeValue: { in: createdPorts.map((p) => p.id) } },
+      });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.user.deleteMany({
         where: { email: { in: ['dr-read', 'dr-writer', 'dr-canc', 'dr-ovr', 'dr-plain', 'dr-noread'].map((p) => `${p}-${emailSuffix}@shipping.local`) } },

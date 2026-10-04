@@ -27,6 +27,7 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
+
   id                      String           @id @default(cuid())
   email                   String           @unique
   passwordHash            String
@@ -60,6 +61,8 @@ model User {
   manifestsCancelled      Manifest[]       @relation("ManifestCancelledBy")
   billsCreated            BillOfLading[]   @relation("BillCreatedBy")
   billsIssued             BillOfLading[]   @relation("BillIssuedBy")
+  // P4-U5: B/L revisions authored by this user (Cascade keeps test cleanups working)
+  billRevisions           BillOfLadingRevision[] @relation("RevisionCreatedBy")
   billsCancelled          BillOfLading[]   @relation("BillCancelledBy")
   invoicesCreated         Invoice[]        @relation("InvoiceCreatedBy")
   invoicesIssued          Invoice[]        @relation("InvoiceIssuedBy")
@@ -1249,6 +1252,9 @@ model BillOfLading {
   destinationPortId String? @map("destinationPortId")
   status     BlStatus @default(DRAFT)
   billType   BlType   @default(HOUSE)
+  // P4-U5 (ADR-045 decision 4): label the NEXT frozen revision will receive —
+  // snapshots are numbered bill.revision, bill.revision, ... (starts at 1).
+  revision   Int      @default(1) @map("revision")
 
   // Vessel snapshot copied from the manifest at creation
   vesselName String  @map("vesselName")
@@ -1295,7 +1301,8 @@ model BillOfLading {
   shipper        Shipper?           @relation("BillShipper", fields: [shipperId], references: [id])
   consignee      Consignee?         @relation("BillConsignee", fields: [consigneeId], references: [id])
   items          BillOfLadingItem[]
-  invoices       Invoice[]          @relation("InvoiceBill")
+  revisions      BillOfLadingRevision[]
+  invoices       Invoice[] @relation("InvoiceBill")
   deliveryOrders DeliveryOrder[]    @relation("DeliveryOrderBill")
   releaseOrders  ReleaseOrder[]     @relation("ReleaseOrderBill")
   createdBy      User?              @relation("BillCreatedBy", fields: [createdById], references: [id])
@@ -1315,6 +1322,28 @@ model BillOfLading {
   @@index([createdAt])
   @@index([createdById])
   @@map("bills_of_lading")
+}
+
+// P4-U5 — ADR-045 decision 4: minimal immutable revision snapshots.
+// Deliberately NO diff engine / version trees / branching / edit-or-delete of
+// revisions (gold-plating guard in decision 4 is binding).
+model BillOfLadingRevision {
+  id             String   @id @default(cuid())
+  billId         String   @map("billId")
+  revisionNumber Int      @map("revisionNumber")
+  note           String?
+  // Verbatim JSON of the existing detailSelect row (header + items), serialized
+  // via JSON.stringify (Decimal -> string, Date -> ISO) — no parallel serializer.
+  snapshot       Json
+  createdById    String   @map("createdById")
+  createdAt      DateTime @default(now()) @map("createdAt")
+
+  bill       BillOfLading @relation(fields: [billId], references: [id], onDelete: Cascade)
+  createdBy  User         @relation("RevisionCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([billId, revisionNumber])
+  @@index([billId])
+  @@map("bills_of_lading_revisions")
 }
 
 model BillOfLadingItem {
