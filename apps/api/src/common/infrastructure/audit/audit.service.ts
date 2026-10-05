@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 import { STORAGE_ADAPTER_TOKEN } from '../storage/storage.token';
 import type { StorageAdapter } from '../storage/storage-adapter.interface';
 import type {
@@ -55,6 +56,37 @@ export class AuditService {
       );
     }
     await this.prisma.auditLog.create({
+      data: {
+        id: this.makeId(),
+        actorId: ctx.actorId,
+        actorEmail: ctx.actorEmail,
+        action: ctx.action,
+        entityType: ctx.entityType,
+        entityId: ctx.entityId,
+        timestamp: new Date(),
+        beforeData: this.toPrismaJson(ctx.beforeData) as never,
+        afterData: this.toPrismaJson(ctx.afterData) as never,
+        metadata: this.toPrismaJson(ctx.metadata ?? {}) as never,
+        ipAddress: ctx.ipAddress ?? null,
+        userAgent: ctx.userAgent ?? null,
+      },
+    });
+  }
+
+  /**
+   * P4-U6: identical to record(), but written through a caller-owned transaction so
+   * the audit row and the mutation it describes COMMIT TOGETHER (the ADR-010 promise
+   * this service's header documents — record() itself always uses the outer client,
+   * i.e. runs post-commit). First business-module caller: B/L release (ADR-046
+   * ruling 2) and the audited ReleaseOrder override (ruling 3).
+   */
+  async recordIn(tx: Prisma.TransactionClient, ctx: AuditContext): Promise<void> {
+    if (!ctx.action || !ctx.entityType || !ctx.entityId || !ctx.actorId || !ctx.actorEmail) {
+      throw new BadRequestException(
+        'Audit record requires action, entityType, entityId, actorId, and actorEmail'
+      );
+    }
+    await tx.auditLog.create({
       data: {
         id: this.makeId(),
         actorId: ctx.actorId,

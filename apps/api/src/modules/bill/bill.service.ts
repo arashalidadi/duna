@@ -8,6 +8,7 @@ import { Prisma, BlStatus, BlType, FreightTerms } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import { CreateRevisionDto } from './dto/bill.dto';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -191,6 +192,7 @@ export class BillService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -1199,6 +1201,50 @@ export class BillService {
         },
         select: detailSelect,
       });
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // P4-U6 — release separation (ADR-045 decision 3 + ADR-046 ruling 2)
+  // -------------------------------------------------------------------------
+
+  /**
+   * APPROVED -> RELEASED: the edge U4 left inert, now dispatched behind its own
+   * `bill:release` permission (workflows §3.1 step 9 — a separate permission
+   * concept). Writes an ADR-010 AuditLog row IN THE SAME TRANSACTION
+   * (action `bill:release`, shape recorded in the P4-U6 log). RELEASED stays
+   * terminal via BILL_TRANSITIONS; any other source status is 409 from the table
+   * (recorded message: `B/L transition {status} -> RELEASED is not allowed`).
+   * The two axes stay independent: approval never releases, release never re-opens
+   * (no status change other than APPROVED -> RELEASED happens here).
+   */
+  async release(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockBill(tx, id);
+      const bill = await tx.billOfLading.findUnique({
+        where: { id },
+        select: { id: true, billNumber: true, status: true, deletedAt: true },
+      });
+      if (!bill || bill.deletedAt) {
+        throw new NotFoundException('Bill of Lading not found');
+      }
+      this.assertTransition(bill.status, 'RELEASED');
+      const released = await tx.billOfLading.update({
+        where: { id },
+        data: { status: 'RELEASED' },
+        select: detailSelect,
+      });
+      await this.audit.recordIn(tx, {
+        action: 'bill:release',
+        entityType: 'BillOfLading',
+        entityId: id,
+        actorId: actor.id,
+        actorEmail: actor.email,
+        beforeData: { status: bill.status },
+        afterData: { status: 'RELEASED' },
+        metadata: { billNumber: bill.billNumber },
+      });
+      return released;
     });
   }
 

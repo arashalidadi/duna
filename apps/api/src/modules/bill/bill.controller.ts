@@ -155,6 +155,19 @@ export class BillController {
     return this.service.approve(id, user);
   }
 
+  /**
+   * P4-U6 (ADR-046 ruling 2): APPROVED -> RELEASED behind its own `bill:release`
+   * permission; the service writes the ADR-010 audit row in-transaction. This is
+   * the route U4 deliberately left absent (404-proven then); U4's test is
+   * re-pointed to the permission-gated behavior.
+   */
+  @Post(':id/release')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('bill:release')
+  release(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.release(id, user);
+  }
+
   @Post(':id/issue')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('bill:issue')

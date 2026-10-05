@@ -189,6 +189,11 @@ async function main() {
   { code: 'bill:delete', module: 'bill', action: 'delete' },
   { code: 'bill:issue', module: 'bill', action: 'issue' },
   { code: 'bill:cancel', module: 'bill', action: 'cancel' },
+  // P4-U6 (ADR-046 ruling 2): release is its own permission concept (workflows §3.1
+  // step 9). Seeded idempotently by code like every other permission; the ADMIN role
+  // receives it via the all-permissions loop below. Other roles are unchanged —
+  // role grants are configuration, assigned per deployment (recorded in the P4-U6 log).
+  { code: 'bill:release', module: 'bill', action: 'release' },
   { code: 'letter:read', module: 'letters', action: 'read' },
   { code: 'letter:create', module: 'letters', action: 'create' },
   { code: 'letter:update', module: 'letters', action: 'update' },

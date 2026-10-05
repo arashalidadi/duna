@@ -51,7 +51,8 @@ describe('BillOfLading (e2e)', () => {
   let writerToken = ''; // read + create + update
   let issuerToken = ''; // read + issue
   let cancellerToken = ''; // read + cancel
-  let noReadToken = ''; // no bill permission
+  let noReadToken = '';
+  let releaserToken = ''; // P4-U6: holds the dedicated bill:release permission // no bill permission
 
   let originPortId = '';
   let destPortId = '';
@@ -131,6 +132,11 @@ describe('BillOfLading (e2e)', () => {
       `bl-canc-${emailSuffix}@shipping.local`
     );
     noReadToken = await createRoleToken(`BLNOREAD_${tag}`, ['cargo:read'], `bl-noread-${emailSuffix}@shipping.local`);
+    releaserToken = await createRoleToken(
+      `BLREL_${tag}`,
+      ['bill:read', 'bill:release'], // the dedicated permission (ADR-046 ruling 2)
+      `bl-rel-${emailSuffix}@shipping.local`
+    );
 
     // --- master data ---
     const portA = await request(app.getHttpServer())
@@ -398,6 +404,12 @@ describe('BillOfLading (e2e)', () => {
       const standaloneIds = createdStandaloneBills.map((b) => b.id);
       await prisma.billOfLadingItem.deleteMany({ where: { billOfLadingId: { in: standaloneIds } } });
       await prisma.billOfLading.deleteMany({ where: { id: { in: standaloneIds } } });
+      // P4-U6: remove audit rows this suite wrote for its own fixture bills
+      // (explicit id filter only — U2 discipline; append-only binds the application,
+      // not test teardown, and these rows would dangle on deleted ids)
+      await prisma.auditLog.deleteMany({
+        where: { entityType: 'BillOfLading', entityId: { in: standaloneIds } },
+      });
       await prisma.actualLoadingItem.deleteMany({ where: { actualLoading: { loadListId: { in: loadListIds } } } });
       await prisma.actualLoading.deleteMany({ where: { loadListId: { in: loadListIds } } });
       await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });
@@ -421,6 +433,7 @@ describe('BillOfLading (e2e)', () => {
               `bl-iss-${emailSuffix}@shipping.local`,
               `bl-canc-${emailSuffix}@shipping.local`,
               `bl-noread-${emailSuffix}@shipping.local`,
+              `bl-rel-${emailSuffix}@shipping.local`,
             ],
           },
         },
@@ -428,7 +441,7 @@ describe('BillOfLading (e2e)', () => {
       await prisma.role.deleteMany({
         where: {
           code: {
-            in: [`BLREAD_${tag}`, `BLWRITE_${tag}`, `BLISS_${tag}`, `BLCANC_${tag}`, `BLNOREAD_${tag}`],
+            in: [`BLREAD_${tag}`, `BLWRITE_${tag}`, `BLISS_${tag}`, `BLCANC_${tag}`, `BLNOREAD_${tag}`, `BLREL_${tag}`],
           },
         },
       });
@@ -1460,12 +1473,13 @@ describe('BillOfLading (e2e)', () => {
         .set(auth(cancellerToken))
         .send({ cancelReason: 'attempt' })
         .expect(409);
-      // inert guard: APPROVED -> RELEASED has NO dispatcher — the route does not exist
-      // (U6 adds POST /bills/:id/release behind bill:release + an AuditLog entry)
+      // P4-U6 RE-POINT of U4's inert-guard assertion: the route now EXISTS, gated by
+      // `bill:release` (admin holds it via seed) — RELEASED is still terminal, so the
+      // release attempt is 409 from BILL_TRANSITIONS, not 404.
       await request(app.getHttpServer())
         .post(`/api/v1/bills/${b5Id}/release`)
         .set(auth(adminToken))
-        .expect(404);
+        .expect(409);
     } finally {
       await rxFx.$disconnect();
     }
@@ -1823,7 +1837,111 @@ describe('BillOfLading (e2e)', () => {
       .set(auth(adminToken))
       .expect(400);
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U6 — release separation (roadmap Test 5): bill:release gate, in-txn
+  // AuditLog row, non-APPROVED 409, the two axes stay independent.
+  // ---------------------------------------------------------------------------
+
+  it('release axis: bill:release gates APPROVED->RELEASED with an AuditLog row; other sources 409; approval never releases', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g): push what we allocate
+    // a bill with a real line so the issue alias can land it APPROVED
+    const c = await mkLoadedCargoOn(voyageId, 5, 5);
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId, cargoIds: [c] })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    const billNumber = b.body.data.billNumber as string;
+    createdStandaloneBills.push({ id: bId });
+
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    const countReleaseRows = async (id: string) =>
+      fx.auditLog.count({
+        where: { entityType: 'BillOfLading', entityId: id, action: 'bill:release' },
+      });
+    try {
+      // approval axis: the issue alias lands APPROVED and writes NO release audit row
+      const iss = await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/issue`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(iss.body.data.status).toBe('APPROVED');
+      expect(await countReleaseRows(bId)).toBe(0); // approval never releases
+
+      // permission gate: bill:read only -> 403; bill:update (writer) without release -> 403
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/release`)
+        .set(auth(readerToken))
+        .expect(403);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/release`)
+        .set(auth(writerToken))
+        .expect(403);
+      expect(await countReleaseRows(bId)).toBe(0); // denied calls write nothing
+
+      // the dedicated permission performs APPROVED -> RELEASED (200)
+      const rel = await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/release`)
+        .set(auth(releaserToken))
+        .expect(200);
+      expect(rel.body.data.status).toBe('RELEASED');
+      expect(rel.body.data.billNumber).toBe(billNumber);
+
+      // assert THE AUDIT ROW (ADR-046 ruling 2), not the status alone
+      const row = await fx.auditLog.findFirst({
+        where: { entityType: 'BillOfLading', entityId: bId, action: 'bill:release' },
+      });
+      expect(row).not.toBeNull();
+      expect(row!.actorEmail).toBe(`bl-rel-${emailSuffix}@shipping.local`);
+      expect(row!.actorId).toBeTruthy();
+      expect((row!.beforeData as { status: string }).status).toBe('APPROVED');
+      expect((row!.afterData as { status: string }).status).toBe('RELEASED');
+      expect((row!.metadata as { billNumber: string }).billNumber).toBe(billNumber);
+      expect(await countReleaseRows(bId)).toBe(1); // exactly one row
+
+      // non-APPROVED source -> 409 (recorded transition message), nothing audited
+      const draft = await request(app.getHttpServer())
+        .post('/api/v1/bills')
+        .set(auth(adminToken))
+        .send({ voyageId })
+        .expect(201);
+      const dId = draft.body.data.id as string;
+      createdStandaloneBills.push({ id: dId });
+      const denied = await request(app.getHttpServer())
+        .post(`/api/v1/bills/${dId}/release`)
+        .set(auth(releaserToken));
+      expect(denied.status).toBe(409);
+      expect(JSON.stringify(denied.body)).toContain('not allowed'); // recorded message
+      expect(await countReleaseRows(dId)).toBe(0);
+
+      // release never re-opens: every lifecycle path on a RELEASED bill 409s
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/approve`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/finalize`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/issue`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/v1/bills/${bId}/revisions`)
+        .set(auth(adminToken))
+        .send({})
+        .expect(409);
+      expect(await countReleaseRows(bId)).toBe(1); // still exactly one
+    } finally {
+      await fx.$disconnect();
+    }
+  });
 });
+
 
 
 

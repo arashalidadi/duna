@@ -67,6 +67,7 @@ export class ReleaseOrderController {
   create(@Body() dto: CreateReleaseOrderDto, @CurrentUser() user: AuthenticatedUser) {
     return this.service.createRelease(dto, {
       userId: user.id,
+      actorEmail: user.email, // P4-U6: actor email for the audited override row
       canOverride: user.permissions.includes('release:override'),
     });
   }

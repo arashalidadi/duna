@@ -219,6 +219,11 @@ describe('Delivery & Release Orders (e2e)', () => {
     try {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
+      // P4-U6: remove the audit rows this suite wrote for its own fixture RO
+      // (explicit id filter only; append-only binds the application, not test teardown)
+      await prisma.auditLog.deleteMany({
+        where: { entityType: 'ReleaseOrder', entityId: { in: [ro1Id] } },
+      });
       await prisma.deliveryOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.releaseOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.voucher.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
@@ -449,4 +454,60 @@ describe('Delivery & Release Orders (e2e)', () => {
       await fx.$disconnect();
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // P4-U6 — release separation (roadmap Test 5): the audited override path
+  // (ADR-046 ruling 3) + the policy seam (single named object).
+  // ---------------------------------------------------------------------------
+
+  it('override path is audited (ruling 3): the successful release:override above wrote its AuditLog row', async () => {
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      const row = await fx.auditLog.findFirst({
+        where: { entityType: 'ReleaseOrder', entityId: ro1Id, action: 'release:override' },
+      });
+      expect(row).not.toBeNull();
+      expect(row!.actorEmail).toContain(`dr-ovr-${emailSuffix}`); // the overrider's token
+      expect((row!.metadata as { overrideReason: string }).overrideReason).toContain('wire pending');
+      const meta = row!.metadata as { outstanding: string; invoicesTotal: string };
+      expect(meta.invoicesTotal).toBe('800.00');
+      expect(meta.outstanding).toBe('800.00'); // the blocked amount the override bypassed
+      // exactly one override row in the whole audit trail (nothing wrote one before)
+      const count = await fx.auditLog.count({ where: { action: 'release:override' } });
+      expect(count).toBe(1);
+    } finally {
+      await fx.$disconnect();
+    }
+  });
+
+  it('policy seam (ruling 3): named default object evaluates APPROVED + full settlement; config path is the object itself', async () => {
+    // The service consults RELEASE_ORDER_ELIGIBILITY_POLICY everywhere it decides
+    // eligibility (status gate + fully-paid tolerance + verdict). A future employer
+    // ruling is a config change TO THIS OBJECT (or a successor with the same shape),
+    // never a code hunt — asserted directly here; API-level default outcomes are the
+    // eligibility/money-rule tests above (unpaid -> needsOverride/canRelease false;
+    // settled -> canRelease true; force+release:override -> 201 + audit row).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { RELEASE_ORDER_ELIGIBILITY_POLICY: P } = require('../src/modules/delivery-release/release-order.policy');
+    expect(P.name).toBe('adr-046-ruling-3-default');
+    expect(P.requiredBillStatus).toBe('APPROVED'); // the issued-equivalent (U4 gates unchanged)
+    expect(P.paymentRule).toBe('FULL_SETTLEMENT'); // "no money, no cargo"
+    expect(P.paymentTolerance).toBe(0.005); // a policy INPUT per ruling 3's last sentence
+    expect(P.evaluate({ billStatus: 'APPROVED', fullyPaid: true })).toEqual({
+      eligible: true,
+      needsOverride: false,
+    });
+    expect(P.evaluate({ billStatus: 'APPROVED', fullyPaid: false })).toEqual({
+      eligible: false,
+      needsOverride: true,
+    });
+    expect(P.evaluate({ billStatus: 'DRAFT', fullyPaid: true }).eligible).toBe(false);
+    expect(P.evaluate({ billStatus: 'RELEASED', fullyPaid: true }).eligible).toBe(false);
+    // nothing beyond ruling 3's default exists on the object (gold-plating guard)
+    expect(Object.keys(P).sort()).toEqual(
+      ['evaluate', 'name', 'paymentRule', 'paymentTolerance', 'requiredBillStatus'].sort()
+    );
+  });
 });
+

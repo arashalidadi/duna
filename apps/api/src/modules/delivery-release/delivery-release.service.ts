@@ -11,11 +11,17 @@ import { PrismaClient } from '@prisma/client';
 const PAGE_SIZE_MAX = 100;
 
 type Tx = Prisma.TransactionClient;
-type ACTX = { canOverride?: boolean; userId?: string };
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { RELEASE_ORDER_ELIGIBILITY_POLICY as RELEASE_POLICY } from './release-order.policy';
+
+type ACTX = { canOverride?: boolean; userId?: string; actorEmail?: string };
 
 @Injectable()
 export class DeliveryReleaseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -78,7 +84,9 @@ export class DeliveryReleaseService {
       invoicesTotal: total.toFixed(2),
       invoicesPaid: paid.toFixed(2),
       outstanding: outstanding.toFixed(2),
-      fullyPaid: outstanding.lessThanOrEqualTo(0.005),
+      // P4-U6: the fully-paid comparison reads its tolerance from the POLICY SEAM
+      // (ADR-046 ruling 3 — payment numbers are policy inputs, never hard-coded here)
+      fullyPaid: outstanding.lessThanOrEqualTo(RELEASE_POLICY.paymentTolerance),
     };
   }
 
@@ -87,16 +95,25 @@ export class DeliveryReleaseService {
   async eligibility(billOfLadingId: string): Promise<ReleaseEligibility> {
     const bill = await this.prisma.billOfLading.findFirst({ where: { id: billOfLadingId, deletedAt: null } });
     if (!bill) throw new NotFoundException('bill of lading not found');
-    // P4-U4: issued-equivalent swap (ADR-046 ruling 1). Eligibility POLICY (ruling 3:
-    // APPROVED + fully paid) is P4-U6's job — only the state token changes here.
-    if (bill.status !== 'APPROVED') {
+    // P4-U6: eligibility is POLICY-driven (RELEASE_ORDER_ELIGIBILITY_POLICY — the
+    // single seam ruling 3 requires). Default = APPROVED + fully paid ("no money, no
+    // cargo"). Non-matching status keeps the shipped zeroed presentation.
+    if (bill.status !== RELEASE_POLICY.requiredBillStatus) {
+      const verdict = RELEASE_POLICY.evaluate({
+        billStatus: bill.status,
+        fullyPaid: false,
+      });
       return {
         billOfLadingId, billNumber: bill.billNumber,
         invoicesTotal: '0.00', invoicesPaid: '0.00', outstanding: '0.00',
-        fullyPaid: false, needsOverride: true, canRelease: false,
+        fullyPaid: false, needsOverride: verdict.needsOverride, canRelease: verdict.eligible,
       };
     }
     const fin = await this.billFinancials(this.prisma as unknown as Tx, billOfLadingId);
+    const verdict = RELEASE_POLICY.evaluate({
+      billStatus: bill.status,
+      fullyPaid: fin.fullyPaid,
+    });
     return {
       billOfLadingId,
       billNumber: bill.billNumber,
@@ -104,8 +121,8 @@ export class DeliveryReleaseService {
       invoicesPaid: fin.invoicesPaid,
       outstanding: fin.outstanding,
       fullyPaid: fin.fullyPaid,
-      needsOverride: !fin.fullyPaid,
-      canRelease: fin.fullyPaid,
+      needsOverride: verdict.needsOverride,
+      canRelease: verdict.eligible,
     };
   }
 
@@ -327,7 +344,7 @@ export class DeliveryReleaseService {
         financialOverride = true;
         overrideReason = dto.overrideReason;
       }
-      return tx.releaseOrder.create({
+      const ro = await tx.releaseOrder.create({
         data: {
           docNumber: await this.nextNumber(tx, 'RO'),
           billOfLadingId: dto.billOfLadingId,
@@ -338,6 +355,26 @@ export class DeliveryReleaseService {
           createdById: ctx.userId!,
         },
       });
+      // ADR-046 ruling 3: overrides are permitted ONLY through the AUDITED override
+      // path — every financial override writes an ADR-010 AuditLog row in the same
+      // transaction (action mirrors the `release:override` permission gate).
+      if (financialOverride) {
+        await this.audit.recordIn(tx, {
+          action: 'release:override',
+          entityType: 'ReleaseOrder',
+          entityId: ro.id,
+          actorId: ctx.userId!,
+          actorEmail: ctx.actorEmail ?? 'unknown',
+          metadata: {
+            billOfLadingId: dto.billOfLadingId,
+            overrideReason,
+            invoicesTotal: fin.invoicesTotal,
+            invoicesPaid: fin.invoicesPaid,
+            outstanding: fin.outstanding,
+          },
+        });
+      }
+      return ro;
     });
     return this.detailRelease(created.id);
   }
