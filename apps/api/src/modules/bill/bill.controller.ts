@@ -138,8 +138,8 @@ export class BillController {
   /**
    * P4-U4 lifecycle edges (ADR-045 d2 + ADR-046 ruling 1). Same bill:issue
    * operational permission as /issue — no new permission codes in this unit.
-   * No /release route exists: APPROVED -> RELEASED stays inert until U6
-   * adds bill:release + the AuditLog entry.
+   * (APPROVED -> RELEASED is dispatched by the /release route below — P4-U6,
+   * gated by `bill:release` + an in-transaction AuditLog row.)
    */
   @Post(':id/finalize')
   @HttpCode(200)

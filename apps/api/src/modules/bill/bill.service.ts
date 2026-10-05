@@ -22,12 +22,13 @@ import {
 
 // ---------------------------------------------------------------------------
 // B/L lifecycle (server-side).
-//   DRAFT -> ISSUED | CANCELLED
+//   (pre-P4-U4 shipped shape: DRAFT -> ISSUED | CANCELLED — superseded, live rows
+//    backfilled ISSUED -> APPROVED by migration 20261004000001)
 //   P4-U4 / ADR-045 decision 2 + ADR-046 ruling 1 — four-state lifecycle:
 //     DRAFT   -> FINAL | CANCELLED
 //     FINAL   -> APPROVED | CANCELLED   (mandatory cancel reason preserved)
-//     APPROVED-> RELEASED                (INERT: no endpoint dispatches this edge —
-//                                         U6 adds bill:release + AuditLog)
+//     APPROVED-> RELEASED                (dispatched by POST /:id/release — P4-U6,
+//                                         gated by `bill:release` + AuditLog row)
 //     RELEASED, CANCELLED                -> terminal
 //   ISSUED is retained in the enum (additive migration; backfill mapped live rows to
 //   APPROVED) but is not a source or target of any transition. Note the shipped

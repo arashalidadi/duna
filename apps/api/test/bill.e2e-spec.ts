@@ -1369,7 +1369,7 @@ describe('BillOfLading (e2e)', () => {
     }
   });
 
-  it('lifecycle edge set: finalize DRAFT->FINAL, approve FINAL->APPROVED, alias walks both, invalid edges 409, RELEASED terminal + no release route', async () => {
+  it('lifecycle edge set: finalize DRAFT->FINAL, approve FINAL->APPROVED, alias walks both, invalid edges 409, RELEASED terminal via the gated /release route', async () => {
     // explicit edge: DRAFT -> FINAL (b5 uses the second fixture manifest's free line;
     // approve/issue both require >= 1 line)
     const b5 = await request(app.getHttpServer())
