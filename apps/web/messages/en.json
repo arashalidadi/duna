@@ -27,7 +27,9 @@
       "save": "Save",
       "delete": "Delete",
       "issue": "Issue",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "release": "Release",
+      "document": "Document data"
     },
     "create": {
       "title": "New bill of Lading",
@@ -37,14 +39,21 @@
       "selectManifest": "Select manifest…",
       "manifestInfo": "{items} items — gross weight {weight}",
       "errors": {
-        "manifestRequired": "Select a manifest first."
-      }
+        "manifestRequired": "Select a manifest first.",
+        "voyageRequired": "Select a voyage"
+      },
+      "voyage": "Voyage",
+      "selectVoyage": "Select voyage…",
+      "noCargo": "No loaded cargo for this voyage yet (needs a completed Actual Loading).",
+      "cargoLines": "Cargo lines",
+      "selectedCount": "{count} line(s) selected"
     },
     "detail": {
       "headerTitle": "Header",
       "loading": "Loading…",
       "saving": "Saving…",
-      "issuedOn": "Issued {date}"
+      "issuedOn": "Issued {date}",
+      "releasedOn": "Released {date} by {by}"
     },
     "fields": {
       "billNumber": "B/L number",
@@ -116,6 +125,10 @@
       "removeItem": {
         "title": "Remove this line?",
         "description": "The line is removed from the bill."
+      },
+      "release": {
+        "title": "Release this B/L?",
+        "description": "Release is the final outbound step: the bill becomes RELEASED permanently and cannot be re-opened."
       }
     },
     "status": {
@@ -129,6 +142,23 @@
     "billType": {
       "MASTER": "Master",
       "HOUSE": "House"
+    },
+    "revisions": {
+      "title": "Revision history",
+      "current": "current: {n}",
+      "notePlaceholder": "Note (optional)",
+      "working": "Working…",
+      "freeze": "Freeze revision",
+      "empty": "No revisions frozen yet.",
+      "restore": "Restore",
+      "listOnly": "History is read-only — revisions cannot be edited or deleted.",
+      "restoreConfirmTitle": "Restore revision {n}?",
+      "restoreConfirmDescription": "The current draft is captured as a new revision first, then revision {n} is read back into the draft."
+    },
+    "document": {
+      "title": "Document data (hook)",
+      "description": "Structured document payload — Phase 7 renders it through the PDF/A template (ADR-009).",
+      "items": "{count} item(s)"
     }
   },
   "booking": {

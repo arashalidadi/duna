@@ -25,9 +25,12 @@ export interface BillOfLadingItem {
 }
 
 export interface BillOfLading {
+  /** P4-U5 (ADR-045 decision 4): label the next frozen revision receives. */
+  revision: number;
   id: string;
   billNumber: string;
-  manifestId: string;
+  /** null on voyage-mode bills (P4-U2 decoupling) — legacy rows keep a manifest. */
+  manifestId: string | null;
   voyageId: string;
   status: BillStatus;
   billType: BillType;
@@ -183,14 +186,18 @@ export interface BillItemApiResult {
  */
 export interface BillEligibleManifestItem {
   id: string;
-  manifestId: string;
+  /** null on voyage-mode rows (P4-U2): there is no manifest line to key on. */
+  manifestId: string | null;
   cargoId: string;
-  sequence: number;
+  /** null on voyage-mode rows (P4-U2): cargo is keyed, not sequenced by a manifest. */
+  sequence: number | null;
   blNumber: string | null;
   weight: string | null;
   quantity: number | null;
   packages: number | null;
   packageType: string | null;
+  /** Voyage-mode rows carry the cargo's serial/VIN as default marks (P4-U2). */
+  marksAndNumbers?: string | null;
   cargo?: {
     id: string;
     reference: string;

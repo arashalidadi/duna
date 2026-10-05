@@ -27,7 +27,9 @@
       "save": "ذخیره",
       "delete": "حذف",
       "issue": "صدور",
-      "cancel": "لغو"
+      "cancel": "لغو",
+      "release": "آزادسازی",
+      "document": "داده‌های سند"
     },
     "create": {
       "title": "بارنامه جدید",
@@ -37,14 +39,21 @@
       "selectManifest": "انتخاب مانیفست…",
       "manifestInfo": "{items} قلم — وزن ناخالص {weight}",
       "errors": {
-        "manifestRequired": "ابتدا یک مانیفست انتخاب کنید."
-      }
+        "manifestRequired": "ابتدا یک مانیفست انتخاب کنید.",
+        "voyageRequired": "یک سفر انتخاب کنید"
+      },
+      "voyage": "سفر دریایی",
+      "selectVoyage": "انتخاب سفر…",
+      "noCargo": "برای این سفر بار بارگذاری‌شده‌ای موجود نیست (نیازمند تکمیل بارگذاری واقعی).",
+      "cargoLines": "خطوط بار",
+      "selectedCount": "{count} خط انتخاب شد"
     },
     "detail": {
       "headerTitle": "سربرگ",
       "loading": "در حال بارگذاری…",
       "saving": "در حال ذخیره…",
-      "issuedOn": "صادرشده در {date}"
+      "issuedOn": "صادرشده در {date}",
+      "releasedOn": "آزادشده {date} توسط {by}"
     },
     "fields": {
       "billNumber": "شماره بارنامه",
@@ -116,6 +125,10 @@
       "removeItem": {
         "title": "این ردیف حذف شود؟",
         "description": "این ردیف از بارنامه حذف می‌شود."
+      },
+      "release": {
+        "title": "این بارنامه آزاد شود؟",
+        "description": "آزادسازی گام نهایی خروج است: بارنامه برای همیشه RELEASED می‌شود و قابل بازگشتن نیست."
       }
     },
     "status": {
@@ -129,6 +142,23 @@
     "billType": {
       "MASTER": "اصلی",
       "HOUSE": "فرعی"
+    },
+    "revisions": {
+      "title": "تاریخچه بازنگری",
+      "current": "کنونی: {n}",
+      "notePlaceholder": "یادداشت (اختیاری)",
+      "working": "در حال انجام…",
+      "freeze": "انجماد بازنگری",
+      "empty": "هنوز بازنگری‌ای منجمد نشده.",
+      "restore": "بازگردانی",
+      "listOnly": "تاریخچه فقط‌خواندنی است — بازنگری‌ها قابل ویرایش یا حذف نیستند.",
+      "restoreConfirmTitle": "بازگردانی بازنگری {n}؟",
+      "restoreConfirmDescription": "ابتدا وضعیت فعلی به‌صورت بازنگری جدید ذخیره می‌شود، سپس بازنگری {n} در پیش‌نویس بازخوانی می‌شود."
+    },
+    "document": {
+      "title": "داده‌های سند (هوک)",
+      "description": "محموله سند ساخت‌یافته — فاز ۷ آن را از طریق قالب PDF/A (ADR-009) رندر می‌کند.",
+      "items": "{count} قلم"
     }
   },
   "booking": {

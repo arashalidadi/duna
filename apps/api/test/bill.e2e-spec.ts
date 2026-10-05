@@ -722,6 +722,16 @@ describe('BillOfLading (e2e)', () => {
     expect(upd.body.data.originals).toBe(3);
     expect(upd.body.data.placeOfIssue).toBe('Jebel Ali');
 
+    // P4-U7 fix coverage: "null to clear" on the numeric header fields actually clears
+    // (the old inline transform turned null into 0 and Min(1) rejected it — 400).
+    const cleared = await request(app.getHttpServer())
+      .patch(`/api/v1/bills/${bill1Id}`)
+      .set(auth(writerToken))
+      .send({ originals: null, freightAmount: null })
+      .expect(200);
+    expect(cleared.body.data.originals).toBeNull();
+    expect(cleared.body.data.freightAmount).toBeNull();
+
     await request(app.getHttpServer())
       .patch(`/api/v1/bills/${'nonexistentbill'}`)
       .set(auth(writerToken))
@@ -1939,6 +1949,61 @@ describe('BillOfLading (e2e)', () => {
     } finally {
       await fx.$disconnect();
     }
+  });
+
+  it('P4-U7 hooks: GET document returns the ADR-009 structured payload (stub render seam) and GET audit returns the trail; unknown id 404', async () => {
+    createdSeqNames.push(`bill-${destPortId}-${yymmNow()}`); // follow-up (g): push what we allocate
+    const b = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId, carrierName: 'Hook Carrier' })
+      .expect(201);
+    const bId = b.body.data.id as string;
+    createdStandaloneBills.push({ id: bId });
+
+    // document hook: structured data + the Phase-7 render seam (no engine shipped)
+    const doc = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/document`)
+      .set(auth(readerToken))
+      .expect(200);
+    const payload = doc.body.data;
+    expect(payload.documentType).toBe('BILL');
+    expect(payload.template).toBe('default'); // ADR-009 registry key
+    expect(payload.render.format).toBe('json');
+    expect(payload.render.engine).toBeNull();
+    expect(payload.render.note).toContain('Phase 7');
+    expect(payload.document.billNumber).toBe(b.body.data.billNumber);
+    expect(payload.document.status).toBe('DRAFT');
+    expect(payload.watermark).toBe('DRAFT'); // blueprint §5.1 hint for renderers
+    expect(Array.isArray(payload.document.items)).toBe(true);
+    expect(payload.document.revision).toBe(1);
+
+    // document/audit access is bill:read; unknown bill -> 404
+    await request(app.getHttpServer())
+      .get('/api/v1/bills/cmesxxxxxxxxxxxxxxxx/document')
+      .set(auth(adminToken))
+      .expect(404);
+    const trail = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/audit`)
+      .set(auth(readerToken))
+      .expect(200);
+    expect(trail.body.data.total).toBe(0);
+    expect(trail.body.data.items).toEqual([]);
+    await request(app.getHttpServer())
+      .get('/api/v1/bills/cmesxxxxxxxxxxxxxxxx/audit')
+      .set(auth(adminToken))
+      .expect(404);
+
+    // a denied release (DRAFT source) writes no audit row — the trail stays empty
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${bId}/release`)
+      .set(auth(releaserToken))
+      .expect(409);
+    const after = await request(app.getHttpServer())
+      .get(`/api/v1/bills/${bId}/audit`)
+      .set(auth(readerToken))
+      .expect(200);
+    expect(after.body.data.total).toBe(0);
   });
 });
 

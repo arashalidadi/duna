@@ -206,9 +206,16 @@ export class UpdateBillDto {
   @IsString()
   dateOfIssue?: string | null;
 
-  @ApiPropertyOptional({ description: 'Number of originals', minimum: 1, maximum: 10 })
+  @ApiPropertyOptional({ description: 'Number of originals (null to clear)', minimum: 1, maximum: 10 })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === undefined ? undefined : Number(value)))
+  // P4-U7 gate fix (pre-existing defect): null must STAY null so @IsOptional can skip
+  // the Min(1) guard — Number(null) === 0 made every "null to clear" save fail 400.
+  // Same documented semantics as ToDecimal above ('' -> skip, null -> clear).
+  @Transform(({ value }) => {
+    if (value === null) return null;
+    if (value === '' || value === undefined) return undefined;
+    return Number(value);
+  })
   @IsInt()
   @Min(1)
   @Max(10)

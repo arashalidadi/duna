@@ -953,6 +953,15 @@ declined (as in unit 5): every candidate touches schema/service/DTOs or rewrites
 test assertions, so nothing is self-contained; execution starts at P4-U2 after this design's
 verification.
 
+**P4-U7 note (2026-10-04) — issue-endpoint naming (append-only; text above unchanged).**
+Decision 2's phrase *"(issue endpoint aliased during transition, then renamed)"* is hereby
+**superseded**: `POST /bills/:id/issue` remains the canonical route permanently. Rationale
+recorded in the P4-U7 log: workflows §3.1 step 7 is a single operational moment (ADR-046
+quotes its finalize/approve/issue conflation), the shipped page's one-click Issue maps
+directly onto the composite alias P4-U4 implemented, and renaming would churn clients and
+tests for zero behavior change. The alias — DRAFT|FINAL walking the table edges to APPROVED,
+plus explicit `/finalize` and `/approve` — is the final shape, not a transitional one.
+
 ## ADR-046: Three Phase 4 business rulings — lifecycle state names, Released modeling, ReleaseOrder default policy (closes ADR-045's open questions)
 
 **Date:** 2026-10-04

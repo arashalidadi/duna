@@ -1206,6 +1206,109 @@ export class BillService {
   }
 
   // -------------------------------------------------------------------------
+  // P4-U7 — audit read + document-output hook (ADR-009)
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /bills/:id/audit (bill:read): the bill's ADR-010 trail, newest first.
+   * Powers the "release record" display (there is no releasedAt column — the audit
+   * row IS the record, per ADR-045/046) and gives the gate a read-back path.
+   */
+  async auditTrail(id: string) {
+    const bill = await this.prisma.billOfLading.findUnique({
+      where: { id },
+      select: { id: true, deletedAt: true },
+    });
+    if (!bill || bill.deletedAt) {
+      throw new NotFoundException('Bill of Lading not found');
+    }
+    return this.audit.forEntity('BillOfLading', id);
+  }
+
+  /**
+   * GET /bills/:id/document (bill:read) — the ADR-009 document-output HOOK.
+   * ADR-009: "Domain services produce structured data; the template layer owns
+   * presentation." This endpoint is exactly that seam: it returns the complete
+   * structured document (header, parties, route, items, totals, revision, watermark
+   * hint) plus a `render` descriptor that today is a JSON stub. PHASE 7 drops in the
+   * `DocumentTemplate` registry entry keyed by `template: 'default'` (PDF/A layout
+   * layer) and flips `render.format` — no domain change, no PDF/Excel library here,
+   * and business logic never depends on a layout (roadmap "Document output hooks").
+   */
+  async getDocument(id: string) {
+    const bill = await this.prisma.billOfLading.findUnique({
+      where: { id },
+      select: detailSelect,
+    });
+    if (!bill || bill.deletedAt) {
+      throw new NotFoundException('Bill of Lading not found');
+    }
+    // one targeted lookup: voyageSummarySelect carries no port refs (document route)
+    const voyageRoute = bill.voyage
+      ? await this.prisma.voyage.findUnique({
+          where: { id: bill.voyage.id },
+          select: {
+            originPort: { select: { id: true, code: true, name: true, abbreviation: true } },
+            destinationPort: { select: { id: true, code: true, name: true, abbreviation: true } },
+          },
+        })
+      : null;
+    return {
+      documentType: 'BILL',
+      template: 'default', // ADR-009 DocumentTemplate registry key
+      generatedAt: new Date().toISOString(),
+      render: {
+        engine: null,
+        format: 'json' as const,
+        note: 'Structured data only — Phase 7 plugs the PDF/A template into this render seam (ADR-009); no engine in Phase 4.',
+      },
+      // blueprint §5.1: renderers must watermark DRAFT documents
+      watermark: bill.status === 'DRAFT' ? 'DRAFT' : null,
+      document: {
+        billNumber: bill.billNumber,
+        revision: bill.revision,
+        status: bill.status,
+        billType: bill.billType,
+        dateOfIssue: bill.dateOfIssue,
+        originals: bill.originals,
+        freightTerms: bill.freightTerms,
+        carrierName: bill.carrierName,
+        placeOfIssue: bill.placeOfIssue,
+        notifyParty: bill.notifyParty,
+        goodsDescription: bill.goodsDescription,
+        shipmentMarks: bill.shipmentMarks,
+        notes: bill.notes,
+        route: {
+          vesselName: bill.vesselName,
+          vesselImo: bill.vesselImo,
+          voyageNumber: bill.voyage?.voyageNumber ?? null,
+          origin: voyageRoute?.originPort ?? bill.manifest?.polPort ?? null,
+          destination: voyageRoute?.destinationPort ?? bill.manifest?.podPort ?? null,
+        },
+        parties: {
+          shipper: bill.shipper ?? null,
+          consignee: bill.consignee ?? null,
+        },
+        totals: {
+          totalPackages: bill.totalPackages,
+          totalGrossWeight: bill.totalGrossWeight,
+          totalVolume: bill.totalVolume,
+        },
+        items: bill.items.map((it) => ({
+          sequence: it.sequence,
+          cargoReference: it.cargo?.reference ?? null,
+          goodsDescription: it.goodsDescription,
+          marksAndNumbers: it.marksAndNumbers,
+          packages: it.packages,
+          packageType: it.packageType,
+          grossWeight: it.grossWeight,
+          volume: it.volume,
+        })),
+      },
+    };
+  }
+
+  // -------------------------------------------------------------------------
   // P4-U6 — release separation (ADR-045 decision 3 + ADR-046 ruling 2)
   // -------------------------------------------------------------------------
 

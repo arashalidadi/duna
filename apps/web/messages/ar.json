@@ -27,7 +27,9 @@
       "save": "حفظ",
       "delete": "حذف",
       "issue": "إصدار",
-      "cancel": "إلغاء"
+      "cancel": "إلغاء",
+      "release": "إطلاق",
+      "document": "بيانات المستند"
     },
     "create": {
       "title": "بوليصة شحن جديدة",
@@ -37,14 +39,21 @@
       "selectManifest": "اختر المانيفست…",
       "manifestInfo": "{items} بند — الوزن الإجمالي {weight}",
       "errors": {
-        "manifestRequired": "اختر المانيفست أولاً."
-      }
+        "manifestRequired": "اختر المانيفست أولاً.",
+        "voyageRequired": "اختر رحلة بحرية"
+      },
+      "voyage": "رحلة بحرية",
+      "selectVoyage": "اختر الرحلة…",
+      "noCargo": "لا يوجد شحن محمّل لهذه الرحلة بعد (يتطلب اكتمال التحميل الفعلي).",
+      "cargoLines": "بنود الشحنة",
+      "selectedCount": "تم تحديد {count} بند"
     },
     "detail": {
       "headerTitle": "الترويسة",
       "loading": "جارٍ التحميل…",
       "saving": "جارٍ الحفظ…",
-      "issuedOn": "صدرت في {date}"
+      "issuedOn": "صدرت في {date}",
+      "releasedOn": "أُطلقت {date} بواسطة {by}"
     },
     "fields": {
       "billNumber": "رقم البوليصة",
@@ -116,6 +125,10 @@
       "removeItem": {
         "title": "إزالة هذا البند؟",
         "description": "سيُزال البند من البوليصة."
+      },
+      "release": {
+        "title": "إطلاق بوليصة الشحن؟",
+        "description": "الإطلاق هو الخطوة النهائية: تصبح البوليصة مُطلقة نهائياً ولا يمكن فتحها مجدداً."
       }
     },
     "status": {
@@ -129,6 +142,23 @@
     "billType": {
       "MASTER": "أصلية",
       "HOUSE": "فرعية"
+    },
+    "revisions": {
+      "title": "سجل المراجعات",
+      "current": "الحالي: {n}",
+      "notePlaceholder": "ملاحظة (اختياري)",
+      "working": "جارٍ…",
+      "freeze": "تجميد المراجعة",
+      "empty": "لا توجد مراجعات مجمدة بعد.",
+      "restore": "استعادة",
+      "listOnly": "السجل للقراءة فقط — لا يمكن تعديل المراجعات أو حذفها.",
+      "restoreConfirmTitle": "استعادة المراجعة {n}؟",
+      "restoreConfirmDescription": "يتم أرخبيل المسودة الحالية كمراجعة جديدة أولاً، ثم تُستعاد المراجعة {n} في المسودة."
+    },
+    "document": {
+      "title": "بيانات المستند (ارتباط)",
+      "description": "حمولة المستند المهيكلة — يعرضها المرحلة 7 عبر قالب PDF/A (ADR-009).",
+      "items": "{count} بند"
     }
   },
   "booking": {

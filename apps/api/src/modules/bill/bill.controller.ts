@@ -161,6 +161,20 @@ export class BillController {
    * the route U4 deliberately left absent (404-proven then); U4's test is
    * re-pointed to the permission-gated behavior.
    */
+  /** P4-U7: ADR-010 trail for this bill (release record display + gate read-back). */
+  @Get(':id/audit')
+  @RequirePermissions('bill:read')
+  auditTrail(@Param('id') id: string) {
+    return this.service.auditTrail(id);
+  }
+
+  /** P4-U7: ADR-009 document-output hook — structured data, Phase 7 renders PDF/A. */
+  @Get(':id/document')
+  @RequirePermissions('bill:read')
+  getDocument(@Param('id') id: string) {
+    return this.service.getDocument(id);
+  }
+
   @Post(':id/release')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('bill:release')
