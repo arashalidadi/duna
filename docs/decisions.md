@@ -1005,3 +1005,107 @@ ReleaseOrder `status === 'ISSUED'` gates moving to the issued-equivalent `APPROV
 (release separation)** now has its confirmed shape (ruling 2 + ruling 3's default). The only
 open NBD carried forward is **ADR-044 (d)** (single mutable comment field vs append-only
 activity log), which is unrelated to Phase 4 and non-blocking.
+
+## ADR-047: Manifest Rewrite (Phase 5) — Manifest is a downstream consolidation of APPROVED B/Ls; per-item parties; ManifestItem→BillOfLadingItem reference; per-destination numbering; no drops, no charges
+
+**Date:** 2026-10-05
+**Status:** Accepted (design — P5-U1; execution in P5-U2..Un)
+**Context:** Phase 4 inverted the old dependency (B/L built from voyage + actually-loaded
+cargo; legacy manifest path kept as transition contract A; the manifest picker is already
+gone from the web). Phase 5 completes the inversion: **Manifest becomes a downstream
+consolidation document built FROM B/Ls only** (roadmap §3 Phase 5). Vocabulary note
+(binding): the roadmap's "issued B/Ls" predates ADR-046 — **"issued" means
+`status === 'APPROVED'`** (the issued-equivalent after U4's `ISSUED → APPROVED` backfill;
+`POST /bills/:id/issue` is the composite alias to APPROVED, ADR-045 d2 + ADR-046 ruling 1).
+No new status is invented.
+
+**Decisions.**
+
+1. **Qualification (roadmap Test 1):** `POST /manifests {voyageId, billIds[]}` consolidates
+   **live B/Ls in status APPROVED whose `voyageId` equals the manifest's voyage**; anything
+   else is 409/400 with recorded messages. The B/L is the source of truth: each new
+   `ManifestItem` is created **from a `BillOfLadingItem`** (its frozen snapshot — weight/
+   quantity/packages/packageType — which itself came from cargo + Actual Loading facts, per
+   ADR-029/042), never re-read from cargo directly.
+2. **One manifest per B/L (header-level), not line-level splitting.** A B/L is a single
+   contract of carriage for one shipment and a manifest is one sailing's consolidated
+   document; allowing one B/L's lines to spread across manifests would break exactly the
+   traceability roadmap Risk (i) guards. Enforced **at application level** with the same
+   soft-delete rationale as ADR-030/U2 (a live B/L's items may appear on at most one live
+   manifest; hard `@@unique` is impossible under soft deletes). Line-level partial
+   consolidation is not offered.
+3. **ManifestItem → BillOfLadingItem reference (additive migration, no drops):**
+   `ManifestItem.billOfLadingItemId String?` + FK `ON DELETE SET NULL` (the U2 `manifestId`
+   FK precedent — test hard-deletes and legacy NULLs survive), plus an **idempotent
+   backfill** `UPDATE manifest_items mi SET "billOfLadingItemId" = bli.id FROM
+   bills_of_lading_items bli WHERE bli."manifestItemId" = mi.id AND
+   mi."billOfLadingItemId" IS NULL` (restores the reference for legacy stamped lines — both
+   directions become readable). Legacy columns (`ManifestItem.cargoId`, `ManifestItem.blNumber`,
+   `BillOfLadingItem.manifestItemId`, `Manifest.manifestNumber` shape) all **stay** — drops
+   are post-Phase-5 with explicit approval (carried from ADR-045/U2, re-affirmed: this phase
+   proposes **NO drops**). Migration is diff-generated against a shadow DB in the executing
+   unit; `prisma migrate status` becomes 37 there (36 today — this unit is design-only).
+   **Direction reversal (ADR-045's deferred note):** Phase 4's conditional stamp
+   (`bill.service` approveCore writes `ManifestItem.blNumber`) remains only for the legacy
+   manifest path; on the new path the manifest **reads** the B/L number through
+   `billOfLadingItem → bill.billNumber` — the manifest no longer owns the stamp.
+4. **Multi-party rows (roadmap Test 3):** add nullable per-item
+   `ManifestItem.shipperId` / `ManifestItem.consigneeId` (party-master FKs, same columns as
+   the manifest header). Items carry their own B/L's parties (copied from the B/L at
+   consolidation — B/L parties already derive from masters, ADR-045 d1); the manifest-level
+   parties remain the **primary/default** and are never removed (additive). Display: the
+   items table gets per-row shipper/consignee cells (code + name, fallback to the manifest
+   header when null) and the detail shows a derived **distinct-parties summary** (the
+   set of shippers/consignees across rows) — rows stay one-per-B/L-line; grouping is a
+   display-time distinct aggregation, not a schema group.
+5. **Voyage linkage + tug/barge display:** linkage stays `Manifest.voyageId` (already
+   required). Tug/barge are **display-time reads of `voyage.tugVessel/bargeVessel`**
+   (`Voyage.tugVesselId/bargeVesselId`, schema) on the manifest list/detail — no snapshot
+   columns; no denormalization.
+6. **ManifestDate:** one new nullable column `Manifest.manifestDate DateTime?` (the
+   manifest document's own date). Semantics (technical default, logged not raised as NBD):
+   pre-filled from `voyage.plannedDepartureAt` when present at create, editable on DRAFT
+   like other header fields, shown on the document hook; no separate model.
+7. **Per-destination numbering (roadmap Test 4, U3 pattern verbatim):** replace the local
+   read-then-write `generateReference()` (`MAN-YYMM-#####`, manifest.service:728-734) with
+   `NumberingService.allocateNumber` — `scopeType DESTINATION`, `scopeValue =
+   voyage.destinationPortId`, `{DEST} = Port.abbreviation ?? code`, sequence name
+   `manifest-{destPortId}-{yymm}`, `period YYYYMM`, prefix `MAN-{DEST}-{yymm}-`, padding 5.
+   **Legacy `MAN-YYMM-#####` numbers are immutable** (never renumbered) and coexist under
+   `manifestNumber @unique` because the destination segment disambiguates — the exact
+   collision-proofing U3 proved on bills; sequences start at 1 per destination/month for
+   new numbers (lazy upsert, no seed).
+8. **Legacy paths stay transitional (contract-A analog):** `GET /manifests/eligible-cargo`
+   and `POST /manifests/:id/items {cargoId}` (cargo-keyed creation, manifest.service:523+/
+   383+) keep working until the executing UI unit switches the manifest page to the
+   consolidation flow; only then does the web-side retire them (API never drops them this
+   phase). The 3 legacy B/Ls (`BOL-2609-*`, `manifestId → MAN-2609-00001`) and the 4 live
+   manifests (`MAN-2609-00001` APPROVED/2 stamped items, `00002` SUBMITTED/1, `00003`
+   DRAFT/1, `00004` DRAFT/0) are **kept exactly as they are**: readable, listed, editable
+   through existing endpoints; their items gain the nullable reference via backfill where a
+   B/L item points at them; nothing is destroyed or renumbered.
+9. **Manifest charges stay OUT OF SCOPE (roadmap Risk ii):** the legacy cost columns
+   (`gasCost/lashingCost/shipperCost/podCost/polCost/currencyCode`) remain untouched and
+   **the new create path neither populates nor computes them**; no new charge field,
+   tariff, or calculation is designed or invented anywhere in Phase 5. If the employer later
+   specifies manifest charges, that is a fresh design + NBD, not an extension of this one.
+10. **Document output readiness (mirror U7's ADR-009 hook):** `GET /manifests/:id/document`
+    returns structured document data (`documentType: 'MANIFEST'`, `template: 'default'`,
+    items with B/L references, parties incl. the distinct summary, route + tug/barge,
+    ManifestDate) plus the stub `render` descriptor — Phase 7 drops the `DocumentTemplate`
+    PDF/A entry behind that seam; no engine in Phase 5.
+11. **Execution units (P5-U2..Un):** U2 = additive migration + backfill + `POST /manifests
+    {voyageId, billIds}` creation + integrity guards (roadmap Tests 1-2); U3 = per-item
+    parties end-to-end (Test 3); U4 = per-destination numbering (Test 4); U5 = UI
+    consolidation flow + multi-party rows + voyage/tug/barge display + ManifestDate +
+    document hook (the 3 UI changes + doc readiness), legacy-path transitional marking, and
+    the Phase 5 closure assessment. Split may compress (U3+U4) if either proves trivial;
+    the Tests→unit mapping above is authoritative.
+
+**Consequences.** Acceptance "Manifest is downstream of B/L" = decision 1+2; "Multi-party
+manifests supported" = 4; "Numbering is per destination" = 7; "B/L item traceability
+present" = 3. Traceability risk (i) is answered by the bidirectional reference + claim guard
+(2/3), not by keeping the old direction. **NBDs raised: none** — the vocabulary/status
+question is ADR-046 (ruling 1), release/policy questions are ADR-046 (2/3), source-of-truth
+is ADR-045; charges are an explicit non-decision (out of scope, decision 9). This unit
+changes no code/schema/tests (design posture identical to P4-U1).
