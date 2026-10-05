@@ -336,3 +336,70 @@ BLOCKED: none
 HANDOFF_TO: decision-maker (unit-7 verification → PHASE 4 CLOSURE; next per roadmap: Phase 5
   Manifest rebuild)
 ```
+
+
+---
+
+# ADDENDUM — Gate (c) re-capture (2026-10-05, evidence-only micro-resume `phase4-unit7-gatec-recapture`)
+
+**What the original evidence missed.** `p4u7-gate3-revision-section.png`'s predecessor
+(`p4u7-gate3-revision-restore.png`) framed only the top of the detail modal — the dialog body
+ended at **"Shipment marks"**, so the Revisions section sat below the fold. The state-doc U7
+block listed "restore" among the *vision-verified* screenshots: **that claim was inaccurate and
+is corrected here.** What gate (c) actually had at unit-7 close was *drive* evidence only (the
+freeze/restore POSTs, the DOM-probe text of the heading/rows, and the API reads) plus a
+screenshot whose subject was never in frame. The drive evidence itself was (and remains) real;
+the *visual* claim overstated it.
+
+**Re-capture (no code changes — the section renders; U5's e2e already passed and the DOM
+probe re-confirmed it live).** Segment: reused the legacy DRAFT `BOL-2609-00003`
+(freeze is DRAFT-only either way; no fixture bill created, so live bill counts never moved).
+Sequence: opened the detail modal → froze revision **#1 with note "gate-c recapture"** →
+**scrolled the modal past the Header so the whole Revisions section was in frame** (probe:
+heading top = 166 px, last row bottom = 364 px, `inFrame: true`) → captured
+**`p4u7-gate3-revision-section.png`** (old file kept) → then ran one Restore end-to-end.
+
+**Fetch evidence, verbatim from the segment's collector:**
+
+```
+posts: [ { u: /api/v1/bills/cmuon5lfz000j1p7pha6p1jep/revisions, s: 201, m: POST },
+         { u: /api/v1/bills/cmuon5lfz000j1p7pha6p1jep/revisions/1/restore, s: 200, m: POST } ]
+errs: []
+non2xx: []
+fetchCount: 13
+```
+
+**DOM at capture (post-freeze state also quoted):** heading `Revision history current: 2`
+(advanced to `current: 3` after the restore's pre-restore capture), Freeze-revision control
+present (`Note (optional)` input + `Freeze revision` button), entry
+`#1 | gate-c recapture | 5 Oct 2026 · 12:29:31 · admin@shipping.local | Restore`, and after the
+restore a second entry `#2 | Pre-restore capture before restoring revision 1 | …`.
+
+**Vision verdict on the new file (quoted):** the section is "fully contained within the visible
+area of the modal" — heading **`Revision history  current: 3`**, Freeze control
+(`Note (optional)` + `Freeze revision`), entries **#1 `gate-c recapture` with timestamp and
+`admin@shipping.local`** and **#2 `Pre-restore capture before restoring revision 1`** with
+timestamps/actor/Restore buttons, read-only footer note, **"No error banners"**.
+
+**Correction to the unit-7 claim:** the earlier "7 screenshots vision-verified" line overstated
+gate (c) — only 6 of 7 carried vision-confirmed subjects (watermark, approved-no-watermark,
+released, restricted-no-release, number column, legacy detail). With this addendum the gate-(c)
+subject is vision-verified too, under its **new filename**; the state-doc screenshot list was
+updated in the same commit.
+
+**Cleanup (explicit filters only):** the 2 revision rows created by this segment deleted by
+**explicit `billId`** (`revisions table → 0`), the live bill's `revision` label restored
+**1 → 1**, header values verified byte-identical (`carrierName: 'ثقث'`, `notifyParty: 'یییی'`,
+status DRAFT); **no AuditLog rows exist to clean** (freeze/restore write none — `audit rows: 0`).
+Counts **before → after: bills 3 | manifests 4 | cargos 55 | voyages 21** (identical; no bills
+created), **billSeqRows 39 → 39 (flat)**, revisions 0.
+
+**Quick battery:** full suite → **385/385/0 (22/22)**; `npx tsc -p apps/web` → **3 (the
+pre-existing `[locale]/page.tsx` errors)**; `CONTRACT GUARD OK — 87 web api.post routes ⊆ 95`;
+`migrate status` **36**; servers **API 200 / WEB 200**. Honest note: the *first* full-suite
+attempt of this segment failed 2 tests in **Proforma convert** — the identical, already-diagnosed
+follow-up-(h) load flake (read-then-write `generateInvoiceReference()` under concurrency; the
+cascade 409→200 is its known signature) — re-run immediately green and proforma solo 9/9; this
+segment changed **no code**, so the flake cannot be attributed to it.
+
+**Code changes: none.** Porcelain after this segment = this log + the state doc.
