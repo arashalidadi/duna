@@ -1,4 +1,6 @@
 import {
+  ArrayNotEmpty,
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -100,9 +102,28 @@ export class CreateManifestDto {
   @IsString()
   @MaxLength(4000)
   notes?: string;
+
+  // ADR-047 d1 (P5-U2): consolidation payload — ids of APPROVED B/Ls on the
+  // same voyage. When present, the consolidation create path runs; absent →
+  // legacy cargo path (unchanged, regression-tested).
+  @ApiPropertyOptional({
+    description: 'Bill of Lading IDs for consolidation create (ADR-047 d1)',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayNotEmpty({ message: 'billIds must contain at least one bill id' })
+  billIds?: string[];
 }
 
 export class UpdateManifestDto {
+  // ADR-047 d6: manifest document date, editable on DRAFT
+  @ApiPropertyOptional({ description: 'Manifest document date (null to clear)' })
+  @IsOptional()
+  @IsString()
+  manifestDate?: string | null;
+
   @ApiPropertyOptional({ description: 'Shipper customer ID (null to clear)' })
   @IsOptional()
   @IsString()

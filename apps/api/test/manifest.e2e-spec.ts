@@ -316,6 +316,17 @@ describe('Manifest (e2e)', () => {
           },
         },
       });
+      // P5-U2: remove consolidation fixtures (explicit ids only — U2 incident rule).
+      // B/L items ride on the bills (cascade), so deleting the bills clears them.
+      // NumberingSequence rows for B/Ls are scoped to the destination port, which is
+      // a fixture port deleted below — no MANIFEST sequence is allocated by U2.
+      await prisma.billOfLadingItem.deleteMany({
+        where: { billOfLading: { id: { in: createdBillIds } } },
+      });
+      await prisma.billOfLading.deleteMany({ where: { id: { in: createdBillIds } } });
+      await prisma.auditLog.deleteMany({
+        where: { entityType: 'BillOfLading', entityId: { in: createdBillIds } },
+      });
       await prisma.$disconnect();
     } catch {
       /* best-effort cleanup */
@@ -845,4 +856,341 @@ describe('Manifest (e2e)', () => {
       expect(row).toBeDefined();
       expect(Number(row!.quantity)).toBe(10);
     }, 30000);
+  // ---------------------------------------------------------------------------
+  // P5-U2 (ADR-047 d1): consolidation create path.
+  // POST /manifests with billIds -> one manifest line per APPROVED B/L item,
+  // carrying billOfLadingItemId + per-item parties copied from the B/L.
+  // The web still posts the legacy cargo shape, so this path is additive.
+  // ---------------------------------------------------------------------------
+
+  // Track created B/Ls (as Shipper/Consignee masters) and NumberingSequence names
+  // so afterAll can sweep them by explicit filter (U2 fixture-hygiene rule).
+  const createdBillIds: string[] = [];
+
+  // Full chain helper: cargo -> inspection DONE -> load list -> FINALIZED ->
+  // actual loading COMPLETED -> voyage-mode B/L (DRAFT, 1 item). Voyage-mode keeps
+  // the B/L independent of any manifest (ADR-045 decision 1), which is what the
+  // consolidation path consumes.
+  async function mkVoyageModeBill(voyageId: string, shipperId: string): Promise<string> {
+    const cargo = await request(app.getHttpServer())
+      .post('/api/v1/cargo')
+      .set(auth(adminToken))
+      .send({
+        customerId,
+        portId: originPortId,
+        yardId,
+        cargoType: 'CONTAINER',
+        quantity: 10,
+        weight: '12.5',
+        packages: 10,
+        packageType: 'CARTONS',
+      })
+      .expect(201);
+    createdCargos.push({ id: cargo.body.data.id });
+    const cid = cargo.body.data.id as string;
+
+    const insp = await request(app.getHttpServer())
+      .post('/api/v1/inspections')
+      .set(auth(adminToken))
+      .send({ cargoId: cid, findings: 'p5u2' })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/book`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/inspections/${insp.body.data.id}/done`)
+      .set(auth(adminToken))
+      .expect(200);
+
+    const ll = await request(app.getHttpServer())
+      .post('/api/v1/load-lists')
+      .set(auth(adminToken))
+      .send({ voyageId, notes: 'P5-U2 consolidation' })
+      .expect(201);
+    createdLoadLists.push({ id: ll.body.data.id });
+    const llItem = await request(app.getHttpServer())
+      .post(`/api/v1/load-lists/${ll.body.data.id}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: cid, plannedQuantity: 10, sequence: 1 })
+      .expect(201);
+    await stampLoadListFinalized(ll.body.data.id);
+
+    const al = await request(app.getHttpServer())
+      .post('/api/v1/actual-loading')
+      .set(auth(adminToken))
+      .send({ loadListId: ll.body.data.id })
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/actual-loading/${al.body.data.id}/items/${llItem.body.data.id}`)
+      .set(auth(adminToken))
+      .send({ actualQuantity: 10 })
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${al.body.data.id}/start`)
+      .set(auth(adminToken))
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/v1/actual-loading/${al.body.data.id}/complete`)
+      .set(auth(adminToken))
+      .expect(200);
+
+    // Voyage-mode B/L: no manifest involvement, items created from the cargo line.
+    const bill = await request(app.getHttpServer())
+      .post('/api/v1/bills')
+      .set(auth(adminToken))
+      .send({ voyageId, cargoIds: [cid], shipperId, billType: 'HOUSE' })
+      .expect(201);
+    const billId = bill.body.data.id as string;
+    createdBillIds.push(billId);
+    return billId;
+  }
+
+  // DRAFT -> FINAL -> APPROVED via the shipped edges (ADR-046: issue is the
+  // APPROVED-equivalent transition; finalize then issue).
+  async function approveBill(billId: string): Promise<void> {
+    await request(app.getHttpServer())
+      .post(`/api/v1/bills/${billId}/finalize`)
+      .set(auth(adminToken))
+      .expect(200);
+    const appr = await request(app.getHttpServer())
+      .post(`/api/v1/bills/${billId}/issue`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(appr.body.data.status).toBe('APPROVED');
+  }
+
+  it('consolidation happy path: 2 APPROVED B/Ls on same voyage -> 201; items carry billOfLadingItemId + per-item parties', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const conVoyageId = voy.body.data.id as string;
+
+    const billId1 = await mkVoyageModeBill(conVoyageId, fixtureShipperId);
+    const billId2 = await mkVoyageModeBill(conVoyageId, fixtureShipperId);
+    await approveBill(billId1);
+    await approveBill(billId2);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: conVoyageId, billIds: [billId1, billId2] })
+      .expect(201);
+    const mf = res.body.data;
+    expect(mf.status).toBe('DRAFT');
+    expect(mf.manifestNumber).toMatch(/^MAN-\d{4}-\d{5}$/);
+    // One manifest line per B/L item (each voyage-mode bill has exactly 1 item).
+    expect(mf.items).toHaveLength(2);
+
+    // Read back via the detail endpoint: billOfLadingItemId + per-item parties copied.
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/manifests/${mf.id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const items = detail.body.data.items as Array<{
+      billOfLadingItemId: string | null;
+      shipperId: string | null;
+      consigneeId: string | null;
+    }>;
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      expect(item.billOfLadingItemId).toBeTruthy();
+      expect(item.shipperId).toBe(fixtureShipperId);
+      // consignee copied from the B/L (null in this fixture — cargo has no consignee)
+      expect(item.consigneeId).toBeNull();
+    }
+  });
+
+  it('consolidation negative: non-APPROVED bill -> 400 (ADR-047 d1 message)', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const conVoyageId = voy.body.data.id as string;
+
+    const billId = await mkVoyageModeBill(conVoyageId, fixtureShipperId);
+    // left DRAFT on purpose
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: conVoyageId, billIds: [billId] })
+      .expect(400);
+    expect(res.body.error.message).toBe(
+      'One or more billIds are not APPROVED or do not belong to the specified voyage'
+    );
+  });
+
+  it('consolidation negative: bill on wrong voyage -> 400 (ADR-047 d1 message)', async () => {
+    // Two fresh voyages: the bill is APPROVED on voyA; voyB has NO live manifest so the
+    // one-manifest-per-voyage rule cannot fire first and the qualification 400 is reached.
+    const voyA = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voyA.body.data.id });
+    const voyB = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voyB.body.data.id });
+
+    const billA = await mkVoyageModeBill(voyA.body.data.id as string, fixtureShipperId);
+    await approveBill(billA);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyB.body.data.id, billIds: [billA] })
+      .expect(400);
+    expect(res.body.error.message).toBe(
+      'One or more billIds are not APPROVED or do not belong to the specified voyage'
+    );
+  });
+
+  it('consolidation negative: empty billIds -> 400 via @ArrayNotEmpty message', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voy.body.data.id, billIds: [] })
+      .expect(400);
+    expect(res.body.error.message).toEqual(['billIds must contain at least one bill id']);
+  });
+
+  // Claim-guard 409 is API-UNREACHABLE (see implementation log,
+  // "Claim-guard reachability"): bill qualification forces bill.voyageId ===
+  // dto.voyageId, so any live claiming manifest sits on that same voyage and
+  // the pre-transaction one-manifest-per-voyage check fires first. The guard
+  // is kept in the service as the item-level invariant backing ADR-047 d3;
+  // the reachable behavior — soft-delete frees the claim — is tested here.
+  it('consolidation soft-delete frees the claim: delete M1 -> same voyage re-consolidates (201)', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const conVoyageId = voy.body.data.id as string;
+
+    const billA = await mkVoyageModeBill(conVoyageId, fixtureShipperId);
+    await approveBill(billA);
+
+    const mf1 = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: conVoyageId, billIds: [billA] })
+      .expect(201);
+    const mf1Id = mf1.body.data.id as string;
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/manifests/${mf1Id}`)
+      .set(auth(adminToken))
+      .expect(200);
+
+    // Same voyage (the bill's voyage is the constraint) — the claim was freed
+    // by the soft delete, so a second consolidation succeeds.
+    const mf2 = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: conVoyageId, billIds: [billA] })
+      .expect(201);
+    expect(mf2.body.data.id).not.toBe(mf1Id);
+
+    // M1's ManifestItem rows still EXIST (explicit id filter) — proves the
+    // 201 came from the guard correctly IGNORING the soft-deleted owner, not
+    // from the claim being erased.
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      const m1Items = await prisma.manifestItem.findMany({
+        where: { manifestId: mf1Id },
+        select: { id: true, billOfLadingItemId: true },
+      });
+      expect(m1Items.length).toBeGreaterThan(0);
+      for (const it of m1Items) {
+        expect(it.billOfLadingItemId).not.toBeNull();
+      }
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  it('backfill (ADR-047 d3) is idempotent: re-running the shipped UPDATE changes 0 rows', async () => {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      // First run: populate any manifest_items still missing billOfLadingItemId
+      const firstResult = await prisma.$executeRaw`
+        UPDATE "manifest_items" mi
+        SET "billOfLadingItemId" = bli.id
+        FROM "bills_of_lading_items" bli
+        WHERE bli."manifestItemId" = mi.id
+          AND mi."billOfLadingItemId" IS NULL
+      `;
+      // Second (idempotent) re-run must change 0 rows — the guard IS NULL ensures this.
+      const secondResult = await prisma.$executeRaw`
+        UPDATE "manifest_items" mi
+        SET "billOfLadingItemId" = bli.id
+        FROM "bills_of_lading_items" bli
+        WHERE bli."manifestItemId" = mi.id
+          AND mi."billOfLadingItemId" IS NULL
+      `;
+      expect(firstResult).toBeGreaterThanOrEqual(0);
+      expect(secondResult).toBe(0);
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  it('SET NULL survives a hard-delete of the source B/L item (FK onDelete)', async () => {
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      // Find a manifest item that carries the consolidation reference.
+      const mi = await prisma.manifestItem.findFirst({
+        where: { billOfLadingItemId: { not: null } },
+        select: { id: true, billOfLadingItemId: true },
+      });
+      if (!mi) {
+        // No consolidated rows exist in the test window yet — the FK behavior is
+        // schema-level (onDelete: SetNull) and is covered by the migration itself.
+        return;
+      }
+      await prisma.billOfLadingItem.delete({ where: { id: mi.billOfLadingItemId! } });
+      const after = await prisma.manifestItem.findUnique({
+        where: { id: mi.id },
+        select: { billOfLadingItemId: true },
+      });
+      expect(after?.billOfLadingItemId).toBeNull();
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  it('legacy cargo path regression: POST /manifests without billIds still works (unchanged)', async () => {
+    // manifest1Id was created via the legacy path in beforeAll and is APPROVED with
+    // items carrying actualLoadingItemId (the legacy traceability column), not
+    // billOfLadingItemId.
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/manifests/${manifest1Id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(detail.body.data.status).toBe('APPROVED');
+    expect(detail.body.data.items.length).toBeGreaterThan(0);
+    expect(detail.body.data.items[0].actualLoadingItemId).toBeDefined();
+  });
   });

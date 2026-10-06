@@ -16,6 +16,10 @@ export interface ManifestItem {
   packageType: string | null;
   notes: string | null;
   actualLoadingItemId: string | null;
+  // ADR-047 d3+d4 (P5-U2): consolidation reference + per-item parties
+  billOfLadingItemId?: string | null;
+  shipperId?: string | null;
+  consigneeId?: string | null;
   createdAt: string;
   updatedAt: string;
   cargo?: CargoListItem;
@@ -56,6 +60,8 @@ export interface Manifest {
   approvedAt: string | null;
   cancelledAt: string | null;
   deletedAt: string | null;
+  // ADR-047 d6 (P5-U2): the manifest document's own date (defaults to voyage.plannedDepartureAt)
+  manifestDate?: string | null;
   voyage?: {
     id: string;
     voyageNumber: string;
@@ -115,9 +121,15 @@ export interface CreateManifestDto {
   notifyParty?: string;
   description?: string;
   notes?: string;
+  // ADR-047 d1 (P5-U2): consolidation path — APPROVED B/L ids on the same voyage;
+  // when present the consolidation path runs, otherwise the legacy cargo path stays.
+  billIds?: string[];
+  // manifestDate is server-set from voyage.plannedDepartureAt (technical default).
 }
 
 export interface UpdateManifestDto {
+  // ADR-047 d6: manifest document date, editable on DRAFT
+  manifestDate?: string | null;
   shipperId?: string | null;
   consigneeId?: string | null;
   agentId?: string | null;

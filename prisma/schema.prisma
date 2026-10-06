@@ -326,7 +326,8 @@ model Shipper {
   @@map("shippers")
 
   cargos Cargo[] @relation("ShipperCargo")
-  manifests Manifest[] @relation("ManifestShipper")
+  manifests     Manifest[]   @relation("ManifestShipper")
+  manifestItems ManifestItem[] @relation("ManifestItemShipper") // ADR-047 d4 reverse side
   bills     BillOfLading[] @relation("BillShipper")
 }
 
@@ -350,7 +351,8 @@ model Consignee {
   @@map("consignees")
 
   cargos Cargo[] @relation("ConsigneeCargo")
-  manifests Manifest[] @relation("ManifestConsignee")
+  manifests     Manifest[]   @relation("ManifestConsignee")
+  manifestItems ManifestItem[] @relation("ManifestItemConsignee") // ADR-047 d4 reverse side
   bills     BillOfLading[] @relation("BillConsignee")
 }
 
@@ -1150,6 +1152,9 @@ model Manifest {
   voyage        Voyage         @relation(fields: [voyageId], references: [id])
   polPort       Port           @relation("ManifestPol", fields: [polPortId], references: [id])
   podPort       Port           @relation("ManifestPod", fields: [podPortId], references: [id])
+  // ADR-047 d6 (P5-U2): the manifest document's own date (nullable — defaults to
+  // voyage.plannedDepartureAt at consolidation create; editable on DRAFT via update).
+  manifestDate  DateTime? @map("manifestDate")
   shipper       Shipper?       @relation("ManifestShipper", fields: [shipperId], references: [id])
   consignee     Consignee?     @relation("ManifestConsignee", fields: [consigneeId], references: [id])
   agent         Agent?         @relation("ManifestAgent", fields: [agentId], references: [id])
@@ -1191,6 +1196,13 @@ model ManifestItem {
 
   actualLoadingItemId String? @unique @map("actualLoadingItemId") // traceability to Phase 8
 
+  // ADR-047 d3 + d4 (P5-U2): consolidation reference (B/L item -> manifest line; the
+  // Phase-4 stamp direction reversed) + per-item parties (multi-party rows). Nullable,
+  // ON DELETE SET NULL (no drops — legacy columns cargoId/blNumber stay untouched).
+  billOfLadingItemId String? @map("billOfLadingItemId")
+  shipperId          String? @map("shipperId")
+  consigneeId        String? @map("consigneeId")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1198,11 +1210,19 @@ model ManifestItem {
   cargo    Cargo    @relation(fields: [cargoId], references: [id])
 
   billsOfLadingItems BillOfLadingItem[] @relation("BillOfLadingItemManifestItem")
+  shipper            Shipper?           @relation("ManifestItemShipper", fields: [shipperId], references: [id])
+  consignee          Consignee?         @relation("ManifestItemConsignee", fields: [consigneeId], references: [id])
+  // ADR-047 d3: app-level one-manifest-per-B/L guard (no @unique — a soft-deleted
+  // manifest must free its claims; the live-guard is enforced in the service).
+  billOfLadingItem   BillOfLadingItem?  @relation("ManifestItemBillItem", fields: [billOfLadingItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([manifestId, cargoId])
   @@index([manifestId])
   @@index([cargoId])
   @@index([sequence])
+  @@index([billOfLadingItemId])
+  @@index([shipperId])
+  @@index([consigneeId])
   @@map("manifest_items")
 }
 
@@ -1368,6 +1388,7 @@ model BillOfLadingItem {
 
   billOfLading BillOfLading @relation(fields: [billOfLadingId], references: [id], onDelete: Cascade)
   manifestItem   ManifestItem?      @relation("BillOfLadingItemManifestItem", fields: [manifestItemId], references: [id])
+  manifestItems  ManifestItem[]     @relation("ManifestItemBillItem") // ADR-047 d3 reverse side
   cargo        Cargo        @relation("BillOfLadingItemCargo", fields: [cargoId], references: [id])
 
   @@index([billOfLadingId])

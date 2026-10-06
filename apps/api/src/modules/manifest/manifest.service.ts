@@ -131,6 +131,33 @@ const detailSelect = {
       actualLoadingItemId: true,
       createdAt: true,
       updatedAt: true,
+      // ADR-047 d3+d4 (P5-U2): consolidation reference + per-item parties
+      billOfLadingItemId: true,
+      shipperId: true,
+      consigneeId: true,
+      billOfLadingItem: {
+        select: {
+          id: true,
+          billOfLadingId: true,
+          cargoId: true,
+          sequence: true,
+          goodsDescription: true,
+          marksAndNumbers: true,
+          packages: true,
+          packageType: true,
+          grossWeight: true,
+          volume: true,
+          billOfLading: {
+            select: {
+              id: true,
+              billNumber: true,
+              status: true,
+              shipperId: true,
+              consigneeId: true,
+            },
+          },
+        },
+      },
       cargo: { select: cargoSelect },
     },
     orderBy: { sequence: 'asc' },
@@ -253,10 +280,131 @@ export class ManifestService {
       agentId: dto.agentId,
     });
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): four e2e
-    // suites create manifests in parallel and generateReference() is read-then-write, so the
-    // loser of a MAN-YYMM-##### race hits the unique number index. Re-read the committed max
-    // and retry; other P2002/P2018/P2003 keep their existing mapping.
+    // ADR-047 d1 (P5-U2): consolidation path.
+    // When billIds are supplied, create a manifest from APPROVED B/Ls on the same voyage.
+    const billIds = dto.billIds ?? [];
+    if (billIds.length > 0) {
+      return await this.prisma.$transaction(async (tx) => {
+        // 1. Validate all billIds exist, are APPROVED, and belong to the same voyage
+        const bills = await tx.billOfLading.findMany({
+          where: {
+            id: { in: billIds },
+            status: 'APPROVED',
+            voyageId: dto.voyageId,
+          },
+          select: { id: true, status: true, voyageId: true },
+        });
+        if (bills.length !== billIds.length) {
+          throw new BadRequestException(
+            'One or more billIds are not APPROVED or do not belong to the specified voyage',
+          );
+        }
+        if (bills.length === 0) {
+          throw new BadRequestException('No matching APPROVED B/Ls found');
+        }
+
+        // 2. Enforce one-manifest-per-B/L claim guard:
+        // An APPROVED B/L's items may appear on at most one live (non-deleted) manifest.
+        // Guard direction: query the NEW ManifestItem.billOfLadingItemId column through a
+        // live owner manifest (ADR-047 d3). The legacy BillOfLadingItem.manifestItemId stamp
+        // is never written by the consolidation path, so it cannot back this guard. A
+        // soft-deleted owner manifest frees its claims (no DB @unique for that reason).
+        const claimed = await tx.manifestItem.findMany({
+          where: {
+            billOfLadingItem: { billOfLadingId: { in: billIds } },
+            manifest: { deletedAt: null },
+          },
+          select: { manifest: { select: { manifestNumber: true } } },
+        });
+        if (claimed.length > 0) {
+          const ownerNumbers = [...new Set(claimed.map((c) => c.manifest.manifestNumber))];
+          throw new ConflictException(
+            `One or more B/Ls are already consolidated onto manifests: ${ownerNumbers.join(', ')}`,
+          );
+        }
+
+        // 3. Generate manifest number and create the manifest.
+        // A consolidated manifest has no header-level parties — each line carries its own
+        // (ADR-047 d4; distinct summary + validation land in U3).
+        const manifestNumber = await this.generateReference();
+        const manifest = await tx.manifest.create({
+          data: {
+            manifestNumber,
+            voyageId: dto.voyageId,
+            vesselName: voyage.vessel.name,
+            vesselImo: voyage.vessel.imo,
+            polPortId: voyage.originPortId,
+            podPortId: voyage.destinationPortId,
+            shipperId: null,
+            consigneeId: null,
+            agentId: null,
+            notifyParty: null,
+            description: null,
+            notes: null,
+            createdById: actor?.id,
+          },
+          select: detailSelect,
+        });
+
+        // 4. For each APPROVED B/L: pull its items' frozen snapshot and build one manifest
+        //    line per B/L item — billOfLadingItemId + per-item parties COPIED from the B/L
+        //    (ADR-047 d2+d4 — mechanical copy; U3 owns DTO validation + distinct summary).
+        //    No blNumber stamp: the manifest reads the bill number through the reference.
+        const maxSeq = await tx.manifestItem.aggregate({
+          where: { manifestId: manifest.id },
+          _max: { sequence: true },
+        });
+        let sequence = maxSeq._max.sequence ?? 0;
+
+        const billItems = await tx.billOfLadingItem.findMany({
+          where: { billOfLadingId: { in: billIds } },
+          select: {
+            id: true,
+            cargoId: true,
+            sequence: true,
+            packages: true,
+            packageType: true,
+            grossWeight: true,
+            volume: true,
+            goodsDescription: true,
+            marksAndNumbers: true,
+            billOfLading: {
+              select: { id: true, billNumber: true, shipperId: true, consigneeId: true },
+            },
+          },
+          orderBy: { sequence: 'asc' },
+        });
+
+        for (const item of billItems) {
+          sequence += 1;
+          await tx.manifestItem.create({
+            data: {
+              manifestId: manifest.id,
+              cargoId: item.cargoId,
+              sequence,
+              blNumber: null,
+              weight: item.grossWeight ?? null,
+              quantity: null,
+              packages: item.packages ?? null,
+              packageType: item.packageType ?? null,
+              notes: null,
+              actualLoadingItemId: null,
+              billOfLadingItemId: item.id,
+              // Per-item parties copied from the B/L (mechanical copy, ADR-047 d4).
+              shipperId: item.billOfLading.shipperId,
+              consigneeId: item.billOfLading.consigneeId,
+            },
+          });
+        }
+
+        return tx.manifest.findUniqueOrThrow({
+          where: { id: manifest.id },
+          select: detailSelect,
+        });
+      });
+    }
+
+    // 5. Legacy cargo path (unchanged, runs when billIds absent)
     const MAX_MANIFEST_ATTEMPTS = 10;
     for (let attempt = 1; ; attempt += 1) {
       const manifestNumber = await this.generateReference();
@@ -264,16 +412,16 @@ export class ManifestService {
         return await this.prisma.manifest.create({
           data: {
             manifestNumber,
-          voyageId: dto.voyageId,
-          vesselName: voyage.vessel.name,
-          vesselImo: voyage.vessel.imo,
-          polPortId: voyage.originPortId,
-          podPortId: voyage.destinationPortId,
-          shipperId: dto.shipperId,
-          consigneeId: dto.consigneeId,
-          agentId: dto.agentId,
-          notifyParty: dto.notifyParty,
-          description: dto.description,
+            voyageId: dto.voyageId,
+            vesselName: voyage.vessel.name,
+            vesselImo: voyage.vessel.imo,
+            polPortId: voyage.originPortId,
+            podPortId: voyage.destinationPortId,
+            shipperId: dto.shipperId,
+            consigneeId: dto.consigneeId,
+            agentId: dto.agentId,
+            notifyParty: dto.notifyParty,
+            description: dto.description,
             notes: dto.notes,
             createdById: actor?.id,
           },
@@ -298,7 +446,7 @@ export class ManifestService {
         }
         if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
           throw new BadRequestException(
-            'Invalid reference: party ids must reference existing master records',
+            'Invalid reference: party ids must reference existing master records'
           );
         }
         throw e;
