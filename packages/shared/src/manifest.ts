@@ -4,6 +4,13 @@ import type { PaginatedResult } from './api';
 
 export type ManifestStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'CANCELLED';
 
+/** ADR-047 d4 (P5-U3): party master as rendered by manifest items and partySummary. */
+export interface ManifestParty {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface ManifestItem {
   id: string;
   manifestId: string;
@@ -20,6 +27,10 @@ export interface ManifestItem {
   billOfLadingItemId?: string | null;
   shipperId?: string | null;
   consigneeId?: string | null;
+  // ADR-047 d4 (P5-U3): per-row party objects (code + name) for the items table;
+  // null falls back to the manifest header when rendered.
+  shipper?: ManifestParty | null;
+  consignee?: ManifestParty | null;
   createdAt: string;
   updatedAt: string;
   cargo?: CargoListItem;
@@ -79,6 +90,10 @@ export interface Manifest {
   shipper?: { id: string; code: string; name: string };
   consignee?: { id: string; code: string; name: string };
   agent?: { id: string; code: string; name: string };
+  // ADR-047 d4 (P5-U3): derived distinct-parties summary across the items rows
+  // (per-row party with header fallback, distinct by master id). Display-time
+  // aggregation only — never persisted, "not a schema group".
+  partySummary?: { shippers: ManifestParty[]; consignees: ManifestParty[] };
   items?: ManifestItem[];
   createdBy?: UserRef;
   submittedBy?: UserRef;

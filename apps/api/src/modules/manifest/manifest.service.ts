@@ -135,6 +135,10 @@ const detailSelect = {
       billOfLadingItemId: true,
       shipperId: true,
       consigneeId: true,
+      // ADR-047 d4 (P5-U3): per-row party objects (code + name) for the items
+      // table cells — same shape the header relations use in listSelect.
+      shipper: { select: { id: true, code: true, name: true } },
+      consignee: { select: { id: true, code: true, name: true } },
       billOfLadingItem: {
         select: {
           id: true,
@@ -163,6 +167,14 @@ const detailSelect = {
     orderBy: { sequence: 'asc' },
   },
 } satisfies Prisma.ManifestSelect;
+
+/** ADR-047 d4: party master as rendered by per-row cells (code + name). */
+type PartyRef = { id: string; code: string; name: string };
+
+/** Derived shape: a detail row plus its distinct-parties summary. */
+type DetailWithPartySummary<T> = T & {
+  partySummary: { shippers: PartyRef[]; consignees: PartyRef[] };
+};
 
 @Injectable()
 export class ManifestService {
@@ -236,7 +248,7 @@ export class ManifestService {
     if (!row || row.deletedAt) {
       throw new NotFoundException('Manifest not found');
     }
-    return row;
+    return this.withPartySummary(row);
   }
 
   /**
@@ -274,15 +286,26 @@ export class ManifestService {
       );
     }
 
+    // ADR-047 d1 (P5-U2): consolidation path.
+    // When billIds are supplied, create a manifest from APPROVED B/Ls on the same voyage.
+    const billIds = dto.billIds ?? [];
+
+    // ADR-047 d4 (P5-U3): a consolidated manifest carries no header parties — each line
+    // carries its own B/L's parties (the consolidation create writes them null). Header
+    // party fields submitted alongside billIds could not take effect, so they are now
+    // REJECTED instead of being validated and then silently dropped.
+    if (billIds.length > 0 && (dto.shipperId || dto.consigneeId || dto.agentId)) {
+      throw new BadRequestException(
+        'shipperId/consigneeId/agentId are not accepted when consolidating with billIds: each manifest line carries its own B/L parties (ADR-047 d4)',
+      );
+    }
+
     await this.validatePartyRefs({
       shipperId: dto.shipperId,
       consigneeId: dto.consigneeId,
       agentId: dto.agentId,
     });
 
-    // ADR-047 d1 (P5-U2): consolidation path.
-    // When billIds are supplied, create a manifest from APPROVED B/Ls on the same voyage.
-    const billIds = dto.billIds ?? [];
     if (billIds.length > 0) {
       return await this.prisma.$transaction(async (tx) => {
         // 1. Validate all billIds exist, are APPROVED, and belong to the same voyage
@@ -397,10 +420,12 @@ export class ManifestService {
           });
         }
 
-        return tx.manifest.findUniqueOrThrow({
-          where: { id: manifest.id },
-          select: detailSelect,
-        });
+        return this.withPartySummary(
+          await tx.manifest.findUniqueOrThrow({
+            where: { id: manifest.id },
+            select: detailSelect,
+          }),
+        );
       });
     }
 
@@ -409,24 +434,26 @@ export class ManifestService {
     for (let attempt = 1; ; attempt += 1) {
       const manifestNumber = await this.generateReference();
       try {
-        return await this.prisma.manifest.create({
-          data: {
-            manifestNumber,
-            voyageId: dto.voyageId,
-            vesselName: voyage.vessel.name,
-            vesselImo: voyage.vessel.imo,
-            polPortId: voyage.originPortId,
-            podPortId: voyage.destinationPortId,
-            shipperId: dto.shipperId,
-            consigneeId: dto.consigneeId,
-            agentId: dto.agentId,
-            notifyParty: dto.notifyParty,
-            description: dto.description,
-            notes: dto.notes,
-            createdById: actor?.id,
-          },
-          select: detailSelect,
-        });
+        return this.withPartySummary(
+          await this.prisma.manifest.create({
+            data: {
+              manifestNumber,
+              voyageId: dto.voyageId,
+              vesselName: voyage.vessel.name,
+              vesselImo: voyage.vessel.imo,
+              polPortId: voyage.originPortId,
+              podPortId: voyage.destinationPortId,
+              shipperId: dto.shipperId,
+              consigneeId: dto.consigneeId,
+              agentId: dto.agentId,
+              notifyParty: dto.notifyParty,
+              description: dto.description,
+              notes: dto.notes,
+              createdById: actor?.id,
+            },
+            select: detailSelect,
+          }),
+        );
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -471,24 +498,26 @@ export class ManifestService {
     });
 
     try {
-      return await this.prisma.manifest.update({
-      where: { id },
-      data: {
-        ...(dto.shipperId !== undefined ? { shipperId: dto.shipperId || null } : {}),
-        ...(dto.consigneeId !== undefined ? { consigneeId: dto.consigneeId || null } : {}),
-        ...(dto.agentId !== undefined ? { agentId: dto.agentId || null } : {}),
-        ...(dto.notifyParty !== undefined ? { notifyParty: dto.notifyParty } : {}),
-        ...(dto.description !== undefined ? { description: dto.description } : {}),
-        ...(dto.gasCost !== undefined ? { gasCost: dto.gasCost ?? null } : {}),
-        ...(dto.lashingCost !== undefined ? { lashingCost: dto.lashingCost ?? null } : {}),
-        ...(dto.shipperCost !== undefined ? { shipperCost: dto.shipperCost ?? null } : {}),
-        ...(dto.podCost !== undefined ? { podCost: dto.podCost ?? null } : {}),
-        ...(dto.polCost !== undefined ? { polCost: dto.polCost ?? null } : {}),
-        ...(dto.currencyCode !== undefined ? { currencyCode: dto.currencyCode } : {}),
-        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
-      },
-        select: detailSelect,
-      });
+      return this.withPartySummary(
+        await this.prisma.manifest.update({
+          where: { id },
+          data: {
+            ...(dto.shipperId !== undefined ? { shipperId: dto.shipperId || null } : {}),
+            ...(dto.consigneeId !== undefined ? { consigneeId: dto.consigneeId || null } : {}),
+            ...(dto.agentId !== undefined ? { agentId: dto.agentId || null } : {}),
+            ...(dto.notifyParty !== undefined ? { notifyParty: dto.notifyParty } : {}),
+            ...(dto.description !== undefined ? { description: dto.description } : {}),
+            ...(dto.gasCost !== undefined ? { gasCost: dto.gasCost ?? null } : {}),
+            ...(dto.lashingCost !== undefined ? { lashingCost: dto.lashingCost ?? null } : {}),
+            ...(dto.shipperCost !== undefined ? { shipperCost: dto.shipperCost ?? null } : {}),
+            ...(dto.podCost !== undefined ? { podCost: dto.podCost ?? null } : {}),
+            ...(dto.polCost !== undefined ? { polCost: dto.polCost ?? null } : {}),
+            ...(dto.currencyCode !== undefined ? { currencyCode: dto.currencyCode } : {}),
+            ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          },
+          select: detailSelect,
+        }),
+      );
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
         throw new BadRequestException(
@@ -515,7 +544,9 @@ export class ManifestService {
       data: { deletedAt: new Date() },
     });
 
-    return this.prisma.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+    return this.withPartySummary(
+      await this.prisma.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -608,7 +639,9 @@ export class ManifestService {
         },
       });
       await this.recomputeTotals(tx, id);
-      return tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      return this.withPartySummary(
+        await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
+      );
     });
   }
 
@@ -636,7 +669,9 @@ export class ManifestService {
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         },
       });
-      return tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      return this.withPartySummary(
+        await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
+      );
     });
   }
 
@@ -659,7 +694,9 @@ export class ManifestService {
     return this.prisma.$transaction(async (tx) => {
       await tx.manifestItem.delete({ where: { id: itemId } });
       await this.recomputeTotals(tx, id);
-      return tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      return this.withPartySummary(
+        await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
+      );
     });
   }
 
@@ -728,11 +765,13 @@ export class ManifestService {
       throw new BadRequestException('Cannot submit a manifest with no cargo lines');
     }
 
-    return this.prisma.manifest.update({
-      where: { id },
-      data: { status: 'SUBMITTED', submittedAt: new Date(), submittedById: actor?.id },
-      select: detailSelect,
-    });
+    return this.withPartySummary(
+      await this.prisma.manifest.update({
+        where: { id },
+        data: { status: 'SUBMITTED', submittedAt: new Date(), submittedById: actor?.id },
+        select: detailSelect,
+      }),
+    );
   }
 
   /** SUBMITTED -> APPROVED. Terminal. */
@@ -746,11 +785,13 @@ export class ManifestService {
     }
     this.assertTransition(existing.status, 'APPROVED');
 
-    return this.prisma.manifest.update({
-      where: { id },
-      data: { status: 'APPROVED', approvedAt: new Date(), approvedById: actor?.id },
-      select: detailSelect,
-    });
+    return this.withPartySummary(
+      await this.prisma.manifest.update({
+        where: { id },
+        data: { status: 'APPROVED', approvedAt: new Date(), approvedById: actor?.id },
+        select: detailSelect,
+      }),
+    );
   }
 
   /** DRAFT|SUBMITTED -> CANCELLED. Reason required. Terminal. */
@@ -767,21 +808,54 @@ export class ManifestService {
       throw new BadRequestException('A cancellation reason is required');
     }
 
-    return this.prisma.manifest.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason.trim(),
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
-      },
-      select: detailSelect,
-    });
+    return this.withPartySummary(
+      await this.prisma.manifest.update({
+        where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancelReason: dto.cancelReason.trim(),
+          cancelledAt: new Date(),
+          cancelledById: actor?.id,
+        },
+        select: detailSelect,
+      }),
+    );
   }
 
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * ADR-047 d4 (P5-U3): derived distinct-parties summary for the manifest detail.
+   * Rows stay one line per B/L/cargo — grouping is display-time aggregation only
+   * ("not a schema group"). The EFFECTIVE party of a row is its own party with
+   * fallback to the manifest header when the row is null, i.e. the exact rule the
+   * items table uses for its per-row cells, so the summary always matches what the
+   * table shows. Distinct by master id; insertion order follows item sequence.
+   * Applied to every detail-shaped response (GET detail, create, update, item and
+   * lifecycle read-backs) so consumers see one consistent shape.
+   */
+  private withPartySummary<
+    T extends {
+      shipper: PartyRef | null;
+      consignee: PartyRef | null;
+      items: Array<{ shipper: PartyRef | null; consignee: PartyRef | null }>;
+    },
+  >(row: T): DetailWithPartySummary<T> {
+    const shippers = new Map<string, PartyRef>();
+    const consignees = new Map<string, PartyRef>();
+    for (const item of row.items) {
+      const shipper = item.shipper ?? row.shipper;
+      const consignee = item.consignee ?? row.consignee;
+      if (shipper) shippers.set(shipper.id, shipper);
+      if (consignee) consignees.set(consignee.id, consignee);
+    }
+    return {
+      ...row,
+      partySummary: { shippers: [...shippers.values()], consignees: [...consignees.values()] },
+    };
+  }
 
   /**
    * Party references must resolve to live (existing, non-soft-deleted) master

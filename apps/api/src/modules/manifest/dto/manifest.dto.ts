@@ -34,17 +34,23 @@ export class CreateManifestDto {
   @IsString()
   voyageId: string;
 
-  @ApiPropertyOptional({ description: 'Shipper customer ID (legacy shipper)' })
+  @ApiPropertyOptional({
+    description: 'Shipper master ID (party master ref). Not accepted when billIds is present: consolidated lines carry their own B/L parties (ADR-047 d4)',
+  })
   @IsOptional()
   @IsString()
   shipperId?: string;
 
-  @ApiPropertyOptional({ description: 'Consignee customer ID (legacy consignee)' })
+  @ApiPropertyOptional({
+    description: 'Consignee master ID (party master ref). Not accepted when billIds is present: consolidated lines carry their own B/L parties (ADR-047 d4)',
+  })
   @IsOptional()
   @IsString()
   consigneeId?: string;
 
-  @ApiPropertyOptional({ description: 'Agent customer ID (legacy agent)' })
+  @ApiPropertyOptional({
+    description: 'Agent master ID (party master ref). Not accepted when billIds is present: consolidated lines carry their own B/L parties (ADR-047 d4)',
+  })
   @IsOptional()
   @IsString()
   agentId?: string;
@@ -107,7 +113,8 @@ export class CreateManifestDto {
   // same voyage. When present, the consolidation create path runs; absent →
   // legacy cargo path (unchanged, regression-tested).
   @ApiPropertyOptional({
-    description: 'Bill of Lading IDs for consolidation create (ADR-047 d1)',
+    description:
+      'Bill of Lading IDs for consolidation create (ADR-047 d1). Header party fields (shipperId/consigneeId/agentId) must be omitted: each consolidated line carries its own B/L parties (ADR-047 d4)',
     type: [String],
   })
   @IsOptional()
@@ -124,17 +131,17 @@ export class UpdateManifestDto {
   @IsString()
   manifestDate?: string | null;
 
-  @ApiPropertyOptional({ description: 'Shipper customer ID (null to clear)' })
+  @ApiPropertyOptional({ description: 'Shipper master ID (null to clear)' })
   @IsOptional()
   @IsString()
   shipperId?: string | null;
 
-  @ApiPropertyOptional({ description: 'Consignee customer ID (null to clear)' })
+  @ApiPropertyOptional({ description: 'Consignee master ID (null to clear)' })
   @IsOptional()
   @IsString()
   consigneeId?: string | null;
 
-  @ApiPropertyOptional({ description: 'Agent customer ID (null to clear)' })
+  @ApiPropertyOptional({ description: 'Agent master ID (null to clear)' })
   @IsOptional()
   @IsString()
   agentId?: string | null;

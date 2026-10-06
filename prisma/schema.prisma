@@ -1199,6 +1199,8 @@ model ManifestItem {
   // ADR-047 d3 + d4 (P5-U2): consolidation reference (B/L item -> manifest line; the
   // Phase-4 stamp direction reversed) + per-item parties (multi-party rows). Nullable,
   // ON DELETE SET NULL (no drops — legacy columns cargoId/blNumber stay untouched).
+  // P5-U3: the detail read adds per-row party objects (code + name) and the derived
+  // partySummary — display-time aggregation only, no schema change (ADR-047 d4).
   billOfLadingItemId String? @map("billOfLadingItemId")
   shipperId          String? @map("shipperId")
   consigneeId        String? @map("consigneeId")

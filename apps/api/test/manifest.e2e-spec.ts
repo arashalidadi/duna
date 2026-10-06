@@ -39,9 +39,15 @@ describe('Manifest (e2e)', () => {
   const createdCargos: Ref[] = [];
   const createdLoadLists: Ref[] = [];
   const createdPartyMasters: Ref[] = []; // Phase 2 cutover: fixture master rows
+  const createdConsigneeIds: Ref[] = []; // P5-U3: fixture Consignee masters
 
   let adminToken = '';
   let fixtureShipperId = ''; // Phase 2 cutover: Shipper-master ref (was Customer)
+  // P5-U3: a second Shipper + two Consignee masters so one consolidated manifest can
+  // carry DIFFERENT parties per line (multi-party, roadmap Test 3 / Acceptance 2).
+  let fixtureShipper2Id = '';
+  let fixtureConsignee1Id = '';
+  let fixtureConsignee2Id = '';
   let readerToken = ''; // manifest:read only
   let writerToken = ''; // read + create + update
   let submitterToken = ''; // read + submit
@@ -102,6 +108,21 @@ describe('Manifest (e2e)', () => {
       });
       fixtureShipperId = shp.id;
       createdPartyMasters.push({ id: shp.id });
+      const shp2 = await partyFx.shipper.create({
+        data: { code: `MFSP2-${tag}`, name: `Manifest Test Shipper 2 ${randomTag}` },
+      });
+      fixtureShipper2Id = shp2.id;
+      createdPartyMasters.push({ id: shp2.id });
+      const cn1 = await partyFx.consignee.create({
+        data: { code: `MFCN1-${tag}`, name: `Manifest Test Consignee 1 ${randomTag}` },
+      });
+      fixtureConsignee1Id = cn1.id;
+      createdConsigneeIds.push({ id: cn1.id });
+      const cn2 = await partyFx.consignee.create({
+        data: { code: `MFCN2-${tag}`, name: `Manifest Test Consignee 2 ${randomTag}` },
+      });
+      fixtureConsignee2Id = cn2.id;
+      createdConsigneeIds.push({ id: cn2.id });
     } finally {
       await partyFx.$disconnect();
     }
@@ -270,6 +291,19 @@ describe('Manifest (e2e)', () => {
       const prisma = new PrismaClient();
       const voyageIds = createdVoyages.map((v) => v.id);
       const loadListIds = createdLoadLists.map((l) => l.id);
+      // P5-U2/U3 fixture bills FIRST: B/L items cascade away with them, manifest
+      // items NULL their billOfLadingItemId, and every later delete below (cargo,
+      // voyage, shipper/consignee masters) is otherwise blocked by these rows.
+      // This block used to sit LAST — its FK failure was swallowed by the catch at
+      // the bottom, which silently aborted the rest of cleanup (root cause of the
+      // P5-U2 "fixture leak", follow-up (i)).
+      await prisma.billOfLadingItem.deleteMany({
+        where: { billOfLading: { id: { in: createdBillIds } } },
+      });
+      await prisma.billOfLading.deleteMany({ where: { id: { in: createdBillIds } } });
+      await prisma.auditLog.deleteMany({
+        where: { entityType: 'BillOfLading', entityId: { in: createdBillIds } },
+      });
       // Reverse dependency order.
       await prisma.manifestItem.deleteMany({ where: { manifest: { voyageId: { in: voyageIds } } } });
       await prisma.manifest.deleteMany({ where: { voyageId: { in: voyageIds } } });
@@ -287,6 +321,7 @@ describe('Manifest (e2e)', () => {
       await prisma.yard.deleteMany({ where: { id: { in: createdYards.map((y) => y.id) } } });
       await prisma.customer.deleteMany({ where: { id: { in: createdCustomers.map((c) => c.id) } } });
       await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
+      await prisma.consignee.deleteMany({ where: { id: { in: createdConsigneeIds.map((m) => m.id) } } });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.user.deleteMany({
         where: {
@@ -315,17 +350,6 @@ describe('Manifest (e2e)', () => {
             ],
           },
         },
-      });
-      // P5-U2: remove consolidation fixtures (explicit ids only — U2 incident rule).
-      // B/L items ride on the bills (cascade), so deleting the bills clears them.
-      // NumberingSequence rows for B/Ls are scoped to the destination port, which is
-      // a fixture port deleted below — no MANIFEST sequence is allocated by U2.
-      await prisma.billOfLadingItem.deleteMany({
-        where: { billOfLading: { id: { in: createdBillIds } } },
-      });
-      await prisma.billOfLading.deleteMany({ where: { id: { in: createdBillIds } } });
-      await prisma.auditLog.deleteMany({
-        where: { entityType: 'BillOfLading', entityId: { in: createdBillIds } },
       });
       await prisma.$disconnect();
     } catch {
@@ -866,12 +890,19 @@ describe('Manifest (e2e)', () => {
   // Track created B/Ls (as Shipper/Consignee masters) and NumberingSequence names
   // so afterAll can sweep them by explicit filter (U2 fixture-hygiene rule).
   const createdBillIds: string[] = [];
+  // P5-U3: bill -> cargo lookup so a test can put the SAME voyage's cargo on a
+  // manifest through the legacy add-item path (row with no parties of its own).
+  const cargoIdByBill: Record<string, string> = {};
 
   // Full chain helper: cargo -> inspection DONE -> load list -> FINALIZED ->
   // actual loading COMPLETED -> voyage-mode B/L (DRAFT, 1 item). Voyage-mode keeps
   // the B/L independent of any manifest (ADR-045 decision 1), which is what the
   // consolidation path consumes.
-  async function mkVoyageModeBill(voyageId: string, shipperId: string): Promise<string> {
+  async function mkVoyageModeBill(
+    voyageId: string,
+    shipperId?: string,
+    consigneeId?: string,
+  ): Promise<string> {
     const cargo = await request(app.getHttpServer())
       .post('/api/v1/cargo')
       .set(auth(adminToken))
@@ -939,10 +970,17 @@ describe('Manifest (e2e)', () => {
     const bill = await request(app.getHttpServer())
       .post('/api/v1/bills')
       .set(auth(adminToken))
-      .send({ voyageId, cargoIds: [cid], shipperId, billType: 'HOUSE' })
+      .send({
+        voyageId,
+        cargoIds: [cid],
+        ...(shipperId ? { shipperId } : {}),
+        ...(consigneeId ? { consigneeId } : {}),
+        billType: 'HOUSE',
+      })
       .expect(201);
     const billId = bill.body.data.id as string;
     createdBillIds.push(billId);
+    cargoIdByBill[billId] = cid;
     return billId;
   }
 
@@ -1192,5 +1230,226 @@ describe('Manifest (e2e)', () => {
     expect(detail.body.data.status).toBe('APPROVED');
     expect(detail.body.data.items.length).toBeGreaterThan(0);
     expect(detail.body.data.items[0].actualLoadingItemId).toBeDefined();
+  });
+
+  // ---------------------------------------------------------------------------
+  // P5-U3 (ADR-047 d4): per-item parties end-to-end — per-row party objects
+  // (code + name), the derived distinct-parties summary, header-vs-row rules and
+  // DTO validation. Roadmap Test 3 (multi-party support) / Acceptance 2
+  // (multi-party manifests supported). No schema: the columns shipped in U2's 37.
+  // ---------------------------------------------------------------------------
+
+  it('multi-party: consolidated lines carry distinct parties and partySummary lists them distinctly (Test 3 / Acceptance 2)', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const voyId = voy.body.data.id as string;
+
+    const bill1 = await mkVoyageModeBill(voyId, fixtureShipperId, fixtureConsignee1Id);
+    const bill2 = await mkVoyageModeBill(voyId, fixtureShipper2Id, fixtureConsignee2Id);
+    await approveBill(bill1);
+    await approveBill(bill2);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, billIds: [bill1, bill2] })
+      .expect(201);
+    // A consolidated header carries no parties — every line carries its own
+    // (ADR-047 d4; the create response already carries the derived summary).
+    expect(res.body.data.shipperId).toBeNull();
+    expect(res.body.data.consigneeId).toBeNull();
+    expect(
+      (res.body.data.partySummary.shippers as Array<{ id: string }>).map((s) => s.id).sort()
+    ).toEqual([fixtureShipperId, fixtureShipper2Id].sort());
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/manifests/${res.body.data.id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const data = detail.body.data;
+    const items = data.items as Array<{
+      shipperId: string | null;
+      consigneeId: string | null;
+      shipper: { id: string; code: string; name: string } | null;
+      consignee: { id: string; code: string; name: string } | null;
+    }>;
+    expect(items).toHaveLength(2);
+
+    // Per-row cells (code + name): each line resolves ITS OWN party masters.
+    const byShipper = new Map(items.map((i) => [i.shipperId, i]));
+    expect([...byShipper.keys()].sort()).toEqual([fixtureShipperId, fixtureShipper2Id].sort());
+    const row1 = byShipper.get(fixtureShipperId)!;
+    expect(row1.shipper?.id).toBe(fixtureShipperId);
+    expect(row1.shipper?.code).toBe(`MFSP-${tag}`);
+    expect(row1.shipper?.name).toContain('Manifest Test Shipper ');
+    expect(row1.consignee?.id).toBe(fixtureConsignee1Id);
+    expect(row1.consignee?.code).toBe(`MFCN1-${tag}`);
+    const row2 = byShipper.get(fixtureShipper2Id)!;
+    expect(row2.shipper?.code).toBe(`MFSP2-${tag}`);
+    expect(row2.consignee?.id).toBe(fixtureConsignee2Id);
+    expect(row2.consignee?.code).toBe(`MFCN2-${tag}`);
+
+    // Distinct summary: two shippers, two consignees — deduped by master id,
+    // one entry per DISTINCT party even though there are two rows.
+    const summary = data.partySummary as {
+      shippers: Array<{ id: string }>;
+      consignees: Array<{ id: string }>;
+    };
+    expect(summary.shippers).toHaveLength(2);
+    expect(summary.consignees).toHaveLength(2);
+    expect(summary.shippers.map((s) => s.id).sort()).toEqual(
+      [fixtureShipperId, fixtureShipper2Id].sort()
+    );
+    expect(summary.consignees.map((c) => c.id).sort()).toEqual(
+      [fixtureConsignee1Id, fixtureConsignee2Id].sort()
+    );
+  });
+
+  it('multi-party summary dedupes: the same party on every line appears exactly once', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const voyId = voy.body.data.id as string;
+
+    const bill1 = await mkVoyageModeBill(voyId, fixtureShipper2Id, fixtureConsignee1Id);
+    const bill2 = await mkVoyageModeBill(voyId, fixtureShipper2Id, fixtureConsignee1Id);
+    await approveBill(bill1);
+    await approveBill(bill2);
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, billIds: [bill1, bill2] })
+      .expect(201);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/manifests/${res.body.data.id}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(detail.body.data.items).toHaveLength(2);
+    const summary = detail.body.data.partySummary as {
+      shippers: Array<{ id: string }>;
+      consignees: Array<{ id: string }>;
+    };
+    expect(summary.shippers).toHaveLength(1);
+    expect(summary.shippers[0].id).toBe(fixtureShipper2Id);
+    expect(summary.consignees).toHaveLength(1);
+    expect(summary.consignees[0].id).toBe(fixtureConsignee1Id);
+  });
+
+  it('partySummary rules: a row\'s own party governs; a row without parties falls back to the header (ADR-047 d4)', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const voyId = voy.body.data.id as string;
+
+    // Row 1 via consolidation (party = Shipper 2). Row 2 via the legacy add-item
+    // path on the same voyage — legacy rows carry no parties of their own.
+    const bill1 = await mkVoyageModeBill(voyId, fixtureShipper2Id);
+    await approveBill(bill1);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, billIds: [bill1] })
+      .expect(201);
+    const mfId = res.body.data.id as string;
+
+    const bill2 = await mkVoyageModeBill(voyId, fixtureShipper2Id); // DRAFT on purpose
+    const addRes = await request(app.getHttpServer())
+      .post(`/api/v1/manifests/${mfId}/items`)
+      .set(auth(adminToken))
+      .send({ cargoId: cargoIdByBill[bill2] })
+      .expect(201);
+    // Header still empty at this point -> only row 1 contributes (the addItem
+    // read-back carries the derived summary too).
+    expect(
+      (addRes.body.data.partySummary.shippers as Array<{ id: string }>).map((s) => s.id)
+    ).toEqual([fixtureShipper2Id]);
+
+    // Set the header afterwards (DRAFT update): row 1 keeps its own party, row 2
+    // (null) resolves through the header fallback.
+    const upd = await request(app.getHttpServer())
+      .patch(`/api/v1/manifests/${mfId}`)
+      .set(auth(adminToken))
+      .send({ shipperId: fixtureShipperId })
+      .expect(200);
+    expect(upd.body.data.shipperId).toBe(fixtureShipperId);
+    expect(
+      (upd.body.data.partySummary.shippers as Array<{ id: string }>).map((s) => s.id).sort()
+    ).toEqual([fixtureShipperId, fixtureShipper2Id].sort());
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/manifests/${mfId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    const items = detail.body.data.items as Array<{
+      shipperId: string | null;
+      shipper: { id: string } | null;
+    }>;
+    expect(items).toHaveLength(2);
+    const withParty = items.find((i) => i.shipperId !== null)!;
+    // Row priority: the row's own party wins over the header.
+    expect(withParty.shipper?.id).toBe(fixtureShipper2Id);
+    const withoutParty = items.find((i) => i.shipperId === null)!;
+    expect(withoutParty.shipper).toBeNull(); // raw cell value; render falls back to header
+
+    const summary = detail.body.data.partySummary as {
+      shippers: Array<{ id: string }>;
+      consignees: Array<{ id: string }>;
+    };
+    // Exactly the row party + the header (via the null row) — no duplicates, and
+    // no consignees anywhere (none set on rows or header -> empty, not invented).
+    expect(summary.shippers.map((s) => s.id).sort()).toEqual(
+      [fixtureShipperId, fixtureShipper2Id].sort()
+    );
+    expect(summary.consignees).toHaveLength(0);
+  });
+
+  it('consolidation DTO validation: header party fields rejected with billIds; legacy path still validates them', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+    const voyId = voy.body.data.id as string;
+
+    // (a) billIds + header party -> rejected BEFORE any validation/qualification
+    // work: the combination can never take effect, so it must not be silently dropped.
+    const withParty = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, billIds: ['nonexistent-bill-id'], shipperId: fixtureShipperId })
+      .expect(400);
+    expect(withParty.body.error.message).toBe(
+      'shipperId/consigneeId/agentId are not accepted when consolidating with billIds: each manifest line carries its own B/L parties (ADR-047 d4)'
+    );
+
+    // (b) legacy path (no billIds) still validates party refs: unknown id -> 400.
+    const unknownParty = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, shipperId: 'nonexistent-shipper-id' })
+      .expect(400);
+    expect(unknownParty.body.error.message).toContain('Unknown shipperId');
+
+    // (c) legacy path accepts valid header parties — rejection is scoped to billIds.
+    const legacyOk = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyId, shipperId: fixtureShipperId })
+      .expect(201);
+    expect(legacyOk.body.data.shipperId).toBe(fixtureShipperId);
+    expect(legacyOk.body.data.partySummary).toEqual({ shippers: [], consignees: [] });
   });
   });
