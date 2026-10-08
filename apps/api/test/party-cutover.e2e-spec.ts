@@ -178,6 +178,12 @@ describe('Party cutover: Manifest/B-L -> master refs (e2e)', () => {
       await prisma.numberingSequence.deleteMany({
         where: { documentType: 'BILL', scopeValue: { in: createdPorts.map((p) => p.id) } },
       });
+      // P5-U4: this suite's POST /manifests allocates a per-destination MANIFEST
+      // sequence (U4-introduced; the old generator never wrote NumberingSequence) —
+      // sweep by EXACT scope ids. Not a bill/voyage sweep; those stay untouched.
+      await prisma.numberingSequence.deleteMany({
+        where: { documentType: 'MANIFEST', scopeValue: { in: createdPorts.map((p) => p.id) } },
+      });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
       await prisma.shipper.deleteMany({
         where: { id: { in: createdMasters.filter((m) => m.kind === 'shipper').map((m) => m.id) } },

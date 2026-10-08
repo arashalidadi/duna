@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, ManifestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -178,7 +179,10 @@ type DetailWithPartySummary<T> = T & {
 
 @Injectable()
 export class ManifestService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Manifest CRUD
@@ -307,132 +311,182 @@ export class ManifestService {
     });
 
     if (billIds.length > 0) {
-      return await this.prisma.$transaction(async (tx) => {
-        // 1. Validate all billIds exist, are APPROVED, and belong to the same voyage
-        const bills = await tx.billOfLading.findMany({
-          where: {
-            id: { in: billIds },
-            status: 'APPROVED',
-            voyageId: dto.voyageId,
-          },
-          select: { id: true, status: true, voyageId: true },
-        });
-        if (bills.length !== billIds.length) {
-          throw new BadRequestException(
-            'One or more billIds are not APPROVED or do not belong to the specified voyage',
-          );
-        }
-        if (bills.length === 0) {
-          throw new BadRequestException('No matching APPROVED B/Ls found');
-        }
-
-        // 2. Enforce one-manifest-per-B/L claim guard:
-        // An APPROVED B/L's items may appear on at most one live (non-deleted) manifest.
-        // Guard direction: query the NEW ManifestItem.billOfLadingItemId column through a
-        // live owner manifest (ADR-047 d3). The legacy BillOfLadingItem.manifestItemId stamp
-        // is never written by the consolidation path, so it cannot back this guard. A
-        // soft-deleted owner manifest frees its claims (no DB @unique for that reason).
-        const claimed = await tx.manifestItem.findMany({
-          where: {
-            billOfLadingItem: { billOfLadingId: { in: billIds } },
-            manifest: { deletedAt: null },
-          },
-          select: { manifest: { select: { manifestNumber: true } } },
-        });
-        if (claimed.length > 0) {
-          const ownerNumbers = [...new Set(claimed.map((c) => c.manifest.manifestNumber))];
-          throw new ConflictException(
-            `One or more B/Ls are already consolidated onto manifests: ${ownerNumbers.join(', ')}`,
-          );
-        }
-
-        // 3. Generate manifest number and create the manifest.
-        // A consolidated manifest has no header-level parties — each line carries its own
-        // (ADR-047 d4; distinct summary + validation land in U3).
-        const manifestNumber = await this.generateReference();
-        const manifest = await tx.manifest.create({
-          data: {
-            manifestNumber,
-            voyageId: dto.voyageId,
-            vesselName: voyage.vessel.name,
-            vesselImo: voyage.vessel.imo,
-            polPortId: voyage.originPortId,
-            podPortId: voyage.destinationPortId,
-            shipperId: null,
-            consigneeId: null,
-            agentId: null,
-            notifyParty: null,
-            description: null,
-            notes: null,
-            createdById: actor?.id,
-          },
-          select: detailSelect,
-        });
-
-        // 4. For each APPROVED B/L: pull its items' frozen snapshot and build one manifest
-        //    line per B/L item — billOfLadingItemId + per-item parties COPIED from the B/L
-        //    (ADR-047 d2+d4 — mechanical copy; U3 owns DTO validation + distinct summary).
-        //    No blNumber stamp: the manifest reads the bill number through the reference.
-        const maxSeq = await tx.manifestItem.aggregate({
-          where: { manifestId: manifest.id },
-          _max: { sequence: true },
-        });
-        let sequence = maxSeq._max.sequence ?? 0;
-
-        const billItems = await tx.billOfLadingItem.findMany({
-          where: { billOfLadingId: { in: billIds } },
-          select: {
-            id: true,
-            cargoId: true,
-            sequence: true,
-            packages: true,
-            packageType: true,
-            grossWeight: true,
-            volume: true,
-            goodsDescription: true,
-            marksAndNumbers: true,
-            billOfLading: {
-              select: { id: true, billNumber: true, shipperId: true, consigneeId: true },
-            },
-          },
-          orderBy: { sequence: 'asc' },
-        });
-
-        for (const item of billItems) {
-          sequence += 1;
-          await tx.manifestItem.create({
-            data: {
-              manifestId: manifest.id,
-              cargoId: item.cargoId,
-              sequence,
-              blNumber: null,
-              weight: item.grossWeight ?? null,
-              quantity: null,
-              packages: item.packages ?? null,
-              packageType: item.packageType ?? null,
-              notes: null,
-              actualLoadingItemId: null,
-              billOfLadingItemId: item.id,
-              // Per-item parties copied from the B/L (mechanical copy, ADR-047 d4).
-              shipperId: item.billOfLading.shipperId,
-              consigneeId: item.billOfLading.consigneeId,
-            },
-          });
-        }
-
-        return this.withPartySummary(
-          await tx.manifest.findUniqueOrThrow({
-            where: { id: manifest.id },
-            select: detailSelect,
-          }),
+      // Per-destination numbering (ADR-047 d7, P5-U4): the manifest number is
+      // allocated OUTSIDE the lifecycle transaction. allocateNumber opens its own
+      // transaction (SELECT ... FOR UPDATE on numberingSequence) — nesting it inside
+      // the outer transaction would either fail or forfeit the row lock, so the
+      // number is reserved first and consumed by the create below.
+      //
+      // Correctness property (the same trade-off bills accepted in P4-U3): a number
+      // allocated and then abandoned when a later step fails (validation, claim guard,
+      // unique collision) leaves a HARMLESS GAP — the counter only moves forward and a
+      // number is never reused. The bounded-retry loop below re-allocates a FRESH
+      // number on a manifestNumber collision, mirroring bill.service/legacy path.
+      const MAX_MANIFEST_ATTEMPTS = 10;
+      for (let attempt = 1; ; attempt += 1) {
+        const manifestNumber = await this.allocateManifestNumber(
+          voyage.destinationPortId,
         );
-      });
+        try {
+          return await this.prisma.$transaction(async (tx) => {
+            // 1. Validate all billIds exist, are APPROVED, and belong to the same voyage
+            const bills = await tx.billOfLading.findMany({
+              where: {
+                id: { in: billIds },
+                status: 'APPROVED',
+                voyageId: dto.voyageId,
+              },
+              select: { id: true, status: true, voyageId: true },
+            });
+            if (bills.length !== billIds.length) {
+              throw new BadRequestException(
+                'One or more billIds are not APPROVED or do not belong to the specified voyage',
+              );
+            }
+            if (bills.length === 0) {
+              throw new BadRequestException('No matching APPROVED B/Ls found');
+            }
+
+            // 2. Enforce one-manifest-per-B/L claim guard:
+            // An APPROVED B/L's items may appear on at most one live (non-deleted) manifest.
+            // Guard direction: query the NEW ManifestItem.billOfLadingItemId column through a
+            // live owner manifest (ADR-047 d3). The legacy BillOfLadingItem.manifestItemId stamp
+            // is never written by the consolidation path, so it cannot back this guard. A
+            // soft-deleted owner manifest frees its claims (no DB @unique for that reason).
+            const claimed = await tx.manifestItem.findMany({
+              where: {
+                billOfLadingItem: { billOfLadingId: { in: billIds } },
+                manifest: { deletedAt: null },
+              },
+              select: { manifest: { select: { manifestNumber: true } } },
+            });
+            if (claimed.length > 0) {
+              const ownerNumbers = [...new Set(claimed.map((c) => c.manifest.manifestNumber))];
+              throw new ConflictException(
+                `One or more B/Ls are already consolidated onto manifests: ${ownerNumbers.join(', ')}`,
+              );
+            }
+
+            // 3. Create the manifest with the per-destination number allocated above
+            // (ADR-047 d7). A consolidated manifest has no header-level parties — each line
+            // carries its own (ADR-047 d4; distinct summary + validation land in U3).
+            const manifest = await tx.manifest.create({
+              data: {
+                manifestNumber,
+                voyageId: dto.voyageId,
+                vesselName: voyage.vessel.name,
+                vesselImo: voyage.vessel.imo,
+                polPortId: voyage.originPortId,
+                podPortId: voyage.destinationPortId,
+                shipperId: null,
+                consigneeId: null,
+                agentId: null,
+                notifyParty: null,
+                description: null,
+                notes: null,
+                createdById: actor?.id,
+              },
+              select: detailSelect,
+            });
+
+            // 4. For each APPROVED B/L: pull its items' frozen snapshot and build one manifest
+            //    line per B/L item — billOfLadingItemId + per-item parties COPIED from the B/L
+            //    (ADR-047 d2+d4 — mechanical copy; U3 owns DTO validation + distinct summary).
+            //    No blNumber stamp: the manifest reads the bill number through the reference.
+            const maxSeq = await tx.manifestItem.aggregate({
+              where: { manifestId: manifest.id },
+              _max: { sequence: true },
+            });
+            let sequence = maxSeq._max.sequence ?? 0;
+
+            const billItems = await tx.billOfLadingItem.findMany({
+              where: { billOfLadingId: { in: billIds } },
+              select: {
+                id: true,
+                cargoId: true,
+                sequence: true,
+                packages: true,
+                packageType: true,
+                grossWeight: true,
+                volume: true,
+                goodsDescription: true,
+                marksAndNumbers: true,
+                billOfLading: {
+                  select: { id: true, billNumber: true, shipperId: true, consigneeId: true },
+                },
+              },
+              orderBy: { sequence: 'asc' },
+            });
+
+            for (const item of billItems) {
+              sequence += 1;
+              await tx.manifestItem.create({
+                data: {
+                  manifestId: manifest.id,
+                  cargoId: item.cargoId,
+                  sequence,
+                  blNumber: null,
+                  weight: item.grossWeight ?? null,
+                  quantity: null,
+                  packages: item.packages ?? null,
+                  packageType: item.packageType ?? null,
+                  notes: null,
+                  actualLoadingItemId: null,
+                  billOfLadingItemId: item.id,
+                  // Per-item parties copied from the B/L (mechanical copy, ADR-047 d4).
+                  shipperId: item.billOfLading.shipperId,
+                  consigneeId: item.billOfLading.consigneeId,
+                },
+              });
+            }
+
+            return this.withPartySummary(
+              await tx.manifest.findUniqueOrThrow({
+                where: { id: manifest.id },
+                select: detailSelect,
+              }),
+            );
+          });
+        } catch (e) {
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            e.code === 'P2002' &&
+            attempt < MAX_MANIFEST_ATTEMPTS &&
+            String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
+              'manifestNumber',
+            )
+          ) {
+            continue; // lost the number race: allocate a fresh number and retry
+          }
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            (e.code === 'P2002' || e.code === 'P2018')
+          ) {
+            throw new ConflictException('Could not create Manifest: duplicate reference');
+          }
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            e.code === 'P2003'
+          ) {
+            throw new BadRequestException(
+              'Invalid reference: party ids must reference existing master records',
+            );
+          }
+          throw e;
+        }
+      }
     }
 
     // 5. Legacy cargo path (unchanged, runs when billIds absent)
+    // Per-destination numbering (ADR-047 d7, P5-U4): the legacy path uses the SAME new
+    // numbering — one number shape per document type, no forked formats. Allocation is
+    // transactional (allocateNumber runs its own SELECT...FOR UPDATE), so the
+    // bounded-retry loop below now only guards other unique/reference races.
     const MAX_MANIFEST_ATTEMPTS = 10;
     for (let attempt = 1; ; attempt += 1) {
-      const manifestNumber = await this.generateReference();
+      const manifestNumber = await this.allocateManifestNumber(
+        voyage.destinationPortId,
+      );
       try {
         return this.withPartySummary(
           await this.prisma.manifest.create({
@@ -947,22 +1001,49 @@ export class ManifestService {
     });
   }
 
-  /** Stable, ordered manifest number: MAN-YYMM-##### (mirrors AL/LL/VOY/INS/CRG). */
-  private async generateReference(): Promise<string> {
+  /**
+   * Per-destination manifest number (ADR-047 decision 7): replaces the local
+   * read-then-write `generateReference()` (`MAN-YYMM-#####`) with NumberingService
+   * .allocateNumber.
+   *  - format `MAN-{DEST}-YYMM-#####` — the destination segment disambiguates
+   *    under the same `manifestNumber @unique` index (collision-proofing same as bills).
+   *  - `{DEST}` = Port `abbreviation` when present, else `code` (same resolution as bills).
+   *  - counter scope = per destination PER MONTH: NumberingSequence name embeds
+   *    destination id + YYYYMM, `period: 'YYYYMM'`, so each (destination, month)
+   *    starts at 00001.
+   *  - allocation is transactional under SELECT ... FOR UPDATE — concurrent creates
+   *    cannot collide.
+   * Existing `MAN-YYMM-#####` numbers are immutable (never renumbered) and coexist
+   * with the new format under the same @unique index.
+   */
+  private async allocateManifestNumber(destinationPortId: string): Promise<string> {
+    if (!destinationPortId) {
+      throw new BadRequestException(
+        'destinationPortId is required to number a Manifest per destination (ADR-047 decision 7)',
+      );
+    }
+    const port = await this.prisma.port.findUnique({
+      where: { id: destinationPortId },
+      select: { code: true, abbreviation: true },
+    });
+    if (!port) {
+      throw new BadRequestException(`Unknown destination port: ${destinationPortId}`);
+    }
+    const destinationSegment = port.abbreviation || port.code;
     const now = new Date();
     const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
       now.getUTCMonth() + 1
     ).padStart(2, '0')}`;
-    const prefix = `MAN-${yymm}-`;
-
-    const latest = await this.prisma.manifest.findFirst({
-      where: { manifestNumber: { startsWith: prefix } },
-      orderBy: { manifestNumber: 'desc' },
-      select: { manifestNumber: true },
+    const allocated = await this.numbering.allocateNumber({
+      name: `manifest-${destinationPortId}-${yymm}`,
+      documentType: 'MANIFEST',
+      scopeType: 'DESTINATION',
+      scopeValue: destinationPortId,
+      prefix: `MAN-${destinationSegment}-${yymm}-`,
+      padding: 5,
+      format: '{prefix}{sequence}',
+      period: 'YYYYMM',
     });
-
-    const lastSeq = latest ? Number(latest.manifestNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
+    return allocated.sequence;
   }
 }

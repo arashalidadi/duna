@@ -323,6 +323,26 @@ describe('Manifest (e2e)', () => {
       await prisma.shipper.deleteMany({ where: { id: { in: createdPartyMasters.map((m) => m.id) } } });
       await prisma.consignee.deleteMany({ where: { id: { in: createdConsigneeIds.map((m) => m.id) } } });
       await prisma.port.deleteMany({ where: { id: { in: createdPorts.map((p) => p.id) } } });
+      // P5-U4: sweep MANIFEST NumberingSequence rows allocated by these tests.
+      // (a) Scope-id sweep: EVERY one of the 22 POST /manifests sites numbers off
+      //     the voyage's destination port, and every destination port this suite
+      //     uses is one of its own fixture ports (destPortId, destWithAbbr,
+      //     destC/destD) — all pushed to createdPorts at creation. Scoping by
+      //     those exact ids therefore covers all 22 sites without having to
+      //     instrument each call site, and it never reaches a foreign row
+      //     (`in: []` matches nothing, so an empty list cannot collapse into a
+      //     wildcard — the U2 incident pattern).
+      await prisma.numberingSequence.deleteMany({
+        where: {
+          documentType: 'MANIFEST',
+          scopeValue: { in: createdPorts.map((p) => p.id) },
+        },
+      });
+      // (b) Name sweep: the names the numbering tests pushed explicitly (kept so
+      //     the cleanup is provable per-name as well as per-scope).
+      await prisma.numberingSequence.deleteMany({
+        where: { name: { in: createdManifestSeqNames } },
+      });
       await prisma.user.deleteMany({
         where: {
           email: {
@@ -436,7 +456,7 @@ describe('Manifest (e2e)', () => {
       .expect(404);
   });
 
-  it('create + get + list as admin; MAN-YYMM-##### number, DRAFT status, voyage snapshot; one per voyage', async () => {
+  it('create + get + list as admin; MAN-{DEST}-YYMM-##### number, DRAFT status, voyage snapshot; one per voyage', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/manifests')
       .set(auth(adminToken))
@@ -444,7 +464,8 @@ describe('Manifest (e2e)', () => {
       .expect(201);
     const created = res.body.data;
     expect(created.status).toBe('DRAFT');
-    expect(created.manifestNumber).toMatch(/^MAN-\d{4}-\d{5}$/);
+    // Per-destination numbering (ADR-047 d7, P5-U4): MAN-{DEST}-YYMM-#####
+    expect(created.manifestNumber).toMatch(/^MAN-.+-\d{4}-\d{5}$/);
     expect(created.voyageId).toBe(voyage1Id);
     expect(created.items).toEqual([]);
     // Snapshot fields taken from the voyage at creation time.
@@ -890,6 +911,20 @@ describe('Manifest (e2e)', () => {
   // Track created B/Ls (as Shipper/Consignee masters) and NumberingSequence names
   // so afterAll can sweep them by explicit filter (U2 fixture-hygiene rule).
   const createdBillIds: string[] = [];
+  // P5-U4: ports created inside the numbering tests + every NumberingSequence
+  // name the tests read back (swept by explicit name/id, same rule as above).
+  const extraPortIds: string[] = [];
+  const createdManifestSeqNames: string[] = [];
+  function trackManifestSeq(returnedNumber: string, destinationPortId: string) {
+    // Sequence name = manifest-{destPortId}-{yymm} (P5-U4 allocateManifestNumber).
+    // Recover it from the number the API returned: the trailing '-0000N' segment
+    // is the padded counter, what precedes it (after 'MAN-') is the {DEST} + yymm.
+    const now = new Date();
+    const yymm =
+      String(now.getUTCFullYear() % 100).padStart(2, '0') +
+      String(now.getUTCMonth() + 1).padStart(2, '0');
+    createdManifestSeqNames.push(`manifest-${destinationPortId}-${yymm}`);
+  }
   // P5-U3: bill -> cargo lookup so a test can put the SAME voyage's cargo on a
   // manifest through the legacy add-item path (row with no parties of its own).
   const cargoIdByBill: Record<string, string> = {};
@@ -1019,7 +1054,8 @@ describe('Manifest (e2e)', () => {
       .expect(201);
     const mf = res.body.data;
     expect(mf.status).toBe('DRAFT');
-    expect(mf.manifestNumber).toMatch(/^MAN-\d{4}-\d{5}$/);
+    // Per-destination numbering (ADR-047 d7, P5-U4): MAN-{DEST}-YYMM-#####
+    expect(mf.manifestNumber).toMatch(/^MAN-.+-\d{4}-\d{5}$/);
     // One manifest line per B/L item (each voyage-mode bill has exactly 1 item).
     expect(mf.items).toHaveLength(2);
 
@@ -1451,5 +1487,263 @@ describe('Manifest (e2e)', () => {
       .expect(201);
     expect(legacyOk.body.data.shipperId).toBe(fixtureShipperId);
     expect(legacyOk.body.data.partySummary).toEqual({ shippers: [], consignees: [] });
+  });
+
+  // ---------------------------------------------------------------------------
+  // P5-U4 (ADR-047 d7): per-destination numbering. Roadmap Test 4
+  // (per-destination independence) / Acceptance 3 (per-destination counters).
+  // NumberingService.allocateNumber, scopeType DESTINATION, name embeds
+  // destPortId + YYYYMM, prefix MAN-{DEST}-{yymm}-. No new rows for legacy.
+  // ---------------------------------------------------------------------------
+
+  it('numbering: legacy path issues MAN-{DEST}-YYMM-##### using the port abbreviation (Test 4 / Acceptance 3)', async () => {
+    // destPortId has no abbreviation -> created below with one to test the
+    // abbreviation path explicitly.
+    const abbrPort = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({
+        code: `MFABBR-${tag}`,
+        name: `MF Abbr Dest ${randomTag}`,
+        country: 'IN',
+        abbreviation: `MAB${randomTag}`,
+      })
+      .expect(201);
+    const destWithAbbr = abbrPort.body.data.id as string;
+    extraPortIds.push(destWithAbbr);
+    createdPorts.push({ id: destWithAbbr });
+    expect(abbrPort.body.data.abbreviation).toBe(`MAB${randomTag}`);
+
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destWithAbbr })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voy.body.data.id })
+      .expect(201);
+    const num = res.body.data.manifestNumber as string;
+    expect(num).toMatch(new RegExp(`^MAN-MAB${randomTag}-\\d{4}-\\d{5}$`));
+    trackManifestSeq(num, destWithAbbr);
+  });
+
+  it('numbering: port without abbreviation falls back to code for {DEST}', async () => {
+    const voy = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .expect(201);
+    createdVoyages.push({ id: voy.body.data.id });
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voy.body.data.id })
+      .expect(201);
+    const num = res.body.data.manifestNumber as string;
+    // destPortId fixture has code MFP2-... and no abbreviation -> code used.
+    const destPort = await request(app.getHttpServer())
+      .get(`/api/v1/ports/${destPortId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(destPort.body.data.abbreviation).toBeNull();
+    expect(num.startsWith(`MAN-${destPort.body.data.code}-`)).toBe(true);
+    trackManifestSeq(num, destPortId);
+  });
+
+  it('numbering: per-destination independence — two different destinations each start at 00001; same destination increments (Test 4 core)', async () => {
+    const destC = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `MFPC-${tag}`, name: `MF Dest C ${randomTag}`, country: 'IN' })
+      .expect(201);
+    const destCId = destC.body.data.id as string;
+    extraPortIds.push(destCId);
+    createdPorts.push({ id: destCId });
+
+    const destD = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `MFPD-${tag}`, name: `MF Dest D ${randomTag}`, country: 'IN' })
+      .expect(201);
+    const destDId = destD.body.data.id as string;
+    extraPortIds.push(destDId);
+    createdPorts.push({ id: destDId });
+
+    async function createManifestFor(destId: string): Promise<string> {
+      const voy = await request(app.getHttpServer())
+        .post('/api/v1/voyages')
+        .set(auth(adminToken))
+        .send({ vesselId, originPortId, destinationPortId: destId })
+        .expect(201);
+      createdVoyages.push({ id: voy.body.data.id });
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/manifests')
+        .set(auth(adminToken))
+        .send({ voyageId: voy.body.data.id })
+        .expect(201);
+      const n = res.body.data.manifestNumber as string;
+      trackManifestSeq(n, destId);
+      return n;
+    }
+
+    const numC1 = await createManifestFor(destCId);
+    const numD1 = await createManifestFor(destDId);
+    const numC2 = await createManifestFor(destCId);
+    // Independence: both destinations start at 00001.
+    expect(numC1).toMatch(/-00001$/);
+    expect(numD1).toMatch(/-00001$/);
+    // Same destination increments.
+    expect(numC2).toMatch(/-00002$/);
+    // The two first numbers share the month but differ in {DEST}.
+    expect(numC1).not.toBe(numD1);
+  });
+
+  it('numbering: the NumberingSequence row embeds name/period/scope (month-reset pinned without time travel)', async () => {
+    // The last manifest created above consumed sequences; assert directly on the
+    // sequence row backing the code-fallback destination.
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      const rows = await prisma.numberingSequence.findMany({
+        where: { name: { in: createdManifestSeqNames } },
+        select: { name: true, documentType: true, scopeType: true, scopeValue: true, period: true },
+      });
+      expect(rows.length).toBeGreaterThan(0);
+      const now = new Date();
+      const yymm =
+        String(now.getUTCFullYear() % 100).padStart(2, '0') +
+        String(now.getUTCMonth() + 1).padStart(2, '0');
+      for (const r of rows) {
+        expect(r.documentType).toBe('MANIFEST');
+        expect(r.scopeType).toBe('DESTINATION');
+        expect(r.period).toBe('YYYYMM');
+        // Name convention: manifest-{destPortId}-{yymm} so the month is part of
+        // the key — a new month is a new key, hence the implicit reset to 00001.
+        expect(r.name.endsWith(`-${yymm}`)).toBe(true);
+        expect(typeof r.scopeValue).toBe('string');
+        expect(r.name).toContain(r.scopeValue as string);
+      }
+    } finally {
+      await prisma.$disconnect();
+    }
+  });
+
+  it('numbering: consolidation retries a manifestNumber collision with a fresh number (P5-U4 nested-transaction retry)', async () => {
+    // allocateNumber runs in its OWN $transaction (SELECT ... FOR UPDATE), so it
+    // cannot be nested inside the consolidation transaction — the number is reserved
+    // first and consumed by the create. Seed a manifest holding the very number the
+    // lazy sequence will hand out next, so the in-transaction create collides and the
+    // bill-pattern bounded retry must recover (without the loop this would 409).
+    const destPort = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `MFRETRY-${tag}`, name: `MF Retry Dest ${randomTag}`, country: 'IN' })
+      .expect(201);
+    const destRetryId = destPort.body.data.id as string;
+    createdPorts.push({ id: destRetryId });
+    const segment = destPort.body.data.code as string; // no abbreviation -> code
+
+    const voyHolder = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destRetryId })
+      .expect(201);
+    createdVoyages.push({ id: voyHolder.body.data.id });
+    const voyTarget = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destRetryId })
+      .expect(201);
+    createdVoyages.push({ id: voyTarget.body.data.id });
+
+    const now = new Date();
+    const yymm =
+      String(now.getUTCFullYear() % 100).padStart(2, '0') +
+      String(now.getUTCMonth() + 1).padStart(2, '0');
+    const firstNumber = `MAN-${segment}-${yymm}-00001`;
+
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    try {
+      // Blocker row on voyHolder: the exact number the lazy sequence allocates first.
+      await prisma.manifest.create({
+        data: {
+          manifestNumber: firstNumber,
+          voyageId: voyHolder.body.data.id,
+          vesselName: 'Retry Blocker',
+          polPortId: originPortId,
+          podPortId: destRetryId,
+        },
+      });
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    const bill = await mkVoyageModeBill(voyTarget.body.data.id, fixtureShipperId);
+    await approveBill(bill);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyTarget.body.data.id, billIds: [bill] })
+      .expect(201);
+    // First attempt consumed 00001 (collision) -> the retry allocated 00002.
+    expect(res.body.data.manifestNumber).toBe(`MAN-${segment}-${yymm}-00002`);
+    trackManifestSeq(res.body.data.manifestNumber as string, destRetryId);
+  });
+
+  it('numbering: an abandoned allocation leaves a gap, never a reuse (P5-U4 correctness property)', async () => {
+    // Consolidation allocates BEFORE the lifecycle transaction. A validation failure
+    // inside that transaction rolls back the manifest but NOT the already-committed
+    // sequence increment — the number is consumed and the next create must skip it.
+    const destPort = await request(app.getHttpServer())
+      .post('/api/v1/ports')
+      .set(auth(adminToken))
+      .send({ code: `MFGAP-${tag}`, name: `MF Gap Dest ${randomTag}`, country: 'IN' })
+      .expect(201);
+    const destGapId = destPort.body.data.id as string;
+    createdPorts.push({ id: destGapId });
+    const segment = destPort.body.data.code as string;
+
+    const voyFail = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destGapId })
+      .expect(201);
+    createdVoyages.push({ id: voyFail.body.data.id });
+    const voyOk = await request(app.getHttpServer())
+      .post('/api/v1/voyages')
+      .set(auth(adminToken))
+      .send({ vesselId, originPortId, destinationPortId: destGapId })
+      .expect(201);
+    createdVoyages.push({ id: voyOk.body.data.id });
+
+    // DRAFT bill -> consolidation validation fails AFTER the number was allocated.
+    const draftBill = await mkVoyageModeBill(voyFail.body.data.id, fixtureShipperId);
+    const rejected = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyFail.body.data.id, billIds: [draftBill] })
+      .expect(400);
+    expect(rejected.body.error.message).toContain('APPROVED');
+
+    const okBill = await mkVoyageModeBill(voyOk.body.data.id, fixtureShipperId);
+    await approveBill(okBill);
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/manifests')
+      .set(auth(adminToken))
+      .send({ voyageId: voyOk.body.data.id, billIds: [okBill] })
+      .expect(201);
+    const now = new Date();
+    const yymm =
+      String(now.getUTCFullYear() % 100).padStart(2, '0') +
+      String(now.getUTCMonth() + 1).padStart(2, '0');
+    // 00001 was burned by the failed attempt -> the successful one starts at 00002.
+    expect(res.body.data.manifestNumber).toBe(`MAN-${segment}-${yymm}-00002`);
+    trackManifestSeq(res.body.data.manifestNumber as string, destGapId);
   });
   });

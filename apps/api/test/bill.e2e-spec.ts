@@ -399,6 +399,13 @@ describe('BillOfLading (e2e)', () => {
       await prisma.numberingSequence.deleteMany({
         where: { documentType: 'BILL', scopeValue: { in: createdPorts.map((p) => p.id) } },
       });
+      // P5-U4: this suite's POST /manifests now allocates a per-destination MANIFEST
+      // sequence (the legacy read-then-write generator never wrote NumberingSequence,
+      // so this is a U4-introduced row) — sweep it by EXACT scope ids, same rule as
+      // the BILL sweep above. This is NOT a bill/voyage sweep; those stay untouched.
+      await prisma.numberingSequence.deleteMany({
+        where: { documentType: 'MANIFEST', scopeValue: { in: createdPorts.map((p) => p.id) } },
+      });
       // P4-U2: voyage-mode bills have manifestId null, so the manifestId clause above
       // misses them — delete by id (items first) so no soft/hard litter survives.
       const standaloneIds = createdStandaloneBills.map((b) => b.id);
