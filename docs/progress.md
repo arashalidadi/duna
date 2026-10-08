@@ -1,6 +1,16 @@
 # Progress
 
 ## Completed
+### Public landing page redesign (marketing site) (completed)
+
+- **Scope:** `apps/web` only — the public `/[locale]` home page. Dashboard pages, routes, API and business logic untouched.
+- **Fixes a pre-existing build break:** the committed homepage failed `next build` with three TS7053 errors (`useMessages()` indexed with untyped keys). The page is now a server component with typed `t.raw()` access, and the web build passes again.
+- **Structure:** full-bleed hero (port photograph, headline, primary dashboard CTA, floating capability strip) → company → six services → six-stage operations flow → fleet & facilities → coverage (port groups) → platform + dashboard access panel → contact → footer. Dashboard access is preserved and promoted: header, hero, platform panel, contact card and footer all link to `/login`, and the authenticated → `/dashboard` redirect behaviour is kept (`AuthGate`).
+- **i18n:** the `home` namespace was rewritten in en/fa/ar (118 leaf keys, identical key sets across locales — verified programmatically). Persian and Arabic are true RTL builds: `dir="rtl"` on `<html>`, logical spacing/alignment utilities throughout, mirrored directional icons, and Arabic-script letter-spacing resets. Language switching works from the header dropdown and from the footer (no JavaScript required, via next-intl `Link locale`).
+- **Typography/assets:** self-hosted Inter (Latin), Vazirmatn (fa) and IBM Plex Sans Arabic (ar, selected by `html[lang='ar']`) — no build-time font fetch; six generated photographs under `public/images`.
+- **Design tokens:** additive `brand`/`brass` marketing palette in `globals.css` + `tailwind.config.ts`; the ERP semantic tokens are unchanged. Landing motion helpers (`.reveal`, `.hero-rise`, `.hero-pan`) ship with `prefers-reduced-motion` and `scripting: none` fallbacks.
+- **Verification:** `typecheck`, `lint`, `build` (108 static pages across 3 locales) and the contract guard all green; fa/en/ar pages serve 200 with correct `lang`/`dir`, per-locale metadata (title, description, canonical, hreflang) and no runtime/formatting errors.
+
 ### Phase 20 — Agent Portal (completed)
 
 - **Model:** `BookingRequest` (auto `BRK-YYMM-#####`, customer link, cargo description ≤255, optional origin/destination ports, requested ship date, containers, weightKg, notes, status PENDING/ACCEPTED/DECLINED/CANCELLED, responseNote + handledBy/At stamps, soft delete) + `User.portalCustomerId` (nullable **unique** FK → one portal login per company) + `Customer.portalUsers` back-relation. Migration `20260913210526_phase20_agent_portal` (diff→deploy recipe).

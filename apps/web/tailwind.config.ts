@@ -11,6 +11,33 @@ const config: Config = {
         ring: 'hsl(var(--ring))',
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
+        /*
+         * Public marketing site palette (landing page). Deep-ocean navy scale +
+         * a single restrained brass signal. Additive — the ERP semantic tokens
+         * above are untouched and remain the system of record for the dashboard.
+         */
+        brand: {
+          950: 'hsl(var(--brand-950))',
+          900: 'hsl(var(--brand-900))',
+          800: 'hsl(var(--brand-800))',
+          700: 'hsl(var(--brand-700))',
+          600: 'hsl(var(--brand-600))',
+          500: 'hsl(var(--brand-500))',
+          400: 'hsl(var(--brand-400))',
+          300: 'hsl(var(--brand-300))',
+          200: 'hsl(var(--brand-200))',
+          100: 'hsl(var(--brand-100))',
+          50: 'hsl(var(--brand-50))',
+        },
+        brass: {
+          600: 'hsl(var(--brass-600))',
+          500: 'hsl(var(--brass-500))',
+          400: 'hsl(var(--brass-400))',
+          300: 'hsl(var(--brass-300))',
+          200: 'hsl(var(--brass-200))',
+          100: 'hsl(var(--brass-100))',
+        },
+
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
