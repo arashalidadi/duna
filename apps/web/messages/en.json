@@ -7,158 +7,158 @@
     "redirectingHome": "Redirecting…"
   },
   "bill": {
-    "actions": {
-      "cancel": "Cancel",
-      "close": "Close",
-      "create": "New bill of Lading",
-      "delete": "Delete",
-      "document": "Document data",
-      "issue": "Issue",
-      "release": "Release",
-      "save": "Save"
+    "page": {
+      "title": "Bills of Lading",
+      "description": "Bills of lading derived from approved manifests"
     },
-    "billType": {
-      "HOUSE": "House",
-      "MASTER": "Master"
-    },
-    "confirm": {
-      "cancel": {
-        "description": "A reason is required. Cancelled bills cannot be reissued.",
-        "reason": "Cancellation reason",
-        "reasonPlaceholder": "Why is this bill being cancelled?",
-        "title": "Cancel this bill?"
-      },
-      "delete": {
-        "description": "Soft-deleted; never shown again.",
-        "title": "Delete this draft?"
-      },
-      "issue": {
-        "description": "Issued bills are read-only and can no longer be edited.",
-        "title": "Issue this bill of Lading?"
-      },
-      "release": {
-        "description": "Release is the final outbound step: the bill becomes RELEASED permanently and cannot be re-opened.",
-        "title": "Release this B/L?"
-      },
-      "removeItem": {
-        "description": "The line is removed from the bill.",
-        "title": "Remove this line?"
+    "list": {
+      "title": "Bills of Lading",
+      "description": "{count} bills",
+      "search": "Search by B/L number, vessel or consignee",
+      "allStatuses": "All statuses",
+      "empty": {
+        "title": "No bills of Lading yet",
+        "description": "Create the first bill from an approved manifest."
       }
     },
+    "actions": {
+      "create": "New bill of Lading",
+      "close": "Close",
+      "save": "Save",
+      "delete": "Delete",
+      "issue": "Issue",
+      "cancel": "Cancel",
+      "release": "Release",
+      "document": "Document data"
+    },
     "create": {
-      "cargoLines": "Cargo lines",
-      "creating": "Creating…",
+      "title": "New bill of Lading",
       "description": "Derive parties from an approved manifest.",
+      "creating": "Creating…",
+      "manifest": "Manifest",
+      "selectManifest": "Select manifest…",
+      "manifestInfo": "{items} items — gross weight {weight}",
       "errors": {
         "manifestRequired": "Select a manifest first.",
         "voyageRequired": "Select a voyage"
       },
-      "manifest": "Manifest",
-      "manifestInfo": "{items} items — gross weight {weight}",
-      "noCargo": "No loaded cargo for this voyage yet (needs a completed Actual Loading).",
-      "selectManifest": "Select manifest…",
+      "voyage": "Voyage",
       "selectVoyage": "Select voyage…",
-      "selectedCount": "{count} line(s) selected",
-      "title": "New bill of Lading",
-      "voyage": "Voyage"
+      "noCargo": "No loaded cargo for this voyage yet (needs a completed Actual Loading).",
+      "cargoLines": "Cargo lines",
+      "selectedCount": "{count} line(s) selected"
     },
     "detail": {
       "headerTitle": "Header",
-      "issuedOn": "Issued {date}",
       "loading": "Loading…",
-      "releasedOn": "Released {date} by {by}",
-      "saving": "Saving…"
-    },
-    "document": {
-      "description": "Structured document payload — Phase 7 renders it through the PDF/A template (ADR-009).",
-      "items": "{count} item(s)",
-      "title": "Document data (hook)"
+      "saving": "Saving…",
+      "issuedOn": "Issued {date}",
+      "releasedOn": "Released {date} by {by}"
     },
     "fields": {
       "billNumber": "B/L number",
-      "billType": "B/L type",
-      "carrierName": "Carrier",
-      "consignee": "Consignee",
-      "currencyCode": "Currency",
-      "dateOfIssue": "Date of issue",
-      "freightAmount": "Freight amount",
-      "freightTerms": "Freight terms",
-      "goodsDescription": "Goods description",
-      "issuedAt": "Issued at",
-      "itemsCount": "Items",
-      "manifest": "Manifest",
-      "notes": "Notes",
-      "notifyParty": "Notify party",
-      "originals": "Originals",
-      "placeOfIssue": "Place of issue",
-      "route": "Route",
-      "shipmentMarks": "Shipment marks",
       "status": "Status",
-      "totalGrossWeight": "Total gross weight",
+      "billType": "B/L type",
+      "manifest": "Manifest",
+      "vessel": "Vessel",
+      "route": "Route",
+      "consignee": "Consignee",
+      "itemsCount": "Items",
       "totalPackages": "Total packages",
-      "totalVolume": "Total volume",
-      "vessel": "Vessel"
+      "totalGrossWeight": "Total gross weight",
+      "issuedAt": "Issued at",
+      "freightTerms": "Freight terms",
+      "carrierName": "Carrier",
+      "placeOfIssue": "Place of issue",
+      "originals": "Originals",
+      "freightAmount": "Freight amount",
+      "currencyCode": "Currency",
+      "notifyParty": "Notify party",
+      "goodsDescription": "Goods description",
+      "shipmentMarks": "Shipment marks",
+      "notes": "Notes",
+      "dateOfIssue": "Date of issue",
+      "totalVolume": "Total volume"
     },
     "freightTerms": {
-      "COLLECT": "Collect",
+      "none": "Select freight terms…",
       "PREPAID": "Prepaid",
-      "none": "Select freight terms…"
+      "COLLECT": "Collect"
     },
     "items": {
+      "title": "B/L lines",
       "add": "Add line",
-      "addDescription": "Add an eligible cargo line from the manifest.",
-      "addTitle": "Add B/L line",
-      "adding": "Adding…",
-      "cargo": "Cargo",
       "empty": "No lines yet.",
-      "errors": {
-        "lineRequired": "Select a cargo line."
-      },
+      "cargo": "Cargo",
       "goodsDescription": "Goods description",
-      "grossWeight": "Gross weight",
       "marks": "Marks",
-      "noEligible": "No eligible cargo lines on this manifest.",
-      "packageType": "Package type",
       "packages": "Packages",
+      "packageType": "Package type",
+      "grossWeight": "Gross weight",
+      "volume": "Volume",
       "remove": "Remove",
+      "addTitle": "Add B/L line",
+      "addDescription": "Add an eligible cargo line from the manifest.",
+      "adding": "Adding…",
       "selectLine": "Cargo line",
       "selectLinePlaceholder": "Select a cargo line…",
-      "title": "B/L lines",
-      "volume": "Volume"
+      "noEligible": "No eligible cargo lines on this manifest.",
+      "errors": {
+        "lineRequired": "Select a cargo line."
+      }
     },
-    "list": {
-      "allStatuses": "All statuses",
-      "description": "{count} bills",
-      "empty": {
-        "description": "Create the first bill from an approved manifest.",
-        "title": "No bills of Lading yet"
+    "confirm": {
+      "issue": {
+        "title": "Issue this bill of Lading?",
+        "description": "Issued bills are read-only and can no longer be edited."
       },
-      "search": "Search by B/L number, vessel or consignee",
-      "title": "Bills of Lading"
-    },
-    "page": {
-      "description": "Bills of lading derived from approved manifests",
-      "title": "Bills of Lading"
-    },
-    "revisions": {
-      "current": "current: {n}",
-      "empty": "No revisions frozen yet.",
-      "freeze": "Freeze revision",
-      "listOnly": "History is read-only — revisions cannot be edited or deleted.",
-      "notePlaceholder": "Note (optional)",
-      "restore": "Restore",
-      "restoreConfirmDescription": "The current draft is captured as a new revision first, then revision {n} is read back into the draft.",
-      "restoreConfirmTitle": "Restore revision {n}?",
-      "title": "Revision history",
-      "working": "Working…"
+      "cancel": {
+        "title": "Cancel this bill?",
+        "description": "A reason is required. Cancelled bills cannot be reissued.",
+        "reason": "Cancellation reason",
+        "reasonPlaceholder": "Why is this bill being cancelled?"
+      },
+      "delete": {
+        "title": "Delete this draft?",
+        "description": "Soft-deleted; never shown again."
+      },
+      "removeItem": {
+        "title": "Remove this line?",
+        "description": "The line is removed from the bill."
+      },
+      "release": {
+        "title": "Release this B/L?",
+        "description": "Release is the final outbound step: the bill becomes RELEASED permanently and cannot be re-opened."
+      }
     },
     "status": {
-      "APPROVED": "Approved",
-      "CANCELLED": "Cancelled",
       "DRAFT": "Draft",
       "FINAL": "Final",
+      "APPROVED": "Approved",
+      "RELEASED": "Released",
       "ISSUED": "Issued",
-      "RELEASED": "Released"
+      "CANCELLED": "Cancelled"
+    },
+    "billType": {
+      "MASTER": "Master",
+      "HOUSE": "House"
+    },
+    "revisions": {
+      "title": "Revision history",
+      "current": "current: {n}",
+      "notePlaceholder": "Note (optional)",
+      "working": "Working…",
+      "freeze": "Freeze revision",
+      "empty": "No revisions frozen yet.",
+      "restore": "Restore",
+      "listOnly": "History is read-only — revisions cannot be edited or deleted.",
+      "restoreConfirmTitle": "Restore revision {n}?",
+      "restoreConfirmDescription": "The current draft is captured as a new revision first, then revision {n} is read back into the draft."
+    },
+    "document": {
+      "title": "Document data (hook)",
+      "description": "Structured document payload — Phase 7 renders it through the PDF/A template (ADR-009).",
+      "items": "{count} item(s)"
     }
   },
   "booking": {
@@ -466,366 +466,120 @@
     }
   },
   "home": {
-    "a11y": {
-      "closeMenu": "Close main menu",
-      "dashboard": "Open the operations dashboard",
-      "decorative": "Decorative background",
-      "footerNav": "Footer navigation",
-      "languageMenu": "Choose language",
-      "openMenu": "Open main menu",
-      "primaryNav": "Primary navigation",
-      "skipToContent": "Skip to content"
+    "nav": {
+      "brand": "Duna Shipping",
+      "home": "Home",
+      "about": "About",
+      "services": "Services",
+      "contact": "Contact",
+      "login": "Dashboard Login",
+      "switchToPersian": "Persian",
+      "switchToEnglish": "English",
+      "switchToArabic": "Arabic"
+    },
+    "hero": {
+      "tag": "International Shipping Company",
+      "title": "Shipping cargo from origin to destination\nSafe and on time, every time",
+      "subtitle": "Security, re‑export, documentation, and after‑sales service.\nAll in one place — from loading to final settlement.",
+      "ctaPrimary": "Dashboard Login",
+      "ctaSecondary": "Learn More",
+      "stats": {
+        "years": "Years Experience",
+        "destinations": "Target Markets",
+        "shipments": "Successful Shipments"
+      }
     },
     "about": {
-      "badge": {
-        "label": "Years in maritime transport",
-        "value": "10+"
-      },
-      "body": "Duna Shipping is a UAE-based international shipping and maritime logistics company working out of Hamriyah Port in Dubai, with more than a decade of experience in sea transport, cargo handling, container management and port yard operations. We serve traders, machinery and equipment suppliers, project owners and freight forwarders who need cargo loaded, documented and delivered without surprises — and every shipment settled transparently.",
-      "eyebrow": "The company",
-      "imageAlt": "Aerial view of a port cargo yard with rows of heavy machinery and a barge alongside the quay",
-      "pillars": [
-        {
-          "icon": "shield-check",
-          "text": "Load plans, lifting and lashing, stowage and inspections are carried out by our own port teams.",
-          "title": "Hands-on operations"
-        },
-        {
-          "icon": "clock",
-          "text": "Voyage schedules and load lists are planned, executed and reported — not improvised.",
-          "title": "Schedule discipline"
-        },
-        {
-          "icon": "file-check",
-          "text": "Manifests, bills of lading, release and delivery orders are prepared from the same operational record.",
-          "title": "Documentation accuracy"
-        },
-        {
-          "icon": "receipt",
-          "text": "Quotations, proformas, invoices and customer ledgers in USD and AED, reconciled line by line.",
-          "title": "Transparent accounting"
-        }
-      ],
-      "title": "An operational partner for cargo that cannot wait"
+      "eyebrow": "About Us",
+      "title": "Duna Shipping Company",
+      "paragraph": "Duna Shipping, with over 10 years of experience in maritime transport, cargo clearance, container management and yard operations, is a trusted partner for companies across the Persian Gulf and free zones. We deliver a combination of operational excellence, precise documentation, and transparent accounting — from initial loading to final settlement.",
+      "values": {
+        "expertise": "Expertise & Experience",
+        "safety": "Safety & Stability",
+        "timeliness": "Timeliness & Reliability",
+        "transparency": "Transparency & Clear Accounting"
+      }
     },
-    "contact": {
-      "address": "Office 203, Al Nokhitha Building, Hamriyah Port, Dubai, United Arab Emirates",
-      "addressLabel": "Head office",
-      "cta": "Request a quotation",
-      "ctaSecondary": "Enter Dashboard",
-      "ctaSubject": "Quotation request",
-      "email": "info@dunashipping.com",
-      "emailLabel": "Email",
-      "enquiry": {
-        "cta": "Request a quotation",
-        "items": [
-          "Cargo type, quantity, weight and dimensions",
-          "Loading point and destination port",
-          "Required timing or vessel schedule",
-          "Special handling, permits or documentation"
-        ],
-        "secondary": "Enter Dashboard",
-        "text": "The more we know up front, the faster we can quote and plan the loading.",
-        "title": "Send us the cargo details"
-      },
-      "eyebrow": "Contact",
-      "intro": "Send us the cargo, the route and the timing. We will come back with a quotation and a loading plan.",
-      "mapNote": "Hamriyah Free Zone, Dubai",
-      "phoneLabel": "Telephone",
-      "phones": [
+    "services": {
+      "eyebrow": "Professional Services",
+      "title": "Our Services",
+      "services": [
         {
-          "href": "tel:+97142527707",
-          "label": "Office",
-          "value": "+971 4 252 7707"
+          "name": "Yard & Inventory",
+          "icon": "warehouse",
+          "desc": "Cargo registration, inventory visibility by port and yard, status tracking and reporting."
         },
         {
-          "href": "tel:+971506445868",
-          "label": "Mobile",
-          "value": "+971 50 644 5868"
+          "name": "Loading & Load Lists",
+          "icon": "shipping",
+          "desc": "Load lists are progressively completed; inspected cargo approved and finalised."
+        },
+        {
+          "name": "Bill of Lading & Manifest",
+          "icon": "file-text",
+          "desc": "Full resources, automatic generation of B/L and manifests, banking and customs references."
+        },
+        {
+          "name": "Accounting & Finance",
+          "icon": "dollar-sign",
+          "desc": "Proforma, quotation, invoice, voucher, payslip, and full financial reporting."
         }
-      ],
-      "poBox": "63088, Dubai, United Arab Emirates",
-      "poBoxLabel": "PO Box",
-      "title": "Talk to our operations team",
-      "web": "www.dunashipping.com",
-      "webHref": "https://www.dunashipping.com",
-      "webLabel": "Website"
+      ]
     },
-    "coverage": {
-      "eyebrow": "Coverage",
-      "groups": [
-        {
-          "ports": [
-            "Hamriyah Port, Dubai",
-            "Jebel Ali, Dubai"
-          ],
-          "region": "United Arab Emirates",
-          "role": "Origin & hub"
-        },
-        {
-          "ports": [
-            "Khorramshahr",
-            "Bandar Abbas",
-            "Bandar-e Emam Khomeini",
-            "Bushehr",
-            "Chabahar"
-          ],
-          "region": "Iran",
-          "role": "Gulf & inland destinations"
-        },
-        {
-          "ports": [
-            "Maku Free Zone",
-            "Kish Island"
-          ],
-          "region": "Free zones & islands",
-          "role": "Final delivery"
-        }
-      ],
-      "imageAlt": "Abstract shipping routes glowing over a dark nautical chart",
-      "intro": "A Gulf trade lane operated end to end: from Hamriyah Port in Dubai to Iranian ports and free zones, with connecting services onward for international destinations.",
-      "note": "Route availability, vessel schedules and transit times vary by voyage. Our operations team confirms the current schedule for your cargo before booking.",
-      "title": "Ports and destinations we serve"
-    },
-    "fleet": {
-      "eyebrow": "Fleet & facilities",
-      "intro": "Tug and barge combinations, lifting capability and port yards — operated, planned and documented from Dubai.",
+    "capabilities": {
+      "eyebrow": "Why Duna?",
+      "title": "Our Capabilities",
       "items": [
         {
-          "alt": "Tug towing a flat-deck barge loaded with machinery at dusk",
-          "description": "Ocean-going tugs paired with flat-deck barges carry heavy and over-dimensional cargo on Gulf routes, with vessel and voyage records kept per destination.",
-          "title": "Tug & barge operations"
+          "title": "Global Coverage",
+          "icon": "globe",
+          "desc": "Active in Persian Gulf, Gulf of Oman and free zones, with access to international destinations."
         },
         {
-          "alt": "Crawler crane lifting a tracked excavator onto a barge at a port quay",
-          "description": "Crawler cranes and lifting plans handle machinery, plant and breakbulk on the quay, on deck and at discharge.",
-          "title": "Heavy lift & project cargo"
+          "title": "Precise Documentation",
+          "icon": "file-check",
+          "desc": "Bill of lading, manifest, delivery orders, invoice, and proforma — all to standard quality."
         },
         {
-          "alt": "Aerial view of an organised port storage yard with rows of heavy machinery",
-          "description": "Yard space at Hamriyah Port for storage, inspection and staging before loading, tracked at location level.",
-          "title": "Yards & port facilities"
+          "title": "Transparent Accounting",
+          "icon": "receipt",
+          "desc": "Full accounting cycle: from proforma and quotation to invoice and final reports."
+        },
+        {
+          "title": "Agent Portal",
+          "icon": "user-round",
+          "desc": "Partner agents can submit booking requests, track status, and manage shipments."
         }
-      ],
-      "title": "The equipment behind the schedule"
+      ]
+    },
+    "coverage": {
+      "eyebrow": "Ports & Destinations",
+      "title": "Geographic Coverage",
+      "intro": "We operate in the main ports of the Persian Gulf and Iran's free zones, with access to international destinations.",
+      "ports": [
+        "Bandar Abbas",
+        "Bandar-e Emam",
+        "Chabahar",
+        "Kish Island",
+        "Bushehr",
+        "Jask"
+      ]
+    },
+    "cta": {
+      "title": "Ready to get started?",
+      "subtitle": "Manage your shipping and accounting operations with Duna today.",
+      "button": "Dashboard Login"
     },
     "footer": {
       "brand": "Duna Shipping",
-      "company": "Company",
-      "contact": "Contact",
+      "legal": "© {year} Duna Shipping. All rights reserved.",
+      "tagline": "Shipping Operations & Accounting",
       "links": {
-        "about": "About us",
-        "contact": "Contact us",
-        "coverage": "Coverage",
-        "dashboard": "Dashboard",
-        "fleet": "Fleet & facilities",
-        "operations": "How we work",
-        "platform": "Operations platform",
-        "quotation": "Request a quotation",
-        "services": "All services"
-      },
-      "location": "Hamriyah Port · Dubai · United Arab Emirates",
-      "platform": "Platform",
-      "rights": "© {year} Duna Shipping LLC. All rights reserved.",
-      "services": "Services",
-      "tagline": "International shipping, maritime logistics and heavy cargo handling from Hamriyah Port, Dubai."
-    },
-    "header": {
-      "brand": "Duna Shipping",
-      "brandSub": "Maritime Logistics",
-      "dashboard": "Dashboard",
-      "dashboardNote": "Staff & agent sign-in",
-      "language": "Language",
-      "nav": {
-        "about": "Company",
+        "about": "About",
+        "services": "Services",
         "contact": "Contact",
-        "coverage": "Coverage",
-        "fleet": "Fleet",
-        "operations": "How we work",
-        "platform": "Platform",
-        "services": "Services"
+        "login": "Dashboard Login"
       }
-    },
-    "hero": {
-      "eyebrow": "Hamriyah Port · Dubai · United Arab Emirates",
-      "facts": [
-        {
-          "icon": "anchor",
-          "label": "Operating base",
-          "value": "Hamriyah Port, Dubai"
-        },
-        {
-          "icon": "ship",
-          "label": "Sea transport",
-          "value": "Tug & barge operations"
-        },
-        {
-          "icon": "container",
-          "label": "Cargo profile",
-          "value": "Heavy lift & project cargo"
-        },
-        {
-          "icon": "globe",
-          "label": "Coverage",
-          "value": "Persian Gulf ports & free zones"
-        }
-      ],
-      "imageAlt": "Crane loading heavy machinery onto a barge at a Gulf port at dusk",
-      "primaryCta": "Enter Dashboard",
-      "primaryCtaNote": "Operations, documentation, finance and partner agents",
-      "secondaryCta": "Explore our services",
-      "subtitle": "Duna Shipping moves machinery, equipment and project cargo by tug and barge between the UAE and ports across the Persian Gulf — with yard operations, inspections, shipping documents and settlement handled by one team and one operations platform.",
-      "titleAccent": "loaded, documented, delivered.",
-      "titleTop": "Heavy cargo across the Gulf,"
-    },
-    "meta": {
-      "description": "UAE-based shipping and maritime logistics from Hamriyah Port, Dubai: tug & barge sea transport, heavy-lift project cargo, port yards, documentation and settlement across the Persian Gulf.",
-      "title": "Duna Shipping — International Shipping & Maritime Logistics"
-    },
-    "operations": {
-      "eyebrow": "How we work",
-      "intro": "Every shipment follows the same path. Each stage is recorded, approved and left ready for the next one, so nothing depends on memory or a phone call.",
-      "steps": [
-        {
-          "description": "We confirm cargo details, route, port of loading and discharge, then issue a quotation with the charges itemised.",
-          "title": "Enquiry & quotation"
-        },
-        {
-          "description": "Cargo is received, measured and registered with a unique reference, then placed in a specific yard location.",
-          "title": "Cargo receipt & yard intake"
-        },
-        {
-          "description": "Cargo is inspected and cleared for loading; anything that does not pass stays out of the load list until it is resolved.",
-          "title": "Inspection & readiness"
-        },
-        {
-          "description": "The load list is built against the voyage and then executed — actual loading is recorded against the plan.",
-          "title": "Load planning & stowage"
-        },
-        {
-          "description": "The voyage runs, the manifest consolidates the loaded cargo and bills of lading are issued for each consignment.",
-          "title": "Voyage, manifest & bill of lading"
-        },
-        {
-          "description": "Release and delivery orders complete the handover at destination, and invoices and customer balances are settled.",
-          "title": "Delivery & settlement"
-        }
-      ],
-      "title": "Six controlled stages, from enquiry to settlement"
-    },
-    "platform": {
-      "eyebrow": "Operations platform",
-      "features": [
-        {
-          "icon": "activity",
-          "text": "Cargo, inspections, voyages and documents move through explicit statuses — received, in yard, ready, loaded, delivered.",
-          "title": "Live operational status"
-        },
-        {
-          "icon": "file-text",
-          "text": "Bills of lading, manifests, release and delivery orders are generated from operational data and versioned from draft to final.",
-          "title": "Document control"
-        },
-        {
-          "icon": "wallet",
-          "text": "Invoices, vouchers and customer ledgers in USD and AED, with profit and loss calculated per voyage.",
-          "title": "Financial transparency"
-        },
-        {
-          "icon": "shield-check",
-          "text": "Role-based access for operations, documentation, finance and management — every key action is recorded.",
-          "title": "Roles & audit trail"
-        },
-        {
-          "icon": "users",
-          "text": "Partner agents at each destination see only their own port's bills of lading, release orders and status.",
-          "title": "Agent portal, scoped by destination"
-        }
-      ],
-      "imageAlt": "Dark nautical chart with glowing shipping routes",
-      "intro": "Duna Shipping runs on its own operations and accounting platform: the same records drive the yard, the load list, the manifest, the bill of lading and the final invoice.",
-      "panel": {
-        "cta": "Enter Dashboard",
-        "note": "Secure sign-in for authorised users. Destination agents receive a separately scoped portal.",
-        "roles": [
-          "Operations",
-          "Documentation",
-          "Finance & accounting",
-          "Management",
-          "Partner agents"
-        ],
-        "secondaryCta": "Request access",
-        "text": "Operations, documentation, finance and partner agents sign in to the Duna platform with their own credentials.",
-        "title": "Dashboard access"
-      },
-      "title": "One system behind every shipment"
-    },
-    "services": {
-      "eyebrow": "Services",
-      "intro": "From the first enquiry to final settlement. The services are connected, so cargo data is entered once and used everywhere.",
-      "items": [
-        {
-          "description": "Ocean-going tugs paired with flat-deck barges carry heavy, wheeled and over-dimensional cargo between UAE ports and Gulf destinations.",
-          "icon": "ship",
-          "tags": [
-            "Breakbulk",
-            "Wheeled cargo",
-            "On-deck stowage"
-          ],
-          "title": "Tug & barge sea transport"
-        },
-        {
-          "description": "Crawler cranes, lifting plans and secured stowage for machinery, plant, steel and out-of-gauge units.",
-          "icon": "crane",
-          "tags": [
-            "Over-dimensional",
-            "Lifting plans",
-            "Lashing & securing"
-          ],
-          "title": "Heavy lift & project cargo"
-        },
-        {
-          "description": "Yard space at Hamriyah Port with inventory visibility at location level across ports, yards and storage areas.",
-          "icon": "warehouse",
-          "tags": [
-            "Storage",
-            "Location tracking",
-            "Stock movements"
-          ],
-          "title": "Port yards & inventory"
-        },
-        {
-          "description": "Pre-shipment inspections with recorded outcomes, so only approved and ready cargo reaches the load list.",
-          "icon": "clipboard-check",
-          "tags": [
-            "Inspection workflow",
-            "Approval records",
-            "Notes & evidence"
-          ],
-          "title": "Inspections & cargo readiness"
-        },
-        {
-          "description": "Load planning, actual loading, manifests and bills of lading generated from the same record as the cargo itself.",
-          "icon": "file-text",
-          "tags": [
-            "Load list",
-            "Manifest",
-            "B/L"
-          ],
-          "title": "Load lists, manifest & bills of lading"
-        },
-        {
-          "description": "Quotations, proformas, invoices, vouchers and customer ledgers — multi-currency and fully traceable.",
-          "icon": "receipt",
-          "tags": [
-            "USD & AED",
-            "Customer ledger",
-            "Voyage P&L"
-          ],
-          "title": "Documentation & settlement"
-        }
-      ],
-      "title": "What we do for your cargo"
     }
   },
   "invoice": {
@@ -1865,29 +1619,6 @@
     "switchToEnglish": "English",
     "switchToPersian": "فارسی"
   },
-  "vessels": {
-    "detail": {
-      "type": "Type"
-    },
-    "filter": {
-      "allTypes": "All types"
-    },
-    "form": {
-      "type": "Vessel type"
-    },
-    "type": {
-      "BARGE": "Barge",
-      "BULK": "Bulk carrier",
-      "CONTAINER": "Container",
-      "GENERAL": "General cargo",
-      "LANDING_CRAFT": "Landing craft",
-      "OTHER": "Other",
-      "PROJECT": "Project",
-      "RORO": "Ro-Ro",
-      "TANKER": "Tanker",
-      "TUG": "Tug"
-    }
-  },
   "voucher": {
     "actions": {
       "cancelVoucher": "Cancel voucher",
@@ -1963,29 +1694,52 @@
       "RECEIPT": "Receipt"
     }
   },
-  "voyages": {
-    "legs": {
-      "add": "Add destination",
-      "destinationColumn": "Destination",
-      "duplicate": "Duplicate destination — each destination may appear only once.",
-      "emptyRow": "Select a port for every destination row.",
-      "hint": "One number per destination (e.g. 1/26). The first destination is leg 1.",
-      "legColumn": "Leg",
-      "numberColumn": "Voyage number",
-      "previewPrefix": "Next number for the primary destination:",
-      "previewTitle": "Next voyage number for this destination",
-      "remove": "Remove",
-      "removeLabel": "Remove destination {n}",
-      "rowLabel": "Destination {n}",
-      "selectPlaceholder": "Select…",
-      "title": "Destinations"
+  "vessels": {
+    "detail": {
+      "type": "Type"
     },
+    "filter": {
+      "allTypes": "All types"
+    },
+    "form": {
+      "type": "Vessel type"
+    },
+    "type": {
+      "BARGE": "Barge",
+      "BULK": "Bulk carrier",
+      "CONTAINER": "Container",
+      "GENERAL": "General cargo",
+      "LANDING_CRAFT": "Landing craft",
+      "OTHER": "Other",
+      "PROJECT": "Project",
+      "RORO": "Ro-Ro",
+      "TANKER": "Tanker",
+      "TUG": "Tug"
+    }
+  },
+  "voyages": {
     "pairing": {
       "barge": "Barge",
       "hint": "Optional — pair a tug with a barge for this voyage.",
       "noneBarge": "No barge",
       "noneTug": "No tug",
       "tug": "Tug"
+    },
+    "legs": {
+      "title": "Destinations",
+      "hint": "One number per destination (e.g. 1/26). The first destination is leg 1.",
+      "add": "Add destination",
+      "remove": "Remove",
+      "rowLabel": "Destination {n}",
+      "selectPlaceholder": "Select…",
+      "removeLabel": "Remove destination {n}",
+      "previewTitle": "Next voyage number for this destination",
+      "previewPrefix": "Next number for the primary destination:",
+      "emptyRow": "Select a port for every destination row.",
+      "duplicate": "Duplicate destination — each destination may appear only once.",
+      "legColumn": "Leg",
+      "destinationColumn": "Destination",
+      "numberColumn": "Voyage number"
     }
   }
 }
