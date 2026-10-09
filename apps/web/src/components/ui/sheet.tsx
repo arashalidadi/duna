@@ -1,10 +1,10 @@
 'use client';
-
-import { useEffect, useRef } from 'react';
+import { containDialogFocus } from './dialog-focus';
+import { useEffect, useId, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-
+import { Button } from './button';
 export interface SheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -14,7 +14,6 @@ export interface SheetProps {
   className?: string;
   labelledBy?: string;
 }
-
 export function Sheet({
   open,
   onOpenChange,
@@ -24,68 +23,56 @@ export function Sheet({
   className,
   labelledBy,
 }: SheetProps) {
-  const panelRef = useRef<HTMLDivElement>(null);
-
+  const ref = useRef<HTMLDialogElement>(null);
+  const id = useId();
+  const t = useTranslations('common');
   useEffect(() => {
-    if (!open) return;
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    panelRef.current?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [open, onOpenChange]);
-
-  if (!open) return null;
-
+    const dialog = ref.current;
+    if (open) dialog?.showModal();
+    else dialog?.close();
+    return () => dialog?.close();
+  }, [open]);
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={() => onOpenChange(false)}
-        aria-hidden
-      />
-      <div
-        ref={panelRef}
-        className={cn(
-          'absolute top-0 flex h-full flex-col bg-card shadow-lg outline-none',
-          'transition-transform duration-200 ease-out focus-visible:ring-2 focus-visible:ring-ring',
-          side === 'left' ? 'left-0 w-72 border-r' : 'right-0 w-80 border-l',
-          className
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy ?? (title ? 'sheet-title' : undefined)}
-        tabIndex={-1}
-      >
-        {title && (
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h2 id="sheet-title" className="text-sm font-semibold">
+    <dialog
+      onKeyDown={containDialogFocus}
+      ref={ref}
+      aria-labelledby={labelledBy ?? id}
+      onCancel={(e) => {
+        e.preventDefault();
+        onOpenChange(false);
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          const r = e.currentTarget.getBoundingClientRect();
+          if (e.clientX < r.left || e.clientX > r.right) onOpenChange(false);
+        }
+      }}
+      className={cn(
+        'app-sheet fixed inset-y-0 m-0 h-dvh max-h-none w-80 max-w-[90vw] border-0 bg-card p-0 text-card-foreground shadow-2xl',
+        side === 'left' ? 'left-0 right-auto' : 'right-0 left-auto',
+        className
+      )}
+      data-side={side}
+    >
+      {open && (
+        <div className="flex h-full flex-col">
+          <div className="flex shrink-0 items-center justify-between border-b px-4 py-2">
+            <h2 id={id} className="text-sm font-semibold">
               {title}
             </h2>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
               onClick={() => onOpenChange(false)}
-              aria-label="Close"
+              aria-label={t('close')}
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden />
             </Button>
           </div>
-        )}
-        <div className="flex-1 overflow-y-auto">{children}</div>
-      </div>
-    </div>
+          <div className="min-h-0 flex-1">{children}</div>
+        </div>
+      )}
+    </dialog>
   );
 }
-
 export const SheetContent = Sheet;

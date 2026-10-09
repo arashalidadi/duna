@@ -22,6 +22,20 @@ describe('loadConfig', () => {
     expect(config.api.apiVersion).toBe(1);
   });
 
+  it('defaults to the documented development API port when API_PORT is absent', () => {
+    const env = validEnv();
+    delete env[ENV_VARS.API_PORT];
+    expect(loadConfig(env).api.port).toBe(3010);
+    env[ENV_VARS.API_PORT] = '';
+    expect(loadConfig(env).api.port).toBe(3010);
+  });
+
+  it.each([3001, 3010, 3101])('honors an explicit API_PORT=%s override', (port) => {
+    const env = validEnv();
+    env[ENV_VARS.API_PORT] = String(port);
+    expect(loadConfig(env).api.port).toBe(port);
+  });
+
   it('throws when DATABASE_URL is missing', () => {
     const env = validEnv();
     delete env[ENV_VARS.DATABASE_URL];

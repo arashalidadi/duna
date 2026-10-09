@@ -2,7 +2,9 @@ import { cn } from '@/lib/utils';
 
 export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)}>
+    <div
+      className={cn('ui-card min-w-0 rounded-xl border bg-card text-card-foreground', className)}
+    >
       {children}
     </div>
   );
@@ -18,7 +20,7 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-3 border-b border-border px-4 py-3',
+        'flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4',
         className
       )}
     >
@@ -58,7 +60,7 @@ export function CardContent({
   className?: string;
   children: React.ReactNode;
 }) {
-  return <div className={cn('px-4 py-4', className)}>{children}</div>;
+  return <div className={cn('px-5 py-5', className)}>{children}</div>;
 }
 
 export function CardFooter({

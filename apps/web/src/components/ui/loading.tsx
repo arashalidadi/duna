@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl';
 import { cn } from '@/lib/utils';
 
 interface LoadingSpinnerProps {
@@ -5,11 +6,15 @@ interface LoadingSpinnerProps {
   label?: string;
 }
 
-export function LoadingSpinner({ className, label = 'Loading' }: LoadingSpinnerProps) {
+export function LoadingSpinner({ className, label }: LoadingSpinnerProps) {
+  const t = useTranslations('common');
   return (
-    <div className={cn('flex items-center gap-2 text-sm text-muted-foreground', className)}>
+    <div
+      role="status"
+      className={cn('flex items-center gap-2 text-sm text-muted-foreground', className)}
+    >
       <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-      {label && <span>{label}</span>}
+      <span>{label ?? t('loading')}</span>
     </div>
   );
 }

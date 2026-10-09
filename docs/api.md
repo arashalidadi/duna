@@ -201,12 +201,13 @@ Docs: Swagger UI is mounted at `/docs`.
 - Development allow-list includes both forms of the web origin: `http://localhost:3000` and
   `http://127.0.0.1:3000`, so the browser can call the API whether the site is opened via `localhost`
   or `127.0.0.1`. Only explicit origins are allowed (`credentials: true`); `origin: "*"` is not used.
-- The frontend calls the API using `NEXT_PUBLIC_API_URL` (set in `apps/web/.env.local`, must include the
-  `/api/v1` prefix, prefer `127.0.0.1` over `localhost`). It is a browser-side variable and is inlined
-  into the bundle at build time — change it, then rebuild/restart the frontend.
-- A terminal `curl` succeeding is not sufficient proof of browser connectivity: the browser also enforces
-  the CORS preflight. Verify with OPTIONS requests carrying the appropriate `Origin` header (see
-  Phase 1.5 in progress.md).
+- The frontend uses `NEXT_PUBLIC_API_URL=/api/v1` (in `apps/web/.env.local`, inlined at build
+  time). The same-origin Next route forwards to server-only `API_INTERNAL_URL`, default
+  `http://127.0.0.1:3010`, matching backend `API_PORT=3010`. Do not put sandbox loopback addresses
+  into browser-facing configuration. Rebuild when changing `NEXT_PUBLIC_*` variables.
+- Verify health through the web origin as well as directly against the API; a direct `curl`
+  alone does not verify the proxy or browser path. Cross-origin deployments still need the
+  explicit CORS allow-list; authentication and server authorization remain unchanged.
 
 ## Data validation
 

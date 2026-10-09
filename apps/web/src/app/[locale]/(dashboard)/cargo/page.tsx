@@ -1,4 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type {
@@ -41,8 +48,22 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const CARGO_TYPES: CargoType[] = ['GENERAL', 'VEHICLE', 'HEAVY_LIFT', 'CONTAINER', 'BULK', 'PROJECT'];
-const STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY_FOR_LOADING', 'LOADED', 'DELIVERED', 'CANCELLED'];
+const CARGO_TYPES: CargoType[] = [
+  'GENERAL',
+  'VEHICLE',
+  'HEAVY_LIFT',
+  'CONTAINER',
+  'BULK',
+  'PROJECT',
+];
+const STATUSES: CargoStatus[] = [
+  'REGISTERED',
+  'AT_YARD',
+  'READY_FOR_LOADING',
+  'LOADED',
+  'DELIVERED',
+  'CANCELLED',
+];
 const WEIGHT_UNITS: WeightUnit[] = ['KG', 'MT'];
 
 interface FormValues {
@@ -107,7 +128,10 @@ function toForm(c: CargoDetail): FormValues {
   };
 }
 
-const STATUS_META: Record<CargoStatus, { label: string; variant: 'success' | 'neutral' | 'warning' | 'info' }> = {
+const STATUS_META: Record<
+  CargoStatus,
+  { label: string; variant: 'success' | 'neutral' | 'warning' | 'info' }
+> = {
   REGISTERED: { label: 'Registered', variant: 'neutral' },
   AT_YARD: { label: 'At yard', variant: 'info' },
   READY_FOR_LOADING: { label: 'Ready for loading', variant: 'success' },
@@ -136,12 +160,15 @@ const LOADING_META: Record<LoadingStatus, string> = {
 };
 
 export default function CargoPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<CargoListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [inYardFilter, setInYardFilter] = useState('');
@@ -178,17 +205,17 @@ export default function CargoPage() {
       try {
         setData(await api.get<PaginatedResult<CargoListItem>>(`/cargo?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load cargo');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadCargo'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, statusFilter, typeFilter, inYardFilter);
-  }, [load, page, search, statusFilter, typeFilter, inYardFilter]);
+    load(page, debouncedSearch, statusFilter, typeFilter, inYardFilter);
+  }, [load, page, debouncedSearch, statusFilter, typeFilter, inYardFilter]);
 
   useEffect(() => {
     (async () => {
@@ -234,7 +261,7 @@ export default function CargoPage() {
       setForm(toForm(d));
       setFormError(null);
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : 'Failed to load cargo');
+      setFormError(e instanceof ApiError ? e.message : ui('failedToLoadCargo'));
     }
   }
 
@@ -244,14 +271,14 @@ export default function CargoPage() {
     try {
       setDetail(await api.get<CargoDetail>(`/cargo/${c.id}`));
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : 'Failed to load cargo details');
+      setFormError(e instanceof ApiError ? e.message : ui('failedToLoadCargoDetails'));
     }
   }
 
   async function submit() {
     setFormError(null);
     if (!form.customerId || !form.portId || !form.cargoType) {
-      setFormError('Customer, port and cargo type are required.');
+      setFormError(ui('customerPortAndCargoTypeAreRequired'));
       return;
     }
     // ADR-044 decision 2: Comment is required AT CREATION only (01-final-requirements
@@ -259,7 +286,7 @@ export default function CargoPage() {
     // mandatory afterwards). Edit keeps the field optional; CreateCargoDto stays optional
     // (DTO enforcement is the deferred follow-up, not this unit).
     if (!editing && !form.comments.trim()) {
-      setFormError('Comment is required — add the operational notes for this cargo.');
+      setFormError(ui('commentIsRequiredAddTheOperationalNotesForThisCargo'));
       return;
     }
     setSaving(true);
@@ -275,7 +302,7 @@ export default function CargoPage() {
       }
       await load(page, search, statusFilter, typeFilter, inYardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save cargo');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveCargo'));
     } finally {
       setSaving(false);
     }
@@ -290,7 +317,7 @@ export default function CargoPage() {
       setCancelling(null);
       await load(page, search, statusFilter, typeFilter, inYardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to cancel cargo');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCancelCargo'));
     } finally {
       setSaving(false);
     }
@@ -305,7 +332,7 @@ export default function CargoPage() {
       setDeleting(null);
       await load(page, search, statusFilter, typeFilter, inYardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to delete cargo');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToDeleteCargo'));
     } finally {
       setSaving(false);
     }
@@ -315,25 +342,24 @@ export default function CargoPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Cargo' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Cargo</h1>
+          <Breadcrumbs items={[{ label: ui('cargo') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('cargo')}</h1>
           <p className="text-sm text-muted-foreground">
-            Live cargo records, yard placement and lifecycle. Cargo cancelled with an active yard
-            record must be removed from the yard first.
+            {ui('liveCargoRecordsYardPlacementAndLifecycleCargoCancelledWithAn')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New cargo
+            {ui('newCargo')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Cargo registry</CardTitle>
-          <CardDescription>Live operational records. No placeholder data.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('cargoRegistry')}</CardTitle>
+          <CardDescription>{ui('liveOperationalRecordsNoPlaceholderData')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -345,10 +371,13 @@ export default function CargoPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search ref, serial, VIN, customer…"
+              placeholder={ui('searchRefSerialVINCustomer')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search cargo"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchCargo')}
             />
             <select
               className={SELECT_CLASS}
@@ -357,12 +386,12 @@ export default function CargoPage() {
                 setStatusFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All statuses</option>
+              <option value="">{ui('allStatuses')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {statusMeta(s).label}
+                  <DomainLabel value={statusMeta(s).label} />
                 </option>
               ))}
             </select>
@@ -373,12 +402,12 @@ export default function CargoPage() {
                 setTypeFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by cargo type"
+              aria-label={ui('filterByCargoType')}
             >
-              <option value="">All types</option>
+              <option value="">{ui('allTypes')}</option>
               {CARGO_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.replace(/_/g, ' ')}
+                  <DomainLabel value={t.replace(/_/g, ' ')} />
                 </option>
               ))}
             </select>
@@ -389,40 +418,46 @@ export default function CargoPage() {
                 setInYardFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by yard status"
+              aria-label={ui('filterByYardStatus')}
             >
-              <option value="">Any yard status</option>
-              <option value="true">In yard</option>
-              <option value="false">Not in yard</option>
+              <option value="">{ui('anyYardStatus')}</option>
+              <option value="true">{ui('inYard')}</option>
+              <option value="false">{ui('notInYard')}</option>
             </select>
             <Button type="submit" variant="secondary">
               <ArrowUpDown className="h-3.5 w-3.5" />
-              Apply
+              {ui('apply')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading cargo…" />
+          <PageLoader label={ui('loadingCargo')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, statusFilter, typeFilter, inYardFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, statusFilter, typeFilter, inYardFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No cargo found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noCargoFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Reference</th>
-                  <th className="px-3 py-2 font-medium">Customer</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Weight</th>
-                  <th className="px-3 py-2 font-medium">Location</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('reference')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('customer')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('type')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('weight')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('location')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -439,7 +474,7 @@ export default function CargoPage() {
                       {c.customer.shortName ?? c.customer.code}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {c.cargoType.replace(/_/g, ' ')}
+                      <DomainLabel value={c.cargoType.replace(/_/g, ' ')} />
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       {c.weight != null ? `${c.weight} ${c.weightUnit ?? ''}`.trim() : '—'}
@@ -455,7 +490,9 @@ export default function CargoPage() {
                       )}
                     </td>
                     <td className="px-3 py-2">
-                      <Badge variant={statusMeta(c.status).variant}>{statusMeta(c.status).label}</Badge>
+                      <Badge variant={statusMeta(c.status).variant}>
+                        <DomainLabel value={statusMeta(c.status).label} />
+                      </Badge>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -465,8 +502,8 @@ export default function CargoPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openView(c)}
-                            title="View details"
-                            aria-label={`View cargo ${c.reference}`}
+                            title={ui('viewDetails')}
+                            aria-label={ui('viewCargoValue', { value0: String(c.reference) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -478,7 +515,7 @@ export default function CargoPage() {
                             className="h-7 text-xs"
                             onClick={() => openEdit(c)}
                           >
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         {canTransition && c.status !== 'CANCELLED' && (
@@ -487,8 +524,8 @@ export default function CargoPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setCancelling(c)}
-                            title="Cancel cargo"
-                            aria-label={`Cancel cargo ${c.reference}`}
+                            title={ui('cancelCargo')}
+                            aria-label={ui('cancelCargoValue', { value0: String(c.reference) })}
                           >
                             <Ban className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -499,8 +536,8 @@ export default function CargoPage() {
                             size="icon"
                             className="h-7 w-7 text-destructive"
                             onClick={() => setDeleting(c)}
-                            title="Delete cargo"
-                            aria-label={`Delete cargo ${c.reference}`}
+                            title={ui('deleteCargo')}
+                            aria-label={ui('deleteCargoValue', { value0: String(c.reference) })}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -511,7 +548,7 @@ export default function CargoPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -535,8 +572,8 @@ export default function CargoPage() {
             setEditing(null);
           }
         }}
-        title={editing ? `Edit — ${editing.reference}` : 'New cargo'}
-        description="Create or update a cargo record. Reference is assigned automatically."
+        title={editing ? ui('editValue', { value0: String(editing.reference) }) : ui('newCargo')}
+        description={ui('createOrUpdateACargoRecordReferenceIsAssignedAutomatically')}
         footer={
           <>
             <Button
@@ -547,10 +584,10 @@ export default function CargoPage() {
                 setEditing(null);
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submit}>
-              {editing ? 'Save changes' : 'Create cargo'}
+              {editing ? ui('saveChanges') : ui('createCargo')}
             </Button>
           </>
         }
@@ -558,7 +595,7 @@ export default function CargoPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cargo-customer" className="block">
-              Customer *
+              {ui('customerRequired')}
             </Label>
             <select
               id="cargo-customer"
@@ -567,7 +604,7 @@ export default function CargoPage() {
               onChange={(e) => updateField('customerId', e.target.value)}
               autoFocus
             >
-              <option value="">Select customer…</option>
+              <option value="">{ui('selectCustomer')}</option>
               {customers.map((cu) => (
                 <option key={cu.id} value={cu.id}>
                   {cu.name}
@@ -577,7 +614,7 @@ export default function CargoPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cargo-port" className="block">
-              Port of arrival *
+              {ui('portOfArrivalRequired')}
             </Label>
             <select
               id="cargo-port"
@@ -585,7 +622,7 @@ export default function CargoPage() {
               value={form.portId}
               onChange={(e) => updateField('portId', e.target.value)}
             >
-              <option value="">Select port…</option>
+              <option value="">{ui('selectPort')}</option>
               {ports.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -595,7 +632,7 @@ export default function CargoPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cargo-yard" className="block">
-              Yard
+              {ui('yard')}
             </Label>
             <select
               id="cargo-yard"
@@ -603,7 +640,7 @@ export default function CargoPage() {
               value={form.yardId}
               onChange={(e) => updateField('yardId', e.target.value)}
             >
-              <option value="">No yard</option>
+              <option value="">{ui('noYard')}</option>
               {availableYards.map((y) => (
                 <option key={y.id} value={y.id}>
                   {y.name}
@@ -613,7 +650,7 @@ export default function CargoPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cargo-destination" className="block">
-              Destination port
+              {ui('destinationPort')}
             </Label>
             <select
               id="cargo-destination"
@@ -621,7 +658,7 @@ export default function CargoPage() {
               value={form.destinationPortId}
               onChange={(e) => updateField('destinationPortId', e.target.value)}
             >
-              <option value="">No destination</option>
+              <option value="">{ui('noDestination')}</option>
               {ports.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -631,7 +668,7 @@ export default function CargoPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cargo-type" className="block">
-              Cargo type *
+              {ui('cargoTypeRequired')}
             </Label>
             <select
               id="cargo-type"
@@ -641,27 +678,27 @@ export default function CargoPage() {
             >
               {CARGO_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.replace(/_/g, ' ')}
+                  <DomainLabel value={t.replace(/_/g, ' ')} />
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cargo-spec" className="block">
-              Specification
+              {ui('specification')}
             </Label>
             <Input
               id="cargo-spec"
               value={form.specification}
               onChange={(e) => updateField('specification', e.target.value)}
-              placeholder="e.g. 40ft reefer"
+              placeholder={ui('eG40ftReefer')}
             />
           </div>
           <div className="col-span-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-serial" className="block">
-                  Serial number
+                  {ui('serialNumber')}
                 </Label>
                 <Input
                   id="cargo-serial"
@@ -671,7 +708,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-chassis" className="block">
-                  Chassis number
+                  {ui('chassisNumber')}
                 </Label>
                 <Input
                   id="cargo-chassis"
@@ -681,13 +718,17 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-vin" className="block">
-                  VIN
+                  {ui('vin')}
                 </Label>
-                <Input id="cargo-vin" value={form.vin} onChange={(e) => updateField('vin', e.target.value)} />
+                <Input
+                  id="cargo-vin"
+                  value={form.vin}
+                  onChange={(e) => updateField('vin', e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-arrival" className="block">
-                  Arrival date
+                  {ui('arrivalDate')}
                 </Label>
                 <Input
                   id="cargo-arrival"
@@ -702,7 +743,7 @@ export default function CargoPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-weight" className="block">
-                  Weight
+                  {ui('weight')}
                 </Label>
                 <Input
                   id="cargo-weight"
@@ -715,7 +756,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-weight-unit" className="block">
-                  Weight unit
+                  {ui('weightUnit')}
                 </Label>
                 <select
                   id="cargo-weight-unit"
@@ -732,7 +773,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-quantity" className="block">
-                  Quantity
+                  {ui('quantity')}
                 </Label>
                 <Input
                   id="cargo-quantity"
@@ -744,7 +785,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-packages" className="block">
-                  Packages
+                  {ui('packages')}
                 </Label>
                 <Input
                   id="cargo-packages"
@@ -756,7 +797,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-package-type" className="block">
-                  Package type
+                  {ui('packageType')}
                 </Label>
                 <Input
                   id="cargo-package-type"
@@ -766,7 +807,7 @@ export default function CargoPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-arrival-ref" className="block">
-                  Arrival reference
+                  {ui('arrivalReference')}
                 </Label>
                 <Input
                   id="cargo-arrival-ref"
@@ -778,7 +819,7 @@ export default function CargoPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cargo-comments" className="block">
-              {editing ? 'Comments' : 'Comments *'}
+              {editing ? ui('comments') : ui('commentsRequired')}
             </Label>
             <textarea
               id="cargo-comments"
@@ -789,26 +830,29 @@ export default function CargoPage() {
               aria-required={!editing}
             />
             <p className="text-xs text-muted-foreground">
-              Operational notes for this cargo — visible to accountants and others with
-              cargo access.
+              {ui('operationalNotesForThisCargoVisibleToAccountantsAndOthersWith')}
               {editing
-                ? ' Editable and clearable at any time.'
-                : ' Required at creation; editable and clearable later.'}
+                ? ui('editableAndClearableAtAnyTime')
+                : ui('requiredAtCreationEditableAndClearableLater')}
             </p>
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Detail dialog */}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing?.reference ?? 'Cargo'}
+        title={viewing?.reference ?? ui('cargo')}
         description={viewing ? `${viewing.customer.name}` : undefined}
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-            Close
+            {ui('close')}
           </Button>
         }
       >
@@ -816,75 +860,119 @@ export default function CargoPage() {
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <div className="text-xs text-muted-foreground">Status</div>
+                <div className="text-xs text-muted-foreground">{ui('status')}</div>
                 <Badge variant={statusMeta(detail.status).variant}>
-                  {statusMeta(detail.status).label}
+                  <DomainLabel value={statusMeta(detail.status).label} />
                 </Badge>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Type</div>
-                <div>{detail.cargoType.replace(/_/g, ' ')}</div>
+                <div className="text-xs text-muted-foreground">{ui('type')}</div>
+                <div>
+                  <DomainLabel value={detail.cargoType.replace(/_/g, ' ')} />
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Inspection</div>
-                <div>{inspectionLabel(detail.inspectionStatus)}</div>
+                <div className="text-xs text-muted-foreground">{ui('inspection')}</div>
+                <div>
+                  <DomainLabel value={inspectionLabel(detail.inspectionStatus)} />
+                </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-muted-foreground">Weight</div>
+                <div className="text-xs text-muted-foreground">{ui('weight')}</div>
                 <div>
-                  {detail.weight != null ? `${detail.weight} ${detail.weightUnit ?? ''}`.trim() : '—'}
+                  {detail.weight != null
+                    ? `${detail.weight} ${detail.weightUnit ?? ''}`.trim()
+                    : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Loading</div>
-                <div>{LOADING_META[detail.loadingStatus]}</div>
+                <div className="text-xs text-muted-foreground">{ui('loading_mn7wu3b')}</div>
+                <div>
+                  <DomainLabel value={LOADING_META[detail.loadingStatus]} />
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Quantity</div>
+                <div className="text-xs text-muted-foreground">{ui('quantity')}</div>
                 <div>{detail.quantity ?? '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Packages</div>
-                <div>{detail.packages != null ? `${detail.packages}${detail.packageType ? ` ${detail.packageType}` : ''}` : '—'}</div>
+                <div className="text-xs text-muted-foreground">{ui('packages')}</div>
+                <div>
+                  {detail.packages != null
+                    ? `${detail.packages}${detail.packageType ? ` ${detail.packageType}` : ''}`
+                    : '—'}
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Arrival date</div>
-                <div>{detail.arrivalDate ? new Date(detail.arrivalDate).toLocaleDateString() : '—'}</div>
+                <div className="text-xs text-muted-foreground">{ui('arrivalDate')}</div>
+                <div>
+                  {detail.arrivalDate
+                    ? new Date(detail.arrivalDate).toLocaleDateString(uiLocale)
+                    : '—'}
+                </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Created</div>
-                <div>{new Date(detail.createdAt).toLocaleDateString()}</div>
+                <div className="text-xs text-muted-foreground">{ui('created')}</div>
+                <div>{new Date(detail.createdAt).toLocaleDateString(uiLocale)}</div>
               </div>
             </div>
             <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Identifiers
+              {ui('identifiers')}
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-              <div className="flex justify-between"><dt className="text-muted-foreground">Serial</dt><dd className="text-right">{detail.serialNumber ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Chassis</dt><dd className="text-right">{detail.chassisNumber ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">VIN</dt><dd className="text-right">{detail.vin ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Arrival ref</dt><dd className="text-right">{detail.arrivalReference ?? '—'}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('serial')}</dt>
+                <dd className="text-end">{detail.serialNumber ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('chassis')}</dt>
+                <dd className="text-end">{detail.chassisNumber ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('vin')}</dt>
+                <dd className="text-end">{detail.vin ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('arrivalRef')}</dt>
+                <dd className="text-end">{detail.arrivalReference ?? '—'}</dd>
+              </div>
             </dl>
             <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Location
+              {ui('location')}
             </div>
             <dl className="space-y-1.5">
-              <div className="flex justify-between"><dt className="text-muted-foreground">Port</dt><dd className="text-right">{detail.port.name}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Yard</dt><dd className="text-right">{detail.yard?.name ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Destination</dt><dd className="text-right">{detail.destinationPort?.name ?? '—'}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">In yard</dt><dd className="text-right">{detail.inventory ? `Yes · ${detail.inventory.status}` : 'No'}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('port_m1qx5adi')}</dt>
+                <dd className="text-end">{detail.port.name}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('yard')}</dt>
+                <dd className="text-end">{detail.yard?.name ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('destination')}</dt>
+                <dd className="text-end">{detail.destinationPort?.name ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('inYard')}</dt>
+                <dd className="text-end">
+                  {detail.inventory
+                    ? ui('yesValue', { value0: String(detail.inventory.status) })
+                    : ui('no_mr5wqai')}
+                </dd>
+              </div>
             </dl>
             <div>
-              <div className="mb-1 text-xs text-muted-foreground">Comments</div>
+              <div className="mb-1 text-xs text-muted-foreground">{ui('comments')}</div>
               <p className="whitespace-pre-wrap rounded-md border border-border px-3 py-2 text-xs text-muted-foreground">
                 {detail.comments || '—'}
               </p>
             </div>
           </div>
         ) : (
-          <PageLoader label="Loading cargo details…" />
+          <PageLoader label={ui('loadingCargoDetails')} />
         )}
       </Dialog>
 
@@ -892,28 +980,36 @@ export default function CargoPage() {
       <ConfirmDialog
         open={!!cancelling}
         onOpenChange={(open) => !open && setCancelling(null)}
-        title="Cancel cargo"
+        title={ui('cancelCargo')}
         description={
           cancelling?.inventory
-            ? `"${cancelling?.reference}" has an active yard record. Cancelling requires removing it from the yard first.`
-            : `Cancel "${cancelling?.reference}"? This is a terminal state and cannot be reversed.`
+            ? ui('valueHasAnActiveYardRecordCancellingRequiresRemovingItFrom', {
+                value0: String(cancelling?.reference),
+              })
+            : ui('cancelValueThisIsATerminalStateAndCannotBeReversed', {
+                value0: String(cancelling?.reference),
+              })
         }
-        confirmLabel="Cancel cargo"
+        confirmLabel={ui('cancelCargo')}
         destructive
         loading={saving}
         onConfirm={cancelCargo}
+        error={formError}
       />
 
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete cargo"
-        description={`Delete "${deleting?.reference}"? This soft-deletes the record (kept for audit/retention).`}
-        confirmLabel="Delete"
+        title={ui('deleteCargo')}
+        description={ui('deleteValueThisSoftDeletesTheRecordKeptForAuditRetention', {
+          value0: String(deleting?.reference),
+        })}
+        confirmLabel={ui('delete')}
         destructive
         loading={saving}
         onConfirm={deleteCargo}
+        error={formError}
       />
     </div>
   );

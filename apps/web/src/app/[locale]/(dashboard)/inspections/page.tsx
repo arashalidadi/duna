@@ -1,4 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type {
@@ -11,7 +18,16 @@ import type {
   CustomerListItem,
   YardListItem,
 } from '@shipping/shared';
-import { Plus, Eye, CheckCircle2, XCircle, ArrowUpDown, MapPin, CalendarCheck, RotateCcw } from 'lucide-react';
+import {
+  Plus,
+  Eye,
+  CheckCircle2,
+  XCircle,
+  ArrowUpDown,
+  MapPin,
+  CalendarCheck,
+  RotateCcw,
+} from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -89,25 +105,35 @@ const EMPTY_FORM: FormValues = {
   remarks: '',
 };
 
-function fmtInspectionDate(iso: string): string {
+function fmtInspectionDate(iso: string, displayLocale: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('en-GB', { timeZone: 'Asia/Dubai' });
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString(displayLocale, { timeZone: 'Asia/Dubai' });
 }
 
-function fmtShortDate(iso: string | null): string {
+function fmtShortDate(iso: string | null, displayLocale: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(displayLocale, {
+    timeZone: 'Asia/Dubai',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export default function InspectionsPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<InspectionListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [customerFilter, setCustomerFilter] = useState('');
   const [yardFilter, setYardFilter] = useState('');
@@ -147,19 +173,21 @@ export default function InspectionsPage() {
       if (customerId) params.set('customerId', customerId);
       if (yardId) params.set('yardId', yardId);
       try {
-        setData(await api.get<PaginatedResult<InspectionListItem>>(`/inspections?${params.toString()}`));
+        setData(
+          await api.get<PaginatedResult<InspectionListItem>>(`/inspections?${params.toString()}`)
+        );
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load inspections');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadInspections'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, statusFilter, customerFilter, yardFilter);
-  }, [load, page, search, statusFilter, customerFilter, yardFilter]);
+    load(page, debouncedSearch, statusFilter, customerFilter, yardFilter);
+  }, [load, page, debouncedSearch, statusFilter, customerFilter, yardFilter]);
 
   useEffect(() => {
     (async () => {
@@ -200,7 +228,7 @@ export default function InspectionsPage() {
       setDetail(d);
       setHistory(h);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to load inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToLoadInspection'));
       setViewing(null);
     }
   }
@@ -208,7 +236,7 @@ export default function InspectionsPage() {
   async function submitCreate() {
     setFormError(null);
     if (!form.cargoId) {
-      setFormError('Select a cargo to inspect.');
+      setFormError(ui('selectACargoToInspect'));
       return;
     }
     setSaving(true);
@@ -225,7 +253,7 @@ export default function InspectionsPage() {
       setPage(1);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to create inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCreateInspection'));
     } finally {
       setSaving(false);
     }
@@ -243,7 +271,7 @@ export default function InspectionsPage() {
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to complete inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCompleteInspection'));
     } finally {
       setSaving(false);
     }
@@ -260,7 +288,7 @@ export default function InspectionsPage() {
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to book inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToBookInspection'));
     } finally {
       setSaving(false);
     }
@@ -279,7 +307,7 @@ export default function InspectionsPage() {
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to re-open inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToReOpenInspection'));
     } finally {
       setSaving(false);
     }
@@ -289,7 +317,7 @@ export default function InspectionsPage() {
     if (!confirmingReject) return;
     setFormError(null);
     if (!rejectReason.trim()) {
-      setFormError('A rejection reason is required.');
+      setFormError(ui('aRejectionReasonIsRequired'));
       return;
     }
     setSaving(true);
@@ -304,7 +332,7 @@ export default function InspectionsPage() {
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, customerFilter, yardFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to reject inspection');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToRejectInspection'));
     } finally {
       setSaving(false);
     }
@@ -339,37 +367,36 @@ export default function InspectionsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Inspection' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Inspections</h1>
+          <Breadcrumbs items={[{ label: ui('inspection') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('inspections')}</h1>
           <p className="text-sm text-muted-foreground">
-            Cargo inspections, findings and approval status. Approved cargo is eligible for future load
-            planning; rejected cargo records the reason. Live records only.
+            {ui('cargoInspectionsFindingsAndApprovalStatusApprovedCargoIsEligibleFor')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New inspection
+            {ui('newInspection')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Inspection register</CardTitle>
-          <CardDescription>Live inspection history. No placeholder data.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('inspectionRegister')}</CardTitle>
+          <CardDescription>{ui('liveInspectionHistoryNoPlaceholderData')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
               <Input
-                placeholder="Search inspection no., cargo no., serial/VIN, customer, inspector"
+                placeholder={ui('searchInspectionNoCargoNoSerialVINCustomerInspector')}
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                aria-label="Search inspections"
+                aria-label={ui('searchInspections')}
               />
             </div>
             <select
@@ -379,12 +406,12 @@ export default function InspectionsPage() {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All statuses</option>
+              <option value="">{ui('allStatuses')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {statusMeta(s).label}
+                  <DomainLabel value={statusMeta(s).label} />
                 </option>
               ))}
             </select>
@@ -395,9 +422,9 @@ export default function InspectionsPage() {
                 setCustomerFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by customer"
+              aria-label={ui('filterByCustomer')}
             >
-              <option value="">All customers</option>
+              <option value="">{ui('allCustomers')}</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.code} — {c.name}
@@ -411,9 +438,9 @@ export default function InspectionsPage() {
                 setYardFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by yard"
+              aria-label={ui('filterByYard')}
             >
-              <option value="">All yards</option>
+              <option value="">{ui('allYards')}</option>
               {yards.map((y) => (
                 <option key={y.id} value={y.id}>
                   {y.code} — {y.name}
@@ -424,7 +451,7 @@ export default function InspectionsPage() {
         </CardContent>
 
         {loading ? (
-          <PageLoader label="Loading inspections..." />
+          <PageLoader label={ui('loadingInspections')} />
         ) : error ? (
           <CardContent>
             <ErrorState
@@ -435,24 +462,24 @@ export default function InspectionsPage() {
         ) : data && data.data.length === 0 ? (
           <CardContent>
             <EmptyState
-              title="No inspections found"
-              description="Try a different search or filter, or create a new inspection."
+              title={ui('noInspectionsFound')}
+              description={ui('tryADifferentSearchOrFilterOrCreateANewInspection')}
             />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Inspection No.</th>
-                  <th className="px-3 py-2 font-medium">Cargo No.</th>
-                  <th className="px-3 py-2 font-medium">Customer</th>
-                  <th className="px-3 py-2 font-medium">Destination</th>
-                  <th className="px-3 py-2 font-medium">Yard</th>
-                  <th className="px-3 py-2 font-medium">Inspector</th>
-                  <th className="px-3 py-2 font-medium">Inspection date</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('inspectionNo')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('cargoNo')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('customer')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('destination')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('yard')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('inspector')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('inspectionDate')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -467,7 +494,10 @@ export default function InspectionsPage() {
                       <div className="flex items-center gap-1.5">
                         {row.cargo.destinationPort ? (
                           <>
-                            <MapPin className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                            <MapPin
+                              className="h-3.5 w-3.5 text-muted-foreground"
+                              aria-hidden="true"
+                            />
                             <span>{row.cargo.destinationPort.code}</span>
                           </>
                         ) : (
@@ -477,10 +507,10 @@ export default function InspectionsPage() {
                     </td>
                     <td className="px-3 py-2">{row.cargo.yard?.code ?? '—'}</td>
                     <td className="px-3 py-2">{inspectorName(row)}</td>
-                    <td className="px-3 py-2">{fmtShortDate(row.inspectionDate)}</td>
+                    <td className="px-3 py-2">{fmtShortDate(row.inspectionDate, uiLocale)}</td>
                     <td className="px-3 py-2">
                       <Badge variant={statusMeta(row.status).variant} dot>
-                        {statusMeta(row.status).label}
+                        <DomainLabel value={statusMeta(row.status).label} />
                       </Badge>
                     </td>
                     <td className="px-3 py-2">
@@ -491,7 +521,7 @@ export default function InspectionsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openDetail(row)}
-                            aria-label={`View ${row.inspectionNumber}`}
+                            aria-label={ui('viewValue', { value0: String(row.inspectionNumber) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -502,7 +532,7 @@ export default function InspectionsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => bookOpen(row)}
-                            aria-label={`Book ${row.inspectionNumber}`}
+                            aria-label={ui('bookValue', { value0: String(row.inspectionNumber) })}
                           >
                             <CalendarCheck className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -511,9 +541,11 @@ export default function InspectionsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                            className="h-7 w-7 text-success hover:bg-emerald-50 hover:text-emerald-700"
                             onClick={() => approveOpen(row)}
-                            aria-label={`Approve ${row.inspectionNumber}`}
+                            aria-label={ui('approveValue', {
+                              value0: String(row.inspectionNumber),
+                            })}
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -524,7 +556,7 @@ export default function InspectionsPage() {
                             size="icon"
                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
                             onClick={() => rejectOpen(row)}
-                            aria-label={`Reject ${row.inspectionNumber}`}
+                            aria-label={ui('rejectValue', { value0: String(row.inspectionNumber) })}
                           >
                             <XCircle className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -535,7 +567,9 @@ export default function InspectionsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => reInspectOpen(row)}
-                            aria-label={`Re-inspect ${row.inspectionNumber}`}
+                            aria-label={ui('reInspectValue', {
+                              value0: String(row.inspectionNumber),
+                            })}
                           >
                             <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -546,7 +580,7 @@ export default function InspectionsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
         {data && data.meta.totalPages > 1 && (
@@ -566,15 +600,15 @@ export default function InspectionsPage() {
       <Dialog
         open={createOpen}
         onOpenChange={(open) => !open && setCreateOpen(false)}
-        title="New inspection"
-        description="Select the cargo to inspect. Cargo identity, customer, destination and location are read from the cargo record."
+        title={ui('newInspection')}
+        description={ui('selectTheCargoToInspectCargoIdentityCustomerDestinationAndLocation')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitCreate}>
-              Create inspection
+              {ui('createInspection')}
             </Button>
           </>
         }
@@ -582,7 +616,7 @@ export default function InspectionsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ins-cargo" className="block">
-              Cargo *
+              {ui('cargoRequired')}
             </Label>
             <select
               id="ins-cargo"
@@ -591,7 +625,7 @@ export default function InspectionsPage() {
               onChange={(e) => updateField('cargoId', e.target.value)}
               autoFocus
             >
-              <option value="">Select cargo…</option>
+              <option value="">{ui('selectCargo')}</option>
               {cargos.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.reference} — {c.customer.name}
@@ -603,32 +637,34 @@ export default function InspectionsPage() {
             <div className="col-span-2 rounded-md border border-border bg-muted/40 p-3 text-[13px]">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Cargo type</dt>
-                  <dd className="text-right">{selectedCargo.cargoType.replace(/_/g, ' ')}</dd>
+                  <dt className="text-muted-foreground">{ui('cargoType')}</dt>
+                  <dd className="text-end">
+                    <DomainLabel value={selectedCargo.cargoType.replace(/_/g, ' ')} />
+                  </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Customer</dt>
-                  <dd className="text-right">{selectedCargo.customer.name}</dd>
+                  <dt className="text-muted-foreground">{ui('customer')}</dt>
+                  <dd className="text-end">{selectedCargo.customer.name}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Destination</dt>
-                  <dd className="text-right">{selectedCargo.destinationPort?.code ?? '—'}</dd>
+                  <dt className="text-muted-foreground">{ui('destination')}</dt>
+                  <dd className="text-end">{selectedCargo.destinationPort?.code ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Yard</dt>
-                  <dd className="text-right">{selectedCargo.yard?.code ?? '—'}</dd>
+                  <dt className="text-muted-foreground">{ui('yard')}</dt>
+                  <dd className="text-end">{selectedCargo.yard?.code ?? '—'}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Serial / VIN</dt>
-                  <dd className="text-right">
+                  <dt className="text-muted-foreground">{ui('serialVIN')}</dt>
+                  <dd className="text-end">
                     {selectedCargo.serialNumber || selectedCargo.vin || '—'}
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Current inspection</dt>
-                  <dd className="text-right">
+                  <dt className="text-muted-foreground">{ui('currentInspection')}</dt>
+                  <dd className="text-end">
                     <Badge variant={statusMeta(selectedCargo.inspectionStatus).variant}>
-                      {statusMeta(selectedCargo.inspectionStatus).label}
+                      <DomainLabel value={statusMeta(selectedCargo.inspectionStatus).label} />
                     </Badge>
                   </dd>
                 </div>
@@ -637,7 +673,7 @@ export default function InspectionsPage() {
           )}
           <div className="space-y-1.5">
             <Label htmlFor="ins-date" className="block">
-              Inspection date
+              {ui('inspectionDate')}
             </Label>
             <Input
               id="ins-date"
@@ -648,18 +684,18 @@ export default function InspectionsPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ins-inspector" className="block">
-              Inspector
+              {ui('inspector')}
             </Label>
             <Input
               id="ins-inspector"
-              placeholder="Inspector name"
+              placeholder={ui('inspectorName')}
               value={form.inspectorName}
               onChange={(e) => updateField('inspectorName', e.target.value)}
             />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ins-findings" className="block">
-              Findings
+              {ui('findings')}
             </Label>
             <textarea
               id="ins-findings"
@@ -670,7 +706,7 @@ export default function InspectionsPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ins-condition" className="block">
-              Physical condition
+              {ui('physicalCondition')}
             </Label>
             <textarea
               id="ins-condition"
@@ -681,19 +717,19 @@ export default function InspectionsPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ins-verification" className="block">
-              Verification notes
+              {ui('verificationNotes')}
             </Label>
             <textarea
               id="ins-verification"
               className="min-h-[56px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Serial/chassis, quantity, weight, documentation verification"
+              placeholder={ui('serialChassisQuantityWeightDocumentationVerification')}
               value={form.verificationNotes}
               onChange={(e) => updateField('verificationNotes', e.target.value)}
             />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="ins-remarks" className="block">
-              Remarks
+              {ui('remarks')}
             </Label>
             <textarea
               id="ins-remarks"
@@ -714,18 +750,16 @@ export default function InspectionsPage() {
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing?.inspectionNumber ?? 'Inspection'}
-        description={viewing ? `${viewing.cargo.reference} — ${viewing.cargo.customer.name}` : undefined}
+        title={viewing?.inspectionNumber ?? ui('inspection')}
+        description={
+          viewing ? `${viewing.cargo.reference} — ${viewing.cargo.customer.name}` : undefined
+        }
         footer={
           <>
             {canUpdate && detail && bookable(detail.status) && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => bookOpen(detail)}
-              >
+              <Button size="sm" variant="outline" onClick={() => bookOpen(detail)}>
                 <CalendarCheck className="h-4 w-4" />
-                Book
+                {ui('book')}
               </Button>
             )}
             {canApprove && detail && donable(detail.status) && (
@@ -736,7 +770,7 @@ export default function InspectionsPage() {
                 onClick={() => approveOpen(detail)}
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Approve
+                {ui('approve')}
               </Button>
             )}
             {canReject && detail && failable(detail.status) && (
@@ -747,21 +781,17 @@ export default function InspectionsPage() {
                 onClick={() => rejectOpen(detail)}
               >
                 <XCircle className="h-4 w-4" />
-                Reject
+                {ui('reject')}
               </Button>
             )}
             {canUpdate && detail && reinspectable(detail.status) && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => reInspectOpen(detail)}
-              >
+              <Button size="sm" variant="outline" onClick={() => reInspectOpen(detail)}>
                 <RotateCcw className="h-4 w-4" />
-                Re-inspection
+                {ui('reInspection')}
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-              Close
+              {ui('close')}
             </Button>
           </>
         }
@@ -771,60 +801,70 @@ export default function InspectionsPage() {
             <div>
               <div className="mb-1 flex items-center gap-2">
                 <Badge variant={statusMeta(detail.status).variant} dot>
-                  {statusMeta(detail.status).label}
+                  <DomainLabel value={statusMeta(detail.status).label} />
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  Inspection {fmtInspectionDate(detail.inspectionDate)}
+                  {ui('inspection')}
+                  {fmtInspectionDate(detail.inspectionDate, uiLocale)}
                 </span>
               </div>
             </div>
 
             <div>
               <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Cargo
+                {ui('cargo')}
               </h3>
               <div className="grid grid-cols-2 gap-2 rounded-md border border-border bg-muted/40 p-3">
                 <div>
-                  <div className="text-xs text-muted-foreground">Reference</div>
+                  <div className="text-xs text-muted-foreground">{ui('reference')}</div>
                   <div className="font-medium">{detail.cargo.reference}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Cargo type</div>
-                  <div>{detail.cargo.cargoType.replace(/_/g, ' ')}</div>
+                  <div className="text-xs text-muted-foreground">{ui('cargoType')}</div>
+                  <div>
+                    <DomainLabel value={detail.cargo.cargoType.replace(/_/g, ' ')} />
+                  </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Customer</div>
+                  <div className="text-xs text-muted-foreground">{ui('customer')}</div>
                   <div>{detail.cargo.customer.name}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Destination</div>
+                  <div className="text-xs text-muted-foreground">{ui('destination')}</div>
                   <div>{detail.cargo.destinationPort?.code ?? '—'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Serial / VIN</div>
+                  <div className="text-xs text-muted-foreground">{ui('serialVIN')}</div>
                   <div>
-                    {detail.cargo.serialNumber || detail.cargo.chassisNumber || detail.cargo.vin || '—'}
+                    {detail.cargo.serialNumber ||
+                      detail.cargo.chassisNumber ||
+                      detail.cargo.vin ||
+                      '—'}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Cargo status</div>
-                  <div>{detail.cargo.status.replace(/_/g, ' ')}</div>
+                  <div className="text-xs text-muted-foreground">{ui('cargoStatus')}</div>
+                  <div>
+                    <DomainLabel value={detail.cargo.status.replace(/_/g, ' ')} />
+                  </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Yard / location</div>
+                  <div className="text-xs text-muted-foreground">{ui('yardLocation')}</div>
                   <div>
                     {detail.cargo.yard?.code ?? '—'}
-                    {detail.cargo.inventory ? ` (${detail.cargo.inventory.status.replace(/_/g, ' ')})` : ''}
+                    {detail.cargo.inventory
+                      ? ` (${detail.cargo.inventory.status.replace(/_/g, ' ')})`
+                      : ''}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Readiness</div>
+                  <div className="text-xs text-muted-foreground">{ui('readiness')}</div>
                   <div>
                     {detail.cargo.inspectionStatus === 'DONE'
-                      ? 'Eligible for load planning'
+                      ? ui('eligibleForLoadPlanning')
                       : detail.cargo.inspectionStatus === 'FAILED'
-                        ? 'Ineligible — failed inspection'
-                        : 'Pending review'}
+                        ? ui('ineligibleFailedInspection')
+                        : ui('pendingReview')}
                   </div>
                 </div>
               </div>
@@ -832,42 +872,47 @@ export default function InspectionsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-muted-foreground">Inspector</div>
+                <div className="text-xs text-muted-foreground">{ui('inspector')}</div>
                 <div>{inspectorName(detail)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Approved</div>
-                <div>{detail.approvedAt ? fmtInspectionDate(detail.approvedAt) : '—'}</div>
+                <div className="text-xs text-muted-foreground">{ui('approved')}</div>
+                <div>
+                  {detail.approvedAt ? fmtInspectionDate(detail.approvedAt, uiLocale) : '—'}
+                </div>
               </div>
             </div>
 
-            {(detail.findings || detail.condition || detail.verificationNotes || detail.remarks) && (
+            {(detail.findings ||
+              detail.condition ||
+              detail.verificationNotes ||
+              detail.remarks) && (
               <div>
                 <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Findings
+                  {ui('findings')}
                 </h3>
                 <div className="space-y-2">
                   {detail.findings && (
                     <div>
-                      <div className="text-xs text-muted-foreground">Findings</div>
+                      <div className="text-xs text-muted-foreground">{ui('findings')}</div>
                       <div className="whitespace-pre-wrap">{detail.findings}</div>
                     </div>
                   )}
                   {detail.condition && (
                     <div>
-                      <div className="text-xs text-muted-foreground">Physical condition</div>
+                      <div className="text-xs text-muted-foreground">{ui('physicalCondition')}</div>
                       <div className="whitespace-pre-wrap">{detail.condition}</div>
                     </div>
                   )}
                   {detail.verificationNotes && (
                     <div>
-                      <div className="text-xs text-muted-foreground">Verification</div>
+                      <div className="text-xs text-muted-foreground">{ui('verification')}</div>
                       <div className="whitespace-pre-wrap">{detail.verificationNotes}</div>
                     </div>
                   )}
                   {detail.remarks && (
                     <div>
-                      <div className="text-xs text-muted-foreground">Remarks</div>
+                      <div className="text-xs text-muted-foreground">{ui('remarks')}</div>
                       <div className="whitespace-pre-wrap">{detail.remarks}</div>
                     </div>
                   )}
@@ -878,7 +923,7 @@ export default function InspectionsPage() {
             {detail.status === 'FAILED' && detail.rejectionReason && (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-destructive">
-                  Rejection reason
+                  {ui('rejectionReason')}
                 </div>
                 <div className="whitespace-pre-wrap">{detail.rejectionReason}</div>
               </div>
@@ -886,10 +931,10 @@ export default function InspectionsPage() {
 
             <div>
               <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Inspection history
+                {ui('inspectionHistory')}
               </h3>
               {history.length === 0 ? (
-                <p className="text-muted-foreground">No previous inspections for this cargo.</p>
+                <p className="text-muted-foreground">{ui('noPreviousInspectionsForThisCargo')}</p>
               ) : (
                 <ul className="space-y-1.5">
                   {history.map((h) => (
@@ -897,21 +942,23 @@ export default function InspectionsPage() {
                       key={h.id}
                       className={
                         'flex items-center justify-between rounded-md border p-2 text-[13px] ' +
-                        (h.id === detail.id
-                          ? 'border-ring bg-muted/60'
-                          : 'border-border bg-card')
+                        (h.id === detail.id ? 'border-ring bg-muted/60' : 'border-border bg-card')
                       }
                     >
                       <span className="flex items-center gap-2">
                         {h.id === detail.id && (
-                          <span className="text-[10px] uppercase text-muted-foreground">Current</span>
+                          <span className="text-[10px] uppercase text-muted-foreground">
+                            {ui('current')}
+                          </span>
                         )}
                         <span className="font-medium">{h.inspectionNumber}</span>
                       </span>
                       <span className="flex items-center gap-2">
                         <span className="text-muted-foreground">{inspectorName(h)}</span>
-                        <span>{fmtShortDate(h.inspectionDate)}</span>
-                        <Badge variant={statusMeta(h.status).variant}>{statusMeta(h.status).label}</Badge>
+                        <span>{fmtShortDate(h.inspectionDate, uiLocale)}</span>
+                        <Badge variant={statusMeta(h.status).variant}>
+                          <DomainLabel value={statusMeta(h.status).label} />
+                        </Badge>
                       </span>
                     </li>
                   ))}
@@ -926,7 +973,7 @@ export default function InspectionsPage() {
             )}
           </div>
         ) : (
-          <PageLoader label="Loading inspection..." />
+          <PageLoader label={ui('loadingInspection')} />
         )}
       </Dialog>
 
@@ -939,9 +986,11 @@ export default function InspectionsPage() {
             setFormError(null);
           }
         }}
-        title="Approve inspection"
-        description={`Approve ${confirmingApprove?.inspectionNumber}? This marks the inspection DONE — the cargo becomes eligible for future load planning.`}
-        confirmLabel="Approve"
+        title={ui('approveInspection')}
+        description={ui('approveValueThisMarksTheInspectionDONETheCargoBecomesEligible', {
+          value0: String(confirmingApprove?.inspectionNumber),
+        })}
+        confirmLabel={ui('approve')}
         loading={saving}
         error={formError}
         onConfirm={submitApprove}
@@ -956,9 +1005,11 @@ export default function InspectionsPage() {
             setFormError(null);
           }
         }}
-        title="Book inspection"
-        description={`Book ${confirmingBook?.inspectionNumber}? Books the inspection for execution (status becomes BOOKED).`}
-        confirmLabel="Book"
+        title={ui('bookInspection')}
+        description={ui('bookValueBooksTheInspectionForExecutionStatusBecomesBOOKED', {
+          value0: String(confirmingBook?.inspectionNumber),
+        })}
+        confirmLabel={ui('book')}
         loading={saving}
         error={formError}
         onConfirm={submitBook}
@@ -973,9 +1024,11 @@ export default function InspectionsPage() {
             setFormError(null);
           }
         }}
-        title="Request re-inspection"
-        description={`Re-open ${confirmingReInspect?.inspectionNumber}? The cargo returns to pending review and can be booked for a new inspection cycle.`}
-        confirmLabel="Re-open"
+        title={ui('requestReInspection')}
+        description={ui('reOpenValueTheCargoReturnsToPendingReviewAndCan', {
+          value0: String(confirmingReInspect?.inspectionNumber),
+        })}
+        confirmLabel={ui('reOpen')}
         loading={saving}
         error={formError}
         onConfirm={submitReInspect}
@@ -991,8 +1044,10 @@ export default function InspectionsPage() {
             setFormError(null);
           }
         }}
-        title="Reject inspection"
-        description={`Reject ${confirmingReject?.inspectionNumber}? You must provide a reason. Rejected cargo is not eligible for load planning.`}
+        title={ui('rejectInspection')}
+        description={ui('rejectValueYouMustProvideAReasonRejectedCargoIsNot', {
+          value0: String(confirmingReject?.inspectionNumber),
+        })}
         footer={
           <>
             <Button
@@ -1003,17 +1058,17 @@ export default function InspectionsPage() {
                 setRejectReason('');
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button variant="destructive" size="sm" loading={saving} onClick={submitReject}>
-              Reject inspection
+              {ui('rejectInspection')}
             </Button>
           </>
         }
       >
         <div className="space-y-1.5">
           <Label htmlFor="reject-reason" className="block">
-            Rejection reason *
+            {ui('rejectionReasonRequired')}
           </Label>
           <textarea
             id="reject-reason"

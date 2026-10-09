@@ -1,4 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type {
@@ -38,7 +45,14 @@ const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
 const INV_STATUSES: InventoryStatus[] = ['IN_YARD', 'RESERVED'];
-const CARGO_STATUSES: CargoStatus[] = ['REGISTERED', 'AT_YARD', 'READY_FOR_LOADING', 'LOADED', 'DELIVERED', 'CANCELLED'];
+const CARGO_STATUSES: CargoStatus[] = [
+  'REGISTERED',
+  'AT_YARD',
+  'READY_FOR_LOADING',
+  'LOADED',
+  'DELIVERED',
+  'CANCELLED',
+];
 
 const INV_META: Record<InventoryStatus, { label: string; variant: 'info' | 'success' }> = {
   IN_YARD: { label: 'In yard', variant: 'info' },
@@ -62,12 +76,15 @@ interface MoveForm {
 const EMPTY_PLACE: PlaceForm = { cargoId: '', yardId: '', locationLabel: '', notes: '' };
 
 export default function YardInventoryPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<InventoryListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [yardFilter, setYardFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [cargoStatusFilter, setCargoStatusFilter] = useState('');
@@ -105,19 +122,21 @@ export default function YardInventoryPage() {
       if (status) params.set('status', status);
       if (cargoStatus) params.set('cargoStatus', cargoStatus);
       try {
-        setData(await api.get<PaginatedResult<InventoryListItem>>(`/yard-inventory?${params.toString()}`));
+        setData(
+          await api.get<PaginatedResult<InventoryListItem>>(`/yard-inventory?${params.toString()}`)
+        );
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load yard inventory');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadYardInventory'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, yardFilter, statusFilter, cargoStatusFilter);
-  }, [load, page, search, yardFilter, statusFilter, cargoStatusFilter]);
+    load(page, debouncedSearch, yardFilter, statusFilter, cargoStatusFilter);
+  }, [load, page, debouncedSearch, yardFilter, statusFilter, cargoStatusFilter]);
 
   useEffect(() => {
     (async () => {
@@ -147,7 +166,7 @@ export default function YardInventoryPage() {
   async function submitPlace() {
     setFormError(null);
     if (!placeForm.cargoId || !placeForm.yardId) {
-      setFormError('Cargo and yard are required.');
+      setFormError(ui('cargoAndYardAreRequired'));
       return;
     }
     setSaving(true);
@@ -155,14 +174,16 @@ export default function YardInventoryPage() {
       await api.post<InventoryDetail>('/yard-inventory', {
         cargoId: placeForm.cargoId,
         yardId: placeForm.yardId,
-        ...(placeForm.locationLabel.trim() ? { locationLabel: placeForm.locationLabel.trim() } : {}),
+        ...(placeForm.locationLabel.trim()
+          ? { locationLabel: placeForm.locationLabel.trim() }
+          : {}),
         ...(placeForm.notes.trim() ? { notes: placeForm.notes.trim() } : {}),
       });
       setPlacing(false);
       setPage(1);
       await load(page, search, yardFilter, statusFilter, cargoStatusFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to place cargo');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToPlaceCargo'));
     } finally {
       setSaving(false);
     }
@@ -170,7 +191,12 @@ export default function YardInventoryPage() {
 
   function openMove(row: InventoryListItem) {
     setMoving(row);
-    setMoveForm({ yardId: row.yard.id, status: row.status, locationLabel: row.locationLabel ?? '', notes: row.notes ?? '' });
+    setMoveForm({
+      yardId: row.yard.id,
+      status: row.status,
+      locationLabel: row.locationLabel ?? '',
+      notes: row.notes ?? '',
+    });
     setFormError(null);
   }
 
@@ -178,7 +204,7 @@ export default function YardInventoryPage() {
     if (!moving) return;
     setFormError(null);
     if (!moveForm.yardId) {
-      setFormError('Yard is required.');
+      setFormError(ui('yardIsRequired'));
       return;
     }
     setSaving(true);
@@ -186,13 +212,15 @@ export default function YardInventoryPage() {
       await api.patch<InventoryDetail>(`/yard-inventory/${moving.id}`, {
         yardId: moveForm.yardId,
         status: moveForm.status,
-        ...(moveForm.locationLabel.trim() !== (moving.locationLabel ?? '') ? { locationLabel: moveForm.locationLabel.trim() } : {}),
+        ...(moveForm.locationLabel.trim() !== (moving.locationLabel ?? '')
+          ? { locationLabel: moveForm.locationLabel.trim() }
+          : {}),
         ...(moveForm.notes.trim() !== (moving.notes ?? '') ? { notes: moveForm.notes.trim() } : {}),
       });
       setMoving(null);
       await load(page, search, yardFilter, statusFilter, cargoStatusFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update inventory');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateInventory'));
     } finally {
       setSaving(false);
     }
@@ -204,7 +232,7 @@ export default function YardInventoryPage() {
     try {
       setViewDetail(await api.get<InventoryDetail>(`/yard-inventory/${row.id}`));
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : 'Failed to load inventory details');
+      setFormError(e instanceof ApiError ? e.message : ui('failedToLoadInventoryDetails'));
     }
   }
 
@@ -217,7 +245,7 @@ export default function YardInventoryPage() {
       setRemoving(null);
       await load(page, search, yardFilter, statusFilter, cargoStatusFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to remove from yard');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToRemoveFromYard'));
     } finally {
       setSaving(false);
     }
@@ -227,24 +255,24 @@ export default function YardInventoryPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Yard Inventory' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Yard Inventory</h1>
+          <Breadcrumbs items={[{ label: ui('yardInventory') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('yardInventory')}</h1>
           <p className="text-sm text-muted-foreground">
-            Current yard stock. Placing a cargo moves it to At yard; removing returns it to Registered.
+            {ui('currentYardStockPlacingACargoMovesItToAtYard')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openPlace}>
             <Plus className="h-4 w-4" />
-            Place cargo
+            {ui('placeCargo')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Inventory registry</CardTitle>
-          <CardDescription>One current record per cargo. Move or remove to change it.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('inventoryRegistry')}</CardTitle>
+          <CardDescription>{ui('oneCurrentRecordPerCargoMoveOrRemoveToChangeIt')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -256,10 +284,13 @@ export default function YardInventoryPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search reference, serial, customer…"
+              placeholder={ui('searchReferenceSerialCustomer')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search inventory"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchInventory')}
             />
             <select
               className={SELECT_CLASS}
@@ -268,9 +299,9 @@ export default function YardInventoryPage() {
                 setYardFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by yard"
+              aria-label={ui('filterByYard')}
             >
-              <option value="">All yards</option>
+              <option value="">{ui('allYards')}</option>
               {yards.map((y) => (
                 <option key={y.id} value={y.id}>
                   {y.name}
@@ -284,12 +315,12 @@ export default function YardInventoryPage() {
                 setStatusFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by inventory status"
+              aria-label={ui('filterByInventoryStatus')}
             >
-              <option value="">Any status</option>
+              <option value="">{ui('anyStatus')}</option>
               {INV_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {INV_META[s].label}
+                  <DomainLabel value={INV_META[s].label} />
                 </option>
               ))}
             </select>
@@ -300,43 +331,49 @@ export default function YardInventoryPage() {
                 setCargoStatusFilter(e.target.value);
                 setPage(1);
               }}
-              aria-label="Filter by cargo status"
+              aria-label={ui('filterByCargoStatus')}
             >
-              <option value="">Any cargo status</option>
+              <option value="">{ui('anyCargoStatus')}</option>
               {CARGO_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s.replace(/_/g, ' ')}
+                  <DomainLabel value={s.replace(/_/g, ' ')} />
                 </option>
               ))}
             </select>
             <Button type="submit" variant="secondary">
               <ArrowUpDown className="h-3.5 w-3.5" />
-              Apply
+              {ui('apply')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading inventory…" />
+          <PageLoader label={ui('loadingInventory')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, yardFilter, statusFilter, cargoStatusFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, yardFilter, statusFilter, cargoStatusFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No inventory records" description="Place cargo into a yard to begin." />
+            <EmptyState
+              title={ui('noInventoryRecords')}
+              description={ui('placeCargoIntoAYardToBegin')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Cargo</th>
-                  <th className="px-3 py-2 font-medium">Customer</th>
-                  <th className="px-3 py-2 font-medium">Yard</th>
-                  <th className="px-3 py-2 font-medium">Port</th>
-                  <th className="px-3 py-2 font-medium">Location</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('cargo')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('customer')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('yard')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('port_m1qx5adi')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('location')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,7 +385,7 @@ export default function YardInventoryPage() {
                           {row.cargo.reference}
                         </span>
                         <span className="text-[11px] text-muted-foreground">
-                          {row.cargo.cargoType.replace(/_/g, ' ')}
+                          <DomainLabel value={row.cargo.cargoType.replace(/_/g, ' ')} />
                         </span>
                       </div>
                     </td>
@@ -362,9 +399,13 @@ export default function YardInventoryPage() {
                       </span>
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{row.port.code}</td>
-                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{row.locationLabel ?? '—'}</td>
+                    <td className="px-3 py-2 text-[12px] text-muted-foreground">
+                      {row.locationLabel ?? '—'}
+                    </td>
                     <td className="px-3 py-2">
-                      <Badge variant={INV_META[row.status].variant}>{INV_META[row.status].label}</Badge>
+                      <Badge variant={INV_META[row.status].variant}>
+                        <DomainLabel value={INV_META[row.status].label} />
+                      </Badge>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -374,8 +415,8 @@ export default function YardInventoryPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openView(row)}
-                            title="View details"
-                            aria-label={`View ${row.cargo.reference}`}
+                            title={ui('viewDetails')}
+                            aria-label={ui('viewValue', { value0: String(row.cargo.reference) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -386,8 +427,8 @@ export default function YardInventoryPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openMove(row)}
-                            title="Move or reserve"
-                            aria-label={`Move ${row.cargo.reference}`}
+                            title={ui('moveOrReserve')}
+                            aria-label={ui('moveValue', { value0: String(row.cargo.reference) })}
                           >
                             <ArrowRight className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -398,8 +439,8 @@ export default function YardInventoryPage() {
                             size="icon"
                             className="h-7 w-7 text-destructive"
                             onClick={() => setRemoving(row)}
-                            title="Remove from yard"
-                            aria-label={`Remove ${row.cargo.reference}`}
+                            title={ui('removeFromYard')}
+                            aria-label={ui('removeValue', { value0: String(row.cargo.reference) })}
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -410,7 +451,7 @@ export default function YardInventoryPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -429,15 +470,15 @@ export default function YardInventoryPage() {
       <Dialog
         open={placing}
         onOpenChange={(open) => !open && setPlacing(false)}
-        title="Place cargo in yard"
-        description="Moving a cargo into a yard sets its status to At yard."
+        title={ui('placeCargoInYard')}
+        description={ui('movingACargoIntoAYardSetsItsStatusToAt')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setPlacing(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitPlace}>
-              Place cargo
+              {ui('placeCargo')}
             </Button>
           </>
         }
@@ -445,7 +486,7 @@ export default function YardInventoryPage() {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="inv-cargo" className="block">
-              Cargo *
+              {ui('cargoRequired')}
             </Label>
             <select
               id="inv-cargo"
@@ -454,7 +495,7 @@ export default function YardInventoryPage() {
               onChange={(e) => updateField('cargoId', e.target.value)}
               autoFocus
             >
-              <option value="">Select not-in-yard cargo…</option>
+              <option value="">{ui('selectNotInYardCargo')}</option>
               {cargos.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.reference}
@@ -464,7 +505,7 @@ export default function YardInventoryPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="inv-yard" className="block">
-              Yard *
+              {ui('yardRequired')}
             </Label>
             <select
               id="inv-yard"
@@ -472,7 +513,7 @@ export default function YardInventoryPage() {
               value={placeForm.yardId}
               onChange={(e) => updateField('yardId', e.target.value)}
             >
-              <option value="">Select yard…</option>
+              <option value="">{ui('selectYard')}</option>
               {yards.map((y) => (
                 <option key={y.id} value={y.id}>
                   {y.name}
@@ -482,18 +523,18 @@ export default function YardInventoryPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="inv-location" className="block">
-              Location label
+              {ui('locationLabel')}
             </Label>
             <Input
               id="inv-location"
               value={placeForm.locationLabel}
               onChange={(e) => updateField('locationLabel', e.target.value)}
-              placeholder="Bay A1"
+              placeholder={ui('bayA1')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="inv-notes" className="block">
-              Notes
+              {ui('notes')}
             </Label>
             <textarea
               id="inv-notes"
@@ -503,22 +544,30 @@ export default function YardInventoryPage() {
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Move / update dialog */}
       <Dialog
         open={!!moving}
         onOpenChange={(open) => !open && setMoving(null)}
-        title={moving ? `Move — ${moving.cargo.reference}` : 'Update inventory'}
-        description="Change the yard, status or location of this inventory record."
+        title={
+          moving
+            ? ui('moveValue_m6kwb31', { value0: String(moving.cargo.reference) })
+            : ui('updateInventory')
+        }
+        description={ui('changeTheYardStatusOrLocationOfThisInventoryRecord')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setMoving(null)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitMove}>
-              Save
+              {ui('save')}
             </Button>
           </>
         }
@@ -526,7 +575,7 @@ export default function YardInventoryPage() {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="move-yard" className="block">
-              Yard *
+              {ui('yardRequired')}
             </Label>
             <select
               id="move-yard"
@@ -543,24 +592,26 @@ export default function YardInventoryPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="move-status" className="block">
-              Status
+              {ui('status')}
             </Label>
             <select
               id="move-status"
               className={SELECT_CLASS + ' w-full'}
               value={moveForm.status}
-              onChange={(e) => setMoveForm((prev) => ({ ...prev, status: e.target.value as InventoryStatus }))}
+              onChange={(e) =>
+                setMoveForm((prev) => ({ ...prev, status: e.target.value as InventoryStatus }))
+              }
             >
               {INV_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {INV_META[s].label}
+                  <DomainLabel value={INV_META[s].label} />
                 </option>
               ))}
             </select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="move-location" className="block">
-              Location label
+              {ui('locationLabel')}
             </Label>
             <Input
               id="move-location"
@@ -570,7 +621,7 @@ export default function YardInventoryPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="move-notes" className="block">
-              Notes
+              {ui('notes')}
             </Label>
             <textarea
               id="move-notes"
@@ -580,18 +631,22 @@ export default function YardInventoryPage() {
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Detail dialog */}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing?.cargo.reference ?? 'Inventory'}
+        title={viewing?.cargo.reference ?? ui('inventory')}
         description={viewing ? `${viewing.cargo.customer.name}` : undefined}
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-            Close
+            {ui('close')}
           </Button>
         }
       >
@@ -599,42 +654,62 @@ export default function YardInventoryPage() {
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-muted-foreground">Status</div>
-                <Badge variant={INV_META[viewDetail.status].variant}>{INV_META[viewDetail.status].label}</Badge>
+                <div className="text-xs text-muted-foreground">{ui('status')}</div>
+                <Badge variant={INV_META[viewDetail.status].variant}>
+                  <DomainLabel value={INV_META[viewDetail.status].label} />
+                </Badge>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Entered</div>
-                <div>{new Date(viewDetail.enteredAt).toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">{ui('entered')}</div>
+                <div>{new Date(viewDetail.enteredAt).toLocaleString(uiLocale)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Yard</div>
+                <div className="text-xs text-muted-foreground">{ui('yard')}</div>
                 <div>{viewDetail.yard.name}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Port</div>
+                <div className="text-xs text-muted-foreground">{ui('port_m1qx5adi')}</div>
                 <div>{viewDetail.port.name}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Location</div>
+                <div className="text-xs text-muted-foreground">{ui('location')}</div>
                 <div>{viewDetail.locationLabel ?? '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Cargo status</div>
-                <div>{viewDetail.cargo.status.replace(/_/g, ' ')}</div>
+                <div className="text-xs text-muted-foreground">{ui('cargoStatus')}</div>
+                <div>
+                  <DomainLabel value={viewDetail.cargo.status.replace(/_/g, ' ')} />
+                </div>
               </div>
             </div>
             <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Cargo
+              {ui('cargo')}
             </div>
             <dl className="space-y-1.5">
-              <div className="flex justify-between"><dt className="text-muted-foreground">Reference</dt><dd className="text-right">{viewDetail.cargo.reference}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Type</dt><dd className="text-right">{viewDetail.cargo.cargoType.replace(/_/g, ' ')}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Customer</dt><dd className="text-right">{viewDetail.cargo.customer.name}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-foreground">Inspection</dt><dd className="text-right">{viewDetail.cargo.inspectionStatus}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('reference')}</dt>
+                <dd className="text-end">{viewDetail.cargo.reference}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('type')}</dt>
+                <dd className="text-end">
+                  <DomainLabel value={viewDetail.cargo.cargoType.replace(/_/g, ' ')} />
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('customer')}</dt>
+                <dd className="text-end">{viewDetail.cargo.customer.name}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">{ui('inspection')}</dt>
+                <dd className="text-end">
+                  <DomainLabel value={viewDetail.cargo.inspectionStatus} />
+                </dd>
+              </div>
             </dl>
             {viewDetail.notes && (
               <div>
-                <div className="mb-1 text-xs text-muted-foreground">Notes</div>
+                <div className="mb-1 text-xs text-muted-foreground">{ui('notes')}</div>
                 <p className="whitespace-pre-wrap rounded-md border border-border px-3 py-2 text-xs">
                   {viewDetail.notes}
                 </p>
@@ -642,7 +717,7 @@ export default function YardInventoryPage() {
             )}
           </div>
         ) : (
-          <PageLoader label="Loading inventory details…" />
+          <PageLoader label={ui('loadingInventoryDetails')} />
         )}
       </Dialog>
 
@@ -650,12 +725,16 @@ export default function YardInventoryPage() {
       <ConfirmDialog
         open={!!removing}
         onOpenChange={(open) => !open && setRemoving(null)}
-        title="Remove from yard"
-        description={`Remove "${removing?.cargo.reference}" from ${removing?.yard.code}? Its cargo status returns to Registered (if it is At yard).`}
-        confirmLabel="Remove"
+        title={ui('removeFromYard')}
+        description={ui('removeValueFromValueItsCargoStatusReturnsToRegisteredIf', {
+          value0: String(removing?.cargo.reference),
+          value1: String(removing?.yard.code),
+        })}
+        confirmLabel={ui('remove')}
         destructive
         loading={saving}
         onConfirm={submitRemove}
+        error={formError}
       />
     </div>
   );

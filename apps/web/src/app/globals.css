@@ -3,9 +3,71 @@
 @tailwind utilities;
 
 /*
- * Vazirmatn — Persian UI font, self-hosted (no build-time Google Fonts fetch,
- * works fully offline / behind sanctions). Fallbacks keep the UI intact.
+ * Self-hosted typefaces (no build-time Google Fonts fetch, works fully offline /
+ * behind sanctions). Fallbacks keep the UI intact if a face is unavailable.
+ *
+ *  - Inter            → Latin UI + marketing display (EN)
+ *  - Vazirmatn        → Persian UI + display (FA)
+ *  - IBM Plex Sans Arabic → Arabic UI + display (AR)
+ *
+ * Only the active locale's faces are ever requested by the browser.
  */
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/Inter-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/IBMPlexSansArabic-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/IBMPlexSansArabic-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/IBMPlexSansArabic-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  src: url('/fonts/IBMPlexSansArabic-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
 @font-face {
   font-family: 'Vazirmatn';
   src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
@@ -63,13 +125,13 @@
     --muted-foreground: 215 16% 42%;
     --accent: 217 24% 93%;
     --accent-foreground: 222 20% 13%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
     --success: 152 55% 34%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 92% 40%;
+    --warning: 35 92% 29%;
     --warning-foreground: 0 0% 100%;
-    --info: 199 84% 40%;
+    --info: 199 84% 28%;
     --info-foreground: 0 0% 100%;
     --border: 216 16% 84%;
     --input: 216 16% 84%;
@@ -78,6 +140,30 @@
     --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
     --font-farsi: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-arabic: 'IBM Plex Sans Arabic', 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    /*
+     * Brand palette — public marketing site only (landing page).
+     * Deep-ocean navy + restrained brass signal: maritime, premium, calm.
+     * The ERP dashboard keeps the operational tracking-blue system above.
+     */
+    --brand-950: 218 62% 6%;
+    --brand-900: 216 55% 10%;
+    --brand-800: 215 46% 15%;
+    --brand-700: 214 38% 22%;
+    --brand-600: 212 34% 31%;
+    --brand-500: 210 45% 45%;
+    --brand-400: 209 30% 58%;
+    --brand-300: 209 32% 70%;
+    --brand-200: 210 28% 84%;
+    --brand-100: 210 32% 92%;
+    --brand-50: 210 40% 97%;
+    --brass-600: 36 47% 42%;
+    --brass-500: 38 50% 55%;
+    --brass-400: 40 58% 67%;
+    --brass-300: 40 62% 76%;
+    --brass-200: 40 52% 86%;
+    --brass-100: 40 46% 93%;
   }
 
   .dark {
@@ -95,8 +181,8 @@
     --muted-foreground: 215 16% 68%;
     --accent: 217 18% 18%;
     --accent-foreground: 210 20% 96%;
-    --destructive: 0 70% 56%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 82% 72%;
+    --destructive-foreground: 218 50% 12%;
     --success: 152 60% 46%;
     --success-foreground: 152 60% 8%;
     --warning: 38 92% 52%;
@@ -120,13 +206,21 @@
     @apply bg-background text-foreground antialiased;
   }
 
-  /* RTL: Persian locale gets Vazirmatn by default (dir=rtl is set on <html>). */
+  /* RTL: Persian locale gets Vazirmatn, Arabic gets IBM Plex Sans Arabic
+     (dir=rtl is set on <html>; the locale-specific rules below pick the face). */
   html[dir='rtl'] body,
   html[dir='rtl'] input,
   html[dir='rtl'] button,
   html[dir='rtl'] select,
   html[dir='rtl'] textarea {
     font-family: var(--font-farsi);
+  }
+  html[lang='ar'] body,
+  html[lang='ar'] input,
+  html[lang='ar'] button,
+  html[lang='ar'] select,
+  html[lang='ar'] textarea {
+    font-family: var(--font-arabic);
   }
   html[dir='rtl'] .micro-label {
     letter-spacing: 0.02em;
@@ -136,6 +230,23 @@
   html[dir='rtl'] .nums,
   html[dir='rtl'] .tabular-nums {
     font-feature-settings: 'tnum' 1;
+  }
+  /*
+   * Tight display tracking is a Latin-script typographic device. Arabic-script
+   * letterforms are cursive and must never be negatively tracked, so the
+   * landing display classes reset it for RTL.
+   */
+  html[dir='rtl'] .display-tight {
+    letter-spacing: 0 !important;
+  }
+  /* Long compound words in Latin scripts should not overflow on small screens. */
+  .display-balance {
+    text-wrap: balance;
+  }
+  @media (max-width: 640px) {
+    .display-balance {
+      text-wrap: normal;
+    }
   }
 
   ::selection {
@@ -220,4 +331,239 @@
     animation: none;
     opacity: 1;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * Landing page (public marketing site) — motion and surface helpers.
+ * Kept separate from the ERP component classes above; everything here is
+ * additive and only used by `components/landing/*`.
+ * ------------------------------------------------------------------------- */
+
+/* Anchor navigation: offset for the sticky header, calm scrolling. */
+html {
+  scroll-behavior: smooth;
+}
+
+.landing-section {
+  scroll-margin-top: 5.5rem;
+}
+
+/* Scroll reveal — the element starts hidden and is unhidden by the Reveal
+   component once it enters the viewport. Duration/easing stay in CSS so a
+   single class drives every section and reduced motion can switch it off. */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal[data-visible='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero entrance — staggered, runs immediately on load (no observer needed). */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-rise > * {
+  animation: hero-rise 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hero-rise > *:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.hero-rise > *:nth-child(3) {
+  animation-delay: 0.16s;
+}
+.hero-rise > *:nth-child(4) {
+  animation-delay: 0.24s;
+}
+.hero-rise > *:nth-child(5) {
+  animation-delay: 0.32s;
+}
+
+@keyframes hero-pan {
+  from {
+    transform: scale(1.06);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.hero-pan {
+  animation: hero-pan 2.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+.soft-pulse {
+  animation: soft-pulse 2.6s ease-in-out infinite;
+}
+
+/*
+ * Hero scrims. Defined here rather than with stacked Tailwind gradient
+ * utilities so the LTR/RTL direction of the side scrim is deterministic.
+ */
+.hero-scrim-bottom {
+  background-image: linear-gradient(
+    to top,
+    hsl(var(--brand-950)) 0%,
+    hsl(var(--brand-950) / 0.86) 28%,
+    hsl(var(--brand-950) / 0.45) 62%,
+    hsl(var(--brand-950) / 0.12) 100%
+  );
+}
+
+.hero-scrim-side {
+  background-image: linear-gradient(
+    to right,
+    hsl(var(--brand-950) / 0.96) 0%,
+    hsl(var(--brand-950) / 0.78) 34%,
+    hsl(var(--brand-950) / 0.25) 68%,
+    transparent 100%
+  );
+}
+
+html[dir='rtl'] .hero-scrim-side {
+  background-image: linear-gradient(
+    to left,
+    hsl(var(--brand-950) / 0.96) 0%,
+    hsl(var(--brand-950) / 0.78) 34%,
+    hsl(var(--brand-950) / 0.25) 68%,
+    transparent 100%
+  );
+}
+
+/* Hairline gradient rule used to separate dark sections. */
+.rule-hairline {
+  background: linear-gradient(
+    to right,
+    transparent,
+    hsl(var(--brand-300) / 0.35),
+    transparent
+  );
+}
+
+/* No JavaScript? Then never leave content hidden behind a reveal animation. */
+@media (scripting: none) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .hero-rise > *,
+  .hero-pan,
+  .soft-pulse {
+    animation: none !important;
+  }
+  .hero-pan {
+    transform: none;
+  }
+}
+
+/* Workspace evolution: semantic maritime surfaces, not marketing decoration. */
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 218 35% 16%;
+    --primary: 215 74% 40%;
+    --primary-hover: 215 78% 33%;
+    --ring: 215 74% 40%;
+    --border: 216 22% 89%;
+    --input: 216 20% 81%;
+    --muted-foreground: 215 16% 43%;
+  }
+  .dark {
+    --background: 218 35% 8%;
+    --foreground: 210 22% 94%;
+    --card: 218 30% 12%;
+    --card-foreground: 210 22% 94%;
+    --popover: 218 28% 14%;
+    --popover-foreground: 210 22% 94%;
+    --primary: 211 85% 72%;
+    --primary-hover: 211 88% 80%;
+    --primary-foreground: 218 50% 12%;
+    --ring: 211 85% 72%;
+    --border: 216 23% 23%;
+    --input: 216 20% 32%;
+    --muted: 218 25% 17%;
+    --muted-foreground: 214 18% 69%;
+    --accent: 215 28% 20%;
+  }
+  html[dir='rtl'] .tracking-tight { letter-spacing: normal; }
+  body:has(dialog[open]) { overflow: hidden; }
+  dialog::backdrop { background: hsl(218 50% 6% / .65); backdrop-filter: blur(3px); }
+}
+@layer components {
+  .panel, .ui-card {
+    border-radius: 0.875rem;
+    box-shadow: 0 2px 3px hsl(218 40% 12% / .025), 0 8px 24px -16px hsl(218 40% 12% / .18);
+  }
+  .workspace-page h1 { font-size: clamp(1.35rem, 2vw, 1.75rem); line-height: 1.4; }
+  .workspace-page > div > div:first-child { row-gap: 1rem; }
+  .workspace table, .app-dialog table { border-collapse: collapse; width: 100%; }
+  .workspace th, .app-dialog th { background: hsl(var(--muted) / .45); }
+  .workspace th:not(.text-end), .app-dialog th:not(.text-end) { text-align: start; }
+  .workspace th, .workspace td, .app-dialog th, .app-dialog td { padding-block: .85rem; }
+  .workspace tbody tr, .app-dialog tbody tr { transition: background-color 120ms ease; }
+  .workspace tbody tr:hover, .app-dialog tbody tr:hover { background: hsl(var(--muted) / .4); }
+  .workspace input, .workspace select, .app-dialog input, .app-dialog select { min-height: 2.5rem; }
+  .workspace input[type='checkbox'], .app-dialog input[type='checkbox'], .workspace input[type='radio'], .app-dialog input[type='radio'] { min-height: 1rem; width: 1rem; accent-color: hsl(var(--primary)); }
+  .workspace select, .app-dialog select, .workspace textarea, .app-dialog textarea { color: hsl(var(--foreground)); background-color: hsl(var(--card)); border-radius: .5rem; }
+  .workspace select, .app-dialog select { padding-inline-end: 2rem; max-width: 100%; }
+  html[dir='rtl'] :is(.workspace, .app-dialog) select { background-position: left .5rem center; }
+  .workspace :is(input, textarea, select):focus-visible, .app-dialog :is(input, textarea, select):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+  .workspace .overflow-x-auto, .app-dialog .overflow-x-auto { overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .nav-accordion { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 180ms ease; }
+  .nav-accordion[data-expanded='true'] { grid-template-rows: 1fr; }
+  .app-dialog[open], .preference-popover { animation: surface-in 180ms ease-out; }
+  .app-sheet[open] { animation: drawer-left 220ms ease-out; }
+  .app-sheet[data-side='right'][open] { animation-name: drawer-right; }
+  .workspace-page { animation: surface-in 180ms ease-out; }
+}
+@keyframes surface-in { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes drawer-left { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes drawer-right { from { transform: translateX(100%); } to { transform: none; } }
+@media (max-width: 639px) {
+  .app-dialog .grid-cols-2, .app-dialog .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
+  .app-dialog .col-span-2, .app-dialog .col-span-3 { grid-column: auto; }
+  .workspace table, .app-dialog table { min-width: 38rem; }
+  .workspace button, .app-dialog button { min-height: 2.75rem; }
+  .workspace input, .workspace textarea, .workspace select, .app-dialog input, .app-dialog select, .app-dialog textarea { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

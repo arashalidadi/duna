@@ -6,13 +6,17 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Match Nest config precedence: process environment, repo .env, then default.
+API_PORT="$(node "$REPO_ROOT/scripts/dev-api-port.mjs")"
+export API_PORT
+
 s() { printf '[%s] %s\n' "$1" "$2"; }
 is() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && { exec 3>&- 3<&-; return 0; } || return 1; }
 
 echo "=== Shipping ERP status ==="
 
 if is 3000; then s web "UP   http://127.0.0.1:3000  (port 3000)"; else s web "DOWN (port 3000)"; fi
-if is 3101; then s api "UP   http://127.0.0.1:3101/api/v1  (port 3101)"; else s api "DOWN (port 3101)"; fi
+if is "$API_PORT"; then s api "UP   http://127.0.0.1:${API_PORT}/api/v1  (port ${API_PORT})"; else s api "DOWN (port ${API_PORT})"; fi
 if is 5432; then s pg  "UP   postgresql://shipping:***@127.0.0.1:5432/shipping_erp  (port 5432)"; else s pg "DOWN (port 5432)"; fi
 
 echo
@@ -24,7 +28,7 @@ if is 5432; then
 fi
 
 echo
-echo "Ports:   Web 3000 | API 3101 | PostgreSQL 5432"
+echo "Ports:   Web 3000 | API ${API_PORT} | PostgreSQL 5432"
 echo "Logs:    $REPO_ROOT/logs/{api.log,web.log,pg-start.log}"
 echo "Start:   ./scripts/start-dev.sh"
 echo "Stop:    ./scripts/stop-dev.sh"

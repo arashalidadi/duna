@@ -1,10 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import type { Letter, LetterListResult, LetterStatus, LetterDirection } from '@shipping/shared';
 import { api, ApiError } from '@/lib/api/client';
-import { formatDateTime } from '@/lib/date';
+import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,17 @@ import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
-import { Eye, Pencil, Trash2, Plus, Send, Archive, Reply, Inbox, SendHorizontal } from 'lucide-react';
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  Plus,
+  Send,
+  Archive,
+  Reply,
+  Inbox,
+  SendHorizontal,
+} from 'lucide-react';
 
 const PAGE_SIZE = 20;
 
@@ -281,7 +292,7 @@ export default function LettersPage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -317,7 +328,9 @@ export default function LettersPage() {
                       <td className="max-w-[280px] truncate p-3" title={l.subject}>
                         {l.subject}
                       </td>
-                      <td className="whitespace-nowrap p-3">{dateShort(l.letterDate)}</td>
+                      <td className="whitespace-nowrap p-3">
+                        {formatDateShort(l.letterDate, locale)}
+                      </td>
                       <td className="max-w-[180px] truncate p-3">
                         {l.direction === 'INCOMING' ? (l.fromContact ?? '—') : (l.toContact ?? '—')}
                       </td>
@@ -326,12 +339,22 @@ export default function LettersPage() {
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" title={t('actions.view')} onClick={() => void openDetail(l.id)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={t('actions.view')}
+                            onClick={() => void openDetail(l.id)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {l.status === 'DRAFT' && (
                             <>
-                              <Button variant="ghost" size="icon" title={t('actions.edit')} onClick={() => openEdit(l)}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title={t('actions.edit')}
+                                onClick={() => openEdit(l)}
+                              >
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
@@ -368,7 +391,7 @@ export default function LettersPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
             <div className="p-3">
               <Pagination
                 page={meta.page}
@@ -430,7 +453,10 @@ export default function LettersPage() {
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.subject')}</Label>
-            <Input value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} />
+            <Input
+              value={form.subject}
+              onChange={(e) => setForm({ ...form, subject: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -442,12 +468,18 @@ export default function LettersPage() {
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.toContact')}</Label>
-              <Input value={form.toContact} onChange={(e) => setForm({ ...form, toContact: e.target.value })} />
+              <Input
+                value={form.toContact}
+                onChange={(e) => setForm({ ...form, toContact: e.target.value })}
+              />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.refNumber')}</Label>
-            <Input value={form.refNumber} onChange={(e) => setForm({ ...form, refNumber: e.target.value })} />
+            <Input
+              value={form.refNumber}
+              onChange={(e) => setForm({ ...form, refNumber: e.target.value })}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.body')}</Label>
@@ -460,7 +492,10 @@ export default function LettersPage() {
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
         </div>
       </Dialog>
@@ -493,7 +528,7 @@ export default function LettersPage() {
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
                 <span className="text-muted-foreground">{t('fields.date')}: </span>
-                {dateShort(detail.letterDate)}
+                {formatDateShort(detail.letterDate, locale)}
               </div>
               <div>
                 <span className="text-muted-foreground">{t('fields.refNumber')}: </span>
@@ -517,16 +552,27 @@ export default function LettersPage() {
             {detail.replyTo && (
               <div className="rounded-md border bg-muted/30 p-3 text-xs">
                 <span className="text-muted-foreground">{t('detail.inReplyTo')}: </span>
-                <span className="font-mono">{detail.replyTo.letterNumber}</span> — {detail.replyTo.subject}
+                <span className="font-mono">{detail.replyTo.letterNumber}</span> —{' '}
+                {detail.replyTo.subject}
               </div>
             )}
             {detail.body && (
-              <div className="whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm">{detail.body}</div>
+              <div className="whitespace-pre-wrap rounded-md border bg-muted/20 p-3 text-sm">
+                {detail.body}
+              </div>
             )}
             {detail.notes && <p className="text-xs text-muted-foreground">{detail.notes}</p>}
             <div className="text-xs text-muted-foreground">
-              {detail.sentAt && <div>{t('detail.sentOn')}: {formatDateTime(detail.sentAt, locale)}</div>}
-              {detail.archivedAt && <div>{t('detail.archivedOn')}: {formatDateTime(detail.archivedAt, locale)}</div>}
+              {detail.sentAt && (
+                <div>
+                  {t('detail.sentOn')}: {formatDateTime(detail.sentAt, locale)}
+                </div>
+              )}
+              {detail.archivedAt && (
+                <div>
+                  {t('detail.archivedOn')}: {formatDateTime(detail.archivedAt, locale)}
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               {detail.status === 'DRAFT' && (
@@ -535,7 +581,10 @@ export default function LettersPage() {
                     <Pencil className="me-1.5 h-4 w-4" />
                     {t('actions.edit')}
                   </Button>
-                  <Button onClick={() => void act(() => api.post(`/letters/${detail.id}/send`))} disabled={acting}>
+                  <Button
+                    onClick={() => void act(() => api.post(`/letters/${detail.id}/send`))}
+                    disabled={acting}
+                  >
                     <Send className="me-1.5 h-4 w-4" />
                     {t('actions.send')}
                   </Button>
@@ -573,7 +622,9 @@ export default function LettersPage() {
           if (!o) setDeleteTarget(null);
         }}
         title={t('confirm.delete.title')}
-        description={deleteTarget ? t('confirm.delete.description', { number: deleteTarget.letterNumber }) : ''}
+        description={
+          deleteTarget ? t('confirm.delete.description', { number: deleteTarget.letterNumber }) : ''
+        }
         confirmLabel={tc('actions.delete')}
         loading={acting}
         onConfirm={() =>
@@ -583,6 +634,7 @@ export default function LettersPage() {
             await act(() => api.del(`/letters/${target?.id}`));
           })()
         }
+        error={formError}
       />
     </div>
   );

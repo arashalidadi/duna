@@ -1,4 +1,8 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PaginatedResult, YardListItem, PortListItem } from '@shipping/shared';
@@ -43,6 +47,7 @@ function toForm(y: YardListItem): FormValues {
 }
 
 export default function YardsPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<YardListItem> | null>(null);
   const [ports, setPorts] = useState<PortListItem[]>([]);
@@ -50,6 +55,7 @@ export default function YardsPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [portFilter, setPortFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
 
@@ -71,12 +77,12 @@ export default function YardsPage() {
       try {
         setData(await api.get<PaginatedResult<YardListItem>>(`/yards?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load yards');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadYards'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   const loadPorts = useCallback(async () => {
@@ -91,8 +97,8 @@ export default function YardsPage() {
   }, []);
 
   useEffect(() => {
-    load(page, search, portFilter, activeFilter);
-  }, [load, page, search, portFilter, activeFilter]);
+    load(page, debouncedSearch, portFilter, activeFilter);
+  }, [load, page, debouncedSearch, portFilter, activeFilter]);
 
   useEffect(() => {
     loadPorts();
@@ -124,7 +130,7 @@ export default function YardsPage() {
   async function submit() {
     setFormError(null);
     if (!form.code.trim() || !form.name.trim() || !form.portId) {
-      setFormError('Code, name and port are required.');
+      setFormError(ui('codeNameAndPortAreRequired'));
       return;
     }
     setSaving(true);
@@ -139,7 +145,7 @@ export default function YardsPage() {
       }
       await load(page, search, portFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save yard');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveYard'));
     } finally {
       setSaving(false);
     }
@@ -156,7 +162,7 @@ export default function YardsPage() {
       setToggling(null);
       await load(page, search, portFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update yard');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateYard'));
     } finally {
       setSaving(false);
     }
@@ -166,24 +172,24 @@ export default function YardsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Yards' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Yards</h1>
+          <Breadcrumbs items={[{ label: ui('yards_m1ahdfge') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('yards_m1ahdfge')}</h1>
           <p className="text-sm text-muted-foreground">
-            Storage yards within ports. Each yard belongs to exactly one port.
+            {ui('storageYardsWithinPortsEachYardBelongsToExactlyOnePort')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New yard
+            {ui('newYard')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Yard registry</CardTitle>
-          <CardDescription>Live master data. No placeholder records.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('yardRegistry')}</CardTitle>
+          <CardDescription>{ui('liveMasterDataNoPlaceholderRecords')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -195,10 +201,13 @@ export default function YardsPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search code, name, address…"
+              placeholder={ui('searchCodeNameAddress')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search yards"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchYards')}
             />
             <select
               className={SELECT_CLASS}
@@ -207,9 +216,9 @@ export default function YardsPage() {
                 setPortFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by port"
+              aria-label={ui('filterByPort')}
             >
-              <option value="">All ports</option>
+              <option value="">{ui('allPorts')}</option>
               {ports.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.code})
@@ -223,37 +232,43 @@ export default function YardsPage() {
                 setActiveFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatus')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading yards…" />
+          <PageLoader label={ui('loadingYards')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, portFilter, activeFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, portFilter, activeFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No yards found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noYardsFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Yard</th>
-                  <th className="px-3 py-2 font-medium">Port</th>
-                  <th className="px-3 py-2 font-medium">Location</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('yard')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('port_m1qx5adi')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('location')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -282,9 +297,9 @@ export default function YardsPage() {
                     </td>
                     <td className="px-3 py-2">
                       {y.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -296,7 +311,7 @@ export default function YardsPage() {
                             className="h-7 text-xs"
                             onClick={() => openEdit(y)}
                           >
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         {canUpdate && (
@@ -304,9 +319,12 @@ export default function YardsPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(y)}
-                            title={y.isActive ? 'Deactivate' : 'Activate'}
-                            aria-label={y.isActive ? 'Deactivate yard' : 'Activate yard'}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(y);
+                            }}
+                            title={y.isActive ? ui('deactivate') : ui('activate')}
+                            aria-label={y.isActive ? ui('deactivateYard') : ui('activateYard')}
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -317,7 +335,7 @@ export default function YardsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -341,8 +359,8 @@ export default function YardsPage() {
             setEditing(null);
           }
         }}
-        title={editing ? `Edit — ${editing.code}` : 'New yard'}
-        description={editing ? 'Update the yard master record.' : 'Create a yard within a port.'}
+        title={editing ? ui('editValue', { value0: String(editing.code) }) : ui('newYard')}
+        description={editing ? ui('updateTheYardMasterRecord') : ui('createAYardWithinAPort')}
         footer={
           <>
             <Button
@@ -353,10 +371,10 @@ export default function YardsPage() {
                 setEditing(null);
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submit}>
-              {editing ? 'Save changes' : 'Create yard'}
+              {editing ? ui('saveChanges') : ui('createYard')}
             </Button>
           </>
         }
@@ -364,7 +382,7 @@ export default function YardsPage() {
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="yard-port" className="block">
-              Port *
+              {ui('portRequired')}
             </Label>
             <select
               id="yard-port"
@@ -373,7 +391,7 @@ export default function YardsPage() {
               onChange={(e) => updateField('portId', e.target.value)}
               autoFocus
             >
-              <option value="">Select a port…</option>
+              <option value="">{ui('selectAPort')}</option>
               {ports.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.code})
@@ -384,56 +402,65 @@ export default function YardsPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="yard-code" className="block">
-                Code *
+                {ui('codeRequired')}
               </Label>
               <Input
                 id="yard-code"
                 value={form.code}
                 onChange={(e) => updateField('code', e.target.value.toUpperCase())}
-                placeholder="JEBALI-Y1"
+                placeholder={ui('jebaliY1')}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="yard-name" className="block">
-                Name *
+                {ui('nameRequired')}
               </Label>
               <Input
                 id="yard-name"
                 value={form.name}
                 onChange={(e) => updateField('name', e.target.value)}
-                placeholder="Yard 1"
+                placeholder={ui('yard1')}
               />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="yard-address" className="block">
-              Address
+              {ui('address')}
             </Label>
             <Input
               id="yard-address"
               value={form.address}
               onChange={(e) => updateField('address', e.target.value)}
-              placeholder="Sector, area, zone…"
+              placeholder={ui('sectorAreaZone')}
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Toggle confirm */}
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate yard' : 'Activate yard'}
+        title={toggling?.isActive ? ui('deactivateYard') : ui('activateYard')}
         description={
           toggling?.isActive
-            ? `Deactivating yard "${toggling?.name}" keeps it in master data but marks it unavailable for new cargo.`
-            : `Re-activating yard "${toggling?.name}" makes it available for operations.`
+            ? ui('deactivatingYardValueKeepsItInMasterDataButMarksIt', {
+                value0: String(toggling?.name),
+              })
+            : ui('reActivatingYardValueMakesItAvailableForOperations', {
+                value0: String(toggling?.name),
+              })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleActive}
+        error={formError}
       />
     </div>
   );
@@ -441,7 +468,8 @@ export default function YardsPage() {
 
 /** Strip empty strings so optional fields are omitted from the request. */
 function formInput(f: FormValues): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v.trim() !== '')
-  ) as Record<string, string>;
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
+    string,
+    string
+  >;
 }

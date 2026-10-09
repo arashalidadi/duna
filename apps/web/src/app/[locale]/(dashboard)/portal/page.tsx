@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -26,7 +29,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { formatDateTime } from '@/lib/date';
+import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,22 +48,26 @@ const SELECT_CLASS =
 
 const BOOKING_STATUSES: BookingStatus[] = ['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED'];
 
-const BOOKING_STATUS_META: Record<BookingStatus, { variant: 'neutral' | 'info' | 'success' | 'danger' | 'warning' }> = {
+const BOOKING_STATUS_META: Record<
+  BookingStatus,
+  { variant: 'neutral' | 'info' | 'success' | 'danger' | 'warning' }
+> = {
   PENDING: { variant: 'info' },
   ACCEPTED: { variant: 'success' },
   DECLINED: { variant: 'danger' },
   CANCELLED: { variant: 'neutral' },
 };
 
-const MANIFEST_STATUS_META: Record<string, { variant: 'neutral' | 'info' | 'success' | 'danger' }> = {
-  DRAFT: { variant: 'neutral' },
-  SUBMITTED: { variant: 'info' },
-  APPROVED: { variant: 'success' },
-  CANCELLED: { variant: 'danger' },
-};
+const MANIFEST_STATUS_META: Record<string, { variant: 'neutral' | 'info' | 'success' | 'danger' }> =
+  {
+    DRAFT: { variant: 'neutral' },
+    SUBMITTED: { variant: 'info' },
+    APPROVED: { variant: 'success' },
+    CANCELLED: { variant: 'danger' },
+  };
 
-const fmtAmount = (n: number) =>
-  n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtAmount = (n: number, displayLocale: string) =>
+  n.toLocaleString(displayLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 type Tab = 'bookings' | 'shipments' | 'statement';
 
@@ -71,6 +78,7 @@ interface PortOption {
 }
 
 export default function PortalPage() {
+  const uiLocale = useUiLocale();
   const { hasPermission } = useAuth();
   const tc = useTranslations('common');
   const t = useTranslations('portal');
@@ -127,40 +135,50 @@ export default function PortalPage() {
     }
   }, [tc]);
 
-  const loadBookings = useCallback(async (page: number, status: 'ALL' | BookingStatus) => {
-    setBLoading(true);
-    try {
-      const qs = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
-      if (status !== 'ALL') qs.set('status', status);
-      const res = await api.get<PaginatedResult<BookingRequest>>(`/portal/bookings?${qs.toString()}`);
-      setBookings(res.data);
-      setBTotal(res.meta.totalItems);
-    } catch (e) {
-      setLoadError(e instanceof ApiError ? e.message : tc('errors.generic'));
-    } finally {
-      setBLoading(false);
-    }
-  }, [tc]);
+  const loadBookings = useCallback(
+    async (page: number, status: 'ALL' | BookingStatus) => {
+      setBLoading(true);
+      try {
+        const qs = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+        if (status !== 'ALL') qs.set('status', status);
+        const res = await api.get<PaginatedResult<BookingRequest>>(
+          `/portal/bookings?${qs.toString()}`
+        );
+        setBookings(res.data);
+        setBTotal(res.meta.totalItems);
+      } catch (e) {
+        setLoadError(e instanceof ApiError ? e.message : tc('errors.generic'));
+      } finally {
+        setBLoading(false);
+      }
+    },
+    [tc]
+  );
 
-  const loadShipments = useCallback(async (page: number) => {
-    setSLoading(true);
-    try {
-      const res = await api.get<PaginatedResult<PortalShipment>>(
-        `/portal/shipments?page=${page}&pageSize=${PAGE_SIZE}`
-      );
-      setShipments(res.data);
-      setSTotal(res.meta.totalItems);
-    } catch (e) {
-      setLoadError(e instanceof ApiError ? e.message : tc('errors.generic'));
-    } finally {
-      setSLoading(false);
-    }
-  }, [tc]);
+  const loadShipments = useCallback(
+    async (page: number) => {
+      setSLoading(true);
+      try {
+        const res = await api.get<PaginatedResult<PortalShipment>>(
+          `/portal/shipments?page=${page}&pageSize=${PAGE_SIZE}`
+        );
+        setShipments(res.data);
+        setSTotal(res.meta.totalItems);
+      } catch (e) {
+        setLoadError(e instanceof ApiError ? e.message : tc('errors.generic'));
+      } finally {
+        setSLoading(false);
+      }
+    },
+    [tc]
+  );
 
   const loadStatement = useCallback(async () => {
     setStLoading(true);
     try {
-      const res = await api.get<{ entries: LedgerEntry[]; summary: LedgerSummary }>('/portal/statement');
+      const res = await api.get<{ entries: LedgerEntry[]; summary: LedgerSummary }>(
+        '/portal/statement'
+      );
       setEntries(res.entries);
       setSummary(res.summary);
     } catch (e) {
@@ -285,13 +303,26 @@ export default function PortalPage() {
 
       {me && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SummaryCard icon={<FileText className="h-4 w-4" />} label={t('summary.bookingsTotal')} value={String(me.summary.bookingsTotal)} />
-          <SummaryCard icon={<CalendarDays className="h-4 w-4" />} label={t('summary.pending')} value={String(me.summary.bookingsPending)} accent={me.summary.bookingsPending > 0} />
-          <SummaryCard icon={<Anchor className="h-4 w-4" />} label={t('summary.approvedManifests')} value={String(me.summary.approvedManifests)} />
+          <SummaryCard
+            icon={<FileText className="h-4 w-4" />}
+            label={t('summary.bookingsTotal')}
+            value={String(me.summary.bookingsTotal)}
+          />
+          <SummaryCard
+            icon={<CalendarDays className="h-4 w-4" />}
+            label={t('summary.pending')}
+            value={String(me.summary.bookingsPending)}
+            accent={me.summary.bookingsPending > 0}
+          />
+          <SummaryCard
+            icon={<Anchor className="h-4 w-4" />}
+            label={t('summary.approvedManifests')}
+            value={String(me.summary.approvedManifests)}
+          />
           <SummaryCard
             icon={<Scale className="h-4 w-4" />}
             label={t('summary.balanceDue')}
-            value={fmtAmount(me.summary.balanceDue)}
+            value={fmtAmount(me.summary.balanceDue, uiLocale)}
             sub={me.summary.currencyCode}
           />
         </div>
@@ -303,7 +334,9 @@ export default function PortalPage() {
             key={key}
             onClick={() => setTab(key)}
             className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              tab === key
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Icon className="h-4 w-4" />
@@ -342,7 +375,9 @@ export default function PortalPage() {
         />
       )}
 
-      {tab === 'statement' && <StatementTab entries={entries} summary={summary} loading={stLoading} />}
+      {tab === 'statement' && (
+        <StatementTab entries={entries} summary={summary} loading={stLoading} />
+      )}
 
       <Dialog
         open={showCreate}
@@ -366,7 +401,12 @@ export default function PortalPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="bk-origin">{t('form.originPort')}</Label>
-              <select id="bk-origin" className={`w-full ${SELECT_CLASS}`} value={fOrigin} onChange={(e) => setFOrigin(e.target.value)}>
+              <select
+                id="bk-origin"
+                className={`w-full ${SELECT_CLASS}`}
+                value={fOrigin}
+                onChange={(e) => setFOrigin(e.target.value)}
+              >
                 <option value="">{tc('select')}</option>
                 {ports.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -377,7 +417,12 @@ export default function PortalPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bk-dest">{t('form.destinationPort')}</Label>
-              <select id="bk-dest" className={`w-full ${SELECT_CLASS}`} value={fDest} onChange={(e) => setFDest(e.target.value)}>
+              <select
+                id="bk-dest"
+                className={`w-full ${SELECT_CLASS}`}
+                value={fDest}
+                onChange={(e) => setFDest(e.target.value)}
+              >
                 <option value="">{tc('select')}</option>
                 {ports.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -390,7 +435,13 @@ export default function PortalPage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="bk-date">{t('form.requestedShipDate')}</Label>
-              <Input id="bk-date" type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} className={SELECT_CLASS} />
+              <Input
+                id="bk-date"
+                type="date"
+                value={fDate}
+                onChange={(e) => setFDate(e.target.value)}
+                className={SELECT_CLASS}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="bk-containers">{t('form.containers')}</Label>
@@ -459,13 +510,17 @@ function SummaryCard({
   return (
     <Card>
       <CardContent className="p-4">
-        <div className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wide ${accent ? 'text-amber-600' : 'text-muted-foreground'}`}>
+        <div
+          className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wide ${accent ? 'text-warning' : 'text-muted-foreground'}`}
+        >
           {icon}
           {label}
         </div>
         <div className="mt-1.5 text-xl font-semibold tabular-nums text-foreground">
           {value}
-          {sub ? <span className="ms-1.5 text-xs font-normal text-muted-foreground">{sub}</span> : null}
+          {sub ? (
+            <span className="ms-1.5 text-xs font-normal text-muted-foreground">{sub}</span>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -521,9 +576,12 @@ function BookingsTab({
         </div>
 
         {bookings.length === 0 && !loading ? (
-          <EmptyState title={t('list.empty')} description={customer ? t('list.emptyHint') : t('notLinked')} />
+          <EmptyState
+            title={t('list.empty')}
+            description={customer ? t('list.emptyHint') : t('notLinked')}
+          />
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-start text-xs uppercase text-muted-foreground">
@@ -555,17 +613,23 @@ function BookingsTab({
                         {b.destinationPort?.name ?? '—'}
                       </td>
                       <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">
-                        {b.requestedShipDate ? b.requestedShipDate.slice(0, 10) : '—'}
+                        {b.requestedShipDate ? formatDateShort(b.requestedShipDate, locale) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-end tabular-nums">{b.containers ?? '—'}</td>
                       <td className="max-w-[200px] px-4 py-2.5 text-xs">
                         {b.status === 'ACCEPTED' || b.status === 'DECLINED' ? (
                           <div>
-                            <span className={b.status === 'ACCEPTED' ? 'text-emerald-600' : 'text-destructive'}>
+                            <span
+                              className={
+                                b.status === 'ACCEPTED' ? 'text-success' : 'text-destructive'
+                              }
+                            >
                               {b.responseNote || t(`status.${b.status}`)}
                             </span>
                             {b.handledAt && (
-                              <div className="text-[11px] text-muted-foreground">{formatDateTime(b.handledAt, locale)}</div>
+                              <div className="text-[11px] text-muted-foreground">
+                                {formatDateTime(b.handledAt, locale)}
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -590,9 +654,15 @@ function BookingsTab({
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
-        <Pagination page={page} pageSize={pageSize} totalItems={totalItems} totalPages={Math.max(1, Math.ceil(totalItems / pageSize))} onPageChange={onPage} />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          totalPages={Math.max(1, Math.ceil(totalItems / pageSize))}
+          onPageChange={onPage}
+        />
       </CardContent>
     </Card>
   );
@@ -613,17 +683,20 @@ function ShipmentsTab({
   pageSize: number;
   onPage: (p: number) => void;
 }) {
+  const uiLocale = useUiLocale();
   const tc = useTranslations('common');
   const t = useTranslations('portal');
 
   return (
     <Card>
       <CardContent className="p-0">
-        {loading && <div className="border-b px-4 py-3 text-xs text-muted-foreground">{tc('loading')}</div>}
+        {loading && (
+          <div className="border-b px-4 py-3 text-xs text-muted-foreground">{tc('loading')}</div>
+        )}
         {shipments.length === 0 && !loading ? (
           <EmptyState title={t('shipments.empty')} />
         ) : (
-          <div className="overflow-x-auto">
+          <TableScroll className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -644,7 +717,9 @@ function ShipmentsTab({
                     <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="px-4 py-2.5">
                         <div className="font-mono text-xs">{s.manifestNumber}</div>
-                        {s.voyageNumber && <div className="text-[11px] text-muted-foreground">{s.voyageNumber}</div>}
+                        {s.voyageNumber && (
+                          <div className="text-[11px] text-muted-foreground">{s.voyageNumber}</div>
+                        )}
                       </td>
                       <td className="px-4 py-2.5">
                         <Badge variant={meta.variant}>{t(`manifest.${s.status}`)}</Badge>
@@ -656,21 +731,29 @@ function ShipmentsTab({
                         {s.pod?.name ?? '—'}
                       </td>
                       <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">
-                        {s.departureDate ? s.departureDate.slice(0, 10) : '—'}
+                        {s.departureDate ? formatDateShort(s.departureDate, uiLocale) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">
-                        {s.arrivalDate ? s.arrivalDate.slice(0, 10) : '—'}
+                        {s.arrivalDate ? formatDateShort(s.arrivalDate, uiLocale) : '—'}
                       </td>
-                      <td className="px-4 py-2.5 text-end tabular-nums">{fmtAmount(s.totalWeight)}</td>
+                      <td className="px-4 py-2.5 text-end tabular-nums">
+                        {fmtAmount(s.totalWeight, uiLocale)}
+                      </td>
                       <td className="px-4 py-2.5 text-end tabular-nums">{s.totalQuantity}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
-        <Pagination page={page} pageSize={pageSize} totalItems={totalItems} totalPages={Math.max(1, Math.ceil(totalItems / pageSize))} onPageChange={onPage} />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          totalPages={Math.max(1, Math.ceil(totalItems / pageSize))}
+          onPageChange={onPage}
+        />
       </CardContent>
     </Card>
   );
@@ -685,6 +768,7 @@ function StatementTab({
   summary: LedgerSummary | null;
   loading: boolean;
 }) {
+  const uiLocale = useUiLocale();
   const tc = useTranslations('common');
   const t = useTranslations('portal');
 
@@ -692,12 +776,27 @@ function StatementTab({
     <div className="space-y-4">
       {summary && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <SummaryCard label={t('statement.opening')} value={fmtAmount(Number(summary.openingBalance))} sub={summary.currencyCode} icon={<ReceiptText className="h-4 w-4" />} />
-          <SummaryCard label={t('statement.debits')} value={fmtAmount(Number(summary.totalDebit))} sub={summary.currencyCode} icon={<ReceiptText className="h-4 w-4" />} />
-          <SummaryCard label={t('statement.credits')} value={fmtAmount(Number(summary.totalCredit))} sub={summary.currencyCode} icon={<ReceiptText className="h-4 w-4" />} />
+          <SummaryCard
+            label={t('statement.opening')}
+            value={fmtAmount(Number(summary.openingBalance), uiLocale)}
+            sub={summary.currencyCode}
+            icon={<ReceiptText className="h-4 w-4" />}
+          />
+          <SummaryCard
+            label={t('statement.debits')}
+            value={fmtAmount(Number(summary.totalDebit), uiLocale)}
+            sub={summary.currencyCode}
+            icon={<ReceiptText className="h-4 w-4" />}
+          />
+          <SummaryCard
+            label={t('statement.credits')}
+            value={fmtAmount(Number(summary.totalCredit), uiLocale)}
+            sub={summary.currencyCode}
+            icon={<ReceiptText className="h-4 w-4" />}
+          />
           <SummaryCard
             label={t('statement.closing')}
-            value={fmtAmount(Number(summary.closingBalance))}
+            value={fmtAmount(Number(summary.closingBalance), uiLocale)}
             sub={summary.currencyCode}
             accent={Number(summary.closingBalance) > 0}
             icon={<Scale className="h-4 w-4" />}
@@ -706,17 +805,21 @@ function StatementTab({
       )}
       <Card>
         <CardContent className="p-0">
-          {loading && <div className="border-b px-4 py-3 text-xs text-muted-foreground">{tc('loading')}</div>}
+          {loading && (
+            <div className="border-b px-4 py-3 text-xs text-muted-foreground">{tc('loading')}</div>
+          )}
           {entries.length === 0 && !loading ? (
             <EmptyState title={t('statement.empty')} />
           ) : (
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
                     <th className="px-4 py-2.5 text-start font-medium">{t('statement.date')}</th>
                     <th className="px-4 py-2.5 text-start font-medium">{t('statement.doc')}</th>
-                    <th className="px-4 py-2.5 text-start font-medium">{t('statement.description')}</th>
+                    <th className="px-4 py-2.5 text-start font-medium">
+                      {t('statement.description')}
+                    </th>
                     <th className="px-4 py-2.5 text-end font-medium">{t('statement.debit')}</th>
                     <th className="px-4 py-2.5 text-end font-medium">{t('statement.credit')}</th>
                     <th className="px-4 py-2.5 text-end font-medium">{t('statement.balance')}</th>
@@ -724,18 +827,29 @@ function StatementTab({
                 </thead>
                 <tbody>
                   {entries.map((e, idx) => (
-                    <tr key={`${e.date}-${e.description}-${idx}`} className="border-b last:border-0 hover:bg-muted/40">
-                      <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">{e.date.slice(0, 10)}</td>
+                    <tr
+                      key={`${e.date}-${e.description}-${idx}`}
+                      className="border-b last:border-0 hover:bg-muted/40"
+                    >
+                      <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">
+                        {formatDateShort(e.date, uiLocale)}
+                      </td>
                       <td className="px-4 py-2.5 font-mono text-xs">{e.documentNumber ?? '—'}</td>
-                      <td className="max-w-[280px] truncate px-4 py-2.5" title={e.description}>{e.description}</td>
-                      <td className="px-4 py-2.5 text-end tabular-nums">{e.debit !== '0.00' && e.debit ? e.debit : '—'}</td>
-                      <td className="px-4 py-2.5 text-end tabular-nums">{e.credit !== '0.00' && e.credit ? e.credit : '—'}</td>
+                      <td className="max-w-[280px] truncate px-4 py-2.5" title={e.description}>
+                        {e.description}
+                      </td>
+                      <td className="px-4 py-2.5 text-end tabular-nums">
+                        {e.debit !== '0.00' && e.debit ? e.debit : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-end tabular-nums">
+                        {e.credit !== '0.00' && e.credit ? e.credit : '—'}
+                      </td>
                       <td className="px-4 py-2.5 text-end font-medium tabular-nums">{e.balance}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </CardContent>
       </Card>

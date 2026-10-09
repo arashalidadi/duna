@@ -1,6 +1,69 @@
 # Progress
 
+## Current priority — publication for testing on the user's server
+
+The user has explicitly removed the Arena-login prerequisite. Stop preview backend provisioning
+and real-login attempts. Preserve the existing redesign, port configuration and regression tests;
+prepare a non-force branch publication and PR to `ai-test`, without merging. Current production
+environment variables and exact next-session GitHub commands are in
+`docs/ops/publication-handoff.md`; it supersedes login-first conditions in historical entries.
+This closed session cannot access GitHub, so do not claim a push or PR exists. The latest recovery
+archive must contain the final committed work and shallow-aware restoration instructions.
+
+Fresh publication checks all pass: web typecheck/lint, production build (108 static pages),
+translation/contract guards, **22/22 browser regressions** against that new build (3.0 minutes),
+config **10/10**, port checks **7/7**, shared/config builds/typechecks, and API method/path
+comparison on all 33 pages. Local diff review found no tracked real environment files, new
+credential patterns or runtime artifacts. Application source/auth/admin state were not changed.
+The production preview was restarted after the build; server-side acceptance remains with the user.
+
+## Latest real-admin login investigation — 2026-10-09
+
+- Existing commits and shallow-aware recovery archive survived this continuation and were verified; no redundant preservation checkpoint or redesign was made.
+- Submitted the supplied credentials once in a real, unmocked browser: `POST /api/v1/auth/login` returned **502 UPSTREAM_UNAVAILABLE**; dashboard not reached. Proxy source and running compiled build correctly target **3010**.
+- Actual API startup exited 1 with **missing DATABASE_URL** before listening. Both JWT secrets and PostgreSQL/runtime connection are also absent. Prisma Client import fails; fresh engine generation remains download-blocked.
+- Account existence/password validity cannot be determined without the database. No account/password changes or seed were performed. Supplied credentials were not added to tracked files.
+- Fresh web typecheck/lint/guards, browser **22/22**, config **10/10**, and port tests **7/7** pass. Existing validated production build remains live; it was not rebuilt because application source is unchanged. Mocked UI passes are not real-login success.
+- Publication is still blocked by both the requested real-login gate and the closed session's GitHub restrictions. Full evidence and prerequisites: `docs/ops/admin-login-verification.md`.
+
+## Latest port/publication resumption — 2026-10-09
+
+- Restored files survived but previously reported `ba48f28` / `20ca01cd` objects and external bundles did not. Preserved 111 intended landing/dashboard changes in `3aa1f1b15f54e68c49451f670785617a5fa93507` on the same `arena/fe92d85a-duna` branch. Existing UI design/tests were not redone.
+- Found inconsistent 3001 API fallback vs 3101 proxy/scripts/examples; no configured 3010 or running API existed. Aligned development defaults to the user's stated **3010**, preserving explicit port overrides. Browser remains same-origin `/api/v1`; web server upstream is `http://127.0.0.1:3010`.
+- Fresh passes: web typecheck/lint/guards/build (108 pages), **22/22 browser tests**, shared/config build/typechecks, **10/10 config tests**, **7/7 port/script tests**. Real health still 502; API/database are absent. Prisma's matching native-engine checksum download is restricted; API build fails on missing generated types. No real credentials/DB workflows verified.
+- Backup restore testing found this checkout is shallow: bundle verification alone was insufficient. Include saved shallow-boundary metadata with the bundle; isolated import with metadata passes fsck and reproduces the tree. Download the final recovery archive separately, not as source in Git.
+- GitHub still disabled in this closed session. Neither target remote ref is cached. No live ancestry/ai-test comparison, push or PR creation claimed; PR body prepared only. See `docs/ops/backend-connection-audit.md` and `docs/ui/pr-ai-test.md` for safe next-session instructions.
+
+## Current continuation audit — 2026-10-09
+
+- Preserved 110 restored landing/dashboard files in local checkpoint `ba48f28869cb5607847ba195420151f3fca3297b` on `arena/fe92d85a-duna`, plus a verified complete-history bundle. Historical `b9e9018` / `104ba1f` / `0965762` / `431ed57` objects are absent from this restored checkout; no remote presence is inferred.
+- Corrected keyboard preference menus, stored-theme initialization, remaining address/notification/metadata localization, displayed date/number locale use, and light/dark error contrast. Date input payloads and API/business contracts preserved.
+- **Fresh passes:** web typecheck/lint/build (108 static pages), shared/config typecheck/build, config 6/6, i18n 2,114 leaves ×3, contract guard, independent method/path parity on 33 pages, and production Chromium **22/22** UI tests. The 24 creation modules ×3 locales now cannot be silently skipped. Unmocked login/outage and settled axe checks pass in EN/FA/AR × light/dark.
+- **Not complete:** actual API is absent (`/api/v1/health` = 502), PostgreSQL/env/accounts are not provisioned, Prisma engine download is blocked. API build/typecheck fail on generated-client dependencies; API E2E runs 0 tests (22 initialization failures). API lint has one unchanged baseline error and 33 warnings. No real login, database workflows or server RBAC acceptance is claimed; dynamic server errors remain untranslated.
+- Production web preview remains on `0.0.0.0:3000`. No fake data/auth bypass was added. This closed session cannot push or verify GitHub; all new commits remain local and require a new-session ancestry review before any non-force push.
+- Detailed evidence, prior-vs-current distinctions and backend setup: `docs/ui/dashboard-redesign.md`. Historical phase verification below is not a fresh backend test result.
+
 ## Completed
+
+### Dashboard UI/UX refresh (frontend implementation; live-backend verification pending)
+
+- Premium shared shell, responsive accordion/icon sidebar, mobile RTL drawer, localized language menu and persistent light/dark/system themes.
+- Redesigned login and live-health/module overview; existing operational routes, API contracts and RBAC retained.
+- Fixed dialog keystroke focus loss, recursive Shippers search icon, unassociated form labels, hidden confirmation errors, Arabic drawer direction, missing/localization keys and unsafe universal password-reset value.
+- Added localization guards and Playwright UI regression tests. Auth proxy now reports unavailable upstreams as 502, and session restoration offers recovery without erasing valid tokens on network failure.
+- Preview still needs a real API/database and environment configuration; this sandbox has neither, and Prisma binary downloads are network-blocked. No auth bypass or fake business data added.
+- Details and reproduction/setup steps: `docs/ui/dashboard-redesign.md`.
+
+### Public landing page redesign (marketing site) (completed)
+
+- **Scope:** `apps/web` only — the public `/[locale]` home page. Dashboard pages, routes, API and business logic untouched.
+- **Fixes a pre-existing build break:** the committed homepage failed `next build` with three TS7053 errors (`useMessages()` indexed with untyped keys). The page is now a server component with typed `t.raw()` access, and the web build passes again.
+- **Structure:** full-bleed hero (port photograph, headline, primary dashboard CTA, floating capability strip) → company → six services → six-stage operations flow → fleet & facilities → coverage (port groups) → platform + dashboard access panel → contact → footer. Dashboard access is preserved and promoted: header, hero, platform panel, contact card and footer all link to `/login`, and the authenticated → `/dashboard` redirect behaviour is kept (`AuthGate`).
+- **i18n:** the `home` namespace was rewritten in en/fa/ar (118 leaf keys, identical key sets across locales — verified programmatically). Persian and Arabic are true RTL builds: `dir="rtl"` on `<html>`, logical spacing/alignment utilities throughout, mirrored directional icons, and Arabic-script letter-spacing resets. Language switching works from the header dropdown and from the footer (no JavaScript required, via next-intl `Link locale`).
+- **Typography/assets:** self-hosted Inter (Latin), Vazirmatn (fa) and IBM Plex Sans Arabic (ar, selected by `html[lang='ar']`) — no build-time font fetch; six generated photographs under `public/images`.
+- **Design tokens:** additive `brand`/`brass` marketing palette in `globals.css` + `tailwind.config.ts`; the ERP semantic tokens are unchanged. Landing motion helpers (`.reveal`, `.hero-rise`, `.hero-pan`) ship with `prefers-reduced-motion` and `scripting: none` fallbacks.
+- **Verification:** `typecheck`, `lint`, `build` (108 static pages across 3 locales) and the contract guard all green; fa/en/ar pages serve 200 with correct `lang`/`dir`, per-locale metadata (title, description, canonical, hreflang) and no runtime/formatting errors.
+
 ### Phase 20 — Agent Portal (completed)
 
 - **Model:** `BookingRequest` (auto `BRK-YYMM-#####`, customer link, cargo description ≤255, optional origin/destination ports, requested ship date, containers, weightKg, notes, status PENDING/ACCEPTED/DECLINED/CANCELLED, responseNote + handledBy/At stamps, soft delete) + `User.portalCustomerId` (nullable **unique** FK → one portal login per company) + `Customer.portalUsers` back-relation. Migration `20260913210526_phase20_agent_portal` (diff→deploy recipe).

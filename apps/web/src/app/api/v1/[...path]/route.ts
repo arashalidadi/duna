@@ -1,65 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-/**
- * Same-origin reverse proxy for the NestJS API.
- *
- * The public deployment is served behind a reverse proxy that fronts only the
- * Next.js app (see /etc/nginx/sites-available/dashboard.3ree.eu.cc), so there is
- * no public route to the API process. This route handler forwards `/api/v1/*`
- * to the API service so the browser never needs a hard-coded origin:
- *
- *   browser (dashboard.3ree.eu.cc) ──▶ nginx ──▶ Next route handler ──▶ API (127.0.0.1:3101)
- *   browser (http://127.0.0.1:3000) ──────────▶ Next route handler ──▶ API (127.0.0.1:3101)
- *
- * Keeping the request same-origin avoids all browser CORS/preflight issues for
- * public (and local) authentication without weakening CORS on the API.
- */
-const API_ORIGIN =
-  process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:3101';
-const API_BASE = `${API_ORIGIN}/api/v1`;
-
+// Server-only upstream. The browser uses /api/v1, never the sandbox's loopback address.
+const API_ORIGIN = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:3010';
 async function forward(
   request: NextRequest,
   ctx: { params: { path: string[] } }
 ): Promise<NextResponse> {
-  const path = ctx.params.path;
-
-  const target = new URL(`${API_BASE}/${path.join('/')}`);
+  const target = new URL(
+    `${API_ORIGIN.replace(/\/$/, '')}/api/v1/${ctx.params.path.map(encodeURIComponent).join('/')}`
+  );
   target.search = request.nextUrl.search;
-
   const headers = new Headers();
-  const contentType = request.headers.get('content-type');
-  if (contentType && !contentType.includes('multipart/form-data')) {
-    headers.set('content-type', contentType);
+  for (const name of ['content-type', 'authorization', 'x-refresh-token', 'accept']) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
   }
-  const authorization = request.headers.get('authorization');
-  if (authorization) headers.set('authorization', authorization);
-  const refreshToken = request.headers.get('x-refresh-token');
-  if (refreshToken) headers.set('x-refresh-token', refreshToken);
-
-  const { method } = request;
-  const body =
-    method === 'GET' || method === 'HEAD'
-      ? undefined
-      : await request.arrayBuffer().catch(() => new ArrayBuffer(0));
-
-  const upstream = await fetch(target.toString(), {
-    method,
-    headers,
-    body: body && body.byteLength > 0 ? body : undefined,
-    cache: 'no-store',
-  });
-
-  const upstreamBody = await upstream.arrayBuffer();
-
-  const response = new NextResponse(Buffer.from(upstreamBody), {
-    status: upstream.status,
-    headers: upstream.headers,
-  });
-
-  return response;
+  try {
+    const body =
+      request.method === 'GET' || request.method === 'HEAD'
+        ? undefined
+        : await request.arrayBuffer();
+    const upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body: body?.byteLength ? body : undefined,
+      cache: 'no-store',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
+    });
+    // Do not forward transport headers after fetch decompression, or expose upstream cookies.
+    // Authentication uses the existing bearer/refresh-token response contract, not cookies.
+    const responseHeaders = new Headers({ 'Cache-Control': 'no-store' });
+    for (const name of ['content-type', 'content-disposition', 'retry-after']) {
+      const value = upstream.headers.get(name);
+      if (value) responseHeaders.set(name, value);
+    }
+    return new NextResponse(
+      upstream.status === 204 || upstream.status === 304 ? null : await upstream.arrayBuffer(),
+      { status: upstream.status, headers: responseHeaders }
+    );
+  } catch {
+    // A missing preview API must be distinguishable from invalid credentials.
+    // No hostnames, credentials, stack traces or environment values are returned.
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          statusCode: 502,
+          message: 'API service unavailable',
+          code: 'UPSTREAM_UNAVAILABLE',
+        },
+      },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
 }
-
 export const GET = forward;
 export const POST = forward;
 export const PUT = forward;

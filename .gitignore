@@ -15,3 +15,10 @@ logs/
 graphify-out/
 .codebase-memory/
 .cbmignore
+
+# Local browser-test artifacts
+playwright-report/
+test-results/
+
+# Portable local backups and audit evidence; download separately, never publish
+/.handoff/
