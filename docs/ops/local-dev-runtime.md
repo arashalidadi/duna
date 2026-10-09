@@ -1,5 +1,14 @@
 # ERP Local Development — Runtime & Persistence
 
+> Current API default: **3101**. The startup/status scripts honor exported `API_PORT`, then
+> repo-root `.env`, then this default. Set the matching server-only `API_INTERNAL_URL` in
+> `apps/web/.env.local`; keep `NEXT_PUBLIC_API_URL=/api/v1`.
+>
+> The machine-specific PostgreSQL paths and persistence notes below describe a **historical
+> workstation**, not provisioned services in a fresh Arena workspace. Check binaries, cluster,
+> credentials and listeners first. Do not execute install/init/reset against an existing DB
+> merely to repair a preview. See [current audit](backend-connection-audit.md).
+
 ## Quick start
 
 ```bash

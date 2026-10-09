@@ -1,11 +1,10 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
-import type {
-  PaginatedResult,
-  PermissionListItem,
-  RoleListItem,
-} from '@shipping/shared';
+import type { PaginatedResult, PermissionListItem, RoleListItem } from '@shipping/shared';
 import { ShieldCheck, Plus, KeyRound, Power } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -32,6 +31,7 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 25;
 
 export default function RolesPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<RoleListItem> | null>(null);
   const [permissions, setPermissions] = useState<PermissionListItem[]>([]);
@@ -50,22 +50,25 @@ export default function RolesPage() {
   const [description, setDescription] = useState('');
   const [selectedPermissions, setSelectedPermissions] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async (p: number) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [roleData, permData] = await Promise.all([
-        api.get<PaginatedResult<RoleListItem>>(`/roles?page=${p}&pageSize=${PAGE_SIZE}`),
-        api.get<PermissionListItem[]>('/permissions/all'),
-      ]);
-      setData(roleData);
-      setPermissions(permData);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load roles');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (p: number) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [roleData, permData] = await Promise.all([
+          api.get<PaginatedResult<RoleListItem>>(`/roles?page=${p}&pageSize=${PAGE_SIZE}`),
+          api.get<PermissionListItem[]>('/permissions/all'),
+        ]);
+        setData(roleData);
+        setPermissions(permData);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadRoles'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ui]
+  );
 
   useEffect(() => {
     load(page);
@@ -87,7 +90,7 @@ export default function RolesPage() {
     e.preventDefault();
     setFormError(null);
     if (!code.trim() || !name.trim()) {
-      setFormError('Code and name are required.');
+      setFormError(ui('codeAndNameAreRequired'));
       return;
     }
     setSaving(true);
@@ -101,7 +104,7 @@ export default function RolesPage() {
       setPage(1);
       await load(1);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to create role');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCreateRole'));
     } finally {
       setSaving(false);
     }
@@ -118,15 +121,14 @@ export default function RolesPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const updated = await api.patch<RoleListItem>(
-        `/roles/${editing.id}/permissions`,
-        { permissionIds: Array.from(selectedPermissions) }
-      );
+      const updated = await api.patch<RoleListItem>(`/roles/${editing.id}/permissions`, {
+        permissionIds: Array.from(selectedPermissions),
+      });
       setEditing(null);
       await load(page);
       void updated;
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update permissions');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdatePermissions'));
     } finally {
       setSaving(false);
     }
@@ -143,7 +145,7 @@ export default function RolesPage() {
       setToggling(null);
       await load(page);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update role');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateRole'));
     } finally {
       setSaving(false);
     }
@@ -155,45 +157,45 @@ export default function RolesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Roles' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Roles</h1>
+          <Breadcrumbs items={[{ label: ui('roles') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('roles')}</h1>
           <p className="text-sm text-muted-foreground">
-            Define who can access what. Permissions are enforced server-side.
+            {ui('defineWhoCanAccessWhatPermissionsAreEnforcedServerSide')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New role
+            {ui('newRole')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Role registry</CardTitle>
-          <CardDescription>Active roles visible to you.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('roleRegistry')}</CardTitle>
+          <CardDescription>{ui('activeRolesVisibleToYou')}</CardDescription>
         </CardHeader>
         {loading ? (
-          <PageLoader label="Loading roles…" />
+          <PageLoader label={ui('loadingRoles')} />
         ) : error ? (
           <CardContent>
             <ErrorState message={error} onRetry={() => load(page)} />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No roles found" description="Create your first role to begin." />
+            <EmptyState title={ui('noRolesFound')} description={ui('createYourFirstRoleToBegin')} />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Role</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Users</th>
-                  <th className="px-3 py-2 text-right font-medium">Permissions</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('role')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('users')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('permissions')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,10 +208,15 @@ export default function RolesPage() {
                         </span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className={cn('truncate text-[13px] font-medium text-foreground', role.isSystem && 'italic')}>
+                            <span
+                              className={cn(
+                                'truncate text-[13px] font-medium text-foreground',
+                                role.isSystem && 'italic'
+                              )}
+                            >
                               {role.name}
                             </span>
-                            {role.isSystem && <Badge variant="neutral">System</Badge>}
+                            {role.isSystem && <Badge variant="neutral">{ui('system')}</Badge>}
                           </div>
                           <div className="font-mono text-[11px] text-muted-foreground">
                             {role.code}
@@ -219,18 +226,18 @@ export default function RolesPage() {
                     </td>
                     <td className="px-3 py-2">
                       {role.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right text-[13px] tabular-nums text-foreground">
+                    <td className="px-3 py-2 text-end text-[13px] tabular-nums text-foreground">
                       {role.userCount}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-[12px] tabular-nums text-muted-foreground">
+                    <td className="px-3 py-2 text-end font-mono text-[12px] tabular-nums text-muted-foreground">
                       {role.permissions.length}
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-end">
                       <div className="flex items-center justify-end gap-1">
                         {canManagePerms && (
                           <Button
@@ -240,7 +247,7 @@ export default function RolesPage() {
                             onClick={() => openPermissions(role)}
                           >
                             <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
-                            Permissions
+                            {ui('permissions')}
                           </Button>
                         )}
                         {(canUpdate || canManagePerms) && (
@@ -248,10 +255,19 @@ export default function RolesPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(role)}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(role);
+                            }}
                             disabled={role.isSystem}
-                            title={role.isSystem ? 'System roles cannot be deactivated' : role.isActive ? 'Deactivate' : 'Activate'}
-                            aria-label={role.isActive ? 'Deactivate role' : 'Activate role'}
+                            title={
+                              role.isSystem
+                                ? ui('systemRolesCannotBeDeactivated')
+                                : role.isActive
+                                  ? ui('deactivate')
+                                  : ui('activate')
+                            }
+                            aria-label={role.isActive ? ui('deactivateRole') : ui('activateRole')}
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -262,7 +278,7 @@ export default function RolesPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -281,15 +297,15 @@ export default function RolesPage() {
       <Dialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="New role"
-        description="Define a role that a set of permissions can be attached to."
+        title={ui('newRole')}
+        description={ui('defineARoleThatASetOfPermissionsCanBeAttached')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={createRole}>
-              Create role
+              {ui('createRole')}
             </Button>
           </>
         }
@@ -297,34 +313,34 @@ export default function RolesPage() {
         <form
           onSubmit={(e) => e.preventDefault()}
           className="space-y-4"
-          aria-label="New role form"
+          aria-label={ui('newRoleForm')}
         >
           <div className="space-y-1.5">
             <Label htmlFor="role-code" className="block">
-              Code
+              {ui('code')}
             </Label>
             <Input
               id="role-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="OPERATIONS_MANAGER"
+              placeholder={ui('operationsMANAGER')}
               autoFocus
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="role-name" className="block">
-              Name
+              {ui('name')}
             </Label>
             <Input
               id="role-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Operations Manager"
+              placeholder={ui('operationsManager')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="role-description" className="block">
-              Description
+              {ui('description')}
             </Label>
             <textarea
               id="role-description"
@@ -334,7 +350,11 @@ export default function RolesPage() {
               className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
-          {formError && <p className="text-xs text-destructive" role="alert">{formError}</p>}
+          {formError && (
+            <p className="text-xs text-destructive" role="alert">
+              {formError}
+            </p>
+          )}
         </form>
       </Dialog>
 
@@ -342,20 +362,26 @@ export default function RolesPage() {
       <Dialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
-        title={editing ? `Permissions — ${editing.name}` : 'Permissions'}
-        description="Choose the permissions granted by this role. Decisions are enforced server-side."
+        title={
+          editing ? ui('permissionsValue', { value0: String(editing.name) }) : ui('permissions')
+        }
+        description={ui('chooseThePermissionsGrantedByThisRoleDecisionsAreEnforcedServer')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setEditing(null)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={savePermissions}>
-              Save permissions
+              {ui('savePermissions')}
             </Button>
           </>
         }
       >
-        {formError && <p className="mb-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mb-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
         <div className="scrollbar-thin max-h-[50vh] space-y-4 overflow-y-auto pr-1">
           {modules.map((mod) => (
             <fieldset key={mod}>
@@ -402,16 +428,23 @@ export default function RolesPage() {
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate role' : 'Activate role'}
+        title={toggling?.isActive ? ui('deactivateRole') : ui('activateRole')}
         description={
           toggling?.isActive
-            ? `Deactivating "${toggling?.name}" removes access for its ${toggling?.userCount} assigned user${toggling?.userCount === 1 ? '' : 's'} until it is re-activated.`
-            : `Re-activating "${toggling?.name}" restores access for its assigned users.`
+            ? ui('deactivatingValueRemovesAccessForItsValueAssignedUserValueUntil', {
+                value0: String(toggling?.name),
+                value1: String(toggling?.userCount),
+                value2: String(toggling?.userCount === 1 ? '' : 's'),
+              })
+            : ui('reActivatingValueRestoresAccessForItsAssignedUsers', {
+                value0: String(toggling?.name),
+              })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleRole}
+        error={formError}
       />
     </div>
   );

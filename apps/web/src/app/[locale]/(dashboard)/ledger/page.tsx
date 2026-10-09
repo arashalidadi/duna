@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -14,13 +17,7 @@ import { api, ApiError } from '@/lib/api/client';
 import { formatDateShort } from '@/lib/date';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,8 +30,11 @@ const SELECT_CLASS =
 
 const CURRENCIES = ['', 'USD', 'AED', 'IRR', 'EUR', 'TRY', 'CNY'];
 
-function money(v: string): string {
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function money(v: string, displayLocale: string): string {
+  return Number(v).toLocaleString(displayLocale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 interface LedgerResponse {
@@ -43,6 +43,7 @@ interface LedgerResponse {
 }
 
 export default function LedgerPage() {
+  const uiLocale = useUiLocale();
   const t = useTranslations('ledger');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -93,15 +94,13 @@ export default function LedgerPage() {
 
   const entries = report?.entries ?? [];
   const summary = report?.summary;
-  const customerName = customers.find((c) => c.id === customerId)?.name ?? summary?.customerName ?? '';
+  const customerName =
+    customers.find((c) => c.id === customerId)?.name ?? summary?.customerName ?? '';
 
   return (
     <div className="space-y-6">
       <Breadcrumbs
-        items={[
-          { label: tc('nav.home'), href: '/dashboard' },
-          { label: t('page.title') },
-        ]}
+        items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]}
       />
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -125,20 +124,30 @@ export default function LedgerPage() {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-1.5">
               <Label>{t('fields.customer')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+              >
                 <option value="">{t('selectCustomer')}</option>
                 {customers.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({c.code})
+                  </option>
                 ))}
               </select>
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.currency')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={currency}
-                onChange={(e) => setCurrency(e.target.value)}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+              >
                 {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>{c === '' ? t('allCurrencies') : c}</option>
+                  <option key={c} value={c}>
+                    {c === '' ? t('allCurrencies') : c}
+                  </option>
                 ))}
               </select>
             </div>
@@ -173,28 +182,32 @@ export default function LedgerPage() {
             <CardTitle className="text-base">
               {t('statement.title', { customer: customerName })}
             </CardTitle>
-            <CardDescription>
-              {t('statement.subtitle', { count: entries.length })}
-            </CardDescription>
+            <CardDescription>{t('statement.subtitle', { count: entries.length })}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="text-xs text-muted-foreground">{t('statement.opening')}</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums">{money(summary.openingBalance)}</div>
+                <div className="mt-1 text-lg font-semibold tabular-nums">
+                  {money(summary.openingBalance, uiLocale)}
+                </div>
               </div>
               <div className="rounded-lg border bg-muted/40 p-3">
                 <div className="text-xs text-muted-foreground">{t('statement.period')}</div>
                 <div className="mt-1 flex gap-4 text-sm tabular-nums">
-                  <span className="text-danger">−{money(summary.totalDebit)}</span>
-                  <span className="text-success">+{money(summary.totalCredit)}</span>
+                  <span className="text-danger">−{money(summary.totalDebit, uiLocale)}</span>
+                  <span className="text-success">+{money(summary.totalCredit, uiLocale)}</span>
                 </div>
               </div>
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
                 <div className="text-xs text-muted-foreground">{t('statement.closing')}</div>
-                <div className={'mt-1 text-lg font-semibold tabular-nums ' +
-                  (Number(summary.closingBalance) > 0 ? 'text-danger' : 'text-success')}>
-                  {money(summary.closingBalance)}
+                <div
+                  className={
+                    'mt-1 text-lg font-semibold tabular-nums ' +
+                    (Number(summary.closingBalance) > 0 ? 'text-danger' : 'text-success')
+                  }
+                >
+                  {money(summary.closingBalance, uiLocale)}
                 </div>
               </div>
             </div>
@@ -202,7 +215,7 @@ export default function LedgerPage() {
             {entries.length === 0 ? (
               <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
             ) : (
-              <div className="overflow-x-auto rounded-md border">
+              <TableScroll className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground">
@@ -217,7 +230,10 @@ export default function LedgerPage() {
                   </thead>
                   <tbody>
                     {entries.map((e) => (
-                      <tr key={`${e.kind}-${e.documentId}`} className="border-b last:border-b-0 hover:bg-muted/30">
+                      <tr
+                        key={`${e.kind}-${e.documentId}`}
+                        className="border-b last:border-b-0 hover:bg-muted/30"
+                      >
                         <td className="whitespace-nowrap p-3 tabular-nums">
                           {formatDateShort(e.date, locale)}
                         </td>
@@ -227,21 +243,26 @@ export default function LedgerPage() {
                           </Badge>
                         </td>
                         <td className="p-3 font-mono text-xs">{e.documentNumber}</td>
-                        <td className="max-w-[280px] truncate p-3 text-muted-foreground" title={e.description ?? ''}>
+                        <td
+                          className="max-w-[280px] truncate p-3 text-muted-foreground"
+                          title={e.description ?? ''}
+                        >
                           {e.description ?? '—'}
                         </td>
                         <td className="p-3 text-end tabular-nums">
-                          {Number(e.debit) > 0 ? money(e.debit) : '—'}
+                          {Number(e.debit) > 0 ? money(e.debit, uiLocale) : '—'}
                         </td>
                         <td className="p-3 text-end tabular-nums">
-                          {Number(e.credit) > 0 ? money(e.credit) : '—'}
+                          {Number(e.credit) > 0 ? money(e.credit, uiLocale) : '—'}
                         </td>
-                        <td className="p-3 text-end font-medium tabular-nums">{money(e.balance)}</td>
+                        <td className="p-3 text-end font-medium tabular-nums">
+                          {money(e.balance, uiLocale)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScroll>
             )}
           </CardContent>
         </Card>

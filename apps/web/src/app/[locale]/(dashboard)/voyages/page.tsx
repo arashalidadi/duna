@@ -1,4 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -10,14 +17,7 @@ import type {
   VesselListItem,
   PortListItem,
 } from '@shipping/shared';
-import {
-  Plus,
-  Eye,
-  CalendarClock,
-  Play,
-  CheckCircle2,
-  Ban,
-} from 'lucide-react';
+import { Plus, Eye, CalendarClock, Play, CheckCircle2, Ban } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -44,13 +44,7 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const STATUSES: VoyageStatus[] = [
-  'DRAFT',
-  'SCHEDULED',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'CANCELLED',
-];
+const STATUSES: VoyageStatus[] = ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 const STATUS_META: Record<
   VoyageStatus,
@@ -84,14 +78,20 @@ const EMPTY_FORM: VoyageForm = {
   notes: '',
 };
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null, displayLocale: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('en-GB', { timeZone: 'Asia/Dubai', dateStyle: 'short', timeStyle: 'short' });
+  return d.toLocaleString(displayLocale, {
+    timeZone: 'Asia/Dubai',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 export default function VoyagesPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('voyages');
   const [data, setData] = useState<PaginatedResult<VoyageListItem> | null>(null);
@@ -99,6 +99,7 @@ export default function VoyagesPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [vesselFilter, setVesselFilter] = useState('');
 
@@ -141,17 +142,17 @@ export default function VoyagesPage() {
       try {
         setData(await api.get<PaginatedResult<VoyageListItem>>(`/voyages?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load voyages');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadVoyages'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, statusFilter, vesselFilter);
-  }, [load, page, search, statusFilter, vesselFilter]);
+    load(page, debouncedSearch, statusFilter, vesselFilter);
+  }, [load, page, debouncedSearch, statusFilter, vesselFilter]);
 
   // Reference data for the create form + vessel filter (degrades gracefully when
   // the actor lacks vessel/port read permissions).
@@ -239,7 +240,7 @@ export default function VoyagesPage() {
     try {
       setDetail(await api.get<VoyageDetail>(`/voyages/${row.id}`));
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to load voyage');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToLoadVoyage'));
       setViewing(null);
     }
   }
@@ -247,11 +248,11 @@ export default function VoyagesPage() {
   async function submitCreate() {
     setFormError(null);
     if (!form.vesselId || !form.originPortId || !form.destinationPortId) {
-      setFormError('Vessel, origin and destination are required.');
+      setFormError(ui('vesselOriginAndDestinationAreRequired'));
       return;
     }
     if (form.originPortId === form.destinationPortId) {
-      setFormError('Origin and destination must be different ports.');
+      setFormError(ui('originAndDestinationMustBeDifferentPorts'));
       return;
     }
     // Additional destination rows: every row must be filled and unique —
@@ -284,7 +285,7 @@ export default function VoyagesPage() {
       setPage(1);
       await load(page, search, statusFilter, vesselFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to create voyage');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCreateVoyage'));
     } finally {
       setSaving(false);
     }
@@ -294,7 +295,7 @@ export default function VoyagesPage() {
     if (!scheduling) return;
     setFormError(null);
     if (!departure || !arrival) {
-      setFormError('Set both departure and arrival (ETA) times.');
+      setFormError(ui('setBothDepartureAndArrivalETATimes'));
       return;
     }
     setSaving(true);
@@ -309,7 +310,7 @@ export default function VoyagesPage() {
       if (viewing) setDetail(await api.get<VoyageDetail>(`/voyages/${scheduling.id}`));
       await load(page, search, statusFilter, vesselFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to schedule voyage');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToScheduleVoyage'));
     } finally {
       setSaving(false);
     }
@@ -321,11 +322,13 @@ export default function VoyagesPage() {
     try {
       if (action === 'cancel') {
         if (!cancelReason.trim()) {
-          setFormError('A cancellation reason is required.');
+          setFormError(ui('aCancellationReasonIsRequired'));
           setSaving(false);
           return;
         }
-        await api.post<VoyageDetail>(`/voyages/${row.id}/cancel`, { cancelReason: cancelReason.trim() });
+        await api.post<VoyageDetail>(`/voyages/${row.id}/cancel`, {
+          cancelReason: cancelReason.trim(),
+        });
       } else {
         await api.post<VoyageDetail>(`/voyages/${row.id}/${action}`);
       }
@@ -336,7 +339,7 @@ export default function VoyagesPage() {
       if (viewing) setDetail(await api.get<VoyageDetail>(`/voyages/${row.id}`));
       await load(page, search, statusFilter, vesselFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update voyage');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateVoyage'));
     } finally {
       setSaving(false);
     }
@@ -346,24 +349,24 @@ export default function VoyagesPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Voyages' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Voyages</h1>
+          <Breadcrumbs items={[{ label: ui('voyages') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('voyages')}</h1>
           <p className="text-sm text-muted-foreground">
-            Operational sailings. A vessel cannot run two overlapping voyages.
+            {ui('operationalSailingsAVesselCannotRunTwoOverlappingVoyages')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New voyage
+            {ui('newVoyage')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Voyage schedule</CardTitle>
-          <CardDescription>Live operational data. No placeholder records.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('voyageSchedule')}</CardTitle>
+          <CardDescription>{ui('liveOperationalDataNoPlaceholderRecords')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -375,10 +378,13 @@ export default function VoyagesPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search number, vessel, ports…"
+              placeholder={ui('searchNumberVesselPorts')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search voyages"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchVoyages')}
             />
             <select
               className={SELECT_CLASS}
@@ -387,12 +393,12 @@ export default function VoyagesPage() {
                 setStatusFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All statuses</option>
+              <option value="">{ui('allStatuses')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_META[s].label}
+                  <DomainLabel value={STATUS_META[s].label} />
                 </option>
               ))}
             </select>
@@ -403,9 +409,9 @@ export default function VoyagesPage() {
                 setVesselFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by vessel"
+              aria-label={ui('filterByVessel')}
             >
-              <option value="">All vessels</option>
+              <option value="">{ui('allVessels')}</option>
               {vessels.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name}
@@ -413,32 +419,38 @@ export default function VoyagesPage() {
               ))}
             </select>
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading voyages…" />
+          <PageLoader label={ui('loadingVoyages')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, statusFilter, vesselFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, statusFilter, vesselFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No voyages found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noVoyagesFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Voyage</th>
-                  <th className="px-3 py-2 font-medium">Vessel</th>
-                  <th className="px-3 py-2 font-medium">Route</th>
-                  <th className="px-3 py-2 font-medium">Departure</th>
-                  <th className="px-3 py-2 font-medium">Arrival (ETA)</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('voyage')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('vessel')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('route')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('departure')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('arrivalETA')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -467,11 +479,15 @@ export default function VoyagesPage() {
                         ? v.legs.map((leg) => leg.destinationPort.code).join(' → ')
                         : v.destinationPort.code}
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{fmtDate(v.plannedDepartureAt)}</td>
-                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{fmtDate(v.plannedArrivalAt)}</td>
+                    <td className="px-3 py-2 text-[12px] text-muted-foreground">
+                      {fmtDate(v.plannedDepartureAt, uiLocale)}
+                    </td>
+                    <td className="px-3 py-2 text-[12px] text-muted-foreground">
+                      {fmtDate(v.plannedArrivalAt, uiLocale)}
+                    </td>
                     <td className="px-3 py-2">
                       <Badge variant={STATUS_META[v.status].variant} dot>
-                        {STATUS_META[v.status].label}
+                        <DomainLabel value={STATUS_META[v.status].label} />
                       </Badge>
                     </td>
                     <td className="px-3 py-2">
@@ -482,8 +498,8 @@ export default function VoyagesPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openView(v)}
-                            title="View details"
-                            aria-label={`View voyage ${v.voyageNumber}`}
+                            title={ui('viewDetails')}
+                            aria-label={ui('viewVoyageValue', { value0: String(v.voyageNumber) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -501,7 +517,7 @@ export default function VoyagesPage() {
                             }}
                           >
                             <CalendarClock className="h-3.5 w-3.5" />
-                            Schedule
+                            {ui('schedule')}
                           </Button>
                         )}
                         {canStart && v.status === 'SCHEDULED' && (
@@ -512,7 +528,7 @@ export default function VoyagesPage() {
                             onClick={() => setConfirmingStart(v)}
                           >
                             <Play className="h-3.5 w-3.5" />
-                            Start
+                            {ui('start')}
                           </Button>
                         )}
                         {canComplete && v.status === 'IN_PROGRESS' && (
@@ -523,7 +539,7 @@ export default function VoyagesPage() {
                             onClick={() => setConfirmingComplete(v)}
                           >
                             <CheckCircle2 className="h-3.5 w-3.5" />
-                            Complete
+                            {ui('complete')}
                           </Button>
                         )}
                         {canCancel && (v.status === 'DRAFT' || v.status === 'SCHEDULED') && (
@@ -536,8 +552,8 @@ export default function VoyagesPage() {
                               setCancelReason('');
                               setFormError(null);
                             }}
-                            title="Cancel voyage"
-                            aria-label={`Cancel voyage ${v.voyageNumber}`}
+                            title={ui('cancelVoyage')}
+                            aria-label={ui('cancelVoyageValue', { value0: String(v.voyageNumber) })}
                           >
                             <Ban className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -548,7 +564,7 @@ export default function VoyagesPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -567,15 +583,15 @@ export default function VoyagesPage() {
       <Dialog
         open={createOpen}
         onOpenChange={(open) => !open && setCreateOpen(false)}
-        title="New voyage"
-        description="Voyages start in DRAFT with no cargo assignment."
+        title={ui('newVoyage')}
+        description={ui('voyagesStartInDRAFTWithNoCargoAssignment')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitCreate}>
-              Create voyage
+              {ui('createVoyage')}
             </Button>
           </>
         }
@@ -583,7 +599,7 @@ export default function VoyagesPage() {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="voy-vessel" className="block">
-              Vessel *
+              {ui('vesselRequired')}
             </Label>
             <select
               id="voy-vessel"
@@ -592,7 +608,7 @@ export default function VoyagesPage() {
               onChange={(e) => updateField('vesselId', e.target.value)}
               autoFocus
             >
-              <option value="">Select vessel…</option>
+              <option value="">{ui('selectVessel')}</option>
               {vessels.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.name} ({v.code})
@@ -642,7 +658,7 @@ export default function VoyagesPage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="voy-origin" className="block">
-                Origin *
+                {ui('originRequired')}
               </Label>
               <select
                 id="voy-origin"
@@ -650,7 +666,7 @@ export default function VoyagesPage() {
                 value={form.originPortId}
                 onChange={(e) => updateField('originPortId', e.target.value)}
               >
-                <option value="">Select…</option>
+                <option value="">{ui('select')}</option>
                 {ports.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code} — {p.name}
@@ -660,7 +676,7 @@ export default function VoyagesPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="voy-dest" className="block">
-                Destination *
+                {ui('destinationRequired')}
               </Label>
               <select
                 id="voy-dest"
@@ -668,7 +684,7 @@ export default function VoyagesPage() {
                 value={form.destinationPortId}
                 onChange={(e) => updateField('destinationPortId', e.target.value)}
               >
-                <option value="">Select…</option>
+                <option value="">{ui('select')}</option>
                 {ports.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.code} — {p.name}
@@ -694,8 +710,7 @@ export default function VoyagesPage() {
                     .filter(
                       (port) =>
                         port.id === destinationPortId ||
-                        (port.id !== form.destinationPortId &&
-                          !form.destinations.includes(port.id))
+                        (port.id !== form.destinationPortId && !form.destinations.includes(port.id))
                     )
                     .map((port) => (
                       <option key={port.id} value={port.id}>
@@ -704,7 +719,7 @@ export default function VoyagesPage() {
                     ))}
                 </select>
                 <span
-                  className="w-16 shrink-0 text-right font-mono text-xs text-muted-foreground"
+                  className="w-16 shrink-0 text-end font-mono text-xs text-muted-foreground"
                   title={t('legs.previewTitle')}
                 >
                   {destinationPortId ? (numberPreview[destinationPortId] ?? '…') : ''}
@@ -732,28 +747,34 @@ export default function VoyagesPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="voy-notes" className="block">
-              Notes
+              {ui('notes')}
             </Label>
             <Input
               id="voy-notes"
               value={form.notes}
               onChange={(e) => updateField('notes', e.target.value)}
-              placeholder="Optional"
+              placeholder={ui('optional')}
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Detail dialog */}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing ? viewing.voyageNumber : 'Voyage'}
-        description={viewing ? `${viewing.originPort.code} → ${viewing.destinationPort.code}` : undefined}
+        title={viewing ? viewing.voyageNumber : ui('voyage')}
+        description={
+          viewing ? `${viewing.originPort.code} → ${viewing.destinationPort.code}` : undefined
+        }
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-            Close
+            {ui('close')}
           </Button>
         }
       >
@@ -761,8 +782,10 @@ export default function VoyagesPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <div className="text-xs text-muted-foreground">Vessel</div>
-                <div>{detail.vessel.name} ({detail.vessel.code})</div>
+                <div className="text-xs text-muted-foreground">{ui('vessel')}</div>
+                <div>
+                  {detail.vessel.name} ({detail.vessel.code})
+                </div>
               </div>
               <div>
                 <div className="text-xs text-muted-foreground">{t('pairing.tug')}</div>
@@ -781,28 +804,28 @@ export default function VoyagesPage() {
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Status</div>
+                <div className="text-xs text-muted-foreground">{ui('status')}</div>
                 <div>
                   <Badge variant={STATUS_META[detail.status].variant} dot>
-                    {STATUS_META[detail.status].label}
+                    <DomainLabel value={STATUS_META[detail.status].label} />
                   </Badge>
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Departure</div>
-                <div>{fmtDate(detail.plannedDepartureAt)}</div>
+                <div className="text-xs text-muted-foreground">{ui('departure')}</div>
+                <div>{fmtDate(detail.plannedDepartureAt, uiLocale)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Arrival (ETA)</div>
-                <div>{fmtDate(detail.plannedArrivalAt)}</div>
+                <div className="text-xs text-muted-foreground">{ui('arrivalETA')}</div>
+                <div>{fmtDate(detail.plannedArrivalAt, uiLocale)}</div>
               </div>
               <div className="col-span-2">
-                <div className="text-xs text-muted-foreground">Notes</div>
+                <div className="text-xs text-muted-foreground">{ui('notes')}</div>
                 <div>{detail.notes ?? '—'}</div>
               </div>
               {detail.cancelReason && (
                 <div className="col-span-2">
-                  <div className="text-xs text-muted-foreground">Cancellation reason</div>
+                  <div className="text-xs text-muted-foreground">{ui('cancellationReason')}</div>
                   <div>{detail.cancelReason}</div>
                 </div>
               )}
@@ -810,7 +833,7 @@ export default function VoyagesPage() {
             {/* Destination legs: one row per destination with its own number */}
             <div className="space-y-1.5">
               <div className="text-xs text-muted-foreground">{t('legs.title')}</div>
-              <table className="w-full text-left">
+              <table className="w-full text-start">
                 <thead>
                   <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                     <th className="py-1 pr-2 font-medium">{t('legs.legColumn')}</th>
@@ -821,7 +844,9 @@ export default function VoyagesPage() {
                 <tbody>
                   {detail.legs.map((leg) => (
                     <tr key={leg.id} className="border-b border-border/60 last:border-0">
-                      <td className="py-1.5 pr-2 text-[13px] text-muted-foreground">{leg.legNumber}</td>
+                      <td className="py-1.5 pr-2 text-[13px] text-muted-foreground">
+                        {leg.legNumber}
+                      </td>
                       <td className="py-1.5 pr-2 text-[13px]">
                         {leg.destinationPort.name}{' '}
                         <span className="text-muted-foreground">({leg.destinationPort.code})</span>
@@ -834,7 +859,7 @@ export default function VoyagesPage() {
             </div>
           </div>
         ) : (
-          <PageLoader label="Loading voyage details…" />
+          <PageLoader label={ui('loadingVoyageDetails')} />
         )}
       </Dialog>
 
@@ -848,8 +873,12 @@ export default function VoyagesPage() {
             setArrival('');
           }
         }}
-        title={scheduling ? `Schedule — ${scheduling.voyageNumber}` : 'Schedule voyage'}
-        description="Set the planned departure and arrival (ETA) times. Required to leave DRAFT."
+        title={
+          scheduling
+            ? ui('scheduleValue', { value0: String(scheduling.voyageNumber) })
+            : ui('scheduleVoyage')
+        }
+        description={ui('setThePlannedDepartureAndArrivalETATimesRequiredToLeave')}
         footer={
           <>
             <Button
@@ -861,10 +890,10 @@ export default function VoyagesPage() {
                 setArrival('');
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitSchedule}>
-              Schedule
+              {ui('schedule')}
             </Button>
           </>
         }
@@ -872,7 +901,7 @@ export default function VoyagesPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="sch-dep" className="block">
-              Departure *
+              {ui('departureRequired')}
             </Label>
             <Input
               id="sch-dep"
@@ -884,7 +913,7 @@ export default function VoyagesPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="sch-arr" className="block">
-              Arrival (ETA) *
+              {ui('arrivalETARequired')}
             </Label>
             <Input
               id="sch-arr"
@@ -894,8 +923,10 @@ export default function VoyagesPage() {
             />
           </div>
         </div>
-        {(formError && scheduling) && (
-          <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>
+        {formError && scheduling && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
         )}
       </Dialog>
 
@@ -903,30 +934,44 @@ export default function VoyagesPage() {
       <ConfirmDialog
         open={!!confirmingStart}
         onOpenChange={(open) => !open && setConfirmingStart(null)}
-        title="Start voyage"
-        description={confirmingStart ? `Mark ${confirmingStart.voyageNumber} as in progress.` : undefined}
-        confirmLabel="Start"
+        title={ui('startVoyage')}
+        description={
+          confirmingStart
+            ? ui('markValueAsInProgress', { value0: String(confirmingStart.voyageNumber) })
+            : undefined
+        }
+        confirmLabel={ui('start')}
         loading={saving}
         onConfirm={() => confirmingStart && submitTransition('start', confirmingStart)}
+        error={formError}
       />
 
       {/* Complete confirm */}
       <ConfirmDialog
         open={!!confirmingComplete}
         onOpenChange={(open) => !open && setConfirmingComplete(null)}
-        title="Complete voyage"
-        description={confirmingComplete ? `Mark ${confirmingComplete.voyageNumber} as completed.` : undefined}
-        confirmLabel="Complete"
+        title={ui('completeVoyage')}
+        description={
+          confirmingComplete
+            ? ui('markValueAsCompleted', { value0: String(confirmingComplete.voyageNumber) })
+            : undefined
+        }
+        confirmLabel={ui('complete')}
         loading={saving}
         onConfirm={() => confirmingComplete && submitTransition('complete', confirmingComplete)}
+        error={formError}
       />
 
       {/* Cancel dialog */}
       <Dialog
         open={!!confirmingCancel}
         onOpenChange={(open) => !open && setConfirmingCancel(null)}
-        title={confirmingCancel ? `Cancel ${confirmingCancel.voyageNumber}` : 'Cancel voyage'}
-        description="A cancellation reason is required."
+        title={
+          confirmingCancel
+            ? ui('cancelValue', { value0: String(confirmingCancel.voyageNumber) })
+            : ui('cancelVoyage')
+        }
+        description={ui('aCancellationReasonIsRequired')}
         footer={
           <>
             <Button
@@ -937,7 +982,7 @@ export default function VoyagesPage() {
                 setCancelReason('');
               }}
             >
-              Close
+              {ui('close')}
             </Button>
             <Button
               size="sm"
@@ -945,23 +990,27 @@ export default function VoyagesPage() {
               loading={saving}
               onClick={() => confirmingCancel && submitTransition('cancel', confirmingCancel)}
             >
-              Cancel voyage
+              {ui('cancelVoyage')}
             </Button>
           </>
         }
       >
         <div className="space-y-1.5">
           <Label htmlFor="cancel-reason" className="block">
-            Reason *
+            {ui('reasonRequired')}
           </Label>
           <Input
             id="cancel-reason"
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="e.g. Rerouted via Jebel Ali"
+            placeholder={ui('eGReroutedViaJebelAli')}
           />
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
     </div>
   );

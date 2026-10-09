@@ -1,7 +1,16 @@
 'use client';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
-import type { PaginatedAgentsResult, AgentListItem, AgentDetail, AgentDestinationListItem, PaginatedAgentDestinationsResult } from '@shipping/shared';
+import type {
+  PaginatedAgentsResult,
+  AgentListItem,
+  AgentDetail,
+  AgentDestinationListItem,
+  PaginatedAgentDestinationsResult,
+} from '@shipping/shared';
 import { Plus, Power, Trash2, Search, MapPin, Building2, Truck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -17,7 +26,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FormField } from '@/components/ui/form-field';
+import { PageLoader } from '@/components/ui/loading';
 import { Dialog, ConfirmDialog } from '@/components/ui/dialog';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -68,7 +78,9 @@ let portCache: { id: string; code: string; name: string }[] | null = null;
 async function loadPorts(): Promise<{ id: string; code: string; name: string }[]> {
   if (portCache) return portCache;
   try {
-    const res = await api.get<{ data: { id: string; code: string; name: string }[] }>('/ports?pageSize=500');
+    const res = await api.get<{ data: { id: string; code: string; name: string }[] }>(
+      '/ports?pageSize=500'
+    );
     portCache = res.data;
     return res.data;
   } catch {
@@ -78,12 +90,14 @@ async function loadPorts(): Promise<{ id: string; code: string; name: string }[]
 }
 
 export default function AgentsPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedAgentsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [activeFilter, setActiveFilter] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -120,17 +134,17 @@ export default function AgentsPage() {
       try {
         setData(await api.get<PaginatedAgentsResult>(`/agents?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load agents');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadAgents'));
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, activeFilter);
-  }, [load, page, search, activeFilter]);
+    load(page, debouncedSearch, activeFilter);
+  }, [load, page, debouncedSearch, activeFilter]);
 
   const canCreate = hasPermission('agent:create');
   const canUpdate = hasPermission('agent:update');
@@ -159,11 +173,11 @@ export default function AgentsPage() {
   async function submit() {
     setFormError(null);
     if (!form.code.trim()) {
-      setFormError('Code is required.');
+      setFormError(ui('codeIsRequired'));
       return;
     }
     if (!form.name.trim()) {
-      setFormError('Name is required.');
+      setFormError(ui('nameIsRequired'));
       return;
     }
     setSaving(true);
@@ -178,7 +192,7 @@ export default function AgentsPage() {
       }
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save agent');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveAgent'));
     } finally {
       setSaving(false);
     }
@@ -193,7 +207,7 @@ export default function AgentsPage() {
       setToggling(null);
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update agent');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateAgent'));
     } finally {
       setSaving(false);
     }
@@ -208,7 +222,7 @@ export default function AgentsPage() {
       setDeleting(null);
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to delete agent');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToDeleteAgent'));
     } finally {
       setSaving(false);
     }
@@ -228,7 +242,7 @@ export default function AgentsPage() {
       setDetail(d);
       setDestinations(d.destinations);
     } catch (e) {
-      setDetailError(e instanceof ApiError ? e.message : 'Failed to load agent');
+      setDetailError(e instanceof ApiError ? e.message : ui('failedToLoadAgent'));
     } finally {
       setDetailLoading(false);
     }
@@ -241,7 +255,7 @@ export default function AgentsPage() {
 
   async function addDestination() {
     if (!destForm.portId.trim() || !detail) {
-      setDestError('Port is required.');
+      setDestError(ui('portIsRequired'));
       return;
     }
     setDestCreating(true);
@@ -257,7 +271,7 @@ export default function AgentsPage() {
       setDetail(updated);
       setDestinations(updated.destinations);
     } catch (err) {
-      setDestError(err instanceof ApiError ? err.message : 'Failed to add destination');
+      setDestError(err instanceof ApiError ? err.message : ui('failedToAddDestination'));
     } finally {
       setDestCreating(false);
     }
@@ -272,7 +286,7 @@ export default function AgentsPage() {
       setDetail(updated);
       setDestinations(updated.destinations);
     } catch (err) {
-      setDestError(err instanceof ApiError ? err.message : 'Failed to remove destination');
+      setDestError(err instanceof ApiError ? err.message : ui('failedToRemoveDestination'));
     } finally {
       setDestDeleting(null);
     }
@@ -282,30 +296,30 @@ export default function AgentsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Agents' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Agents</h1>
+          <Breadcrumbs items={[{ label: ui('agents') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('agents')}</h1>
           <p className="text-sm text-muted-foreground">
-            Freight forwarding and shipping agents.
+            {ui('freightForwardingAndShippingAgents')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New agent
+            {ui('newAgent')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Search and filter</CardTitle>
-          <CardDescription>Find agents by name or code.</CardDescription>
+          <CardTitle className="text-base">{ui('searchAndFilter')}</CardTitle>
+          <CardDescription>{ui('findAgentsByNameOrCode')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Input
-                placeholder="Search name or code…"
+                placeholder={ui('searchNameOrCode')}
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -338,9 +352,9 @@ export default function AgentsPage() {
                 applyFilters();
               }}
             >
-              <option value="">All statuses</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatuses')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
           </div>
         </CardContent>
@@ -348,18 +362,18 @@ export default function AgentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Agents</CardTitle>
-          <CardDescription>Registered agents.</CardDescription>
+          <CardTitle className="text-base">{ui('agents')}</CardTitle>
+          <CardDescription>{ui('registeredAgents')}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading && <PageLoader />}
-          {error && <ErrorState title="Failed to load" message={error} />}
+          {error && <ErrorState title={ui('failedToLoad')} message={error} />}
           {!loading && !error && data && (
             <>
               {data.data.length === 0 ? (
                 <EmptyState
-                  title="No agents yet"
-                  description="Create the first agent to get started."
+                  title={ui('noAgentsYet')}
+                  description={ui('createTheFirstAgentToGetStarted')}
                 />
               ) : (
                 <div className="border rounded-lg divide-y">
@@ -373,35 +387,36 @@ export default function AgentsPage() {
                           </Badge>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {row.taxId ? `Tax ID: ${row.taxId}` : 'No tax ID'}
+                          {row.taxId
+                            ? ui('taxIDValue', { value0: String(row.taxId) })
+                            : ui('noTaxID')}
                           {row.address ? ` · ${row.address}` : ''}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" size="sm" onClick={() => openDetail(row)}>
                           <MapPin className="h-4 w-4" />
-                          Destinations
+                          {ui('destinations')}
                         </Button>
                         {canUpdate && (
                           <Button variant="outline" size="sm" onClick={() => openEdit(row)}>
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setToggling(row)}
+                          onClick={() => {
+                            setFormError(null);
+                            setToggling(row);
+                          }}
                           disabled={!canUpdate}
                         >
                           <Power className="h-4 w-4" />
-                          {row.isActive ? 'Deactivate' : 'Activate'}
+                          {row.isActive ? ui('deactivate') : ui('activate')}
                         </Button>
                         {canDelete && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDeleting(row)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => setDeleting(row)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
@@ -424,44 +439,44 @@ export default function AgentsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen} title="New agent">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen} title={ui('newAgent')}>
         <div className="space-y-3">
-          <FormField label="Code" required>
+          <FormField label={ui('code')} required>
             <Input
               value={form.code}
               onChange={(e) => updateField('code', e.target.value)}
-              placeholder="AGT-001"
+              placeholder={ui('agt001')}
             />
           </FormField>
-          <FormField label="Name" required>
+          <FormField label={ui('name')} required>
             <Input
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="Global Freight Ltd."
+              placeholder={ui('globalFreightLtd')}
             />
           </FormField>
-          <FormField label="Tax ID">
+          <FormField label={ui('taxID')}>
             <Input
               value={form.taxId}
               onChange={(e) => updateField('taxId', e.target.value)}
               placeholder="1122334455"
             />
           </FormField>
-          <FormField label="Address">
+          <FormField label={ui('address')}>
             <Input
               value={form.address}
               onChange={(e) => updateField('address', e.target.value)}
-              placeholder="789 Agent St"
+              placeholder={ui('streetAddressPlaceholder')}
             />
           </FormField>
-          <FormField label="Phone">
+          <FormField label={ui('phone')}>
             <Input
               value={form.phone}
               onChange={(e) => updateField('phone', e.target.value)}
               placeholder="+1 555-0300"
             />
           </FormField>
-          <FormField label="Email">
+          <FormField label={ui('email')}>
             <Input
               type="email"
               value={form.email}
@@ -469,76 +484,62 @@ export default function AgentsPage() {
               placeholder="office@globalfreight.example"
             />
           </FormField>
-          <FormField label="Notes">
+          <FormField label={ui('notes')}>
             <Input
               value={form.notes}
               onChange={(e) => updateField('notes', e.target.value)}
-              placeholder="Additional notes"
+              placeholder={ui('additionalNotes')}
             />
           </FormField>
         </div>
         <CardFooter className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={() => setCreateOpen(false)}>
-            Cancel
+            {ui('cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Saving…' : 'Create agent'}
+            {saving ? ui('saving') : ui('createAgent')}
           </Button>
         </CardFooter>
       </Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)} title="Edit agent">
+      <Dialog
+        open={!!editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        title={ui('editAgent')}
+      >
         <div className="space-y-3">
-          <FormField label="Code" required>
-            <Input
-              value={form.code}
-              onChange={(e) => updateField('code', e.target.value)}
-            />
+          <FormField label={ui('code')} required>
+            <Input value={form.code} onChange={(e) => updateField('code', e.target.value)} />
           </FormField>
-          <FormField label="Name" required>
-            <Input
-              value={form.name}
-              onChange={(e) => updateField('name', e.target.value)}
-            />
+          <FormField label={ui('name')} required>
+            <Input value={form.name} onChange={(e) => updateField('name', e.target.value)} />
           </FormField>
-          <FormField label="Tax ID">
-            <Input
-              value={form.taxId}
-              onChange={(e) => updateField('taxId', e.target.value)}
-            />
+          <FormField label={ui('taxID')}>
+            <Input value={form.taxId} onChange={(e) => updateField('taxId', e.target.value)} />
           </FormField>
-          <FormField label="Address">
-            <Input
-              value={form.address}
-              onChange={(e) => updateField('address', e.target.value)}
-            />
+          <FormField label={ui('address')}>
+            <Input value={form.address} onChange={(e) => updateField('address', e.target.value)} />
           </FormField>
-          <FormField label="Phone">
-            <Input
-              value={form.phone}
-              onChange={(e) => updateField('phone', e.target.value)}
-            />
+          <FormField label={ui('phone')}>
+            <Input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} />
           </FormField>
-          <FormField label="Email">
+          <FormField label={ui('email')}>
             <Input
               type="email"
               value={form.email}
               onChange={(e) => updateField('email', e.target.value)}
             />
           </FormField>
-          <FormField label="Notes">
-            <Input
-              value={form.notes}
-              onChange={(e) => updateField('notes', e.target.value)}
-            />
+          <FormField label={ui('notes')}>
+            <Input value={form.notes} onChange={(e) => updateField('notes', e.target.value)} />
           </FormField>
         </div>
         <CardFooter className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={() => setEditing(null)}>
-            Cancel
+            {ui('cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? ui('saving') : ui('saveChanges')}
           </Button>
         </CardFooter>
       </Dialog>
@@ -546,18 +547,27 @@ export default function AgentsPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete agent"
-        description={deleting ? `Delete "${deleting.name}"? This cannot be undone.` : undefined}
-        confirmLabel="Delete"
+        title={ui('deleteAgent')}
+        description={
+          deleting
+            ? ui('deleteValueThisCannotBeUndone', { value0: String(deleting.name) })
+            : undefined
+        }
+        confirmLabel={ui('delete')}
         destructive
         onConfirm={confirmDelete}
         loading={saving}
+        error={formError}
       />
 
       {/* Agent detail / destinations */}
-      <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)} title="Agent destinations">
+      <Dialog
+        open={!!detail}
+        onOpenChange={(open) => !open && setDetail(null)}
+        title={ui('agentDestinations')}
+      >
         {detailLoading && <PageLoader />}
-        {detailError && <ErrorState title="Failed to load" message={detailError} />}
+        {detailError && <ErrorState title={ui('failedToLoad')} message={detailError} />}
         {!detailLoading && !detailError && detail && (
           <div className="space-y-4">
             <div className="space-y-1 text-sm">
@@ -566,21 +576,37 @@ export default function AgentsPage() {
                 <span className="font-medium">{detail.name}</span>
                 <Badge variant="neutral">{detail.code}</Badge>
                 <Badge variant={detail.isActive ? 'success' : 'danger'} dot>
-                  {detail.isActive ? 'Active' : 'Inactive'}
+                  {detail.isActive ? ui('active') : ui('inactive')}
                 </Badge>
               </div>
-              {detail.taxId && <div>Tax ID: {detail.taxId}</div>}
+              {detail.taxId && (
+                <div>
+                  {ui('taxID_mhv8v0r')}
+                  {detail.taxId}
+                </div>
+              )}
               {detail.address && <div>{detail.address}</div>}
-              {detail.phone && <div>Phone: {detail.phone}</div>}
-              {detail.email && <div>Email: {detail.email}</div>}
+              {detail.phone && (
+                <div>
+                  {ui('phone_m1but44v')}
+                  {detail.phone}
+                </div>
+              )}
+              {detail.email && (
+                <div>
+                  {ui('email_mbjx1lz')}
+                  {detail.email}
+                </div>
+              )}
               {detail.notes && <div className="text-muted-foreground">{detail.notes}</div>}
             </div>
 
             <div>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-medium">Destination ports</h3>
+                <h3 className="text-sm font-medium">{ui('destinationPorts')}</h3>
                 <span className="text-xs text-muted-foreground">
-                  {destinations.length} port{destinations.length === 1 ? '' : 's'}
+                  {destinations.length} {ui('port')}
+                  {destinations.length === 1 ? '' : ui('s')}
                 </span>
               </div>
 
@@ -588,17 +614,17 @@ export default function AgentsPage() {
                 <Dialog
                   open={destCreateOpen}
                   onOpenChange={setDestCreateOpen}
-                  title="Add destination"
-                  description="Associate a port with this agent."
+                  title={ui('addDestination')}
+                  description={ui('associateAPortWithThisAgent')}
                 >
                   <div className="space-y-3">
-                    <FormField label="Port" required>
+                    <FormField label={ui('port_m1qx5adi')} required>
                       <select
                         className="h-9 rounded-md border border-input bg-card px-3 text-sm w-full transition-colors focus:outline-none focus:ring-2 focus:ring-ring"
                         value={destForm.portId}
                         onChange={(e) => setDestForm((p) => ({ ...p, portId: e.target.value }))}
                       >
-                        <option value="">Select a port…</option>
+                        <option value="">{ui('selectAPort')}</option>
                         {ports?.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.code} — {p.name}
@@ -606,24 +632,26 @@ export default function AgentsPage() {
                         ))}
                       </select>
                     </FormField>
-                    <FormField label="Active">
+                    <FormField label={ui('active')}>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={destForm.isActive}
-                          onChange={(e) => setDestForm((p) => ({ ...p, isActive: e.target.checked }))}
+                          onChange={(e) =>
+                            setDestForm((p) => ({ ...p, isActive: e.target.checked }))
+                          }
                           className="h-4 w-4 rounded border-border text-primary"
                         />
-                        <span className="text-sm">Active destination</span>
+                        <span className="text-sm">{ui('activeDestination')}</span>
                       </label>
                     </FormField>
                   </div>
                   <CardFooter className="flex justify-end gap-2 pt-4">
                     <Button variant="outline" onClick={() => setDestCreateOpen(false)}>
-                      Cancel
+                      {ui('cancel')}
                     </Button>
                     <Button onClick={addDestination} disabled={destCreating}>
-                      {destCreating ? 'Adding…' : 'Add destination'}
+                      {destCreating ? ui('adding') : ui('addDestination')}
                     </Button>
                   </CardFooter>
                 </Dialog>
@@ -649,8 +677,12 @@ export default function AgentsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant={dest.isActive ? 'success' : 'danger'} dot className="text-[11px]">
-                        {dest.isActive ? 'Active' : 'Inactive'}
+                      <Badge
+                        variant={dest.isActive ? 'success' : 'danger'}
+                        dot
+                        className="text-[11px]"
+                      >
+                        {dest.isActive ? ui('active') : ui('inactive')}
                       </Badge>
                       {canDelete && (
                         <Button
@@ -667,8 +699,8 @@ export default function AgentsPage() {
                 ))}
                 {destinations.length === 0 && (
                   <EmptyState
-                    title="No destinations"
-                    description="Add a port to associate with this agent."
+                    title={ui('noDestinations')}
+                    description={ui('addAPortToAssociateWithThisAgent')}
                   />
                 )}
               </div>
@@ -678,12 +710,12 @@ export default function AgentsPage() {
         {!detailLoading && !detailError && detail && (
           <CardFooter className="flex justify-end gap-2 pt-4">
             <Button variant="outline" onClick={() => setDetail(null)}>
-              Close
+              {ui('close')}
             </Button>
             {canCreate && (
               <Button onClick={() => setDestCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
-                Add destination
+                {ui('addDestination')}
               </Button>
             )}
           </CardFooter>
@@ -693,41 +725,21 @@ export default function AgentsPage() {
       <ConfirmDialog
         open={!!destDeleting}
         onOpenChange={(open) => !open && setDestDeleting(null)}
-        title="Remove destination"
-        description={destDeleting ? 'Remove this port from the agent?' : undefined}
-        confirmLabel="Remove"
+        title={ui('removeDestination')}
+        description={destDeleting ? ui('removeThisPortFromTheAgent') : undefined}
+        confirmLabel={ui('remove')}
         destructive
         onConfirm={() => destDeleting && removeDestination(destDeleting)}
         loading={destRemoving}
+        error={formError}
       />
     </div>
   );
 }
 
-function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className="flex items-center gap-1">
-        {label}
-        {required && <span className="text-destructive text-[11px]">*</span>}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <div className="flex gap-1">
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ animationDelay: '150ms' }} />
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ animationDelay: '300ms' }} />
-      </div>
-    </div>
-  );
-}
-
 function formInputObject(f: AgentFormValues): Record<string, string> {
-  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<string, string>;
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
+    string,
+    string
+  >;
 }

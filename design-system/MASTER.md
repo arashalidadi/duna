@@ -411,3 +411,14 @@ Restraint is the motion rule.
 | `apps/web/src/components/ui/*`     | generic components                          |
 | `apps/web/src/components/layout/*` | shell components                            |
 | `docs/design-system.md`            | handoff guide summarising this system       |
+
+## Dashboard refresh (2026-10)
+
+The dashboard refresh evolves—not replaces—the semantic-token system above. Current light primary is
+`215 74% 40%`, dark primary `211 85% 72%`; surfaces use calm blue-neutral tokens and restrained elevation.
+The historical exact values above are superseded by `apps/web/src/app/globals.css`.
+Inter, Vazirmatn and IBM Plex Sans Arabic are now **self-hosted** (no Google Fonts build fetch).
+Use shared `Dialog`/`Sheet` for top-layer focus containment, `FormField` for stable label association,
+`TableScroll` for keyboard-accessible wide tables, and preferences from `components/preferences`.
+Motion must honor reduced-motion. Do not add hard-coded light backgrounds or status-only colors.
+See `docs/ui/dashboard-redesign.md` for implementation boundaries and preview setup.

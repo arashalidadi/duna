@@ -1,3 +1,5 @@
+'use client';
+import { useTranslations } from 'next-intl';
 import { Info, AlertTriangle, CheckCircle2, XCircle, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -7,19 +9,19 @@ export type AlertVariant = 'info' | 'warning' | 'success' | 'danger';
 const variantMap: Record<AlertVariant, { icon: typeof Info; className: string }> = {
   info: {
     icon: Info,
-    className: 'border-info/25 bg-info/10 text-info-foreground',
+    className: 'border-info/25 bg-info/10 text-foreground',
   },
   warning: {
     icon: AlertTriangle,
-    className: 'border-warning/30 bg-warning/12 text-warning-foreground',
+    className: 'border-warning/30 bg-warning/12 text-foreground',
   },
   success: {
     icon: CheckCircle2,
-    className: 'border-success/25 bg-success/10 text-success-foreground',
+    className: 'border-success/25 bg-success/10 text-foreground',
   },
   danger: {
     icon: XCircle,
-    className: 'border-destructive/25 bg-destructive/10 text-destructive-foreground',
+    className: 'border-destructive/25 bg-destructive/10 text-foreground',
   },
 };
 
@@ -32,6 +34,7 @@ interface AlertProps {
 }
 
 export function Alert({ variant = 'info', title, children, className, onClose }: AlertProps) {
+  const t = useTranslations('common');
   const { icon: Icon, className: variantClass } = variantMap[variant];
   return (
     <div
@@ -51,9 +54,9 @@ export function Alert({ variant = 'info', title, children, className, onClose }:
         <Button
           variant="ghost"
           size="icon"
-          className="-mr-2 -mt-1 h-6 w-6"
+          className="-me-2 -mt-1 h-6 w-6"
           onClick={onClose}
-          aria-label="Dismiss notification"
+          aria-label={t('close')}
         >
           <X className="h-4 w-4" />
         </Button>

@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+import { DomainLabel } from '@/components/ui/domain-label';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -15,16 +18,7 @@ import type {
   ShipperListItem,
   VoyageListItem,
 } from '@shipping/shared';
-import {
-  Plus,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  Send,
-  Stamp,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { Plus, Eye, CheckCircle2, XCircle, Send, Stamp, Save, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -54,9 +48,7 @@ const SELECT_CLASS =
 
 const STATUSES: ManifestStatus[] = ['DRAFT', 'SUBMITTED', 'APPROVED', 'CANCELLED'];
 
-function statusVariant(
-  s: ManifestStatus
-): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
+function statusVariant(s: ManifestStatus): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
   switch (s) {
     case 'DRAFT':
       return 'neutral';
@@ -120,6 +112,7 @@ export default function ManifestPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [voyageFilter, setVoyageFilter] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -181,8 +174,8 @@ export default function ManifestPage() {
   );
 
   useEffect(() => {
-    load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
-  }, [load, page, search, statusFilter, voyageFilter, createdFrom, createdTo]);
+    load(page, debouncedSearch, statusFilter, voyageFilter, createdFrom, createdTo);
+  }, [load, page, debouncedSearch, statusFilter, voyageFilter, createdFrom, createdTo]);
 
   useEffect(() => {
     (async () => {
@@ -303,7 +296,8 @@ export default function ManifestPage() {
         shipperCost: headerDraft.shipperCost === '' ? null : headerDraft.shipperCost,
         podCost: headerDraft.podCost === '' ? null : headerDraft.podCost,
         polCost: headerDraft.polCost === '' ? null : headerDraft.polCost,
-        currencyCode: headerDraft.currencyCode.trim() === '' ? null : headerDraft.currencyCode.trim(),
+        currencyCode:
+          headerDraft.currencyCode.trim() === '' ? null : headerDraft.currencyCode.trim(),
       });
       setDetail(d);
       setHeaderDraft(headerDraftOf(d));
@@ -363,13 +357,10 @@ export default function ManifestPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const d = await api.patch<ManifestDetail>(
-        `/manifests/${detail.id}/items/${item.id}`,
-        {
-          blNumber: draft?.blNumber.trim() || null,
-          notes: draft?.notes.trim() || null,
-        }
-      );
+      const d = await api.patch<ManifestDetail>(`/manifests/${detail.id}/items/${item.id}`, {
+        blNumber: draft?.blNumber.trim() || null,
+        notes: draft?.notes.trim() || null,
+      });
       setDetail(d);
       setItemDrafts(
         Object.fromEntries(
@@ -515,14 +506,20 @@ export default function ManifestPage() {
               <Input
                 placeholder={t('searchPlaceholder')}
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
                 aria-label={t('searchPlaceholder')}
               />
             </div>
             <select
               className={SELECT_CLASS}
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
               aria-label={t('table.status')}
             >
               <option value="">{t('allStatuses')}</option>
@@ -535,7 +532,10 @@ export default function ManifestPage() {
             <select
               className={SELECT_CLASS}
               value={voyageFilter}
-              onChange={(e) => { setVoyageFilter(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setVoyageFilter(e.target.value);
+                setPage(1);
+              }}
               aria-label={t('table.voyage')}
             >
               <option value="">{t('allVoyages')}</option>
@@ -549,14 +549,20 @@ export default function ManifestPage() {
               type="date"
               className={SELECT_CLASS + ' min-w-[140px]'}
               value={createdFrom}
-              onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setCreatedFrom(e.target.value);
+                setPage(1);
+              }}
               placeholder={t('createdFrom')}
             />
             <Input
               type="date"
               className={SELECT_CLASS + ' min-w-[140px]'}
               value={createdTo}
-              onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setCreatedTo(e.target.value);
+                setPage(1);
+              }}
               placeholder={t('createdTo')}
             />
           </div>
@@ -573,30 +579,29 @@ export default function ManifestPage() {
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState
-              title={t('empty.title')}
-              description={t('empty.description')}
-            />
+            <EmptyState title={t('empty.title')} description={t('empty.description')} />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2 font-medium">{t('table.no')}</th>
                   <th className="px-3 py-2 font-medium">{t('table.voyage')}</th>
                   <th className="px-3 py-2 font-medium">{t('table.route')}</th>
                   <th className="px-3 py-2 font-medium">{t('table.status')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('table.items')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('table.totalWeight')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{t('table.items')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{t('table.totalWeight')}</th>
                   <th className="px-3 py-2 font-medium">{t('table.created')}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t('table.actions')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{t('table.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.data.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs text-foreground/90">{row.manifestNumber}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-foreground/90">
+                      {row.manifestNumber}
+                    </td>
                     <td className="px-3 py-2">
                       {row.voyage?.voyageNumber ?? '—'}
                       {row.vesselName ? ` · ${row.vesselName}` : ''}
@@ -609,8 +614,10 @@ export default function ManifestPage() {
                         {t(`status.${row.status}`)}
                       </Badge>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row._count?.items ?? 0}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{fmtW(row.totalWeight ?? null)}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">{row._count?.items ?? 0}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">
+                      {fmtW(row.totalWeight ?? null)}
+                    </td>
                     <td className="px-3 py-2">{formatDateShort(row.createdAt, locale)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -652,7 +659,11 @@ export default function ManifestPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => { setCancelReason(''); setFormError(null); setConfirmingCancel(row); }}
+                            onClick={() => {
+                              setCancelReason('');
+                              setFormError(null);
+                              setConfirmingCancel(row);
+                            }}
                             aria-label={t('actions.cancel')}
                           >
                             <XCircle className="h-4 w-4" aria-hidden="true" />
@@ -664,7 +675,7 @@ export default function ManifestPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
         {data && data.meta.totalPages > 1 && (
@@ -713,7 +724,8 @@ export default function ManifestPage() {
                 .filter((v) => v.status !== 'CANCELLED')
                 .map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.voyageNumber} — {v.vessel?.name} ({v.originPort?.code} → {v.destinationPort?.code})
+                    {v.voyageNumber} — {v.vessel?.name} ({v.originPort?.code} →{' '}
+                    {v.destinationPort?.code})
                   </option>
                 ))}
             </select>
@@ -838,15 +850,21 @@ export default function ManifestPage() {
             {(detail?.status === 'APPROVED' || detail?.status === 'CANCELLED') && (
               <p className="mr-auto text-xs text-muted-foreground">{t('detail.immutable')}</p>
             )}
-            {canCancel && detail && (detail.status === 'DRAFT' || detail.status === 'SUBMITTED') && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setCancelReason(''); setFormError(null); setConfirmingCancel(detail); }}
-              >
-                {t('actions.cancel')}
-              </Button>
-            )}
+            {canCancel &&
+              detail &&
+              (detail.status === 'DRAFT' || detail.status === 'SUBMITTED') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCancelReason('');
+                    setFormError(null);
+                    setConfirmingCancel(detail);
+                  }}
+                >
+                  {t('actions.cancel')}
+                </Button>
+              )}
             {canDelete && detail?.status === 'DRAFT' && (
               <Button
                 variant="outline"
@@ -864,7 +882,7 @@ export default function ManifestPage() {
                 {t('actions.approve')}
               </Button>
             )}
-            {canSubmit && detail?.status === 'DRAFT' && (detail.items.length > 0) && (
+            {canSubmit && detail?.status === 'DRAFT' && detail.items.length > 0 && (
               <Button size="sm" onClick={() => setConfirmingSubmit(detail)}>
                 <Send className="h-4 w-4" />
                 {t('actions.submit')}
@@ -893,13 +911,17 @@ export default function ManifestPage() {
                 {detail.submittedAt && (
                   <span className="text-muted-foreground">
                     {t('detail.submittedAt')}{' '}
-                    <span className="tabular-nums">{formatDateTime(detail.submittedAt, locale)}</span>
+                    <span className="tabular-nums">
+                      {formatDateTime(detail.submittedAt, locale)}
+                    </span>
                   </span>
                 )}
                 {detail.approvedAt && (
                   <span className="text-muted-foreground">
                     {t('detail.approvedAt')}{' '}
-                    <span className="tabular-nums">{formatDateTime(detail.approvedAt, locale)}</span>
+                    <span className="tabular-nums">
+                      {formatDateTime(detail.approvedAt, locale)}
+                    </span>
                   </span>
                 )}
               </div>
@@ -1136,7 +1158,8 @@ export default function ManifestPage() {
                         <option value="">{t('items.selectEligible')}</option>
                         {eligible.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.reference} · {c.cargoType} · {c.weight ?? '—'} kg
+                            {c.reference} · <DomainLabel value={c.cargoType} /> · {c.weight ?? '—'}{' '}
+                            kg
                           </option>
                         ))}
                       </select>
@@ -1160,26 +1183,34 @@ export default function ManifestPage() {
                 {detail.items.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t('items.empty')}</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
+                  <TableScroll className="overflow-x-auto">
+                    <table className="w-full text-start">
                       <thead>
                         <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                           <th className="px-2 py-1.5 font-medium">{t('items.seq')}</th>
                           <th className="px-2 py-1.5 font-medium">{t('items.cargo')}</th>
                           <th className="px-2 py-1.5 font-medium">{t('items.blNumber')}</th>
-                          <th className="px-2 py-1.5 text-right font-medium">{t('items.weight')}</th>
-                          <th className="px-2 py-1.5 text-right font-medium">{t('items.quantity')}</th>
-                          <th className="px-2 py-1.5 text-right font-medium">{t('items.packages')}</th>
+                          <th className="px-2 py-1.5 text-end font-medium">{t('items.weight')}</th>
+                          <th className="px-2 py-1.5 text-end font-medium">
+                            {t('items.quantity')}
+                          </th>
+                          <th className="px-2 py-1.5 text-end font-medium">
+                            {t('items.packages')}
+                          </th>
                           <th className="px-2 py-1.5 font-medium">{t('items.notes')}</th>
                           {editable && (
-                            <th className="px-2 py-1.5 text-right font-medium">{t('items.actions')}</th>
+                            <th className="px-2 py-1.5 text-end font-medium">
+                              {t('items.actions')}
+                            </th>
                           )}
                         </tr>
                       </thead>
                       <tbody>
                         {detail.items.map((item) => (
                           <tr key={item.id} className="border-b border-border/60 last:border-0">
-                            <td className="px-2 py-1.5 text-[13px] tabular-nums">{item.sequence}</td>
+                            <td className="px-2 py-1.5 text-[13px] tabular-nums">
+                              {item.sequence}
+                            </td>
                             <td className="px-2 py-1.5">
                               <div className="text-[13px] font-medium">
                                 {item.cargo?.reference ?? '—'}
@@ -1204,13 +1235,13 @@ export default function ManifestPage() {
                                 <span className="text-[13px]">{item.blNumber ?? '—'}</span>
                               )}
                             </td>
-                            <td className="px-2 py-1.5 text-right text-[13px] tabular-nums">
+                            <td className="px-2 py-1.5 text-end text-[13px] tabular-nums">
                               {fmtW(item.weight)}
                             </td>
-                            <td className="px-2 py-1.5 text-right text-[13px] tabular-nums">
+                            <td className="px-2 py-1.5 text-end text-[13px] tabular-nums">
                               {item.quantity ?? '—'}
                             </td>
-                            <td className="px-2 py-1.5 text-right text-[13px] tabular-nums">
+                            <td className="px-2 py-1.5 text-end text-[13px] tabular-nums">
                               {item.packages ?? '—'}
                             </td>
                             <td className="px-2 py-1.5">
@@ -1218,7 +1249,9 @@ export default function ManifestPage() {
                                 <Input
                                   className="h-8 w-40"
                                   value={itemDrafts[item.id]?.notes ?? ''}
-                                  onChange={(e) => updateItemDraft(item.id, { notes: e.target.value })}
+                                  onChange={(e) =>
+                                    updateItemDraft(item.id, { notes: e.target.value })
+                                  }
                                   aria-label={t('items.notes')}
                                 />
                               ) : (
@@ -1226,7 +1259,7 @@ export default function ManifestPage() {
                               )}
                             </td>
                             {editable && (
-                              <td className="px-2 py-1.5 text-right">
+                              <td className="px-2 py-1.5 text-end">
                                 <div className="flex items-center justify-end gap-1">
                                   <Button
                                     variant="ghost"
@@ -1254,7 +1287,7 @@ export default function ManifestPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </TableScroll>
                 )}
               </div>
             </>
@@ -1271,6 +1304,7 @@ export default function ManifestPage() {
         confirmLabel={t('confirm.confirmSubmit')}
         loading={saving}
         onConfirm={submitManifest}
+        error={formError}
       />
 
       {/* Approve confirm */}
@@ -1282,6 +1316,7 @@ export default function ManifestPage() {
         confirmLabel={t('confirm.confirmApprove')}
         loading={saving}
         onConfirm={approveManifest}
+        error={formError}
       />
 
       {/* Delete confirm */}
@@ -1293,6 +1328,7 @@ export default function ManifestPage() {
         confirmLabel={t('confirm.confirmDelete')}
         loading={saving}
         onConfirm={deleteManifest}
+        error={formError}
       />
 
       {/* Cancel dialog */}
@@ -1311,7 +1347,10 @@ export default function ManifestPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { setConfirmingCancel(null); setCancelReason(''); }}
+              onClick={() => {
+                setConfirmingCancel(null);
+                setCancelReason('');
+              }}
             >
               {t('confirm.keep')}
             </Button>

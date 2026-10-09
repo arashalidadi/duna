@@ -1,4 +1,11 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type {
@@ -11,14 +18,7 @@ import type {
   VoyageListItem,
   LoadList,
 } from '@shipping/shared';
-import {
-  Plus,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  Play,
-  Save,
-} from 'lucide-react';
+import { Plus, Eye, CheckCircle2, XCircle, Play, Save } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -59,7 +59,10 @@ const STATUS_META: Record<
   CANCELLED: { label: 'Cancelled', variant: 'neutral' },
 };
 
-const RESULT_META: Record<LoadingResult, { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' }> = {
+const RESULT_META: Record<
+  LoadingResult,
+  { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' }
+> = {
   FULL: { label: 'Full', variant: 'success' },
   PARTIAL: { label: 'Partial', variant: 'warning' },
   NOT_LOADED: { label: 'Not loaded', variant: 'neutral' },
@@ -74,25 +77,35 @@ interface ItemDraft {
   [loadListItemId: string]: string; // raw input, validated on save
 }
 
-function fmtDate(iso: string): string {
+function fmtDate(iso: string, displayLocale: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('en-GB', { timeZone: 'Asia/Dubai' });
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString(displayLocale, { timeZone: 'Asia/Dubai' });
 }
 
-function fmtShortDate(iso: string | null | undefined): string {
+function fmtShortDate(iso: string | null | undefined, displayLocale: string): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-GB', { timeZone: 'Asia/Dubai', day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(displayLocale, {
+    timeZone: 'Asia/Dubai',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 export default function ActualLoadingPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<ActualLoading> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [voyageFilter, setVoyageFilter] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
@@ -132,19 +145,21 @@ export default function ActualLoadingPage() {
       if (from) params.set('createdFrom', from);
       if (to) params.set('createdTo', to);
       try {
-        setData(await api.get<PaginatedResult<ActualLoading>>(`/actual-loading?${params.toString()}`));
+        setData(
+          await api.get<PaginatedResult<ActualLoading>>(`/actual-loading?${params.toString()}`)
+        );
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load actual loading records');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadActualLoadingRecords'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
-  }, [load, page, search, statusFilter, voyageFilter, createdFrom, createdTo]);
+    load(page, debouncedSearch, statusFilter, voyageFilter, createdFrom, createdTo);
+  }, [load, page, debouncedSearch, statusFilter, voyageFilter, createdFrom, createdTo]);
 
   useEffect(() => {
     (async () => {
@@ -161,7 +176,9 @@ export default function ActualLoadingPage() {
     if (!createOpen) return;
     (async () => {
       try {
-        const res = await api.get<PaginatedResult<LoadList>>('/load-lists?status=FINALIZED&pageSize=100');
+        const res = await api.get<PaginatedResult<LoadList>>(
+          '/load-lists?status=FINALIZED&pageSize=100'
+        );
         setFinalizedLoadLists(res.data);
       } catch {
         setFinalizedLoadLists([]);
@@ -178,7 +195,7 @@ export default function ActualLoadingPage() {
   async function submitCreate() {
     setFormError(null);
     if (!createForm.loadListId) {
-      setFormError('Select a finalized load list.');
+      setFormError(ui('selectAFinalizedLoadList'));
       return;
     }
     setSaving(true);
@@ -191,7 +208,7 @@ export default function ActualLoadingPage() {
       setCreateForm({ loadListId: '', notes: '' });
       await load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to create actual loading');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCreateActualLoading'));
     } finally {
       setSaving(false);
     }
@@ -207,11 +224,14 @@ export default function ActualLoadingPage() {
       setDetail(d);
       setItemDrafts(
         Object.fromEntries(
-          d.items.map((it) => [it.loadListItemId, it.actualQuantity === null ? '' : String(it.actualQuantity)])
+          d.items.map((it) => [
+            it.loadListItemId,
+            it.actualQuantity === null ? '' : String(it.actualQuantity),
+          ])
         )
       );
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to load actual loading');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToLoadActualLoading'));
     }
   }
 
@@ -231,11 +251,16 @@ export default function ActualLoadingPage() {
     const actualQuantity = parseDraft(itemDrafts[item.loadListItemId]);
     const planned = item.loadListItem?.plannedQuantity ?? null;
     if (actualQuantity !== undefined && (Number.isNaN(actualQuantity) || actualQuantity < 0)) {
-      setFormError(`Actual quantity must be a non-negative integer.`);
+      setFormError(ui('actualQuantityMustBeANonNegativeInteger'));
       return;
     }
     if (actualQuantity !== undefined && planned !== null && actualQuantity > planned) {
-      setFormError(`Actual quantity (${actualQuantity}) exceeds planned quantity (${planned}).`);
+      setFormError(
+        ui('actualQuantityValueExceedsPlannedQuantityValue', {
+          value0: String(actualQuantity),
+          value1: String(planned),
+        })
+      );
       return;
     }
     setSaving(true);
@@ -249,11 +274,14 @@ export default function ActualLoadingPage() {
       setDetail(d);
       setItemDrafts(
         Object.fromEntries(
-          d.items.map((it) => [it.loadListItemId, it.actualQuantity === null ? '' : String(it.actualQuantity)])
+          d.items.map((it) => [
+            it.loadListItemId,
+            it.actualQuantity === null ? '' : String(it.actualQuantity),
+          ])
         )
       );
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save quantity');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveQuantity'));
     } finally {
       setSaving(false);
     }
@@ -264,12 +292,14 @@ export default function ActualLoadingPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const updated = await api.post<ActualLoadingDetail>(`/actual-loading/${confirmingStart.id}/start`);
+      const updated = await api.post<ActualLoadingDetail>(
+        `/actual-loading/${confirmingStart.id}/start`
+      );
       setConfirmingStart(null);
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to start loading');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToStartLoading'));
     } finally {
       setSaving(false);
     }
@@ -280,14 +310,17 @@ export default function ActualLoadingPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const updated = await api.post<ActualLoadingDetail>(`/actual-loading/${confirmingComplete.id}/complete`, {
-        notes: viewing?.notes ?? undefined,
-      });
+      const updated = await api.post<ActualLoadingDetail>(
+        `/actual-loading/${confirmingComplete.id}/complete`,
+        {
+          notes: viewing?.notes ?? undefined,
+        }
+      );
       setConfirmingComplete(null);
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to complete loading');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCompleteLoading'));
     } finally {
       setSaving(false);
     }
@@ -297,81 +330,93 @@ export default function ActualLoadingPage() {
     if (!confirmingCancel) return;
     setFormError(null);
     if (!cancelReason.trim()) {
-      setFormError('A cancellation reason is required.');
+      setFormError(ui('aCancellationReasonIsRequired'));
       return;
     }
     setSaving(true);
     try {
-      const updated = await api.post<ActualLoadingDetail>(`/actual-loading/${confirmingCancel.id}/cancel`, {
-        cancelReason: cancelReason.trim(),
-      });
+      const updated = await api.post<ActualLoadingDetail>(
+        `/actual-loading/${confirmingCancel.id}/cancel`,
+        {
+          cancelReason: cancelReason.trim(),
+        }
+      );
       setConfirmingCancel(null);
       setCancelReason('');
       if (viewing) setDetail(updated);
       await load(page, search, statusFilter, voyageFilter, createdFrom, createdTo);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to cancel loading');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCancelLoading'));
     } finally {
       setSaving(false);
     }
   }
 
-  const editable = detail !== null && (detail.status === 'DRAFT' || detail.status === 'IN_PROGRESS');
+  const editable =
+    detail !== null && (detail.status === 'DRAFT' || detail.status === 'IN_PROGRESS');
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Actual Loading' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Actual Loading</h1>
+          <Breadcrumbs items={[{ label: ui('actualLoading') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('actualLoading')}</h1>
           <p className="text-sm text-muted-foreground">
-            Record actual loaded quantities against the finalized load list, track full / partial /
-            not-loaded results, then complete or cancel the operation.
+            {ui('recordActualLoadedQuantitiesAgainstTheFinalizedLoadListTrackFull')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New actual loading
+            {ui('newActualLoading')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Actual Loading register</CardTitle>
-          <CardDescription>Executed loading operations. Live records only.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('actualLoadingRegister')}</CardTitle>
+          <CardDescription>{ui('executedLoadingOperationsLiveRecordsOnly')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
               <Input
-                placeholder="Search actual loading no., load list no., voyage no."
+                placeholder={ui('searchActualLoadingNoLoadListNoVoyageNo')}
                 value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-                aria-label="Search actual loading"
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                aria-label={ui('searchActualLoading')}
               />
             </div>
             <select
               className={SELECT_CLASS}
               value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              aria-label="Filter by status"
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All statuses</option>
+              <option value="">{ui('allStatuses')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {STATUS_META[s].label}
+                  <DomainLabel value={STATUS_META[s].label} />
                 </option>
               ))}
             </select>
             <select
               className={SELECT_CLASS}
               value={voyageFilter}
-              onChange={(e) => { setVoyageFilter(e.target.value); setPage(1); }}
-              aria-label="Filter by voyage"
+              onChange={(e) => {
+                setVoyageFilter(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('filterByVoyage')}
             >
-              <option value="">All voyages</option>
+              <option value="">{ui('allVoyages')}</option>
               {voyages.map((v) => (
                 <option key={v.id} value={v.id}>
                   {v.voyageNumber} — {v.vessel?.name}
@@ -380,23 +425,29 @@ export default function ActualLoadingPage() {
             </select>
             <Input
               type="date"
-              className={SELECT_CLASS + " min-w-[140px]"}
+              className={SELECT_CLASS + ' min-w-[140px]'}
               value={createdFrom}
-              onChange={(e) => { setCreatedFrom(e.target.value); setPage(1); }}
-              placeholder="From"
+              onChange={(e) => {
+                setCreatedFrom(e.target.value);
+                setPage(1);
+              }}
+              placeholder={ui('from')}
             />
             <Input
               type="date"
-              className={SELECT_CLASS + " min-w-[140px]"}
+              className={SELECT_CLASS + ' min-w-[140px]'}
               value={createdTo}
-              onChange={(e) => { setCreatedTo(e.target.value); setPage(1); }}
-              placeholder="To"
+              onChange={(e) => {
+                setCreatedTo(e.target.value);
+                setPage(1);
+              }}
+              placeholder={ui('to')}
             />
           </div>
         </CardContent>
 
         {loading ? (
-          <PageLoader label="Loading actual loading records..." />
+          <PageLoader label={ui('loadingActualLoadingRecords')} />
         ) : error ? (
           <CardContent>
             <ErrorState
@@ -407,44 +458,51 @@ export default function ActualLoadingPage() {
         ) : data && data.data.length === 0 ? (
           <CardContent>
             <EmptyState
-              title="No actual loading records found"
-              description="Try a different search or filter, or create a new actual loading from a finalized load list."
+              title={ui('noActualLoadingRecordsFound')}
+              description={ui('tryADifferentSearchOrFilterOrCreateANewActual')}
             />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">No.</th>
-                  <th className="px-3 py-2 font-medium">Load List</th>
-                  <th className="px-3 py-2 font-medium">Voyage / Vessel</th>
-                  <th className="px-3 py-2 font-medium">Route</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Items</th>
-                  <th className="px-3 py-2 font-medium">Created</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('no')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('loadList')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('voyageVessel')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('route')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('items')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('created')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {data?.data.map((row) => (
                   <tr key={row.id} className="border-b border-border/60 last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs text-foreground/90">{row.actualLoadingNumber}</td>
+                    <td className="px-3 py-2 font-mono text-xs text-foreground/90">
+                      {row.actualLoadingNumber}
+                    </td>
                     <td className="px-3 py-2">{row.loadList?.loadListNumber ?? '—'}</td>
                     <td className="px-3 py-2">
                       {row.loadList?.voyage?.voyageNumber ?? '—'}
-                      {row.loadList?.voyage?.vessel?.name ? ` · ${row.loadList.voyage.vessel.name}` : ''}
+                      {row.loadList?.voyage?.vessel?.name
+                        ? ` · ${row.loadList.voyage.vessel.name}`
+                        : ''}
                     </td>
                     <td className="px-3 py-2">
-                      {row.loadList?.voyage?.originPort?.code} → {row.loadList?.voyage?.destinationPort?.code}
+                      {row.loadList?.voyage?.originPort?.code} →{' '}
+                      {row.loadList?.voyage?.destinationPort?.code}
                     </td>
                     <td className="px-3 py-2">
                       <Badge variant={STATUS_META[row.status].variant} dot>
-                        {STATUS_META[row.status].label}
+                        <DomainLabel value={STATUS_META[row.status].label} />
                       </Badge>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row._count?.items ?? row.items?.length ?? 0}</td>
-                    <td className="px-3 py-2">{fmtShortDate(row.createdAt)}</td>
+                    <td className="px-3 py-2 text-end tabular-nums">
+                      {row._count?.items ?? row.items?.length ?? 0}
+                    </td>
+                    <td className="px-3 py-2">{fmtShortDate(row.createdAt, uiLocale)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
                         {canRead && (
@@ -453,7 +511,9 @@ export default function ActualLoadingPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openDetail(row)}
-                            aria-label={`View ${row.actualLoadingNumber}`}
+                            aria-label={ui('viewValue', {
+                              value0: String(row.actualLoadingNumber),
+                            })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -464,7 +524,9 @@ export default function ActualLoadingPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setConfirmingStart(row)}
-                            aria-label={`Start ${row.actualLoadingNumber}`}
+                            aria-label={ui('startValue', {
+                              value0: String(row.actualLoadingNumber),
+                            })}
                           >
                             <Play className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -475,7 +537,9 @@ export default function ActualLoadingPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => setConfirmingComplete(row)}
-                            aria-label={`Complete ${row.actualLoadingNumber}`}
+                            aria-label={ui('completeValue', {
+                              value0: String(row.actualLoadingNumber),
+                            })}
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -485,8 +549,14 @@ export default function ActualLoadingPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                            onClick={() => { setCancelReason(''); setFormError(null); setConfirmingCancel(row); }}
-                            aria-label={`Cancel ${row.actualLoadingNumber}`}
+                            onClick={() => {
+                              setCancelReason('');
+                              setFormError(null);
+                              setConfirmingCancel(row);
+                            }}
+                            aria-label={ui('cancelValue', {
+                              value0: String(row.actualLoadingNumber),
+                            })}
                           >
                             <XCircle className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -497,7 +567,7 @@ export default function ActualLoadingPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
         {data && data.meta.totalPages > 1 && (
@@ -517,15 +587,15 @@ export default function ActualLoadingPage() {
       <Dialog
         open={createOpen}
         onOpenChange={(open) => !open && setCreateOpen(false)}
-        title="New actual loading"
-        description="Select a FINALIZED load list to start loading. One actual loading per load list."
+        title={ui('newActualLoading')}
+        description={ui('selectAFINALIZEDLoadListToStartLoadingOneActualLoading')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submitCreate}>
-              Create actual loading
+              {ui('createActualLoading')}
             </Button>
           </>
         }
@@ -533,7 +603,7 @@ export default function ActualLoadingPage() {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="al-loadlist" className="block">
-              Load list *
+              {ui('loadListRequired')}
             </Label>
             <select
               id="al-loadlist"
@@ -541,7 +611,7 @@ export default function ActualLoadingPage() {
               value={createForm.loadListId}
               onChange={(e) => setCreateForm((f) => ({ ...f, loadListId: e.target.value }))}
             >
-              <option value="">Select finalized load list…</option>
+              <option value="">{ui('selectFinalizedLoadList')}</option>
               {finalizedLoadLists.map((ll) => (
                 <option key={ll.id} value={ll.id}>
                   {ll.loadListNumber} — {ll.voyage?.voyageNumber} — {ll.voyage?.vessel?.name}
@@ -550,18 +620,18 @@ export default function ActualLoadingPage() {
             </select>
             {finalizedLoadLists.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No finalized load lists available. Finalize a load list first.
+                {ui('noFinalizedLoadListsAvailableFinalizeALoadListFirst')}
               </p>
             )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="al-notes" className="block">
-              Notes
+              {ui('notes')}
             </Label>
             <textarea
               id="al-notes"
               className="min-h-[56px] w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder="Optional notes for this loading operation"
+              placeholder={ui('optionalNotesForThisLoadingOperation')}
               value={createForm.notes}
               onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
             />
@@ -578,44 +648,49 @@ export default function ActualLoadingPage() {
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing ? viewing.actualLoadingNumber : 'Actual loading'}
+        title={viewing ? viewing.actualLoadingNumber : ui('actualLoading_m7i2l5z')}
         description={
           detail
             ? `${detail.loadList?.loadListNumber} · ${detail.loadList?.voyage?.voyageNumber} · ${
                 detail.loadList?.voyage?.originPort?.code
               } → ${detail.loadList?.voyage?.destinationPort?.code}`
-            : 'Loading…'
+            : ui('loading')
         }
         footer={
           <>
             {editable && (
               <p className="mr-auto text-xs text-muted-foreground">
-                {detail?.status === 'IN_PROGRESS' ? 'In progress' : 'Not started'} — quantities can be edited.
+                {detail?.status === 'IN_PROGRESS' ? ui('inProgress') : ui('notStarted')}{' '}
+                {ui('quantitiesCanBeEdited')}
               </p>
             )}
             {detail?.status === 'CANCELLED' && (
-              <p className="mr-auto text-xs text-muted-foreground">Cancelled — immutable.</p>
+              <p className="mr-auto text-xs text-muted-foreground">{ui('cancelledImmutable')}</p>
             )}
             {detail?.status === 'COMPLETED' && (
-              <p className="mr-auto text-xs text-muted-foreground">Completed — immutable.</p>
+              <p className="mr-auto text-xs text-muted-foreground">{ui('completedImmutable')}</p>
             )}
             {canCancel && editable && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => { setCancelReason(''); setFormError(null); setConfirmingCancel(viewing); }}
+                onClick={() => {
+                  setCancelReason('');
+                  setFormError(null);
+                  setConfirmingCancel(viewing);
+                }}
               >
-                Cancel loading
+                {ui('cancelLoading')}
               </Button>
             )}
             {canComplete && detail?.status === 'IN_PROGRESS' && (
               <Button size="sm" onClick={() => setConfirmingComplete(detail)}>
                 <CheckCircle2 className="h-4 w-4" />
-                Complete loading
+                {ui('completeLoading')}
               </Button>
             )}
             <Button variant="ghost" size="sm" onClick={() => setViewing(null)}>
-              Close
+              {ui('close')}
             </Button>
           </>
         }
@@ -625,22 +700,25 @@ export default function ActualLoadingPage() {
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                 <span>
-                  Status:{' '}
+                  {ui('status_m1k6dje7')}{' '}
                   <Badge variant={STATUS_META[detail.status].variant} dot>
-                    {STATUS_META[detail.status].label}
+                    <DomainLabel value={STATUS_META[detail.status].label} />
                   </Badge>
                 </span>
                 <span className="text-muted-foreground">
-                  Created <span className="tabular-nums">{fmtDate(detail.createdAt)}</span>
+                  {ui('created')}
+                  <span className="tabular-nums">{fmtDate(detail.createdAt, uiLocale)}</span>
                 </span>
                 {detail.completedAt && (
                   <span className="text-muted-foreground">
-                    Completed <span className="tabular-nums">{fmtDate(detail.completedAt)}</span>
+                    {ui('completed')}
+                    <span className="tabular-nums">{fmtDate(detail.completedAt, uiLocale)}</span>
                   </span>
                 )}
                 {detail.cancelledAt && (
                   <span className="text-muted-foreground">
-                    Cancelled <span className="tabular-nums">{fmtDate(detail.cancelledAt)}</span>
+                    {ui('cancelled')}
+                    <span className="tabular-nums">{fmtDate(detail.cancelledAt, uiLocale)}</span>
                   </span>
                 )}
               </div>
@@ -655,64 +733,74 @@ export default function ActualLoadingPage() {
           )}
 
           {detail === null ? (
-            <PageLoader label="Loading actual loading detail..." />
+            <PageLoader label={ui('loadingActualLoadingDetail')} />
           ) : detail.items.length === 0 && !editable ? (
             <EmptyState
-              title="No items recorded"
-              description="This actual loading has no recorded quantities."
+              title={ui('noItemsRecorded')}
+              description={ui('thisActualLoadingHasNoRecordedQuantities')}
             />
           ) : detail.items.length === 0 ? (
             <EmptyState
-              title="No items yet"
-              description="Start loading, then enter actual quantities per cargo."
+              title={ui('noItemsYet')}
+              description={ui('startLoadingThenEnterActualQuantitiesPerCargo')}
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
+            <TableScroll className="overflow-x-auto">
+              <table className="w-full text-start">
                 <thead>
                   <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-2 py-1.5 font-medium">Cargo</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Planned</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Actual</th>
-                    <th className="px-2 py-1.5 text-right font-medium">Remaining</th>
-                    <th className="px-2 py-1.5 font-medium">Result</th>
-                    {editable && <th className="px-2 py-1.5 text-right font-medium">Save</th>}
+                    <th className="px-2 py-1.5 font-medium">{ui('cargo')}</th>
+                    <th className="px-2 py-1.5 text-end font-medium">{ui('planned')}</th>
+                    <th className="px-2 py-1.5 text-end font-medium">{ui('actual')}</th>
+                    <th className="px-2 py-1.5 text-end font-medium">{ui('remaining')}</th>
+                    <th className="px-2 py-1.5 font-medium">{ui('result')}</th>
+                    {editable && <th className="px-2 py-1.5 text-end font-medium">{ui('save')}</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {detail.items.map((item) => {
                     const planned = item.loadListItem?.plannedQuantity ?? null;
                     const parsed = parseDraft(itemDrafts[item.loadListItemId]);
-                    const actual = parsed !== undefined && !Number.isNaN(parsed) ? parsed : item.actualQuantity;
+                    const actual =
+                      parsed !== undefined && !Number.isNaN(parsed) ? parsed : item.actualQuantity;
                     const remaining = planned !== null && actual !== null ? planned - actual : null;
                     const exceeds =
-                      parsed !== undefined && !Number.isNaN(parsed) && planned !== null && parsed > planned;
+                      parsed !== undefined &&
+                      !Number.isNaN(parsed) &&
+                      planned !== null &&
+                      parsed > planned;
                     return (
                       <tr key={item.id} className="border-b border-border/60 last:border-0">
                         <td className="px-2 py-1.5">
-                          <div className="text-[13px] font-medium">{item.cargo?.reference ?? '—'}</div>
+                          <div className="text-[13px] font-medium">
+                            {item.cargo?.reference ?? '—'}
+                          </div>
                           {item.cargo?.serialNumber && (
-                            <div className="font-mono text-xs text-muted-foreground">{item.cargo.serialNumber}</div>
+                            <div className="font-mono text-xs text-muted-foreground">
+                              {item.cargo.serialNumber}
+                            </div>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-[13px] tabular-nums">
+                        <td className="px-2 py-1.5 text-end text-[13px] tabular-nums">
                           {planned === null ? '—' : planned}
                         </td>
-                        <td className="px-2 py-1.5 text-right">
+                        <td className="px-2 py-1.5 text-end">
                           {editable ? (
                             <Input
                               type="number"
                               min={0}
                               max={planned ?? undefined}
                               className={
-                                'h-8 w-24 text-right tabular-nums ' +
+                                'h-8 w-24 text-end tabular-nums ' +
                                 (exceeds
                                   ? 'border-destructive/50 focus-visible:ring-destructive/40'
                                   : '')
                               }
                               value={itemDrafts[item.loadListItemId]}
                               onChange={(e) => updateDraft(item.loadListItemId, e.target.value)}
-                              aria-label={`Actual quantity for ${item.cargo?.reference}`}
+                              aria-label={ui('actualQuantityForValue', {
+                                value0: String(item.cargo?.reference),
+                              })}
                             />
                           ) : (
                             <span className="text-[13px] tabular-nums">
@@ -720,23 +808,25 @@ export default function ActualLoadingPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-1.5 text-right text-[13px] tabular-nums">
+                        <td className="px-2 py-1.5 text-end text-[13px] tabular-nums">
                           {remaining === null ? '—' : remaining}
                         </td>
                         <td className="px-2 py-1.5">
                           <Badge variant={RESULT_META[item.result].variant} dot>
-                            {RESULT_META[item.result].label}
+                            <DomainLabel value={RESULT_META[item.result].label} />
                           </Badge>
                         </td>
                         {editable && (
-                          <td className="px-2 py-1.5 text-right">
+                          <td className="px-2 py-1.5 text-end">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7"
                               loading={saving}
                               onClick={() => submitDraft(item)}
-                              aria-label={`Save quantity for ${item.cargo?.reference}`}
+                              aria-label={ui('saveQuantityForValue', {
+                                value0: String(item.cargo?.reference),
+                              })}
                             >
                               <Save className="h-4 w-4" aria-hidden="true" />
                             </Button>
@@ -747,7 +837,7 @@ export default function ActualLoadingPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
       </Dialog>
@@ -756,22 +846,28 @@ export default function ActualLoadingPage() {
       <ConfirmDialog
         open={!!confirmingStart}
         onOpenChange={(open) => !open && setConfirmingStart(null)}
-        title="Start loading"
-        description={`Start ${confirmingStart?.actualLoadingNumber}? Loading will move to In Progress, after which quantities can be recorded and the operation completed.`}
-        confirmLabel="Start loading"
+        title={ui('startLoading')}
+        description={ui('startValueLoadingWillMoveToInProgressAfterWhichQuantities', {
+          value0: String(confirmingStart?.actualLoadingNumber),
+        })}
+        confirmLabel={ui('startLoading')}
         loading={saving}
         onConfirm={submitStart}
+        error={formError}
       />
 
       {/* Complete confirm */}
       <ConfirmDialog
         open={!!confirmingComplete}
         onOpenChange={(open) => !open && setConfirmingComplete(null)}
-        title="Complete loading"
-        description={`Complete ${confirmingComplete?.actualLoadingNumber}? All items will be re-validated (cargo must still be APPROVED and not cancelled). Completed loading is immutable and fully loaded cargo leaves the yard inventory.`}
-        confirmLabel="Complete loading"
+        title={ui('completeLoading')}
+        description={ui('completeValueAllItemsWillBeReValidatedCargoMustStill', {
+          value0: String(confirmingComplete?.actualLoadingNumber),
+        })}
+        confirmLabel={ui('completeLoading')}
         loading={saving}
         onConfirm={submitComplete}
+        error={formError}
       />
 
       {/* Cancel dialog */}
@@ -783,22 +879,31 @@ export default function ActualLoadingPage() {
             setCancelReason('');
           }
         }}
-        title="Cancel loading"
-        description={`Cancel ${confirmingCancel?.actualLoadingNumber}? You must provide a reason. Cancelled loading is immutable.`}
+        title={ui('cancelLoading')}
+        description={ui('cancelValueYouMustProvideAReasonCancelledLoadingIsImmutable', {
+          value0: String(confirmingCancel?.actualLoadingNumber),
+        })}
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => { setConfirmingCancel(null); setCancelReason(''); }}>
-              Keep loading
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setConfirmingCancel(null);
+                setCancelReason('');
+              }}
+            >
+              {ui('keepLoading')}
             </Button>
             <Button variant="destructive" size="sm" loading={saving} onClick={submitCancel}>
-              Cancel loading
+              {ui('cancelLoading')}
             </Button>
           </>
         }
       >
         <div className="space-y-1.5">
           <Label htmlFor="cancel-reason" className="block">
-            Cancellation reason *
+            {ui('cancellationReasonRequired')}
           </Label>
           <textarea
             id="cancel-reason"

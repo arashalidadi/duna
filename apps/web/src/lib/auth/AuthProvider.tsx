@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
-import { useRouter } from 'next/navigation';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { CurrentUser, LoginResponse, RefreshResponse } from '@shipping/shared';
 import { api, ApiError, setAccessToken, getAccessToken } from '@/lib/api/client';
 
@@ -18,7 +10,7 @@ interface MeResponse {
   permissions: string[];
 }
 
-type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'unavailable';
 
 interface AuthContextValue {
   status: AuthStatus;
@@ -60,7 +52,10 @@ function storeRefreshToken(token: string | null): void {
  * token (token rotation handled server-side), then retries /auth/me once.
  * Returns the current user on success or null on failure.
  */
-async function resolveSession(): Promise<{ user: CurrentUser; permissions: string[] } | null> {
+async function resolveSessionRequest(): Promise<{
+  user: CurrentUser;
+  permissions: string[];
+} | null> {
   const access = getAccessToken();
   if (!access) return null;
 
@@ -68,7 +63,11 @@ async function resolveSession(): Promise<{ user: CurrentUser; permissions: strin
     try {
       return await api.get<MeResponse>('/auth/me');
     } catch (e) {
-      return e instanceof ApiError && e.status === 401 ? null : (() => { throw e; })();
+      return e instanceof ApiError && e.status === 401
+        ? null
+        : (() => {
+            throw e;
+          })();
     }
   }
 
@@ -84,13 +83,23 @@ async function resolveSession(): Promise<{ user: CurrentUser; permissions: strin
     storeRefreshToken(pair.refreshToken);
     const retry = await me();
     return retry;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return null;
+    throw error;
   }
 }
 
+// Coalesce StrictMode restoration and concurrent refresh requests. Refresh tokens rotate.
+let sessionFlight: ReturnType<typeof resolveSessionRequest> | null = null;
+function resolveSession() {
+  if (!sessionFlight)
+    sessionFlight = resolveSessionRequest().finally(() => {
+      sessionFlight = null;
+    });
+  return sessionFlight;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -105,7 +114,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const session = await resolveSession();
+      let session;
+      try {
+        session = await resolveSession();
+      } catch {
+        if (!cancelled) setStatus('unavailable');
+        return;
+      }
       if (cancelled) return;
       if (session) {
         applyUser(session.user, session.permissions);
@@ -157,8 +172,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         applyUser(session.user, session.permissions);
         return true;
       }
+      setAccessToken(null);
+      storeRefreshToken(null);
+      setUser(null);
+      setPermissions([]);
+      setStatus('unauthenticated');
     } catch {
-      /* fall through */
+      // An unavailable backend is not evidence that a token is invalid.
+      setStatus('unavailable');
     }
     return false;
   }, [applyUser]);

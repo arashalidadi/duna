@@ -17,10 +17,10 @@ const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
 };
 
 const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {
-  sm: 'h-8 px-3 text-xs',
-  default: 'h-9 px-4 text-sm',
+  sm: 'h-9 px-3 text-xs',
+  default: 'h-10 px-4 text-sm',
   lg: 'h-11 px-6 text-base',
-  icon: 'h-9 w-9',
+  icon: 'h-10 w-10',
 };
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -32,8 +32,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           'disabled:pointer-events-none disabled:opacity-50',
           variantClasses[variant],
           sizeClasses[size],
