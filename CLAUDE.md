@@ -43,7 +43,7 @@ See `docs/architecture.md`, `docs/decisions.md` (ADRs 001–025).
   implicit conversion), pagination via `{ data, meta: { page, pageSize, totalItems, totalPages } }`.
 - Connectivity: browser bundle reads `NEXT_PUBLIC_API_URL` (`apps/web/.env.local`, inlined at build time,
   use same-origin `/api/v1`); Next proxies via server-only `API_INTERNAL_URL`
-  (default `http://127.0.0.1:3010`, matching backend `API_PORT=3010`); API CORS allow-list is env-driven via
+  (default `http://127.0.0.1:3101`, matching backend `API_PORT=3101`); API CORS allow-list is env-driven via
   `API_CORS_ORIGINS` (dev: `http://localhost:3000,http://127.0.0.1:3000`; never `origin: "*"` when
   credentials/auth is used). After changing `NEXT_PUBLIC_*`, rebuild/restart the frontend.
 - DB: cuid() ids, `createdAt`/`updatedAt`, UTC timestamps, soft delete via `deletedAt` where retention matters,
@@ -54,7 +54,7 @@ See `docs/architecture.md`, `docs/decisions.md` (ADRs 001–025).
 
 ```bash
 pnpm install                # install (onlyBuiltDependencies allow-list is committed)
-pnpm dev                    # web (3000) + api (3010) concurrently
+pnpm dev                    # web (3000) + api (3101) concurrently
 pnpm build                  # build all workspaces
 pnpm lint                   # lint all workspaces
 pnpm test                   # tests (config unit + api e2e)

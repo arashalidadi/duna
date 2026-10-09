@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // Server-only upstream. The browser uses /api/v1, never the sandbox's loopback address.
-const API_ORIGIN = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:3010';
+const API_ORIGIN = process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:3101';
 async function forward(
   request: NextRequest,
   ctx: { params: { path: string[] } }

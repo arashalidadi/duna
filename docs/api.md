@@ -203,7 +203,7 @@ Docs: Swagger UI is mounted at `/docs`.
   or `127.0.0.1`. Only explicit origins are allowed (`credentials: true`); `origin: "*"` is not used.
 - The frontend uses `NEXT_PUBLIC_API_URL=/api/v1` (in `apps/web/.env.local`, inlined at build
   time). The same-origin Next route forwards to server-only `API_INTERNAL_URL`, default
-  `http://127.0.0.1:3010`, matching backend `API_PORT=3010`. Do not put sandbox loopback addresses
+  `http://127.0.0.1:3101`, matching backend `API_PORT=3101`. Do not put sandbox loopback addresses
   into browser-facing configuration. Rebuild when changing `NEXT_PUBLIC_*` variables.
 - Verify health through the web origin as well as directly against the API; a direct `curl`
   alone does not verify the proxy or browser path. Cross-origin deployments still need the

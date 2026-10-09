@@ -1,6 +1,16 @@
 # Progress
 
-## Current priority — publication for testing on the user's server
+## Current priority — required API 3101 correction; publication on hold
+
+The user's previous interim port request was incorrect. **3101 is required**, while web 3000
+and PostgreSQL 5432 remain unchanged. The loader, proxy, examples, CLI resolver and current
+instructions have been corrected; history is labeled rather than rewritten. Do not push, open a
+PR or merge until the user reviews this correction and explicitly approves publication. Do not
+resume preview backend/login experiments. [Complete file-by-file audit](ops/api-port-correction.md)
+is authoritative for this correction, its fresh checks, remaining historical references and
+shallow-aware recovery archive. Earlier publication/login directives below are superseded.
+
+## Previous priority — publication preparation (superseded by port-review hold)
 
 The user has explicitly removed the Arena-login prerequisite. Stop preview backend provisioning
 and real-login attempts. Preserve the existing redesign, port configuration and regression tests;
@@ -20,7 +30,7 @@ The production preview was restarted after the build; server-side acceptance rem
 ## Latest real-admin login investigation — 2026-10-09
 
 - Existing commits and shallow-aware recovery archive survived this continuation and were verified; no redundant preservation checkpoint or redesign was made.
-- Submitted the supplied credentials once in a real, unmocked browser: `POST /api/v1/auth/login` returned **502 UPSTREAM_UNAVAILABLE**; dashboard not reached. Proxy source and running compiled build correctly target **3010**.
+- Submitted the supplied credentials once in a real, unmocked browser: `POST /api/v1/auth/login` returned **502 UPSTREAM_UNAVAILABLE**; dashboard not reached. Historical observation only: the then-built proxy targeted **3010** (the mistaken request, now corrected to **3101**).
 - Actual API startup exited 1 with **missing DATABASE_URL** before listening. Both JWT secrets and PostgreSQL/runtime connection are also absent. Prisma Client import fails; fresh engine generation remains download-blocked.
 - Account existence/password validity cannot be determined without the database. No account/password changes or seed were performed. Supplied credentials were not added to tracked files.
 - Fresh web typecheck/lint/guards, browser **22/22**, config **10/10**, and port tests **7/7** pass. Existing validated production build remains live; it was not rebuilt because application source is unchanged. Mocked UI passes are not real-login success.
@@ -29,7 +39,7 @@ The production preview was restarted after the build; server-side acceptance rem
 ## Latest port/publication resumption — 2026-10-09
 
 - Restored files survived but previously reported `ba48f28` / `20ca01cd` objects and external bundles did not. Preserved 111 intended landing/dashboard changes in `3aa1f1b15f54e68c49451f670785617a5fa93507` on the same `arena/fe92d85a-duna` branch. Existing UI design/tests were not redone.
-- Found inconsistent 3001 API fallback vs 3101 proxy/scripts/examples; no configured 3010 or running API existed. Aligned development defaults to the user's stated **3010**, preserving explicit port overrides. Browser remains same-origin `/api/v1`; web server upstream is `http://127.0.0.1:3010`.
+- Historical, superseded change: the inconsistent 3001 API fallback and 3101 proxy/scripts/examples were aligned to the user's then-stated **3010**. That request was incorrect and has been withdrawn; **3101 is now required**. Browser requests remain same-origin `/api/v1`.
 - Fresh passes: web typecheck/lint/guards/build (108 pages), **22/22 browser tests**, shared/config build/typechecks, **10/10 config tests**, **7/7 port/script tests**. Real health still 502; API/database are absent. Prisma's matching native-engine checksum download is restricted; API build fails on missing generated types. No real credentials/DB workflows verified.
 - Backup restore testing found this checkout is shallow: bundle verification alone was insufficient. Include saved shallow-boundary metadata with the bundle; isolated import with metadata passes fsck and reproduces the tree. Download the final recovery archive separately, not as source in Git.
 - GitHub still disabled in this closed session. Neither target remote ref is cached. No live ancestry/ai-test comparison, push or PR creation claimed; PR body prepared only. See `docs/ops/backend-connection-audit.md` and `docs/ui/pr-ai-test.md` for safe next-session instructions.
@@ -975,9 +985,9 @@ seed vessel has `imo='1234567'` and the test creates another with the same IMO �
 This is a pre-existing test isolation issue unrelated to runtime changes.
   in `afterAll`, so no artifacts accumulate). A dedicated `shipping_erp_test` database with isolated
   migration/seed per run is still planned for a hardening pass.
-- **Sandbox port**: in the development sandbox, the API default port `3001` is occupied by an unrelated
-  process; the local (gitignored) `.env` overrides to `3101`. `.env.example` keeps `3001` as the
-  documented default.
+- **Historical sandbox port**: the original API default `3001` was occupied by an unrelated
+  process, prompting an explicit `3101` override. That was the earlier setup; **3101 is now the
+  required project default in the loader, proxy and examples**, not merely a local workaround.
 - **ts-jest warnings**: harmless warnings compiled `.js` dist files of workspace packages (allowJs not set);
   cosmetic only.
 - **pnpm build-script approval**: pnpm v11 prints a notice about ignored build scripts on first install;

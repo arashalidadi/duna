@@ -1,6 +1,6 @@
 # ERP Local Development — Runtime & Persistence
 
-> Current API default: **3010**. The startup/status scripts honor exported `API_PORT`, then
+> Current API default: **3101**. The startup/status scripts honor exported `API_PORT`, then
 > repo-root `.env`, then this default. Set the matching server-only `API_INTERNAL_URL` in
 > `apps/web/.env.local`; keep `NEXT_PUBLIC_API_URL=/api/v1`.
 >
@@ -32,7 +32,7 @@ Closing OpenCode does NOT stop them.
 | Service  | Port  | URL                              |
 |----------|-------|----------------------------------|
 | Web      | 3000  | http://127.0.0.1:3000           |
-| API      | 3010  | http://127.0.0.1:3010/api/v1    |
+| API      | 3101  | http://127.0.0.1:3101/api/v1    |
 | PostgreSQL | 5432 | postgresql://shipping:***@127.0.0.1:5432/shipping_erp |
 
 ## PostgreSQL data persistence
@@ -53,7 +53,7 @@ home directory. All data preserved byte-for-byte (rsync while stopped, no dump/r
 ```
 Browser → http://127.0.0.1:3000 (Next.js dev)
               ↓ (same-origin /api/v1 proxy)
-           http://127.0.0.1:3010 (NestJS API)
+           http://127.0.0.1:3101 (NestJS API)
               ↓
            http://127.0.0.1:5432 (PostgreSQL, durable data)
 ```

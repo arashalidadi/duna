@@ -2,15 +2,17 @@
 
 ## Current instruction and scope
 
-The user explicitly withdrew the Arena-preview login prerequisite. **Prepare publication now;
-real login and database-backed acceptance will be tested on the user's configured server.**
+**Publication is on hold while the user reviews the required API-port correction. Do not push,
+create a PR or merge.** The API must use **3101** by default; the web remains on **3000**.
+Real login and database-backed acceptance will be tested on the user's configured server, not
+used as a reason to resume preview backend troubleshooting. See [port audit](api-port-correction.md).
 Do not resume attempts to provision the Arena database, generate its Prisma engine, reset an
 admin password or authenticate there. Historical login diagnostics describe environment limits,
 not a current publication gate. No backend startup/login/DB repair was attempted in this turn.
 
 Branch: `arena/fe92d85a-duna`. Intended PR base: **`ai-test`**. Never push directly to main,
-force-push or merge the PR automatically. Publication is blocked here **only by the closed
-session's GitHub restrictions**, not by the missing preview backend.
+force-push or merge the PR automatically. Publication is withheld by the user's explicit instruction and this closed
+session's GitHub restrictions, not by the missing preview backend.
 
 ## Final local diff review
 
@@ -21,7 +23,7 @@ including prior documentation. All intended work is present:
 - Public landing sections, brand assets, fonts, translations and auth/navigation links.
 - All 33 operational dashboard routes, shared shell, dialogs, focus/typing corrections,
   mobile/RTL navigation, persistent themes, menus and localized EN/FA/AR presentation.
-- Existing port-3010 configuration, runtime script fixes, guards and regression tests.
+- Existing port-3101 configuration, runtime script fixes, guards and regression tests.
 - Backend business/auth/user-management source and Prisma schema/seed unchanged from baseline.
   No admin account or authentication behavior is changed in this publication-preparation turn.
 
@@ -44,7 +46,7 @@ The actual remote `ai-test` comparison is **not available**: only cached origin/
 origin/HEAD exist locally. Do not mistake the reviewed local baseline diff for a live PR diff
 or assume already-merged landing changes need to be reapplied on GitHub.
 
-## Fresh validation
+## Previous publication-pass validation (current port-correction results in the port audit)
 
 | Check | Result |
 | --- | --- |
@@ -80,7 +82,7 @@ Use a secret manager/service environment or protected ignored environment files.
 | `DATABASE_URL` | Existing approved PostgreSQL connection URL; preserve database/schema and provider TLS requirements |
 | `AUTH_JWT_SECRET` | Existing strong secret; do not rotate as part of this UI deployment |
 | `AUTH_JWT_REFRESH_SECRET` | Existing configured secret; required by the validator |
-| `API_PORT` | `3010` default; retain an explicit working alternative if the proxy matches |
+| `API_PORT` | `3101` default; retain an explicit working alternative if the proxy matches |
 | `API_HOST` | Appropriate service bind address; use a private interface or container bind plus firewall/reverse proxy |
 | `API_VERSION` | `1`, matching the existing `/api/v1` contract |
 | `API_CORS_ORIGINS` | Explicit actual frontend origin allow-list; do not use `*` for authenticated traffic |
@@ -93,11 +95,11 @@ Use a secret manager/service environment or protected ignored environment files.
 | --- | --- |
 | `NODE_ENV` | `production` |
 | `NEXT_PUBLIC_API_URL` | `/api/v1`, set during the web build; never a sandbox/browser localhost URL |
-| `API_INTERNAL_URL` | Server-only API origin, normally `http://127.0.0.1:3010` for the same host; **no `/api/v1` suffix** |
+| `API_INTERNAL_URL` | Server-only API origin, normally `http://127.0.0.1:3101` for the same host; **no `/api/v1` suffix** |
 
-For separate containers, replace loopback with the API service's internal hostname. If the API
-continues to use 3001 or 3101, explicitly set API_PORT and the matching API_INTERNAL_URL together.
-Both defaults and examples currently agree on 3010, with tests for overrides. Startup/status
+For separate containers, replace loopback with the API service's internal hostname. For an explicitly required deployment override,
+set API_PORT and the matching API_INTERNAL_URL together; do not change the project default.
+Both defaults and examples currently agree on 3101, with tests for overrides. Startup/status
 scripts read the configured port; root Nest `.env` and Next's web `.env.local` are separate.
 Restart affected services after environment changes; rebuild after changing `NEXT_PUBLIC_*`.
 
@@ -126,9 +128,9 @@ After deployment verify direct API health, same-origin proxied health, actual ad
 Those server checks are acceptance work for the user, **not a prerequisite for publishing this
 branch for review**. Protect the database and take the normal deployment backup first.
 
-## Exact publication steps — NEW GitHub-enabled session only
+## Future publication steps — only after user approval in a NEW GitHub-enabled session
 
-The commands below were **not executed against GitHub in this closed session**. Start a session
+The commands below are **on hold and were not executed**. The user must first approve publication. Start a session
 on the intended branch, recover the archive first if necessary, and preserve any new local work.
 Do not run the push block until the ancestry/diff review succeeds. Stop on command failure.
 
@@ -168,7 +170,7 @@ actual remote situation. Do not invent ancestry, overwrite newer remote commits,
 cherry-pick the cumulative restoration checkpoint, or assume a missing ref is permission to
 replace it. Resolve divergence with a reviewed, non-rewriting plan that preserves remote work.
 
-Only after the preceding review is complete:
+Only after new explicit user approval and the preceding review are both complete:
 
 ```sh
 set -e

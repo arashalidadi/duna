@@ -68,7 +68,7 @@ Services run with `setsid`+`nohup` and reparent to systemd (PPID=1). Closing
 OpenCode or your terminal does NOT stop them.
 
 - Web: http://127.0.0.1:3000
-- API: http://127.0.0.1:3010/api/v1
+- API: http://127.0.0.1:3101/api/v1
 - PostgreSQL: 127.0.0.1:5432
 
 ### Option B — Foreground (for development)
@@ -92,8 +92,8 @@ pnpm db:generate
 pnpm db:migrate               # prisma migrate dev
 pnpm db:seed                  # seed reference data + admin user
 
-# 5. Run the API (port 3010 by default)
-pnpm dev:api                # http://localhost:3010/api/v1  (Swagger at /docs)
+# 5. Run the API (port 3101 by default)
+pnpm dev:api                # http://localhost:3101/api/v1  (Swagger at /docs)
 # To use another port, set API_PORT in .env AND the matching API_INTERNAL_URL in apps/web/.env.local
 
 # 6. Run the web app (port 3000)
@@ -104,10 +104,13 @@ pnpm dev:web                # http://localhost:3000
 
 ### Frontend ↔ API connectivity
 
+The original default was 3001; 3101 was introduced when that port was occupied. **3101 is now
+this project's required API default**, not just a temporary workaround. The web remains on 3000.
+
 - Keep `NEXT_PUBLIC_API_URL=/api/v1` in `apps/web/.env.local`. A hosted browser must never
   call localhost to reach the sandbox API; requests go through the existing same-origin Next proxy.
-- Set server-only `API_INTERNAL_URL=http://127.0.0.1:3010` to match backend `API_PORT=3010`.
-  Explicit alternatives such as 3001/3101 still work when **both** values agree. For separate
+- Set server-only `API_INTERNAL_URL=http://127.0.0.1:3101` to match backend `API_PORT=3101`.
+  Deployment-specific explicit overrides still work when **both** values agree. For separate
   containers, use the API service's internal hostname instead of loopback.
 - The API's CORS allow-list remains environment-driven via `API_CORS_ORIGINS`; do not disable auth
   or allow every origin to work around a missing service.
@@ -145,7 +148,7 @@ in later phases. Conventions (cuid ids, UTC timestamps, soft delete, audit field
 ## API
 
 Versioned under `/api/v1` with a consistent response envelope, validation, and error format.
-See [docs/api.md](docs/api.md) and the Swagger UI at `http://localhost:3010/docs`.
+See [docs/api.md](docs/api.md) and the Swagger UI at `http://localhost:3101/docs`.
 
 ## Documentation
 

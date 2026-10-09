@@ -1,5 +1,10 @@
 # Backend connection and publication handoff — 2026-10-09
 
+> Historical diagnostics, with deployment examples corrected to the required API port **3101**.
+> The earlier request for 3010 was erroneous and has been withdrawn; it is retained below only
+> in explicitly historical evidence, never as an active recommendation. Current validation and
+> file-by-file changes: [port-correction audit](api-port-correction.md). **Do not publish yet.**
+
 ## Preservation and Git facts
 
 The resumption started on `arena/fe92d85a-duna` at shallow baseline
@@ -47,7 +52,7 @@ in the final handoff and recorded in the archive's README. Do not publish backup
 
 ## Port diagnosis — a combination of inconsistent defaults and absent services
 
-Before this fix:
+Historical state before the earlier, now-superseded change:
 
 | Location | Port/configuration |
 | --- | --- |
@@ -56,35 +61,35 @@ Before this fix:
 | Next proxy fallback + web `.env.example` | 3101 |
 | Detached start/status/stop scripts | hard-coded 3101, even with an API_PORT override |
 | Recent historical workstation docs | 3101, a workaround for another service using 3001 |
-| User's stated preferred port | 3010, not configured in this checkout |
-| Actual API listeners | none on 3001, 3010 or 3101 |
+| Earlier mistaken request (withdrawn) | 3010, not configured in that checkout; required project port is 3101 |
+| Historical API listener observation | none on the then-inspected ports; no backend availability is claimed |
 
-**3010 is now the aligned development default, honoring the user's stated preference.**
-It is a deliberate configuration correction, not a claim that an API was already running there.
-Explicit 3001/3101 overrides are still supported. No endpoints, auth checks or business rules changed.
+**3101 is the required project API port and the aligned default.** The original 3001 default
+was superseded by the 3101 workaround, now the required setting. Explicit deployment overrides
+remain supported when both API and proxy agree; no endpoints, auth checks or business rules change.
 
 ```dotenv
 # Backend: repo-root .env or environment supplied to Nest
 API_HOST=0.0.0.0
-API_PORT=3010
+API_PORT=3101
 
 # Web: apps/web/.env.local or environment supplied to Next
 NEXT_PUBLIC_API_URL=/api/v1
-API_INTERNAL_URL=http://127.0.0.1:3010
+API_INTERNAL_URL=http://127.0.0.1:3101
 ```
 
 `API_INTERNAL_URL` is an origin, without `/api/v1`; the proxy adds that prefix. It is server-only.
 For an explicitly different backend port, update **both** `API_PORT` and `API_INTERNAL_URL`.
 The detached scripts now resolve their API checks from exported `API_PORT`, then repo `.env`,
-then 3010. They no longer execute `.env` as shell code or let it silently overwrite an exported
+then 3101. They no longer execute `.env` as shell code or let it silently overwrite an exported
 API port. Root `.env` remains loaded by the existing Nest config factory. Next separately reads
 its web environment file. Restart affected services after changes; rebuild after `NEXT_PUBLIC_*`
 changes. For separate containers, use the API's service hostname rather than loopback.
 
 No browser code calls sandbox localhost. Same-origin forwarding, bearer headers, refresh-token
 contracts, timeout behavior, structured outage 502 and upstream status forwarding are unchanged.
-Historical logs and old demo-seeding scripts retaining 3101 are not active configuration; these
-demo scripts were neither run nor rewritten as part of this scoped task.
+Historical logs and old demo-seeding scripts already reference 3101 consistently. Those demo
+scripts were neither run nor rewritten; they are not a way to repair an existing admin account.
 
 ## Database and startup prerequisites
 
@@ -129,16 +134,16 @@ No schema/client upgrades, TLS-disable flags or fake generated client were intro
 To unblock: use an approved build/runtime environment able to obtain the matching Prisma engine;
 provision isolated PostgreSQL (or an approved reachable non-production service); supply DB URL
 and unique JWT secrets through secret configuration; generate Prisma and build the API; apply
-reviewed migrations and reference seed only to that approved database. Start Nest on 3010 (or a
+reviewed migrations and reference seed only to that approved database. Start Nest on 3101 (or a
 matched explicit override), verify direct **and proxied** health, then use an authorized account
 for real login/refresh/logout, server RBAC and database workflow tests. Existing accounts or
 approved account provisioning are required; example/default passwords are not verified credentials.
 
-## Fresh validation in this resumption
+## Historical validation from the earlier resumption (not current correction results)
 
 | Check | Result |
 | --- | --- |
-| Config unit tests | **10/10 pass**, including default/empty port and explicit 3001/3010/3101 overrides |
+| Config unit tests | **10/10 pass**, including then-current default/empty-port and explicit-override cases |
 | `node scripts/test-api-port.mjs` | **7/7 pass**, defaults/examples/proxy parity, dotenv precedence, quoting, invalid ports and safe script failure |
 | Shell syntax; status with default and 3101 override | **Pass**, reads actual configured API port; does not start/stop services |
 | Shared/config builds + typechecks | **Pass** |
@@ -148,7 +153,7 @@ approved account provisioning are required; example/default passwords are not ve
 | Existing Chromium UI regression suite | **22/22 pass**, 4.7 minutes, runner-only network fixtures |
 | Landing/login via preview Host header | **200** in EN/FA/AR |
 | Real proxied `/api/v1/health` | **502 UPSTREAM_UNAVAILABLE**, not a healthy API |
-| Direct API ports 3001/3010/3101 | connection refused on all three |
+| Direct API ports examined in that earlier session | connection refused; historical observation only |
 | Prisma generation / API build | **Blocked/fail** as detailed above |
 | Real authorized login / database workflows / server RBAC | **Not verified**; required services/config/accounts absent |
 

@@ -99,7 +99,7 @@ export function loadConfig(env: EnvSource = process.env): Config {
     },
     api: {
       host: toStringOptional(env[ENV_VARS.API_HOST], '0.0.0.0', ENV_VARS.API_HOST),
-      port: toNumberOptional(env[ENV_VARS.API_PORT], 3010, ENV_VARS.API_PORT),
+      port: toNumberOptional(env[ENV_VARS.API_PORT], 3101, ENV_VARS.API_PORT),
       globalPrefix: 'api',
       apiVersion: toNumberOptional(env[ENV_VARS.API_VERSION], 1, ENV_VARS.API_VERSION),
       corsOrigins: toCsvArray(env[ENV_VARS.API_CORS_ORIGINS], ENV_VARS.API_CORS_ORIGINS),

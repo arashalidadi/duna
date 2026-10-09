@@ -10,7 +10,7 @@ const { parse } = createRequire(path.join(repo, 'apps/api/package.json'))('doten
 
 export function resolveApiPort(env = {}, dotenvSource = '') {
   const configured = env.API_PORT ?? parse(dotenvSource).API_PORT;
-  const port = configured === undefined || configured === '' ? 3010 : Number(configured);
+  const port = configured === undefined || configured === '' ? 3101 : Number(configured);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('API_PORT must be an integer between 1 and 65535');
   }

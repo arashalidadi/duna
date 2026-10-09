@@ -1,12 +1,13 @@
 # Dashboard refinement, preserved landing page, and consistent API port configuration
 
-**Prepared locally; not submitted.** Intended base: `ai-test`. Compare: `arena/fe92d85a-duna`.
+**Prepared locally; not submitted. Publication is on hold pending the user’s port-correction review.** Intended base: `ai-test`. Compare: `arena/fe92d85a-duna`.
 Verify actual remote ancestry and the complete PR diff before using this body. Landing changes
 may already be in `ai-test`; do not reintroduce duplicates or overwrite newer remote work.
 
 ## Publication scope and environment limits
 
-The user explicitly requested publication for testing on their own configured server.
+The user will test on their own configured server after reviewing the required-port correction.
+Do not push, open a PR or merge until the user explicitly authorizes publication.
 Arena-preview authentication is **not a publication prerequisite**. Do not spend further time
 provisioning the preview or retrying real login there. Its missing backend/database/Prisma
 configuration remains a disclosed environment limitation, not a reason to withhold this PR.
@@ -20,7 +21,7 @@ actual remote ancestry/diff review in a GitHub-enabled session; do not merge aut
   focus fix, RTL navigation, persistent themes, accessible preference menus and localized UI.
 - Retain routes/API contracts and existing auth/RBAC/business behavior. No fake business data or
   authentication bypass; admin password reset uses an administrator-entered value.
-- Align API default, environment examples, Next server proxy and local runtime scripts on **3010**.
+- Align API default, environment examples, Next server proxy and local runtime scripts on **3101**.
   Explicit alternative ports remain supported when API_PORT and API_INTERNAL_URL match.
 - Read the configured API port in startup/status scripts without executing `.env` as shell code.
 - Document the missing backend/database/Prisma-engine prerequisites honestly.
@@ -29,7 +30,7 @@ actual remote ancestry/diff review in a GitHub-enabled session; do not merge aut
 
 - Web typecheck, lint, production build (108 static pages), contract and i18n guards pass.
 - Existing production-browser regression suite: **22/22 pass**, with runner-only network fixtures.
-- Config unit tests **10/10**, port/script regression tests **7/7**; shared/config build/typecheck pass.
+- Config unit tests **10/10**, port/script regression tests **10/10**; shared/config build/typecheck pass.
 - Landing/login return HTTP 200 in all three locales. Actual API health returns structured 502
   because no API is running; this is not successful backend verification.
 

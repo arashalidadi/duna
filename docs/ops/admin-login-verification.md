@@ -1,8 +1,11 @@
 # Real admin login verification — 2026-10-09
 
-> Historical diagnostic. The user has since withdrawn the Arena login-first gate. Do not retry
-> preview provisioning/authentication. Prepare publication now and defer real-data acceptance to
-> their server; [current handoff](publication-handoff.md) supersedes the earlier publication conditions.
+> Historical diagnostic from the withdrawn, incorrect-port configuration. Required API port is now
+> **3101**; references to 3010 below record old observations only, not current configuration.
+> See [port-correction audit](api-port-correction.md); publication is on hold for user review.
+> The user has withdrawn the Arena login-first gate. Do not retry
+> preview provisioning/authentication. Defer real-data acceptance to their server and wait for
+> explicit publication approval; [current handoff](publication-handoff.md) supersedes earlier conditions.
 
 ## Outcome: login did not succeed; failure occurs before authentication
 
@@ -27,10 +30,10 @@ The visible error is the reported service-unavailable message. This is **not** a
 rejection. The API was absent, so neither admin lookup nor bcrypt password comparison ran.
 Whether the supplied credentials are valid on the user's existing server remains unknown.
 
-## Verified failure chain
+## Historical failure chain (observed before the required-port correction)
 
-1. **Correct port, no active override:** the live Next process has no `API_INTERNAL_URL` or
-   `NEXT_PUBLIC_API_URL` override. The current source and compiled route handler both target
+1. **Then-configured port, no active override:** the live Next process has no `API_INTERNAL_URL` or
+   `NEXT_PUBLIC_API_URL` override. The then-current source and compiled route handler both targeted
    `http://127.0.0.1:3010`; the browser posts to same-origin `/api/v1/auth/login`.
 2. **API absent:** no listener on 3010. Direct health is connection-refused; proxied health is
    structured 502. The production web listener remains available on `0.0.0.0:3000`.
@@ -49,8 +52,9 @@ Whether the supplied credentials are valid on the user's existing server remains
    download for the matching native engine on restricted `binaries.prisma.sh`. A port change
    cannot resolve this generation dependency.
 
-No new port or frontend change is justified by these results: 3010 already matches. Missing
-services, configuration and generated client must be supplied in an approved runtime. The
+The old check established consistency only within the then-configured port; it did not establish
+the correct project port. The current correction requires **3101**, including the proxy. Missing
+services, configuration and generated client remain separate requirements for the user’s server. The
 startup attempt used existing build output only for diagnosis, not as a claim that the API
 build is valid; the previously reported API build failure remains unresolved.
 

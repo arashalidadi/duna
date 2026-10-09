@@ -1,7 +1,8 @@
 # Dashboard redesign — implementation and verification
 
 > **Latest resumption:** see [backend/port/publication audit](../ops/backend-connection-audit.md).
-> Current defaults are now **3010**, not the historical 3101 below. Prior local commit objects and
+> Required API defaults are **3101**, consistent with the original workaround documented below.
+> See [current port correction](../ops/api-port-correction.md). Prior local commit objects and
 > external bundles were absent on restore; replacement preservation and a shallow-aware recovery
 > archive are documented there. Historical verification and Git statements below are not current proof.
 

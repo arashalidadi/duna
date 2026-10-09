@@ -4,7 +4,7 @@
 #
 # Starts, in order (each idempotent / skip-if-already-running):
 #   1. PostgreSQL  (standalone, durable data at /home/arash/shipping-erp/pgdata)
-#   2. API         (NestJS, apps/api/dist/src/main.js, API_PORT, default 3010)
+#   2. API         (NestJS, apps/api/dist/src/main.js, API_PORT, default 3101)
 #   3. Web         (Next.js dev, port 3000)
 #
 # All processes are launched with setsid + nohup and full FD redirect, so they
