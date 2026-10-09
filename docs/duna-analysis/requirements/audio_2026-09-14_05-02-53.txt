@@ -1,0 +1,21 @@
+**Consignee** هم دقیقاً همون چیز **Shipper**ه، همون اطلاعاته.
+
+خب، **Consignee** حالا یا شخصیت حقیقیه یا حقوقی.
+
+پس برای Consignee یه **Name** باید بنویسیم.
+
+بعد **National ID** یا **TRN Number**. حالا مثلاً اینو تو یه ردیف می‌شه بنویسی یا با یه Slash می‌شه جداش کنی.
+
+اگه **National ID** داشتیم، National IDـشو می‌زنیم؛ اگه **TRN Number**شو داشتیم، TRN Numberـشو می‌زنیم.
+
+**National ID / TRN Number**
+
+دیگه ورد بگم:
+
+**Address**
+
+**Contact Number**
+
+**Email**
+
+تمام.
