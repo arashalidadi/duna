@@ -1,4 +1,9 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+import { DomainLabel } from '@/components/ui/domain-label';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PaginatedResult, CustomerListItem } from '@shipping/shared';
@@ -82,12 +87,14 @@ function toForm(c: CustomerListItem): FormValues {
 }
 
 export default function CustomersPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<CustomerListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
 
@@ -98,25 +105,30 @@ export default function CustomersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
 
-  const load = useCallback(async (p: number, q: string, type: string, active: string) => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
-    if (q) params.set('search', q);
-    if (type) params.set('type', type);
-    if (active) params.set('isActive', active);
-    try {
-      setData(await api.get<PaginatedResult<CustomerListItem>>(`/customers?${params.toString()}`));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load customers');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (p: number, q: string, type: string, active: string) => {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
+      if (q) params.set('search', q);
+      if (type) params.set('type', type);
+      if (active) params.set('isActive', active);
+      try {
+        setData(
+          await api.get<PaginatedResult<CustomerListItem>>(`/customers?${params.toString()}`)
+        );
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadCustomers'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ui]
+  );
 
   useEffect(() => {
-    load(page, search, typeFilter, activeFilter);
-  }, [load, page, search, typeFilter, activeFilter]);
+    load(page, debouncedSearch, typeFilter, activeFilter);
+  }, [load, page, debouncedSearch, typeFilter, activeFilter]);
 
   const canCreate = hasPermission('customer:create');
   const canUpdate = hasPermission('customer:update');
@@ -144,7 +156,7 @@ export default function CustomersPage() {
   async function submit() {
     setFormError(null);
     if (!form.code.trim() || !form.name.trim()) {
-      setFormError('Code and name are required.');
+      setFormError(ui('codeAndNameAreRequired'));
       return;
     }
     setSaving(true);
@@ -159,7 +171,7 @@ export default function CustomersPage() {
       }
       await load(page, search, typeFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save customer');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveCustomer'));
     } finally {
       setSaving(false);
     }
@@ -176,7 +188,7 @@ export default function CustomersPage() {
       setToggling(null);
       await load(page, search, typeFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update customer');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateCustomer'));
     } finally {
       setSaving(false);
     }
@@ -186,24 +198,24 @@ export default function CustomersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Customers' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Customers</h1>
+          <Breadcrumbs items={[{ label: ui('customers') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('customers')}</h1>
           <p className="text-sm text-muted-foreground">
-            Companies that ship, receive or arrange cargo through our ports.
+            {ui('companiesThatShipReceiveOrArrangeCargoThroughOurPorts')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New customer
+            {ui('newCustomer')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Customer registry</CardTitle>
-          <CardDescription>Live master data. Contains no placeholder records.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('customerRegistry')}</CardTitle>
+          <CardDescription>{ui('liveMasterDataContainsNoPlaceholderRecords')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -215,10 +227,13 @@ export default function CustomersPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search code, name, email, phone…"
+              placeholder={ui('searchCodeNameEmailPhone')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search customers"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchCustomers')}
             />
             <select
               className={SELECT_CLASS}
@@ -227,12 +242,12 @@ export default function CustomersPage() {
                 setTypeFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by type"
+              aria-label={ui('filterByType')}
             >
-              <option value="">All types</option>
+              <option value="">{ui('allTypes')}</option>
               {CUSTOMER_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
-                  {t.label}
+                  <DomainLabel value={t.label} />
                 </option>
               ))}
             </select>
@@ -243,38 +258,44 @@ export default function CustomersPage() {
                 setActiveFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatus')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading customers…" />
+          <PageLoader label={ui('loadingCustomers')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, typeFilter, activeFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, typeFilter, activeFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No customers found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noCustomersFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Customer</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Contact</th>
-                  <th className="px-3 py-2 font-medium">Country</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('customer')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('type')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('contact')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('country')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -289,13 +310,13 @@ export default function CustomersPage() {
                           <span className="text-[11px] text-muted-foreground">{c.code}</span>
                         </div>
                         {c.email && (
-                          <div className="truncate text-[12px] text-muted-foreground">{c.email}</div>
+                          <div className="truncate text-[12px] text-muted-foreground">
+                            {c.email}
+                          </div>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {c.type ?? '—'}
-                    </td>
+                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{c.type ?? '—'}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       <div>{c.contactName ?? '—'}</div>
                       {c.phone && <div className="tabular-nums">{c.phone}</div>}
@@ -305,9 +326,9 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-3 py-2">
                       {c.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -319,7 +340,7 @@ export default function CustomersPage() {
                             className="h-7 text-xs"
                             onClick={() => openEdit(c)}
                           >
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         {canUpdate && (
@@ -327,9 +348,14 @@ export default function CustomersPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(c)}
-                            title={c.isActive ? 'Deactivate' : 'Activate'}
-                            aria-label={c.isActive ? 'Deactivate customer' : 'Activate customer'}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(c);
+                            }}
+                            title={c.isActive ? ui('deactivate') : ui('activate')}
+                            aria-label={
+                              c.isActive ? ui('deactivateCustomer') : ui('activateCustomer')
+                            }
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -340,7 +366,7 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -364,11 +390,9 @@ export default function CustomersPage() {
             setEditing(null);
           }
         }}
-        title={editing ? `Edit — ${editing.code}` : 'New customer'}
+        title={editing ? ui('editValue', { value0: String(editing.code) }) : ui('newCustomer')}
         description={
-          editing
-            ? 'Update the customer master record.'
-            : 'Create a customer master record.'
+          editing ? ui('updateTheCustomerMasterRecord') : ui('createACustomerMasterRecord')
         }
         footer={
           <>
@@ -380,10 +404,10 @@ export default function CustomersPage() {
                 setEditing(null);
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submit}>
-              {editing ? 'Save changes' : 'Create customer'}
+              {editing ? ui('saveChanges') : ui('createCustomer')}
             </Button>
           </>
         }
@@ -391,19 +415,19 @@ export default function CustomersPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="cust-code" className="block">
-              Code *
+              {ui('codeRequired')}
             </Label>
             <Input
               id="cust-code"
               value={form.code}
               onChange={(e) => updateField('code', e.target.value.toUpperCase())}
-              placeholder="CUS-001"
+              placeholder={ui('cus001')}
               autoFocus
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-type" className="block">
-              Type
+              {ui('type')}
             </Label>
             <select
               id="cust-type"
@@ -411,50 +435,50 @@ export default function CustomersPage() {
               value={form.type}
               onChange={(e) => updateField('type', e.target.value)}
             >
-              <option value="">Select type</option>
+              <option value="">{ui('selectType')}</option>
               {CUSTOMER_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
-                  {t.label}
+                  <DomainLabel value={t.label} />
                 </option>
               ))}
             </select>
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cust-name" className="block">
-              Name *
+              {ui('nameRequired')}
             </Label>
             <Input
               id="cust-name"
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="Company legal name"
+              placeholder={ui('companyLegalName')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-shortname" className="block">
-              Short name
+              {ui('shortName')}
             </Label>
             <Input
               id="cust-shortname"
               value={form.shortName}
               onChange={(e) => updateField('shortName', e.target.value)}
-              placeholder="e.g. ACME"
+              placeholder={ui('eGACME')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-taxid" className="block">
-              Tax / TRN
+              {ui('taxTRN')}
             </Label>
             <Input
               id="cust-taxid"
               value={form.taxId}
               onChange={(e) => updateField('taxId', e.target.value)}
-              placeholder="e.g. 100123456700003"
+              placeholder={ui('eG100123456700003')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-contact" className="block">
-              Contact name
+              {ui('contactName')}
             </Label>
             <Input
               id="cust-contact"
@@ -464,7 +488,7 @@ export default function CustomersPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-phone" className="block">
-              Phone
+              {ui('phone')}
             </Label>
             <Input
               id="cust-phone"
@@ -474,7 +498,7 @@ export default function CustomersPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-email" className="block">
-              Email
+              {ui('email')}
             </Label>
             <Input
               id="cust-email"
@@ -485,7 +509,7 @@ export default function CustomersPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-currency" className="block">
-              Currency
+              {ui('currency')}
             </Label>
             <Input
               id="cust-currency"
@@ -497,7 +521,7 @@ export default function CustomersPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cust-country" className="block">
-              Country
+              {ui('country')}
             </Label>
             <Input
               id="cust-country"
@@ -507,7 +531,7 @@ export default function CustomersPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cust-address" className="block">
-              Address
+              {ui('address')}
             </Label>
             <Input
               id="cust-address"
@@ -516,23 +540,30 @@ export default function CustomersPage() {
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Toggle confirm */}
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate customer' : 'Activate customer'}
+        title={toggling?.isActive ? ui('deactivateCustomer') : ui('activateCustomer')}
         description={
           toggling?.isActive
-            ? `Deactivating "${toggling?.name}" marks it inactive in master data. Historical records are preserved.`
-            : `Re-activating "${toggling?.name}" makes it available for new cargo.`
+            ? ui('deactivatingValueMarksItInactiveInMasterDataHistoricalRecordsAre', {
+                value0: String(toggling?.name),
+              })
+            : ui('reActivatingValueMakesItAvailableForNewCargo', { value0: String(toggling?.name) })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleActive}
+        error={formError}
       />
     </div>
   );
@@ -540,7 +571,8 @@ export default function CustomersPage() {
 
 /** Strip empty strings so optional fields are omitted from the request. */
 function formInput(f: FormValues): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v.trim() !== '')
-  ) as Record<string, string>;
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
+    string,
+    string
+  >;
 }

@@ -1,8 +1,11 @@
 'use client';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import type { PaginatedShippersResult, ShipperListItem } from '@shipping/shared';
-import { Plus, Power, Trash2 } from 'lucide-react';
+import { Plus, Power, Trash2, Search } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -17,7 +20,8 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FormField } from '@/components/ui/form-field';
+import { PageLoader } from '@/components/ui/loading';
 import { Dialog, ConfirmDialog } from '@/components/ui/dialog';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -61,16 +65,21 @@ function toForm(c: ShipperListItem): FormValues {
 }
 
 function formInputObject(f: FormValues): Record<string, string> {
-  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<string, string>;
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
+    string,
+    string
+  >;
 }
 
 export default function ShippersPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedShippersResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [activeFilter, setActiveFilter] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -91,17 +100,17 @@ export default function ShippersPage() {
       try {
         setData(await api.get<PaginatedShippersResult>(`/shippers?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load shippers');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadShippers'));
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, activeFilter);
-  }, [load, page, search, activeFilter]);
+    load(page, debouncedSearch, activeFilter);
+  }, [load, page, debouncedSearch, activeFilter]);
 
   const canCreate = hasPermission('shipper:create');
   const canUpdate = hasPermission('shipper:update');
@@ -129,11 +138,11 @@ export default function ShippersPage() {
   async function submit() {
     setFormError(null);
     if (!form.code.trim()) {
-      setFormError('Code is required.');
+      setFormError(ui('codeIsRequired'));
       return;
     }
     if (!form.name.trim()) {
-      setFormError('Name is required.');
+      setFormError(ui('nameIsRequired'));
       return;
     }
     setSaving(true);
@@ -148,7 +157,7 @@ export default function ShippersPage() {
       }
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save shipper');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveShipper'));
     } finally {
       setSaving(false);
     }
@@ -163,7 +172,7 @@ export default function ShippersPage() {
       setToggling(null);
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update shipper');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateShipper'));
     } finally {
       setSaving(false);
     }
@@ -178,7 +187,7 @@ export default function ShippersPage() {
       setDeleting(null);
       await load(page, search, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to delete shipper');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToDeleteShipper'));
     } finally {
       setSaving(false);
     }
@@ -188,24 +197,24 @@ export default function ShippersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Shippers' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Shippers</h1>
+          <Breadcrumbs items={[{ label: ui('shippers') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('shippers')}</h1>
           <p className="text-sm text-muted-foreground">
-            Companies that ship cargo through our ports.
+            {ui('companiesThatShipCargoThroughOurPorts')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New shipper
+            {ui('newShipper')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Search and filter</CardTitle>
-          <CardDescription>Find shippers by name or code.</CardDescription>
+          <CardTitle className="text-base">{ui('searchAndFilter')}</CardTitle>
+          <CardDescription>{ui('findShippersByNameOrCode')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <form
@@ -217,10 +226,13 @@ export default function ShippersPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search code, name…"
+              placeholder={ui('searchCodeName')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search shippers"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchShippers')}
             />
             <select
               className={SELECT_CLASS}
@@ -229,31 +241,31 @@ export default function ShippersPage() {
                 setActiveFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatus')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
-            <Button type="submit">Search</Button>
+            <Button type="submit">{ui('search')}</Button>
           </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Shippers</CardTitle>
-          <CardDescription>Registered shipping companies.</CardDescription>
+          <CardTitle className="text-base">{ui('shippers')}</CardTitle>
+          <CardDescription>{ui('registeredShippingCompanies')}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading && <PageLoader />}
-          {error && <ErrorState title="Failed to load" message={error} />}
+          {error && <ErrorState title={ui('failedToLoad')} message={error} />}
           {!loading && !error && data && (
             <>
               {data.data.length === 0 ? (
                 <EmptyState
-                  title="No shippers yet"
-                  description="Create the first shipper to get started."
+                  title={ui('noShippersYet')}
+                  description={ui('createTheFirstShipperToGetStarted')}
                 />
               ) : (
                 <div className="border rounded-lg divide-y">
@@ -267,31 +279,32 @@ export default function ShippersPage() {
                           </Badge>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {row.taxId ? `Tax ID: ${row.taxId}` : 'No tax ID'}
+                          {row.taxId
+                            ? ui('taxIDValue', { value0: String(row.taxId) })
+                            : ui('noTaxID')}
                           {row.address ? ` · ${row.address}` : ''}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {canUpdate && (
                           <Button variant="outline" size="sm" onClick={() => openEdit(row)}>
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setToggling(row)}
+                          onClick={() => {
+                            setFormError(null);
+                            setToggling(row);
+                          }}
                           disabled={!canUpdate}
                         >
                           <Power className="h-4 w-4" />
-                          {row.isActive ? 'Deactivate' : 'Activate'}
+                          {row.isActive ? ui('deactivate') : ui('activate')}
                         </Button>
                         {canUpdate && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setDeleting(row)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => setDeleting(row)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
@@ -314,44 +327,44 @@ export default function ShippersPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen} title="New shipper">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen} title={ui('newShipper')}>
         <div className="space-y-3">
-          <FormField label="Code" required>
+          <FormField label={ui('code')} required>
             <Input
               value={form.code}
               onChange={(e) => updateField('code', e.target.value)}
-              placeholder="SHP-001"
+              placeholder={ui('shp001')}
             />
           </FormField>
-          <FormField label="Name" required>
+          <FormField label={ui('name')} required>
             <Input
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="ACME Shipping Co."
+              placeholder={ui('acmeShippingCo')}
             />
           </FormField>
-          <FormField label="Tax ID">
+          <FormField label={ui('taxID')}>
             <Input
               value={form.taxId}
               onChange={(e) => updateField('taxId', e.target.value)}
               placeholder="123456789"
             />
           </FormField>
-          <FormField label="Address">
+          <FormField label={ui('address')}>
             <Input
               value={form.address}
               onChange={(e) => updateField('address', e.target.value)}
-              placeholder="123 Port Road"
+              placeholder={ui('streetAddressPlaceholder')}
             />
           </FormField>
-          <FormField label="Phone">
+          <FormField label={ui('phone')}>
             <Input
               value={form.phone}
               onChange={(e) => updateField('phone', e.target.value)}
               placeholder="+1 555-0100"
             />
           </FormField>
-          <FormField label="Email">
+          <FormField label={ui('email')}>
             <Input
               type="email"
               value={form.email}
@@ -359,76 +372,62 @@ export default function ShippersPage() {
               placeholder="contact@acme.example"
             />
           </FormField>
-          <FormField label="Notes">
+          <FormField label={ui('notes')}>
             <Input
               value={form.notes}
               onChange={(e) => updateField('notes', e.target.value)}
-              placeholder="Additional notes"
+              placeholder={ui('additionalNotes')}
             />
           </FormField>
         </div>
         <CardFooter className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={() => setCreateOpen(false)}>
-            Cancel
+            {ui('cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Saving…' : 'Create shipper'}
+            {saving ? ui('saving') : ui('createShipper')}
           </Button>
         </CardFooter>
       </Dialog>
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)} title="Edit shipper">
+      <Dialog
+        open={!!editing}
+        onOpenChange={(open) => !open && setEditing(null)}
+        title={ui('editShipper')}
+      >
         <div className="space-y-3">
-          <FormField label="Code" required>
-            <Input
-              value={form.code}
-              onChange={(e) => updateField('code', e.target.value)}
-            />
+          <FormField label={ui('code')} required>
+            <Input value={form.code} onChange={(e) => updateField('code', e.target.value)} />
           </FormField>
-          <FormField label="Name" required>
-            <Input
-              value={form.name}
-              onChange={(e) => updateField('name', e.target.value)}
-            />
+          <FormField label={ui('name')} required>
+            <Input value={form.name} onChange={(e) => updateField('name', e.target.value)} />
           </FormField>
-          <FormField label="Tax ID">
-            <Input
-              value={form.taxId}
-              onChange={(e) => updateField('taxId', e.target.value)}
-            />
+          <FormField label={ui('taxID')}>
+            <Input value={form.taxId} onChange={(e) => updateField('taxId', e.target.value)} />
           </FormField>
-          <FormField label="Address">
-            <Input
-              value={form.address}
-              onChange={(e) => updateField('address', e.target.value)}
-            />
+          <FormField label={ui('address')}>
+            <Input value={form.address} onChange={(e) => updateField('address', e.target.value)} />
           </FormField>
-          <FormField label="Phone">
-            <Input
-              value={form.phone}
-              onChange={(e) => updateField('phone', e.target.value)}
-            />
+          <FormField label={ui('phone')}>
+            <Input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} />
           </FormField>
-          <FormField label="Email">
+          <FormField label={ui('email')}>
             <Input
               type="email"
               value={form.email}
               onChange={(e) => updateField('email', e.target.value)}
             />
           </FormField>
-          <FormField label="Notes">
-            <Input
-              value={form.notes}
-              onChange={(e) => updateField('notes', e.target.value)}
-            />
+          <FormField label={ui('notes')}>
+            <Input value={form.notes} onChange={(e) => updateField('notes', e.target.value)} />
           </FormField>
         </div>
         <CardFooter className="flex justify-end gap-2 pt-4">
           <Button variant="outline" onClick={() => setEditing(null)}>
-            Cancel
+            {ui('cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? 'Saving…' : 'Save changes'}
+            {saving ? ui('saving') : ui('saveChanges')}
           </Button>
         </CardFooter>
       </Dialog>
@@ -436,43 +435,18 @@ export default function ShippersPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(open) => !open && setDeleting(null)}
-        title="Delete shipper"
-        description={deleting ? `Delete "${deleting.name}"? This cannot be undone.` : undefined}
-        confirmLabel="Delete"
+        title={ui('deleteShipper')}
+        description={
+          deleting
+            ? ui('deleteValueThisCannotBeUndone', { value0: String(deleting.name) })
+            : undefined
+        }
+        confirmLabel={ui('delete')}
         destructive
         onConfirm={confirmDelete}
         loading={saving}
+        error={formError}
       />
     </div>
-  );
-}
-
-function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <Label className="flex items-center gap-1">
-        {label}
-        {required && <span className="text-destructive">*</span>}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
-function PageLoader() {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <div className="flex gap-1">
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ animationDelay: '150ms' }} />
-        <span className="h-2 w-2 animate-spin rounded-full border-2 border-current border-t-transparent" style={{ animationDelay: '300ms' }} />
-      </div>
-    </div>
-  );
-}
-
-function Search({ className }: { className?: string }) {
-  return (
-    <Search className={className} />
   );
 }

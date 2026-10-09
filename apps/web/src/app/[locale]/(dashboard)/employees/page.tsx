@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -28,8 +31,11 @@ function statusVariant(s: EmployeeStatus): 'success' | 'outline' {
   return s === 'ACTIVE' ? 'success' : 'outline';
 }
 
-function money(v: string): string {
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function money(v: string, displayLocale: string): string {
+  return Number(v).toLocaleString(displayLocale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
 type FormState = {
@@ -63,6 +69,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function EmployeesPage() {
+  const uiLocale = useUiLocale();
   const t = useTranslations('employee');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -95,7 +102,9 @@ export default function EmployeesPage() {
     }
   }, [page, search, statusFilter, tc]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // create / edit
   const [formOpen, setFormOpen] = useState(false);
@@ -129,7 +138,10 @@ export default function EmployeesPage() {
   };
 
   const submit = async () => {
-    if (!form.name.trim()) { setFormError(t('form.errors.nameRequired')); return; }
+    if (!form.name.trim()) {
+      setFormError(t('form.errors.nameRequired'));
+      return;
+    }
     setSaving(true);
     setFormError('');
     try {
@@ -181,7 +193,9 @@ export default function EmployeesPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]} />
+      <Breadcrumbs
+        items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -192,7 +206,10 @@ export default function EmployeesPage() {
           <p className="text-muted-foreground">{t('page.description')}</p>
         </div>
         {hasPermission('employee:create') && (
-          <Button onClick={openCreate}><Plus className="size-4" />{t('actions.create')}</Button>
+          <Button onClick={openCreate}>
+            <Plus className="size-4" />
+            {t('actions.create')}
+          </Button>
         )}
       </div>
 
@@ -203,18 +220,39 @@ export default function EmployeesPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setSearch(searchInput); setPage(1); }}>
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t('list.search')} className="w-64" />
-              <Button type="submit" variant="outline" size="sm">{tc('actions.search')}</Button>
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput);
+                setPage(1);
+              }}
+            >
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t('list.search')}
+                className="w-64"
+              />
+              <Button type="submit" variant="outline" size="sm">
+                {tc('actions.search')}
+              </Button>
             </form>
-            <select className={SELECT_CLASS} value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}>
+            <select
+              className={SELECT_CLASS}
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setPage(1);
+              }}
+            >
               <option value="ALL">{t('list.allStatuses')}</option>
               <option value="ACTIVE">{t('status.ACTIVE')}</option>
               <option value="INACTIVE">{t('status.INACTIVE')}</option>
             </select>
-            <span className="ms-auto text-sm text-muted-foreground">{tc('list.total')}: {meta.totalItems}</span>
+            <span className="ms-auto text-sm text-muted-foreground">
+              {tc('list.total')}: {meta.totalItems}
+            </span>
           </div>
 
           {loading ? (
@@ -225,7 +263,7 @@ export default function EmployeesPage() {
             <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
           ) : (
             <>
-              <div className="overflow-x-auto rounded-md border">
+              <TableScroll className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground">
@@ -234,7 +272,9 @@ export default function EmployeesPage() {
                       <th className="p-3 text-start font-medium">{t('fields.position')}</th>
                       <th className="p-3 text-start font-medium">{t('fields.hireDate')}</th>
                       <th className="p-3 text-start font-medium">{t('fields.baseSalary')}</th>
-                      <th className="p-3 text-start font-medium">{t('fields.salaryRecordsCount')}</th>
+                      <th className="p-3 text-start font-medium">
+                        {t('fields.salaryRecordsCount')}
+                      </th>
                       <th className="p-3 text-start font-medium">{t('fields.status')}</th>
                       <th className="p-3" />
                     </tr>
@@ -245,110 +285,180 @@ export default function EmployeesPage() {
                         <td className="p-3 font-mono text-xs">{e.code}</td>
                         <td className="p-3">
                           <div className="font-medium">{e.name}</div>
-                          {e.phone && <div className="text-xs text-muted-foreground">{e.phone}</div>}
+                          {e.phone && (
+                            <div className="text-xs text-muted-foreground">{e.phone}</div>
+                          )}
                         </td>
                         <td className="p-3">{e.position ?? '—'}</td>
-                        <td className="p-3">{e.hireDate ? formatDateShort(e.hireDate, locale) : '—'}</td>
+                        <td className="p-3">
+                          {e.hireDate ? formatDateShort(e.hireDate, locale) : '—'}
+                        </td>
                         <td className="p-3 font-medium">
-                          {money(e.baseSalary)} <span className="text-xs text-muted-foreground">{e.currencyCode}</span>
+                          {money(e.baseSalary, uiLocale)}{' '}
+                          <span className="text-xs text-muted-foreground">{e.currencyCode}</span>
                         </td>
                         <td className="p-3">{e.salaryRecordsCount ?? 0}</td>
-                        <td className="p-3"><Badge variant={statusVariant(e.status)}>{t(`status.${e.status}`)}</Badge></td>
+                        <td className="p-3">
+                          <Badge variant={statusVariant(e.status)}>{t(`status.${e.status}`)}</Badge>
+                        </td>
                         <td className="p-3">
                           <div className="flex justify-end gap-1">
                             {hasPermission('employee:update') && (
-                              <Button size="sm" variant="ghost" title={t('actions.edit')}
-                                onClick={() => void openEdit(e)}><Pencil className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                title={t('actions.edit')}
+                                onClick={() => void openEdit(e)}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
                             )}
-                            {hasPermission('employee:delete') && (e.salaryRecordsCount ?? 0) === 0 && (
-                              <Button size="sm" variant="ghost" className="text-destructive" title={t('actions.delete')}
-                                onClick={() => setDeleteTarget(e)}><Trash2 className="size-4" /></Button>
-                            )}
+                            {hasPermission('employee:delete') &&
+                              (e.salaryRecordsCount ?? 0) === 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-destructive"
+                                  title={t('actions.delete')}
+                                  onClick={() => setDeleteTarget(e)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              )}
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <Pagination page={meta.page} pageSize={meta.pageSize} totalItems={meta.totalItems} totalPages={meta.totalPages} onPageChange={setPage} />
+              </TableScroll>
+              <Pagination
+                page={meta.page}
+                pageSize={meta.pageSize}
+                totalItems={meta.totalItems}
+                totalPages={meta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>
       </Card>
 
       {/* create / edit dialog */}
-      <Dialog open={formOpen} onOpenChange={setFormOpen}
-        title={form.id ? t('form.editTitle') : t('form.title')} description={t('form.description')}
+      <Dialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        title={form.id ? t('form.editTitle') : t('form.title')}
+        description={t('form.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setFormOpen(false)}>{tc('actions.cancel')}</Button>
+            <Button variant="outline" onClick={() => setFormOpen(false)}>
+              {tc('actions.cancel')}
+            </Button>
             <Button onClick={() => void submit()} disabled={saving}>
               {saving ? t('form.saving') : tc('actions.save')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="grid gap-4">
           {formError && <p className="text-sm text-destructive">{formError}</p>}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.code')}</Label>
-              <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder={t('form.codePlaceholder')} disabled={!!form.id} />
+              <Input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder={t('form.codePlaceholder')}
+                disabled={!!form.id}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.name')} *</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.nationalId')}</Label>
-              <Input value={form.nationalId} onChange={(e) => setForm({ ...form, nationalId: e.target.value })} />
+              <Input
+                value={form.nationalId}
+                onChange={(e) => setForm({ ...form, nationalId: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.position')}</Label>
-              <Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} />
+              <Input
+                value={form.position}
+                onChange={(e) => setForm({ ...form, position: e.target.value })}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.phone')}</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.email')}</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.hireDate')}</Label>
-              <Input type="date" value={form.hireDate}
-                onChange={(e) => setForm({ ...form, hireDate: e.target.value })} />
+              <Input
+                type="date"
+                value={form.hireDate}
+                onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.baseSalary')}</Label>
-              <Input type="number" min="0" value={form.baseSalary}
-                onChange={(e) => setForm({ ...form, baseSalary: e.target.value })} />
+              <Input
+                type="number"
+                min="0"
+                value={form.baseSalary}
+                onChange={(e) => setForm({ ...form, baseSalary: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.currency')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.currencyCode}
-                onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}>
-                {['IRR', 'USD', 'AED', 'EUR', 'TRY', 'CNY'].map((c) => <option key={c} value={c}>{c}</option>)}
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.currencyCode}
+                onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}
+              >
+                {['IRR', 'USD', 'AED', 'EUR', 'TRY', 'CNY'].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>{t('fields.status')}</Label>
-            <select className={SELECT_CLASS + ' w-full'} value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value as EmployeeStatus })}>
+            <select
+              className={SELECT_CLASS + ' w-full'}
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as EmployeeStatus })}
+            >
               <option value="ACTIVE">{t('status.ACTIVE')}</option>
               <option value="INACTIVE">{t('status.INACTIVE')}</option>
             </select>
@@ -356,18 +466,28 @@ export default function EmployeesPage() {
 
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
         </div>
       </Dialog>
 
       {/* delete confirm */}
       <ConfirmDialog
-        open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
         title={t('confirm.delete.title')}
-        description={deleteTarget ? t('confirm.delete.description', { name: deleteTarget.name }) : ''}
-        confirmLabel={tc('actions.delete')} loading={deleting}
+        description={
+          deleteTarget ? t('confirm.delete.description', { name: deleteTarget.name }) : ''
+        }
+        confirmLabel={tc('actions.delete')}
+        loading={deleting}
         onConfirm={() => void doDelete()}
+        error={formError}
       />
     </div>
   );

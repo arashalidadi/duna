@@ -1,4 +1,5 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -87,11 +88,7 @@ export default function DischargePage() {
   const canDelete = hasPermission('discharge:delete');
 
   const load = useCallback(
-    async (
-      p = page,
-      s = search,
-      st = statusFilter,
-    ) => {
+    async (p = page, s = search, st = statusFilter) => {
       setLoading(true);
       setError(null);
       try {
@@ -106,7 +103,7 @@ export default function DischargePage() {
         setLoading(false);
       }
     },
-    [page, search, statusFilter, tc],
+    [page, search, statusFilter, tc]
   );
 
   useEffect(() => {
@@ -167,8 +164,11 @@ export default function DischargePage() {
       setDetail(d);
       setItemDrafts(
         Object.fromEntries(
-          (d.items ?? []).map((it) => [it.id, it.dischargeQuantity === null ? '' : String(it.dischargeQuantity)]),
-        ),
+          (d.items ?? []).map((it) => [
+            it.id,
+            it.dischargeQuantity === null ? '' : String(it.dischargeQuantity),
+          ])
+        )
       );
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : tc('errors.generic'));
@@ -183,8 +183,11 @@ export default function DischargePage() {
       setDetail(d);
       setItemDrafts(
         Object.fromEntries(
-          (d.items ?? []).map((it) => [it.id, it.dischargeQuantity === null ? '' : String(it.dischargeQuantity)]),
-        ),
+          (d.items ?? []).map((it) => [
+            it.id,
+            it.dischargeQuantity === null ? '' : String(it.dischargeQuantity),
+          ])
+        )
       );
     } catch {
       /* keep stale detail */
@@ -244,7 +247,8 @@ export default function DischargePage() {
 
   const rows = data?.data ?? [];
   const meta = data?.meta ?? { page: 1, pageSize: PAGE_SIZE, totalItems: 0, totalPages: 1 };
-  const editable = (d: Discharge | null) => !!d && (d.status === 'NOT_STARTED' || d.status === 'IN_PROGRESS');
+  const editable = (d: Discharge | null) =>
+    !!d && (d.status === 'NOT_STARTED' || d.status === 'IN_PROGRESS');
 
   function voyageOf(d: Discharge): string {
     return d.actualLoading?.loadList?.voyage?.voyageNumber ?? '—';
@@ -315,7 +319,7 @@ export default function DischargePage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -339,7 +343,9 @@ export default function DischargePage() {
                           {d.createdAt ? formatDateTime(d.createdAt, locale) : ''}
                         </div>
                       </td>
-                      <td className="p-3 font-mono text-xs">{d.actualLoading?.actualLoadingNumber ?? '—'}</td>
+                      <td className="p-3 font-mono text-xs">
+                        {d.actualLoading?.actualLoadingNumber ?? '—'}
+                      </td>
                       <td className="p-3 font-mono text-xs">{voyageOf(d)}</td>
                       <td className="max-w-[160px] truncate p-3">
                         {d.actualLoading?.loadList?.voyage?.vessel?.name ?? '—'}
@@ -350,32 +356,63 @@ export default function DischargePage() {
                       <td className="p-3 text-end">{d.itemsCount ?? 0}</td>
                       <td className="p-3 text-end font-mono">{d.expectedTotal ?? 0}</td>
                       <td className="p-3 text-end font-mono">
-                        <span className={((d.dischargedTotal ?? 0) < (d.expectedTotal ?? 0)) ? 'text-amber-600' : 'text-green-600'}>
+                        <span
+                          className={
+                            (d.dischargedTotal ?? 0) < (d.expectedTotal ?? 0)
+                              ? 'text-warning'
+                              : 'text-success'
+                          }
+                        >
                           {d.dischargedTotal ?? 0}
                         </span>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" title={t('actions.view')} onClick={() => void openDetail(d)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={t('actions.view')}
+                            onClick={() => void openDetail(d)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {d.status === 'NOT_STARTED' && canUpdate && (
-                            <Button variant="ghost" size="icon" title={t('actions.start')} onClick={() => setConfirmStart(d)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('actions.start')}
+                              onClick={() => setConfirmStart(d)}
+                            >
                               <Play className="h-4 w-4" />
                             </Button>
                           )}
                           {d.status === 'IN_PROGRESS' && canComplete && (
-                            <Button variant="ghost" size="icon" title={t('actions.complete')} onClick={() => setConfirmComplete(d)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('actions.complete')}
+                              onClick={() => setConfirmComplete(d)}
+                            >
                               <CheckCircle2 className="h-4 w-4" />
                             </Button>
                           )}
                           {editable(d) && canCancel && (
-                            <Button variant="ghost" size="icon" title={t('actions.cancel')} onClick={() => setConfirmCancel(d)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('actions.cancel')}
+                              onClick={() => setConfirmCancel(d)}
+                            >
                               <XCircle className="h-4 w-4" />
                             </Button>
                           )}
                           {editable(d) && canDelete && (
-                            <Button variant="ghost" size="icon" title={tc('actions.delete')} onClick={() => setConfirmDelete(d)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={tc('actions.delete')}
+                              onClick={() => setConfirmDelete(d)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
@@ -385,7 +422,7 @@ export default function DischargePage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
             <div className="p-3">
               <Pagination
                 page={meta.page}
@@ -441,7 +478,10 @@ export default function DischargePage() {
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
-            <Input value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
+            <Input
+              value={createForm.notes}
+              onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+            />
           </div>
         </div>
       </Dialog>
@@ -454,7 +494,11 @@ export default function DischargePage() {
           if (!o) setDetail(null);
         }}
         title={detail ? `${detail.dischargeNumber}` : t('detail.title')}
-        description={detail ? `${t('fields.loading')}: ${detail.actualLoading?.actualLoadingNumber ?? '—'} · ${voyageOf(detail)}` : undefined}
+        description={
+          detail
+            ? `${t('fields.loading')}: ${detail.actualLoading?.actualLoadingNumber ?? '—'} · ${voyageOf(detail)}`
+            : undefined
+        }
         footer={
           detail && (
             <div className="flex flex-wrap justify-end gap-2">
@@ -471,7 +515,11 @@ export default function DischargePage() {
                 </Button>
               )}
               {editable(detail) && canCancel && (
-                <Button variant="outline" onClick={() => setConfirmCancel(detail)} disabled={saving}>
+                <Button
+                  variant="outline"
+                  onClick={() => setConfirmCancel(detail)}
+                  disabled={saving}
+                >
                   <XCircle className="me-1.5 h-4 w-4" />
                   {t('actions.cancel')}
                 </Button>
@@ -488,15 +536,14 @@ export default function DischargePage() {
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>
               {detail.actualLoading?.loadList?.voyage?.destinationPort && (
                 <span className="text-sm text-muted-foreground">
-                  {t('fields.pod')}:{' '}
-                  {detail.actualLoading.loadList.voyage.destinationPort.name} (
+                  {t('fields.pod')}: {detail.actualLoading.loadList.voyage.destinationPort.name} (
                   {detail.actualLoading.loadList.voyage.destinationPort.code})
                 </span>
               )}
             </div>
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <div className="overflow-x-auto rounded-md border">
+            <TableScroll className="overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -511,13 +558,19 @@ export default function DischargePage() {
                   {(detail.items ?? []).map((it) => (
                     <tr key={it.id} className="border-b last:border-0">
                       <td className="p-2">
-                        <span className="font-mono text-xs">{it.cargo?.reference ?? it.cargoId}</span>
+                        <span className="font-mono text-xs">
+                          {it.cargo?.reference ?? it.cargoId}
+                        </span>
                         {it.cargo?.customer?.name ? (
-                          <div className="text-[10px] text-muted-foreground">{it.cargo.customer.name}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {it.cargo.customer.name}
+                          </div>
                         ) : null}
                       </td>
                       <td className="p-2">
-                        <Badge variant={RESULT_META[it.result]?.variant ?? 'neutral'}>{t(`items.result.${it.result}`)}</Badge>
+                        <Badge variant={RESULT_META[it.result]?.variant ?? 'neutral'}>
+                          {t(`items.result.${it.result}`)}
+                        </Badge>
                       </td>
                       <td className="p-2 text-end font-mono">{it.expectedQuantity ?? '—'}</td>
                       <td className="p-2 text-end">
@@ -535,7 +588,13 @@ export default function DischargePage() {
                       </td>
                       {editable(detail) && (
                         <td className="p-2 text-end">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void submitItem(it)} disabled={saving}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => void submitItem(it)}
+                            disabled={saving}
+                          >
                             <Save className="h-3.5 w-3.5" />
                           </Button>
                         </td>
@@ -554,7 +613,7 @@ export default function DischargePage() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </TableScroll>
 
             {detail.notes && <p className="text-sm text-muted-foreground">{detail.notes}</p>}
             <div className="text-xs text-muted-foreground">
@@ -583,7 +642,11 @@ export default function DischargePage() {
           if (!o) setConfirmStart(null);
         }}
         title={t('confirm.start.title')}
-        description={confirmStart ? t('confirm.start.description', { number: confirmStart.dischargeNumber }) : ''}
+        description={
+          confirmStart
+            ? t('confirm.start.description', { number: confirmStart.dischargeNumber })
+            : ''
+        }
         confirmLabel={t('actions.start')}
         loading={saving}
         onConfirm={() =>
@@ -593,6 +656,7 @@ export default function DischargePage() {
             if (target) await act(() => api.post(`/discharge/${target.id}/start`));
           })()
         }
+        error={formError}
       />
 
       {/* complete confirm */}
@@ -602,7 +666,11 @@ export default function DischargePage() {
           if (!o) setConfirmComplete(null);
         }}
         title={t('confirm.complete.title')}
-        description={confirmComplete ? t('confirm.complete.description', { number: confirmComplete.dischargeNumber }) : ''}
+        description={
+          confirmComplete
+            ? t('confirm.complete.description', { number: confirmComplete.dischargeNumber })
+            : ''
+        }
         confirmLabel={t('actions.complete')}
         loading={saving}
         onConfirm={() =>
@@ -612,6 +680,7 @@ export default function DischargePage() {
             if (target) await act(() => api.post(`/discharge/${target.id}/complete`, {}));
           })()
         }
+        error={formError}
       />
 
       {/* cancel with reason */}
@@ -634,7 +703,8 @@ export default function DischargePage() {
                 void (async () => {
                   const target = confirmCancel;
                   setConfirmCancel(null);
-                  if (target) await act(() => api.post(`/discharge/${target.id}/cancel`, { cancelReason }));
+                  if (target)
+                    await act(() => api.post(`/discharge/${target.id}/cancel`, { cancelReason }));
                 })()
               }
             >
@@ -645,7 +715,11 @@ export default function DischargePage() {
       >
         <div className="space-y-2">
           <Label>{t('cancel.reason')}</Label>
-          <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder={t('cancel.reasonPlaceholder')} />
+          <Input
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder={t('cancel.reasonPlaceholder')}
+          />
         </div>
       </Dialog>
 
@@ -656,7 +730,11 @@ export default function DischargePage() {
           if (!o) setConfirmDelete(null);
         }}
         title={t('confirm.delete.title')}
-        description={confirmDelete ? t('confirm.delete.description', { number: confirmDelete.dischargeNumber }) : ''}
+        description={
+          confirmDelete
+            ? t('confirm.delete.description', { number: confirmDelete.dischargeNumber })
+            : ''
+        }
         confirmLabel={tc('actions.delete')}
         loading={saving}
         onConfirm={() =>
@@ -666,6 +744,7 @@ export default function DischargePage() {
             if (target) await act(() => api.del(`/discharge/${target.id}`));
           })()
         }
+        error={formError}
       />
     </div>
   );

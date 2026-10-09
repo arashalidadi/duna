@@ -1,4 +1,9 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -32,13 +37,7 @@ import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -59,9 +58,7 @@ const STATUSES: BillStatus[] = ['DRAFT', 'FINAL', 'APPROVED', 'RELEASED', 'CANCE
 const BILL_TYPES: BillType[] = ['HOUSE', 'MASTER'];
 const FREIGHT_TERMS: FreightTerms[] = ['PREPAID', 'COLLECT'];
 
-function statusVariant(
-  s: BillStatus
-): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
+function statusVariant(s: BillStatus): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
   switch (s) {
     case 'DRAFT':
       return 'neutral';
@@ -165,6 +162,8 @@ interface DocumentPayload {
 }
 
 export default function BillsOfLadingPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const t = useTranslations('bill');
   const tNav = useTranslations('nav');
   const locale = useLocale();
@@ -203,7 +202,14 @@ export default function BillsOfLadingPage() {
     packages: string;
     grossWeight: string;
     volume: string;
-  }>({ manifestItemId: '', goodsDescription: '', marksAndNumbers: '', packages: '', grossWeight: '', volume: '' });
+  }>({
+    manifestItemId: '',
+    goodsDescription: '',
+    marksAndNumbers: '',
+    packages: '',
+    grossWeight: '',
+    volume: '',
+  });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -241,16 +247,14 @@ export default function BillsOfLadingPage() {
       });
       if (search.trim()) params.set('search', search.trim());
       if (statusFilter) params.set('status', statusFilter);
-      const res = await api.get<PaginatedResult<BillOfLading>>(
-        `/bills?${params.toString()}`
-      );
+      const res = await api.get<PaginatedResult<BillOfLading>>(`/bills?${params.toString()}`);
       setData(res);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load bills');
+      setError(e instanceof ApiError ? e.message : ui('failedToLoadBills'));
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, ui]);
 
   useEffect(() => {
     void load();
@@ -325,57 +329,60 @@ export default function BillsOfLadingPage() {
       setViewingId(created.id);
       await openDetail(created.id);
     } catch (e) {
-      setCreateError(e instanceof ApiError ? e.message : 'Failed to create');
+      setCreateError(e instanceof ApiError ? e.message : ui('failedToCreate'));
     } finally {
       setCreating(false);
     }
   };
 
-  const openDetail = useCallback(async (id: string) => {
-    setViewingId(id);
-    setDetailLoading(true);
-    setDetail(null);
-    setHeaderError(null);
-    setActionError(null);
-    setRevError(null);
-    setRevNote('');
-    try {
-      const d = await api.get<BillOfLadingDetail>(`/bills/${id}`);
-      setDetail(d);
-      // P4-U7 best-effort companions (failures must not block the detail view)
-      void api
-        .get<RevisionRow[]>(`/bills/${id}/revisions`)
-        .then(setRevisions)
-        .catch(() => setRevisions([]));
-      void api
-        .get<{ items: Array<{ action: string; actorEmail: string; timestamp: string }> }>(
-          `/bills/${id}/audit`
-        )
-        .then((r) => {
-          const rel = r.items.find((x) => x.action === 'bill:release') ?? null;
-          setReleaseAudit(rel ? { timestamp: rel.timestamp, actorEmail: rel.actorEmail } : null);
-        })
-        .catch(() => setReleaseAudit(null));
-      setHeaderDraft({
-        billType: d.billType,
-        freightTerms: d.freightTerms ?? '',
-        carrierName: d.carrierName ?? '',
-        placeOfIssue: d.placeOfIssue ?? '',
-        dateOfIssue: d.dateOfIssue ? d.dateOfIssue.slice(0, 10) : '',
-        originals: d.originals != null ? String(d.originals) : '',
-        freightAmount: d.freightAmount != null ? String(d.freightAmount) : '',
-        currencyCode: d.currencyCode ?? '',
-        notifyParty: d.notifyParty ?? '',
-        goodsDescription: d.goodsDescription ?? '',
-        shipmentMarks: d.shipmentMarks ?? '',
-        notes: d.notes ?? '',
-      });
-    } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to load bill');
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+  const openDetail = useCallback(
+    async (id: string) => {
+      setViewingId(id);
+      setDetailLoading(true);
+      setDetail(null);
+      setHeaderError(null);
+      setActionError(null);
+      setRevError(null);
+      setRevNote('');
+      try {
+        const d = await api.get<BillOfLadingDetail>(`/bills/${id}`);
+        setDetail(d);
+        // P4-U7 best-effort companions (failures must not block the detail view)
+        void api
+          .get<RevisionRow[]>(`/bills/${id}/revisions`)
+          .then(setRevisions)
+          .catch(() => setRevisions([]));
+        void api
+          .get<{ items: Array<{ action: string; actorEmail: string; timestamp: string }> }>(
+            `/bills/${id}/audit`
+          )
+          .then((r) => {
+            const rel = r.items.find((x) => x.action === 'bill:release') ?? null;
+            setReleaseAudit(rel ? { timestamp: rel.timestamp, actorEmail: rel.actorEmail } : null);
+          })
+          .catch(() => setReleaseAudit(null));
+        setHeaderDraft({
+          billType: d.billType,
+          freightTerms: d.freightTerms ?? '',
+          carrierName: d.carrierName ?? '',
+          placeOfIssue: d.placeOfIssue ?? '',
+          dateOfIssue: d.dateOfIssue ? d.dateOfIssue.slice(0, 10) : '',
+          originals: d.originals != null ? String(d.originals) : '',
+          freightAmount: d.freightAmount != null ? String(d.freightAmount) : '',
+          currencyCode: d.currencyCode ?? '',
+          notifyParty: d.notifyParty ?? '',
+          goodsDescription: d.goodsDescription ?? '',
+          shipmentMarks: d.shipmentMarks ?? '',
+          notes: d.notes ?? '',
+        });
+      } catch (e) {
+        setActionError(e instanceof ApiError ? e.message : ui('failedToLoadBill'));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [ui]
+  );
 
   const refreshDetail = useCallback(async () => {
     if (viewingId) await openDetail(viewingId);
@@ -387,7 +394,8 @@ export default function BillsOfLadingPage() {
     setHeaderError(null);
     try {
       const payload: Record<string, unknown> = {};
-      if (headerDraft.billType !== (detail?.billType ?? '')) payload.billType = headerDraft.billType;
+      if (headerDraft.billType !== (detail?.billType ?? ''))
+        payload.billType = headerDraft.billType;
       payload.freightTerms = headerDraft.freightTerms || null;
       payload.carrierName = headerDraft.carrierName || null;
       payload.placeOfIssue = headerDraft.placeOfIssue || null;
@@ -402,7 +410,7 @@ export default function BillsOfLadingPage() {
       await api.patch<BillOfLadingDetail>(`/bills/${viewingId}`, payload);
       await refreshDetail();
     } catch (e) {
-      setHeaderError(e instanceof ApiError ? e.message : 'Failed to save');
+      setHeaderError(e instanceof ApiError ? e.message : ui('failedToSave'));
     } finally {
       setSavingHeader(false);
     }
@@ -415,9 +423,7 @@ export default function BillsOfLadingPage() {
       const qs = detail.manifestId
         ? `manifestId=${detail.manifestId}`
         : `voyageId=${detail.voyageId}`;
-      const rows = await api.get<BillEligibleManifestItem[]>(
-        `/bills/eligible-items?${qs}`
-      );
+      const rows = await api.get<BillEligibleManifestItem[]>(`/bills/eligible-items?${qs}`);
       setEligible(rows);
     } catch {
       setEligible([]);
@@ -460,7 +466,7 @@ export default function BillsOfLadingPage() {
       setDetail(d);
       setAddOpen(false);
     } catch (e) {
-      setAddError(e instanceof ApiError ? e.message : 'Failed to add');
+      setAddError(e instanceof ApiError ? e.message : ui('failedToAdd'));
     } finally {
       setAdding(false);
     }
@@ -472,7 +478,7 @@ export default function BillsOfLadingPage() {
       const d = await api.del<BillOfLadingDetail>(`/bills/${viewingId}/items/${itemId}`);
       setDetail(d);
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to remove');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToRemove'));
     } finally {
       setConfirmRemoveItem(null);
     }
@@ -485,7 +491,7 @@ export default function BillsOfLadingPage() {
       const d = await api.post<BillOfLadingDetail>(`/bills/${viewingId}/issue`, {});
       setDetail(d);
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to issue');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToIssue'));
     }
   };
 
@@ -500,7 +506,7 @@ export default function BillsOfLadingPage() {
       setDetail(d);
       setCancelReason('');
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to cancel');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToCancel'));
     }
   };
 
@@ -513,7 +519,7 @@ export default function BillsOfLadingPage() {
       setDetail(null);
       await load();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to delete');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToDelete'));
     }
   };
 
@@ -534,7 +540,7 @@ export default function BillsOfLadingPage() {
       await refreshDetail(); // revision label advanced
     } catch (e) {
       // surface the API message verbatim (409 on non-DRAFT must not be swallowed)
-      setRevError(e instanceof ApiError ? e.message : 'Failed to freeze revision');
+      setRevError(e instanceof ApiError ? e.message : ui('failedToFreezeRevision'));
     } finally {
       setRevBusy(false);
     }
@@ -552,7 +558,7 @@ export default function BillsOfLadingPage() {
       const rows = await api.get<RevisionRow[]>(`/bills/${viewingId}/revisions`);
       setRevisions(rows);
     } catch (e) {
-      setRevError(e instanceof ApiError ? e.message : 'Failed to restore revision');
+      setRevError(e instanceof ApiError ? e.message : ui('failedToRestoreRevision'));
     } finally {
       setRevBusy(false);
     }
@@ -566,13 +572,13 @@ export default function BillsOfLadingPage() {
       await api.post<BillOfLadingDetail>(`/bills/${viewingId}/release`, {});
       await refreshDetail();
       await load();
-      const r = await api.get<{ items: Array<{ action: string; actorEmail: string; timestamp: string }> }>(
-        `/bills/${viewingId}/audit`
-      );
+      const r = await api.get<{
+        items: Array<{ action: string; actorEmail: string; timestamp: string }>;
+      }>(`/bills/${viewingId}/audit`);
       const rel = r.items.find((x) => x.action === 'bill:release') ?? null;
       setReleaseAudit(rel ? { timestamp: rel.timestamp, actorEmail: rel.actorEmail } : null);
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to release');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToRelease'));
     }
   };
 
@@ -586,16 +592,15 @@ export default function BillsOfLadingPage() {
     try {
       setDocData(await api.get<DocumentPayload>(`/bills/${viewingId}/document`));
     } catch (e) {
-      setDocError(e instanceof ApiError ? e.message : 'Failed to load document data');
+      setDocError(e instanceof ApiError ? e.message : ui('failedToLoadDocumentData'));
     } finally {
       setDocBusy(false);
     }
   };
 
   const fmtWeight = (v: string | null | undefined) =>
-    v == null ? '—' : Number(v).toLocaleString();
-  const fmtVolume = (v: string | null | undefined) =>
-    v == null ? '—' : Number(v).toFixed(3);
+    v == null ? '—' : Number(v).toLocaleString(uiLocale);
+  const fmtVolume = (v: string | null | undefined) => (v == null ? '—' : Number(v).toFixed(3));
 
   const totalPages = data?.meta.totalPages ?? 1;
   const canCreate = hasPermission('bill:create');
@@ -609,10 +614,7 @@ export default function BillsOfLadingPage() {
   return (
     <div className="space-y-6">
       <Breadcrumbs
-        items={[
-          { label: tNav('operations'), href: '/dashboard' },
-          { label: tNav('billOfLading') },
-        ]}
+        items={[{ label: tNav('operations'), href: '/dashboard' }, { label: tNav('billOfLading') }]}
       />
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -673,12 +675,9 @@ export default function BillsOfLadingPage() {
           ) : error ? (
             <ErrorState message={error} onRetry={() => void load()} />
           ) : !data || data.data.length === 0 ? (
-            <EmptyState
-              title={t('list.empty.title')}
-              description={t('list.empty.description')}
-            />
+            <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
           ) : (
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-start text-xs uppercase tracking-wide text-muted-foreground">
@@ -719,9 +718,7 @@ export default function BillsOfLadingPage() {
                           ? `${b.manifest.polPort?.code ?? '?'} → ${b.manifest.podPort?.code ?? '?'}`
                           : (b.voyage?.voyageNumber ?? '—')}
                       </td>
-                      <td className="px-3 py-2">
-                        {b.consignee?.name ?? b.notifyParty ?? '—'}
-                      </td>
+                      <td className="px-3 py-2">{b.consignee?.name ?? b.notifyParty ?? '—'}</td>
                       <td className="px-3 py-2">{b._count?.items ?? 0}</td>
                       <td className="px-3 py-2">{b.totalPackages}</td>
                       <td className="px-3 py-2">{fmtWeight(b.totalGrossWeight)}</td>
@@ -744,7 +741,7 @@ export default function BillsOfLadingPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
           {data && totalPages > 1 && (
             <Pagination
@@ -791,7 +788,8 @@ export default function BillsOfLadingPage() {
               <option value="">{t('create.selectVoyage')}</option>
               {voyages.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.voyageNumber} — {v.vessel.name} ({v.originPort.code} → {v.destinationPort.code})
+                  {v.voyageNumber} — {v.vessel.name} ({v.originPort.code} → {v.destinationPort.code}
+                  )
                 </option>
               ))}
             </select>
@@ -921,9 +919,7 @@ export default function BillsOfLadingPage() {
             <Label>{t('fields.goodsDescription')}</Label>
             <Input
               value={createForm.goodsDescription}
-              onChange={(e) =>
-                setCreateForm({ ...createForm, goodsDescription: e.target.value })
-              }
+              onChange={(e) => setCreateForm({ ...createForm, goodsDescription: e.target.value })}
             />
           </div>
           <div className="grid gap-1.5">
@@ -940,9 +936,7 @@ export default function BillsOfLadingPage() {
               onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
             />
           </div>
-          {createError && (
-            <p className="text-sm text-destructive">{createError}</p>
-          )}
+          {createError && <p className="text-sm text-destructive">{createError}</p>}
         </div>
       </Dialog>
 
@@ -1181,7 +1175,7 @@ export default function BillsOfLadingPage() {
                   {t('items.empty')}
                 </p>
               ) : (
-                <div className="overflow-x-auto rounded-md border">
+                <TableScroll className="overflow-x-auto rounded-md border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
@@ -1199,7 +1193,9 @@ export default function BillsOfLadingPage() {
                     <tbody>
                       {detail.items.map((it: BillOfLadingItem) => (
                         <tr key={it.id} className="border-b last:border-0">
-                          <td className="px-2 py-1.5 text-xs text-muted-foreground">{it.sequence}</td>
+                          <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                            {it.sequence}
+                          </td>
                           <td className="px-2 py-1.5 font-mono text-xs">
                             {it.cargo?.reference ?? '—'}
                           </td>
@@ -1224,7 +1220,7 @@ export default function BillsOfLadingPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </TableScroll>
               )}
             </section>
 
@@ -1267,7 +1263,10 @@ export default function BillsOfLadingPage() {
               ) : (
                 <ul className="divide-y rounded-md border">
                   {revisions.map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                    <li
+                      key={r.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                    >
                       <div className="min-w-0">
                         <span className="font-mono text-xs">#{r.revisionNumber}</span>
                         {r.note && (
@@ -1486,8 +1485,8 @@ export default function BillsOfLadingPage() {
                 {docData.document.route.vesselName}
               </p>
               <p>
-                <span className="text-muted-foreground">{t('revisions.title')}:</span>{' '}
-                #{docData.document.revision}
+                <span className="text-muted-foreground">{t('revisions.title')}:</span> #
+                {docData.document.revision}
               </p>
             </div>
             <div className="rounded-md border p-3">

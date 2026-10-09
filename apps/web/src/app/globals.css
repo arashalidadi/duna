@@ -125,13 +125,13 @@
     --muted-foreground: 215 16% 42%;
     --accent: 217 24% 93%;
     --accent-foreground: 222 20% 13%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
     --success: 152 55% 34%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 92% 40%;
+    --warning: 35 92% 29%;
     --warning-foreground: 0 0% 100%;
-    --info: 199 84% 40%;
+    --info: 199 84% 28%;
     --info-foreground: 0 0% 100%;
     --border: 216 16% 84%;
     --input: 216 16% 84%;
@@ -181,8 +181,8 @@
     --muted-foreground: 215 16% 68%;
     --accent: 217 18% 18%;
     --accent-foreground: 210 20% 96%;
-    --destructive: 0 70% 56%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 82% 72%;
+    --destructive-foreground: 218 50% 12%;
     --success: 152 60% 46%;
     --success-foreground: 152 60% 8%;
     --warning: 38 92% 52%;
@@ -492,4 +492,78 @@ html[dir='rtl'] .hero-scrim-side {
   .hero-pan {
     transform: none;
   }
+}
+
+/* Workspace evolution: semantic maritime surfaces, not marketing decoration. */
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 218 35% 16%;
+    --primary: 215 74% 40%;
+    --primary-hover: 215 78% 33%;
+    --ring: 215 74% 40%;
+    --border: 216 22% 89%;
+    --input: 216 20% 81%;
+    --muted-foreground: 215 16% 43%;
+  }
+  .dark {
+    --background: 218 35% 8%;
+    --foreground: 210 22% 94%;
+    --card: 218 30% 12%;
+    --card-foreground: 210 22% 94%;
+    --popover: 218 28% 14%;
+    --popover-foreground: 210 22% 94%;
+    --primary: 211 85% 72%;
+    --primary-hover: 211 88% 80%;
+    --primary-foreground: 218 50% 12%;
+    --ring: 211 85% 72%;
+    --border: 216 23% 23%;
+    --input: 216 20% 32%;
+    --muted: 218 25% 17%;
+    --muted-foreground: 214 18% 69%;
+    --accent: 215 28% 20%;
+  }
+  html[dir='rtl'] .tracking-tight { letter-spacing: normal; }
+  body:has(dialog[open]) { overflow: hidden; }
+  dialog::backdrop { background: hsl(218 50% 6% / .65); backdrop-filter: blur(3px); }
+}
+@layer components {
+  .panel, .ui-card {
+    border-radius: 0.875rem;
+    box-shadow: 0 2px 3px hsl(218 40% 12% / .025), 0 8px 24px -16px hsl(218 40% 12% / .18);
+  }
+  .workspace-page h1 { font-size: clamp(1.35rem, 2vw, 1.75rem); line-height: 1.4; }
+  .workspace-page > div > div:first-child { row-gap: 1rem; }
+  .workspace table, .app-dialog table { border-collapse: collapse; width: 100%; }
+  .workspace th, .app-dialog th { background: hsl(var(--muted) / .45); }
+  .workspace th:not(.text-end), .app-dialog th:not(.text-end) { text-align: start; }
+  .workspace th, .workspace td, .app-dialog th, .app-dialog td { padding-block: .85rem; }
+  .workspace tbody tr, .app-dialog tbody tr { transition: background-color 120ms ease; }
+  .workspace tbody tr:hover, .app-dialog tbody tr:hover { background: hsl(var(--muted) / .4); }
+  .workspace input, .workspace select, .app-dialog input, .app-dialog select { min-height: 2.5rem; }
+  .workspace input[type='checkbox'], .app-dialog input[type='checkbox'], .workspace input[type='radio'], .app-dialog input[type='radio'] { min-height: 1rem; width: 1rem; accent-color: hsl(var(--primary)); }
+  .workspace select, .app-dialog select, .workspace textarea, .app-dialog textarea { color: hsl(var(--foreground)); background-color: hsl(var(--card)); border-radius: .5rem; }
+  .workspace select, .app-dialog select { padding-inline-end: 2rem; max-width: 100%; }
+  html[dir='rtl'] :is(.workspace, .app-dialog) select { background-position: left .5rem center; }
+  .workspace :is(input, textarea, select):focus-visible, .app-dialog :is(input, textarea, select):focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+  .workspace .overflow-x-auto, .app-dialog .overflow-x-auto { overscroll-behavior-x: contain; scrollbar-width: thin; }
+  .nav-accordion { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 180ms ease; }
+  .nav-accordion[data-expanded='true'] { grid-template-rows: 1fr; }
+  .app-dialog[open], .preference-popover { animation: surface-in 180ms ease-out; }
+  .app-sheet[open] { animation: drawer-left 220ms ease-out; }
+  .app-sheet[data-side='right'][open] { animation-name: drawer-right; }
+  .workspace-page { animation: surface-in 180ms ease-out; }
+}
+@keyframes surface-in { from { opacity: 0; transform: translateY(6px) scale(.99); } to { opacity: 1; transform: none; } }
+@keyframes drawer-left { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes drawer-right { from { transform: translateX(100%); } to { transform: none; } }
+@media (max-width: 639px) {
+  .app-dialog .grid-cols-2, .app-dialog .grid-cols-3 { grid-template-columns: minmax(0, 1fr); }
+  .app-dialog .col-span-2, .app-dialog .col-span-3 { grid-column: auto; }
+  .workspace table, .app-dialog table { min-width: 38rem; }
+  .workspace button, .app-dialog button { min-height: 2.75rem; }
+  .workspace input, .workspace textarea, .workspace select, .app-dialog input, .app-dialog select, .app-dialog textarea { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

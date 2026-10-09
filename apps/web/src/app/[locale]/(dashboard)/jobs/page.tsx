@@ -1,10 +1,13 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import type { Job, JobListResult, JobStatus, JobItemKind, JobCostItem } from '@shipping/shared';
 import { api, ApiError } from '@/lib/api/client';
-import { formatDateTime } from '@/lib/date';
+import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +18,17 @@ import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
-import { Eye, Pencil, Trash2, Plus, Play, CheckCircle2, XCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  Eye,
+  Pencil,
+  Trash2,
+  Plus,
+  Play,
+  CheckCircle2,
+  XCircle,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 
 const PAGE_SIZE = 20;
 
@@ -34,8 +47,11 @@ function statusVariant(s: JobStatus): 'info' | 'success' | 'danger' | 'outline' 
   return 'outline';
 }
 
-function money(v: string | number): string {
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function money(v: string | number, displayLocale: string): string {
+  return Number(v).toLocaleString(displayLocale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
 function dateShort(iso: string): string {
@@ -54,9 +70,17 @@ const emptyForm = {
   notes: '',
 };
 
-const emptyItem = { kind: 'COST' as JobItemKind, category: '', description: '', amount: '', itemDate: '', notes: '' };
+const emptyItem = {
+  kind: 'COST' as JobItemKind,
+  category: '',
+  description: '',
+  amount: '',
+  itemDate: '',
+  notes: '',
+};
 
 export default function JobsPage() {
+  const uiLocale = useUiLocale();
   const t = useTranslations('jobs');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -338,7 +362,7 @@ export default function JobsPage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -358,44 +382,66 @@ export default function JobsPage() {
                     <tr key={j.id} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="whitespace-nowrap p-3 font-mono text-xs">
                         {j.jobNumber}
-                        <div className="text-[10px] text-muted-foreground">{dateShort(j.openingDate)}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {formatDateShort(j.openingDate, locale)}
+                        </div>
                       </td>
                       <td className="max-w-[240px] truncate p-3" title={j.title}>
                         {j.title}
-                        {j.jobType ? <span className="ms-1 text-[10px] text-muted-foreground">({j.jobType})</span> : null}
+                        {j.jobType ? (
+                          <span className="ms-1 text-[10px] text-muted-foreground">
+                            ({j.jobType})
+                          </span>
+                        ) : null}
                       </td>
                       <td className="max-w-[140px] truncate p-3">{j.customer?.name ?? '—'}</td>
                       <td className="p-3 font-mono text-xs">{j.voyage?.voyageNumber ?? '—'}</td>
                       <td className="p-3">
                         <Badge variant={statusVariant(j.status)}>{t(`status.${j.status}`)}</Badge>
                       </td>
-                      <td className="p-3 text-end text-green-600">
+                      <td className="p-3 text-end text-success">
                         <span className="inline-flex items-center gap-1">
                           <TrendingUp className="h-3 w-3" />
-                          {money(j.totalIncome ?? '0')}
+                          {money(j.totalIncome ?? '0', uiLocale)}
                         </span>
                       </td>
                       <td className="p-3 text-end text-red-600">
                         <span className="inline-flex items-center gap-1">
                           <TrendingDown className="h-3 w-3" />
-                          {money(j.totalCost ?? '0')}
+                          {money(j.totalCost ?? '0', uiLocale)}
                         </span>
                       </td>
                       <td className="p-3 text-end font-semibold">
-                        {money(j.profit ?? '0')} <span className="text-[10px] text-muted-foreground">{j.currencyCode}</span>
+                        {money(j.profit ?? '0', uiLocale)}{' '}
+                        <span className="text-[10px] text-muted-foreground">{j.currencyCode}</span>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" title={t('actions.view')} onClick={() => void openDetail(j.id)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title={t('actions.view')}
+                            onClick={() => void openDetail(j.id)}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                           {(j.status === 'DRAFT' || j.status === 'OPEN') && (
-                            <Button variant="ghost" size="icon" title={t('actions.edit')} onClick={() => openEdit(j)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={t('actions.edit')}
+                              onClick={() => openEdit(j)}
+                            >
                               <Pencil className="h-4 w-4" />
                             </Button>
                           )}
                           {j.status === 'DRAFT' && (
-                            <Button variant="ghost" size="icon" title={tc('actions.delete')} onClick={() => setDeleteTarget(j)}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={tc('actions.delete')}
+                              onClick={() => setDeleteTarget(j)}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
@@ -405,7 +451,7 @@ export default function JobsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
             <div className="p-3">
               <Pagination
                 page={meta.page}
@@ -442,12 +488,19 @@ export default function JobsPage() {
           {formError && <p className="text-sm text-destructive">{formError}</p>}
           <div className="space-y-1.5">
             <Label>{t('fields.title')} *</Label>
-            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            <Input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.jobType')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.jobType} onChange={(e) => setForm({ ...form, jobType: e.target.value })}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.jobType}
+                onChange={(e) => setForm({ ...form, jobType: e.target.value })}
+              >
                 <option value="">{t('form.noType')}</option>
                 {JOB_TYPES.map((x) => (
                   <option key={x} value={x}>
@@ -458,7 +511,11 @@ export default function JobsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.currency')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.currencyCode} onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.currencyCode}
+                onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}
+              >
                 {CURRENCIES.map((c) => (
                   <option key={c} value={c}>
                     {c}
@@ -470,7 +527,11 @@ export default function JobsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.customer')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.customerId}
+                onChange={(e) => setForm({ ...form, customerId: e.target.value })}
+              >
                 <option value="">{t('form.noCustomer')}</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -481,7 +542,11 @@ export default function JobsPage() {
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.voyage')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.voyageId} onChange={(e) => setForm({ ...form, voyageId: e.target.value })}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.voyageId}
+                onChange={(e) => setForm({ ...form, voyageId: e.target.value })}
+              >
                 <option value="">{t('form.noVoyage')}</option>
                 {voyages.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -502,7 +567,10 @@ export default function JobsPage() {
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
         </div>
       </Dialog>
@@ -519,13 +587,20 @@ export default function JobsPage() {
           detail && (
             <div className="flex flex-wrap justify-end gap-2">
               {detail.status === 'DRAFT' && (
-                <Button variant="outline" onClick={() => void act(() => api.post(`/jobs/${detail.id}/start`))} disabled={acting}>
+                <Button
+                  variant="outline"
+                  onClick={() => void act(() => api.post(`/jobs/${detail.id}/start`))}
+                  disabled={acting}
+                >
                   <Play className="me-1.5 h-4 w-4" />
                   {t('actions.start')}
                 </Button>
               )}
               {detail.status === 'OPEN' && (
-                <Button onClick={() => void act(() => api.post(`/jobs/${detail.id}/complete`))} disabled={acting}>
+                <Button
+                  onClick={() => void act(() => api.post(`/jobs/${detail.id}/complete`))}
+                  disabled={acting}
+                >
                   <CheckCircle2 className="me-1.5 h-4 w-4" />
                   {t('actions.complete')}
                 </Button>
@@ -546,11 +621,15 @@ export default function JobsPage() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>
-              {detail.jobType ? <Badge variant="outline">{t(`type.${detail.jobType}`)}</Badge> : null}
+              {detail.jobType ? (
+                <Badge variant="outline">{t(`type.${detail.jobType}`)}</Badge>
+              ) : null}
               <span className="text-sm text-muted-foreground">
                 {t('fields.customer')}: {detail.customer?.name ?? '—'}
               </span>
-              <span className="font-mono text-xs text-muted-foreground">{detail.voyage?.voyageNumber ?? ''}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {detail.voyage?.voyageNumber ?? ''}
+              </span>
             </div>
             {detail.description && <p className="text-sm">{detail.description}</p>}
 
@@ -563,27 +642,46 @@ export default function JobsPage() {
                     <th className="p-2 text-start">{t('items.description')}</th>
                     <th className="p-2 text-start">{t('items.category')}</th>
                     <th className="p-2 text-end">{t('items.amount')}</th>
-                    {itemsEditable(detail) && <th className="p-2 text-end">{tc('actions.title')}</th>}
+                    {itemsEditable(detail) && (
+                      <th className="p-2 text-end">{tc('actions.title')}</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {(detail.items ?? []).map((it) => (
                     <tr key={it.id} className="border-b last:border-0">
                       <td className="p-2">
-                        <Badge variant={it.kind === 'INCOME' ? 'success' : 'danger'}>{t(`items.${it.kind}`)}</Badge>
+                        <Badge variant={it.kind === 'INCOME' ? 'success' : 'danger'}>
+                          {t(`items.${it.kind}`)}
+                        </Badge>
                       </td>
                       <td className="p-2">
                         {it.description}
-                        {it.itemDate ? <span className="ms-1 text-[10px] text-muted-foreground">{dateShort(it.itemDate)}</span> : null}
+                        {it.itemDate ? (
+                          <span className="ms-1 text-[10px] text-muted-foreground">
+                            {formatDateShort(it.itemDate, locale)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="p-2 text-xs">{it.category ?? '—'}</td>
-                      <td className="p-2 text-end font-mono">{money(it.amount)}</td>
+                      <td className="p-2 text-end font-mono">{money(it.amount, uiLocale)}</td>
                       {itemsEditable(detail) && (
                         <td className="p-2 text-end">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => editItem(it)}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => editItem(it)}
+                          >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => void removeItem(it.id)} disabled={acting}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => void removeItem(it.id)}
+                            disabled={acting}
+                          >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </td>
@@ -597,8 +695,10 @@ export default function JobsPage() {
                       {t('items.totals')}
                     </td>
                     <td className="p-2 text-end">
-                      {t('fields.income')}: {money(detail.totalIncome ?? '0')} · {t('fields.cost')}: {money(detail.totalCost ?? '0')} ·{' '}
-                      {t('fields.profit')}: {money(detail.profit ?? '0')} {detail.currencyCode}
+                      {t('fields.income')}: {money(detail.totalIncome ?? '0', uiLocale)} ·{' '}
+                      {t('fields.cost')}: {money(detail.totalCost ?? '0', uiLocale)} ·{' '}
+                      {t('fields.profit')}: {money(detail.profit ?? '0', uiLocale)}{' '}
+                      {detail.currencyCode}
                     </td>
                     <td />
                   </tr>
@@ -614,7 +714,13 @@ export default function JobsPage() {
                 </p>
                 {itemError && <p className="text-sm text-destructive">{itemError}</p>}
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <select className={SELECT_CLASS} value={itemForm.kind} onChange={(e) => setItemForm({ ...itemForm, kind: e.target.value as JobItemKind })}>
+                  <select
+                    className={SELECT_CLASS}
+                    value={itemForm.kind}
+                    onChange={(e) =>
+                      setItemForm({ ...itemForm, kind: e.target.value as JobItemKind })
+                    }
+                  >
                     {ITEM_KINDS.map((k) => (
                       <option key={k} value={k}>
                         {t(`items.${k}`)}
@@ -647,7 +753,14 @@ export default function JobsPage() {
                   />
                   <div className="flex gap-2">
                     {editingItemId && (
-                      <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setItemForm(emptyItem); }}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingItemId(null);
+                          setItemForm(emptyItem);
+                        }}
+                      >
                         {tc('actions.cancel')}
                       </Button>
                     )}
@@ -670,7 +783,8 @@ export default function JobsPage() {
               )}
               {detail.cancelledAt && (
                 <div>
-                  {t('detail.cancelledOn')}: {formatDateTime(detail.cancelledAt, locale)} — {detail.cancelReason}
+                  {t('detail.cancelledOn')}: {formatDateTime(detail.cancelledAt, locale)} —{' '}
+                  {detail.cancelReason}
                 </div>
               )}
             </div>
@@ -710,7 +824,11 @@ export default function JobsPage() {
       >
         <div className="space-y-2">
           <Label>{t('cancel.reason')}</Label>
-          <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder={t('cancel.reasonPlaceholder')} />
+          <Input
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder={t('cancel.reasonPlaceholder')}
+          />
         </div>
       </Dialog>
 
@@ -721,7 +839,9 @@ export default function JobsPage() {
           if (!o) setDeleteTarget(null);
         }}
         title={t('confirm.delete.title')}
-        description={deleteTarget ? t('confirm.delete.description', { number: deleteTarget.jobNumber }) : ''}
+        description={
+          deleteTarget ? t('confirm.delete.description', { number: deleteTarget.jobNumber }) : ''
+        }
         confirmLabel={tc('actions.delete')}
         loading={acting}
         onConfirm={() =>
@@ -731,6 +851,7 @@ export default function JobsPage() {
             await act(() => api.del(`/jobs/${target?.id}`));
           })()
         }
+        error={formError}
       />
     </div>
   );

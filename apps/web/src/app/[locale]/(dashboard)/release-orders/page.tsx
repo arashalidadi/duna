@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -34,11 +37,15 @@ function errMsg(e: unknown): string {
   return e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e);
 }
 
-function fmt(v: string): string {
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(v: string, displayLocale: string): string {
+  return Number(v).toLocaleString(displayLocale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function ReleaseOrdersPage() {
+  const uiLocale = useUiLocale();
   const t = useTranslations('releaseOrder');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -61,7 +68,9 @@ export default function ReleaseOrdersPage() {
       const params = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
       if (search) params.set('search', search);
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      const res = await api.get<PaginatedResult<ReleaseOrder>>(`/release-orders?${params.toString()}`);
+      const res = await api.get<PaginatedResult<ReleaseOrder>>(
+        `/release-orders?${params.toString()}`
+      );
       setRows(res.data);
       setMeta(res.meta);
     } catch (e: any) {
@@ -71,7 +80,9 @@ export default function ReleaseOrdersPage() {
     }
   }, [page, search, statusFilter]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // detail
   const [detail, setDetail] = useState<ReleaseOrder | null>(null);
@@ -114,7 +125,9 @@ export default function ReleaseOrdersPage() {
     setOverrideReason('');
     setBillsLoading(true);
     try {
-      const res = await api.get<PaginatedResult<BillOfLading>>('/bills?status=APPROVED&pageSize=100');
+      const res = await api.get<PaginatedResult<BillOfLading>>(
+        '/bills?status=APPROVED&pageSize=100'
+      );
       setBills(res.data);
     } catch (e: any) {
       setCreateError(errMsg(e));
@@ -124,20 +137,41 @@ export default function ReleaseOrdersPage() {
   };
 
   useEffect(() => {
-    if (!createOpen || !fBill) { setElig(null); return; }
+    if (!createOpen || !fBill) {
+      setElig(null);
+      return;
+    }
     let cancelled = false;
     setEligLoading(true);
-    api.get<ReleaseEligibility>(`/release-orders/eligibility?billOfLadingId=${fBill}`)
-      .then((res) => { if (!cancelled) setElig(res); })
-      .catch(() => { if (!cancelled) setElig(null); })
-      .finally(() => { if (!cancelled) setEligLoading(false); });
-    return () => { cancelled = true; };
+    api
+      .get<ReleaseEligibility>(`/release-orders/eligibility?billOfLadingId=${fBill}`)
+      .then((res) => {
+        if (!cancelled) setElig(res);
+      })
+      .catch(() => {
+        if (!cancelled) setElig(null);
+      })
+      .finally(() => {
+        if (!cancelled) setEligLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [createOpen, fBill]);
 
   const submitCreate = async () => {
-    if (!fBill) { setCreateError(t('create.errors.billRequired')); return; }
-    if (elig && elig.needsOverride && !force) { setCreateError(t('create.blockedNeedsForce')); return; }
-    if (force && !overrideReason.trim()) { setCreateError(t('create.errors.overrideReasonRequired')); return; }
+    if (!fBill) {
+      setCreateError(t('create.errors.billRequired'));
+      return;
+    }
+    if (elig && elig.needsOverride && !force) {
+      setCreateError(t('create.blockedNeedsForce'));
+      return;
+    }
+    if (force && !overrideReason.trim()) {
+      setCreateError(t('create.errors.overrideReasonRequired'));
+      return;
+    }
     setCreating(true);
     setCreateError('');
     try {
@@ -196,7 +230,9 @@ export default function ReleaseOrdersPage() {
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]} />
+      <Breadcrumbs
+        items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -207,7 +243,10 @@ export default function ReleaseOrdersPage() {
           <p className="text-muted-foreground">{t('page.description')}</p>
         </div>
         {hasPermission('release:create') && (
-          <Button onClick={() => void openCreate()}><Plus className="size-4" />{t('actions.create')}</Button>
+          <Button onClick={() => void openCreate()}>
+            <Plus className="size-4" />
+            {t('actions.create')}
+          </Button>
         )}
       </div>
 
@@ -218,18 +257,39 @@ export default function ReleaseOrdersPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setSearch(searchInput); setPage(1); }}>
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t('list.search')} className="w-64" />
-              <Button type="submit" variant="outline" size="sm">{tc('actions.search')}</Button>
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput);
+                setPage(1);
+              }}
+            >
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t('list.search')}
+                className="w-64"
+              />
+              <Button type="submit" variant="outline" size="sm">
+                {tc('actions.search')}
+              </Button>
             </form>
-            <select className={SELECT_CLASS} value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}>
+            <select
+              className={SELECT_CLASS}
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setPage(1);
+              }}
+            >
               <option value="ALL">{t('list.allStatuses')}</option>
               <option value="ISSUED">{t('status.ISSUED')}</option>
               <option value="CANCELLED">{t('status.CANCELLED')}</option>
             </select>
-            <span className="ms-auto text-sm text-muted-foreground">{tc('list.total')}: {meta.totalItems}</span>
+            <span className="ms-auto text-sm text-muted-foreground">
+              {tc('list.total')}: {meta.totalItems}
+            </span>
           </div>
 
           {loading ? (
@@ -240,7 +300,7 @@ export default function ReleaseOrdersPage() {
             <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
           ) : (
             <>
-              <div className="overflow-x-auto rounded-md border">
+              <TableScroll className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground">
@@ -256,10 +316,16 @@ export default function ReleaseOrdersPage() {
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/30">
                         <td className="p-3">
-                          <button className="font-mono text-primary underline-offset-4 hover:underline"
-                            onClick={() => void openDetail(r.id)}>{r.docNumber}</button>
+                          <button
+                            className="font-mono text-primary underline-offset-4 hover:underline"
+                            onClick={() => void openDetail(r.id)}
+                          >
+                            {r.docNumber}
+                          </button>
                         </td>
-                        <td className="p-3 font-mono text-xs">{r.billOfLading?.billNumber ?? '—'}</td>
+                        <td className="p-3 font-mono text-xs">
+                          {r.billOfLading?.billNumber ?? '—'}
+                        </td>
                         <td className="p-3">{formatDateShort(r.releaseDate, locale)}</td>
                         <td className="p-3">
                           {r.financialOverride ? (
@@ -269,18 +335,37 @@ export default function ReleaseOrdersPage() {
                           )}
                         </td>
                         <td className="p-3">
-                          <Badge variant={r.status === 'ISSUED' ? 'success' : 'danger'}>{t(`status.${r.status}`)}</Badge>
+                          <Badge variant={r.status === 'ISSUED' ? 'success' : 'danger'}>
+                            {t(`status.${r.status}`)}
+                          </Badge>
                         </td>
                         <td className="p-3">
                           <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => void openDetail(r.id)}><Eye className="size-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => void openDetail(r.id)}>
+                              <Eye className="size-4" />
+                            </Button>
                             {r.status === 'ISSUED' && hasPermission('release:cancel') && (
-                              <Button size="sm" variant="ghost" className="text-warning-foreground"
-                                onClick={() => { setCancelTarget(r); setCancelReason(''); }}><XCircle className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-warning"
+                                onClick={() => {
+                                  setCancelTarget(r);
+                                  setCancelReason('');
+                                }}
+                              >
+                                <XCircle className="size-4" />
+                              </Button>
                             )}
                             {r.status === 'CANCELLED' && hasPermission('release:delete') && (
-                              <Button size="sm" variant="ghost" className="text-destructive"
-                                onClick={() => setDeleteTarget(r)}><Trash2 className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                onClick={() => setDeleteTarget(r)}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -288,49 +373,77 @@ export default function ReleaseOrdersPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <Pagination page={meta.page} pageSize={meta.pageSize} totalItems={meta.totalItems} totalPages={meta.totalPages} onPageChange={setPage} />
+              </TableScroll>
+              <Pagination
+                page={meta.page}
+                pageSize={meta.pageSize}
+                totalItems={meta.totalItems}
+                totalPages={meta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>
       </Card>
 
       {/* create */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}
-        title={t('create.title')} description={t('create.description')}
+      <Dialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title={t('create.title')}
+        description={t('create.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>{tc('actions.cancel')}</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              {tc('actions.cancel')}
+            </Button>
             <Button onClick={() => void submitCreate()} disabled={creating || billsLoading}>
               {creating ? t('create.creating') : tc('actions.save')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="grid gap-4">
           {createError && <p className="text-sm text-destructive">{createError}</p>}
 
           <div className="space-y-1.5">
             <Label>{t('fields.bill')}</Label>
-            <select className={SELECT_CLASS + ' w-full'} value={fBill}
-              onChange={(e) => setFBill(e.target.value)} disabled={billsLoading}>
+            <select
+              className={SELECT_CLASS + ' w-full'}
+              value={fBill}
+              onChange={(e) => setFBill(e.target.value)}
+              disabled={billsLoading}
+            >
               <option value="">{billsLoading ? tc('list.loading') : t('create.selectBill')}</option>
-              {bills.map((b) => <option key={b.id} value={b.id}>{b.billNumber}</option>)}
+              {bills.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.billNumber}
+                </option>
+              ))}
             </select>
           </div>
 
-          {eligLoading && <p className="text-xs text-muted-foreground">{t('create.checkingEligibility')}</p>}
+          {eligLoading && (
+            <p className="text-xs text-muted-foreground">{t('create.checkingEligibility')}</p>
+          )}
 
           {elig && !eligLoading && (
-            <div className={`rounded-md border p-3 text-sm ${elig.needsOverride ? 'border-warning/40 bg-warning/10' : 'border-success/40 bg-success/10'}`}>
+            <div
+              className={`rounded-md border p-3 text-sm ${elig.needsOverride ? 'border-warning/40 bg-warning/10' : 'border-success/40 bg-success/10'}`}
+            >
               <div className="mb-1 flex items-center gap-2 font-medium">
-                {elig.needsOverride ? <ShieldAlert className="size-4 text-warning" /> : <BadgeCheck className="size-4 text-success" />}
+                {elig.needsOverride ? (
+                  <ShieldAlert className="size-4 text-warning" />
+                ) : (
+                  <BadgeCheck className="size-4 text-success" />
+                )}
                 {elig.needsOverride ? t('create.blockedTitle') : t('create.readyTitle')}
               </div>
               <p className="text-muted-foreground">
                 {t('create.eligibilityLine', {
-                  total: fmt(elig.invoicesTotal),
-                  paid: fmt(elig.invoicesPaid),
-                  outstanding: fmt(elig.outstanding),
+                  total: fmt(elig.invoicesTotal, uiLocale),
+                  paid: fmt(elig.invoicesPaid, uiLocale),
+                  outstanding: fmt(elig.outstanding, uiLocale),
                 })}
               </p>
             </div>
@@ -339,15 +452,23 @@ export default function ReleaseOrdersPage() {
           {elig && elig.needsOverride && (
             <div className="space-y-3 rounded-md border border-destructive/30 bg-destructive/5 p-3">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)}
-                  className="size-4 rounded border-input" />
+                <input
+                  type="checkbox"
+                  checked={force}
+                  onChange={(e) => setForce(e.target.checked)}
+                  className="size-4 rounded border-input"
+                />
                 {t('create.forceOverride')}
               </label>
               {force && (
                 <div className="space-y-1.5">
                   <Label>{t('fields.overrideReason')}</Label>
-                  <Input value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}
-                    placeholder={t('create.overrideReasonPlaceholder')} maxLength={500} />
+                  <Input
+                    value={overrideReason}
+                    onChange={(e) => setOverrideReason(e.target.value)}
+                    placeholder={t('create.overrideReasonPlaceholder')}
+                    maxLength={500}
+                  />
                 </div>
               )}
             </div>
@@ -361,39 +482,61 @@ export default function ReleaseOrdersPage() {
       </Dialog>
 
       {/* detail */}
-      <Dialog open={detailOpen} onOpenChange={(o) => { setDetailOpen(o); if (!o) setDetail(null); }}
-        title={detail ? detail.docNumber : t('detail.headerTitle')}>
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(o) => {
+          setDetailOpen(o);
+          if (!o) setDetail(null);
+        }}
+        title={detail ? detail.docNumber : t('detail.headerTitle')}
+      >
         {detailLoading || !detail ? (
           <PageLoader />
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant={detail.status === 'ISSUED' ? 'success' : 'danger'}>{t(`status.${detail.status}`)}</Badge>
+              <Badge variant={detail.status === 'ISSUED' ? 'success' : 'danger'}>
+                {t(`status.${detail.status}`)}
+              </Badge>
               {detail.financialOverride && <Badge variant="warning">{t('fields.override')}</Badge>}
-              <span className="font-mono text-xs text-muted-foreground">{detail.billOfLading?.billNumber}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {detail.billOfLading?.billNumber}
+              </span>
             </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <div><dt className="text-muted-foreground">{t('fields.releaseDate')}</dt>
-                <dd>{formatDateTime(detail.releaseDate, locale)}</dd></div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.releaseDate')}</dt>
+                <dd>{formatDateTime(detail.releaseDate, locale)}</dd>
+              </div>
               {detail.financials && (
                 <>
-                  <div><dt className="text-muted-foreground">{t('fields.invoicesTotal')}</dt>
-                    <dd>{fmt(detail.financials.invoicesTotal)}</dd></div>
-                  <div><dt className="text-muted-foreground">{t('fields.invoicesPaid')}</dt>
-                    <dd>{fmt(detail.financials.invoicesPaid)}</dd></div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('fields.invoicesTotal')}</dt>
+                    <dd>{fmt(detail.financials.invoicesTotal, uiLocale)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">{t('fields.invoicesPaid')}</dt>
+                    <dd>{fmt(detail.financials.invoicesPaid, uiLocale)}</dd>
+                  </div>
                 </>
               )}
               {detail.overrideReason && (
-                <div className="col-span-2"><dt className="text-muted-foreground">{t('fields.overrideReason')}</dt>
-                  <dd className="text-warning">{detail.overrideReason}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">{t('fields.overrideReason')}</dt>
+                  <dd className="text-warning">{detail.overrideReason}</dd>
+                </div>
               )}
               {detail.notes && (
-                <div className="col-span-2"><dt className="text-muted-foreground">{t('fields.notes')}</dt>
-                  <dd>{detail.notes}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">{t('fields.notes')}</dt>
+                  <dd>{detail.notes}</dd>
+                </div>
               )}
               {detail.cancelReason && (
-                <div className="col-span-2"><dt className="text-muted-foreground">{t('fields.cancelReason')}</dt>
-                  <dd className="text-destructive">{detail.cancelReason}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">{t('fields.cancelReason')}</dt>
+                  <dd className="text-destructive">{detail.cancelReason}</dd>
+                </div>
               )}
             </dl>
           </div>
@@ -401,27 +544,44 @@ export default function ReleaseOrdersPage() {
       </Dialog>
 
       {/* cancel */}
-      <Dialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}
-        title={t('confirm.cancel.title')} description={t('confirm.cancel.description')}
+      <Dialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => {
+          if (!o) setCancelTarget(null);
+        }}
+        title={t('confirm.cancel.title')}
+        description={t('confirm.cancel.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setCancelTarget(null)}>{tc('actions.cancel')}</Button>
-            <Button variant="destructive" disabled={cancelling || !cancelReason.trim()} onClick={() => void submitCancel()}>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>
+              {tc('actions.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelling || !cancelReason.trim()}
+              onClick={() => void submitCancel()}
+            >
               {cancelling ? tc('list.loading') : t('actions.cancelOrder')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="space-y-1.5">
           <Label>{t('confirm.cancel.reason')}</Label>
-          <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
-            placeholder={t('confirm.cancel.reasonPlaceholder')} />
+          <Input
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder={t('confirm.cancel.reasonPlaceholder')}
+          />
         </div>
       </Dialog>
 
       {/* delete */}
       <ConfirmDialog
         open={!!deleteTarget}
-        onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
         title={t('confirm.delete.title')}
         description={t('confirm.delete.description')}
         confirmLabel={tc('actions.delete')}

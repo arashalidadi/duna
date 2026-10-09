@@ -10,29 +10,35 @@ const EN_LOCALE = 'en-GB';
 export function formatDate(date: Date | string | number, locale: string): string {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale === 'fa' ? FA_LOCALE : EN_LOCALE, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(d);
+  return new Intl.DateTimeFormat(
+    locale === 'fa' ? FA_LOCALE : locale === 'ar' ? 'ar-AE-u-ca-gregory' : EN_LOCALE,
+    {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    }
+  ).format(d);
 }
 
 /** Short numeric Jalali date, e.g. "۱۴۰۵/۰۶/۲۰" */
 export function formatDateShort(date: Date | string | number, locale: string): string {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale === 'fa' ? FA_LOCALE : 'en-GB', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(d);
+  return new Intl.DateTimeFormat(
+    locale === 'fa' ? FA_LOCALE : locale === 'ar' ? 'ar-AE-u-ca-gregory' : 'en-GB',
+    {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }
+  ).format(d);
 }
 
 /** Time of day, e.g. "۱۴:۳۲:۰۵" */
 export function formatTime(date: Date | string | number, locale: string): string {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR' : 'en-GB', {
+  return new Intl.DateTimeFormat(locale === 'fa' ? 'fa-IR' : locale === 'ar' ? 'ar-AE' : 'en-GB', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -48,11 +54,14 @@ export function formatDateTime(date: Date | string | number, locale: string): st
 export function jalaliDateKey(date: Date | string | number, locale: string): string {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) return '';
-  const parts = new Intl.DateTimeFormat(locale === 'fa' ? FA_LOCALE : 'en-GB', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(d);
+  const parts = new Intl.DateTimeFormat(
+    locale === 'fa' ? FA_LOCALE : locale === 'ar' ? 'ar-AE-u-ca-gregory' : 'en-GB',
+    {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }
+  ).formatToParts(d);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }

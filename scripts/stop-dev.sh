@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
 # stop-dev.sh — Stop the Shipping ERP local dev stack (Web + API + PostgreSQL).
-# Graceful, idempotent. Leaves nothing running on 3000/3101/5432.
+# Graceful, idempotent. Leaves nothing running on 3000/${API_PORT}/5432.
 # =============================================================================
 set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+API_PORT="$(node "$REPO_ROOT/scripts/dev-api-port.mjs")"
 PID_DIR="$REPO_ROOT/logs"
 log() { printf '[stop-dev] %s\n' "$*"; }
 
@@ -49,4 +50,4 @@ fi
 
 sleep 2
 log "=== Remaining listeners ==="
-ss -lntp 2>/dev/null | grep -E ':(3000|3101|5432)\b' || log "ports 3000/3101/5432 clear"
+ss -lntp 2>/dev/null | grep -E ":(3000|${API_PORT}|5432)\b" || log "ports 3000/${API_PORT}/5432 clear"

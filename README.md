@@ -78,21 +78,23 @@ OpenCode or your terminal does NOT stop them.
 pnpm install
 
 # 2. Configure environment
-cp .env.example .env          # then edit .env as needed
+cp .env.example .env          # supply your DB URL and unique JWT secrets
+cp apps/web/.env.example apps/web/.env.local  # same-origin browser API, server upstream
 
 # 3. Start PostgreSQL (standalone or Docker)
-# Standalone (already provisioned at /home/arash/shipping-erp/pgdata):
+# Standalone (only if binaries and a cluster have actually been provisioned):
 ./infra/standalone-db/manage.sh start
 # OR Docker (if available):
 pnpm docker:db
 
-# 4. Apply migrations and seed
+# 4. Generate Prisma, then apply migrations and seed ONLY an approved development DB
+pnpm db:generate
 pnpm db:migrate               # prisma migrate dev
 pnpm db:seed                  # seed reference data + admin user
 
-# 5. Run the API (port 3001 by default)
-pnpm dev:api                # http://localhost:3001/api/v1  (Swagger at /docs)
-# If port 3001 is occupied, set API_PORT=3101 (and matching CORS + web URL) in .env
+# 5. Run the API (port 3101 by default)
+pnpm dev:api                # http://localhost:3101/api/v1  (Swagger at /docs)
+# To use another port, set API_PORT in .env AND the matching API_INTERNAL_URL in apps/web/.env.local
 
 # 6. Run the web app (port 3000)
 pnpm dev:web                # http://localhost:3000
@@ -102,13 +104,27 @@ pnpm dev:web                # http://localhost:3000
 
 ### Frontend ↔ API connectivity
 
-- The web browser bundle uses `NEXT_PUBLIC_API_URL` (inlined at build time). Set it in
-  `apps/web/.env.local`, e.g. `NEXT_PUBLIC_API_URL=http://127.0.0.1:3101/api/v1`. Prefer `127.0.0.1`
-  over `localhost` to avoid any `localhost → ::1` resolution mismatch in browsers.
-- The API's CORS allow-list is env-driven via `API_CORS_ORIGINS` (comma-separated). For development
-  allow both forms of the web origin: `http://localhost:3000,http://127.0.0.1:3000`.
-- After changing `NEXT_PUBLIC_API_URL`, a frontend rebuild is required (`next build` / `pnpm dev` restart)
-  because the browser bundle is generated at build time.
+The original default was 3001; 3101 was introduced when that port was occupied. **3101 is now
+this project's required API default**, not just a temporary workaround. The web remains on 3000.
+
+- Keep `NEXT_PUBLIC_API_URL=/api/v1` in `apps/web/.env.local`. A hosted browser must never
+  call localhost to reach the sandbox API; requests go through the existing same-origin Next proxy.
+- Set server-only `API_INTERNAL_URL=http://127.0.0.1:3101` to match backend `API_PORT=3101`.
+  Deployment-specific explicit overrides still work when **both** values agree. For separate
+  containers, use the API service's internal hostname instead of loopback.
+- The API's CORS allow-list remains environment-driven via `API_CORS_ORIGINS`; do not disable auth
+  or allow every origin to work around a missing service.
+- Restart the affected service after changing environment; rebuild the frontend after changing
+  `NEXT_PUBLIC_*` variables. Root `.env` is loaded by Nest, while Next reads `apps/web/.env.local`.
+- A 502 means the proxy cannot reach its upstream; changing a port cannot supply a missing API,
+  PostgreSQL, generated Prisma client or required secrets. See
+  [backend connection audit](docs/ops/backend-connection-audit.md).
+- The legacy detached scripts require a provisioned standalone database. In Arena, use managed
+  preview processes bound to `0.0.0.0` rather than those detached scripts.
+
+For the production environment matrix, recovery instructions and exact non-force push/PR steps,
+see [publication handoff](docs/ops/publication-handoff.md). Arena preview authentication is not a
+publication prerequisite; real API/database acceptance will be tested on the configured server.
 
 ## Database
 
@@ -132,7 +148,7 @@ in later phases. Conventions (cuid ids, UTC timestamps, soft delete, audit field
 ## API
 
 Versioned under `/api/v1` with a consistent response envelope, validation, and error format.
-See [docs/api.md](docs/api.md) and the Swagger UI at `http://localhost:3001/docs`.
+See [docs/api.md](docs/api.md) and the Swagger UI at `http://localhost:3101/docs`.
 
 ## Documentation
 

@@ -1,4 +1,8 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -57,6 +61,7 @@ function toForm(p: PortListItem): FormValues {
 }
 
 export default function PortsPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('ports');
   const [data, setData] = useState<PaginatedResult<PortListItem> | null>(null);
@@ -64,6 +69,7 @@ export default function PortsPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [countryFilter, setCountryFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
 
@@ -87,17 +93,17 @@ export default function PortsPage() {
       try {
         setData(await api.get<PaginatedResult<PortListItem>>(`/ports?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load ports');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadPorts'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, countryFilter, activeFilter);
-  }, [load, page, search, countryFilter, activeFilter]);
+    load(page, debouncedSearch, countryFilter, activeFilter);
+  }, [load, page, debouncedSearch, countryFilter, activeFilter]);
 
   const canCreate = hasPermission('port:create');
   const canUpdate = hasPermission('port:update');
@@ -129,14 +135,14 @@ export default function PortsPage() {
     try {
       setDetail(await api.get<PortDetail>(`/ports/${p.id}`));
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : 'Failed to load port details');
+      setFormError(e instanceof ApiError ? e.message : ui('failedToLoadPortDetails'));
     }
   }
 
   async function submit() {
     setFormError(null);
     if (!form.code.trim() || !form.name.trim() || !form.country.trim()) {
-      setFormError('Code, name and country are required.');
+      setFormError(ui('codeNameAndCountryAreRequired'));
       return;
     }
     if (form.abbreviation.trim().length > 10) {
@@ -155,7 +161,7 @@ export default function PortsPage() {
       }
       await load(page, search, countryFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save port');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSavePort'));
     } finally {
       setSaving(false);
     }
@@ -172,7 +178,7 @@ export default function PortsPage() {
       setToggling(null);
       await load(page, search, countryFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update port');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdatePort'));
     } finally {
       setSaving(false);
     }
@@ -182,24 +188,24 @@ export default function PortsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Ports' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Ports</h1>
+          <Breadcrumbs items={[{ label: ui('ports') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('ports')}</h1>
           <p className="text-sm text-muted-foreground">
-            Ports and their yards. A port with active yards cannot be deactivated.
+            {ui('portsAndTheirYardsAPortWithActiveYardsCannotBe')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New port
+            {ui('newPort')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Port registry</CardTitle>
-          <CardDescription>Live master data. No placeholder records.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('portRegistry')}</CardTitle>
+          <CardDescription>{ui('liveMasterDataNoPlaceholderRecords')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -211,17 +217,20 @@ export default function PortsPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search code, name, country, city…"
+              placeholder={ui('searchCodeNameCountryCity')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search ports"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchPorts')}
             />
             <Input
               className="max-w-[160px]"
-              placeholder="Filter country…"
+              placeholder={ui('filterCountry')}
               value={countryFilter}
               onChange={(e) => setCountryFilter(e.target.value)}
-              aria-label="Filter by country"
+              aria-label={ui('filterByCountry')}
             />
             <select
               className={SELECT_CLASS}
@@ -230,38 +239,44 @@ export default function PortsPage() {
                 setActiveFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatus')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading ports…" />
+          <PageLoader label={ui('loadingPorts')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, countryFilter, activeFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, countryFilter, activeFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No ports found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noPortsFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Port</th>
+                  <th className="px-3 py-2 font-medium">{ui('port_m1qx5adi')}</th>
                   <th className="px-3 py-2 font-medium">{t('abbreviation.column')}</th>
-                  <th className="px-3 py-2 font-medium">Country</th>
-                  <th className="px-3 py-2 font-medium">City</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('country')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('city')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -281,16 +296,18 @@ export default function PortsPage() {
                           {p.abbreviation}
                         </span>
                       ) : (
-                        <span className="text-[12px] text-muted-foreground">{t('abbreviation.empty')}</span>
+                        <span className="text-[12px] text-muted-foreground">
+                          {t('abbreviation.empty')}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{p.country}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">{p.city ?? '—'}</td>
                     <td className="px-3 py-2">
                       {p.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -301,8 +318,8 @@ export default function PortsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openView(p)}
-                            title="View details and yards"
-                            aria-label={`View port ${p.code}`}
+                            title={ui('viewDetailsAndYards')}
+                            aria-label={ui('viewPortValue', { value0: String(p.code) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -314,7 +331,7 @@ export default function PortsPage() {
                             className="h-7 text-xs"
                             onClick={() => openEdit(p)}
                           >
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         {canUpdate && (
@@ -322,9 +339,12 @@ export default function PortsPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(p)}
-                            title={p.isActive ? 'Deactivate' : 'Activate'}
-                            aria-label={p.isActive ? 'Deactivate port' : 'Activate port'}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(p);
+                            }}
+                            title={p.isActive ? ui('deactivate') : ui('activate')}
+                            aria-label={p.isActive ? ui('deactivatePort') : ui('activatePort')}
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -335,7 +355,7 @@ export default function PortsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -359,8 +379,8 @@ export default function PortsPage() {
             setEditing(null);
           }
         }}
-        title={editing ? `Edit — ${editing.code}` : 'New port'}
-        description={editing ? 'Update the port master record.' : 'Create a port master record.'}
+        title={editing ? ui('editValue', { value0: String(editing.code) }) : ui('newPort')}
+        description={editing ? ui('updateThePortMasterRecord') : ui('createAPortMasterRecord')}
         footer={
           <>
             <Button
@@ -371,10 +391,10 @@ export default function PortsPage() {
                 setEditing(null);
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submit}>
-              {editing ? 'Save changes' : 'Create port'}
+              {editing ? ui('saveChanges') : ui('createPort')}
             </Button>
           </>
         }
@@ -382,47 +402,47 @@ export default function PortsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="port-code" className="block">
-              Code *
+              {ui('codeRequired')}
             </Label>
             <Input
               id="port-code"
               value={form.code}
               onChange={(e) => updateField('code', e.target.value.toUpperCase())}
-              placeholder="JEBALI"
+              placeholder={ui('jebali')}
               autoFocus
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="port-country" className="block">
-              Country *
+              {ui('countryRequired')}
             </Label>
             <Input
               id="port-country"
               value={form.country}
               onChange={(e) => updateField('country', e.target.value)}
-              placeholder="UAE"
+              placeholder={ui('uae')}
             />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="port-name" className="block">
-              Name *
+              {ui('nameRequired')}
             </Label>
             <Input
               id="port-name"
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="Port of Jebel Ali"
+              placeholder={ui('portOfJebelAli')}
             />
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="port-city" className="block">
-              City
+              {ui('city')}
             </Label>
             <Input
               id="port-city"
               value={form.city}
               onChange={(e) => updateField('city', e.target.value)}
-              placeholder="Dubai"
+              placeholder={ui('dubai')}
             />
           </div>
           <div className="col-span-2 space-y-1.5">
@@ -442,18 +462,22 @@ export default function PortsPage() {
             </p>
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Detail dialog */}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing ? viewing.name : 'Port'}
+        title={viewing ? viewing.name : ui('port_m1qx5adi')}
         description={viewing ? `${viewing.code} · ${viewing.country}` : undefined}
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-            Close
+            {ui('close')}
           </Button>
         }
       >
@@ -465,26 +489,27 @@ export default function PortsPage() {
                 <div>{detail.abbreviation ?? t('abbreviation.empty')}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">City</div>
+                <div className="text-xs text-muted-foreground">{ui('city')}</div>
                 <div>{detail.city ?? '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Status</div>
+                <div className="text-xs text-muted-foreground">{ui('status')}</div>
                 <div>
                   {detail.isActive ? (
-                    <Badge variant="success">Active</Badge>
+                    <Badge variant="success">{ui('active')}</Badge>
                   ) : (
-                    <Badge variant="neutral">Inactive</Badge>
+                    <Badge variant="neutral">{ui('inactive')}</Badge>
                   )}
                 </div>
               </div>
             </div>
             <div>
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Yards ({detail.yards.length})
+                {ui('yards')}
+                {detail.yards.length})
               </div>
               {detail.yards.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No yards registered at this port.</p>
+                <p className="text-xs text-muted-foreground">{ui('noYardsRegisteredAtThisPort')}</p>
               ) : (
                 <ul className="space-y-1.5">
                   {detail.yards.map((y) => (
@@ -498,9 +523,9 @@ export default function PortsPage() {
                         <span className="text-[11px] text-muted-foreground">{y.code}</span>
                       </span>
                       {y.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </li>
                   ))}
@@ -509,7 +534,7 @@ export default function PortsPage() {
             </div>
           </div>
         ) : (
-          <PageLoader label="Loading port details…" />
+          <PageLoader label={ui('loadingPortDetails')} />
         )}
       </Dialog>
 
@@ -517,16 +542,21 @@ export default function PortsPage() {
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate port' : 'Activate port'}
+        title={toggling?.isActive ? ui('deactivatePort') : ui('activatePort')}
         description={
           toggling?.isActive
-            ? `Deactivating "${toggling?.name}" fails if it still has active yards. Historical records are preserved.`
-            : `Re-activating "${toggling?.name}" makes it available for operations.`
+            ? ui('deactivatingValueFailsIfItStillHasActiveYardsHistoricalRecords', {
+                value0: String(toggling?.name),
+              })
+            : ui('reActivatingValueMakesItAvailableForOperations', {
+                value0: String(toggling?.name),
+              })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleActive}
+        error={formError}
       />
     </div>
   );
@@ -534,9 +564,10 @@ export default function PortsPage() {
 
 /** Strip empty strings so optional fields are omitted from the request. */
 function formInput(f: FormValues): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(f).filter(([, v]) => v.trim() !== '')
-  ) as Record<string, string>;
+  return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
+    string,
+    string
+  >;
 }
 
 /**

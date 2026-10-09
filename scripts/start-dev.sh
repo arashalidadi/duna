@@ -4,7 +4,7 @@
 #
 # Starts, in order (each idempotent / skip-if-already-running):
 #   1. PostgreSQL  (standalone, durable data at /home/arash/shipping-erp/pgdata)
-#   2. API         (NestJS, apps/api/dist/src/main.js, port 3101)
+#   2. API         (NestJS, apps/api/dist/src/main.js, API_PORT, default 3101)
 #   3. Web         (Next.js dev, port 3000)
 #
 # All processes are launched with setsid + nohup and full FD redirect, so they
@@ -20,6 +20,10 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# Match Nest config precedence: process environment, repo .env, then default.
+API_PORT="$(node "$REPO_ROOT/scripts/dev-api-port.mjs")"
+export API_PORT
 
 LOG_DIR="$REPO_ROOT/logs"
 PID_DIR="$REPO_ROOT/logs"
@@ -50,22 +54,19 @@ start_pg() {
 }
 
 start_api() {
-  if is_listening 3101; then
-    log "API already running on :3101 (skip)"
+  if is_listening "$API_PORT"; then
+    log "API already running on :${API_PORT} (skip)"
     return 0
   fi
   [ -f "$API/dist/src/main.js" ] || die "API build missing — run: pnpm --filter @shipping/api build"
-  log "Starting API on :3101 ..."
-  # Env comes from repo .env (DATABASE_URL etc). Load it (lines are KEY=VAL, safe subset).
-  set -a
-  # shellcheck disable=SC1091
-  [ -f "$REPO_ROOT/.env" ] && . "$REPO_ROOT/.env"
-  set +a
+  log "Starting API on :${API_PORT} ..."
+  # Nest's configFactory loads repo .env without overriding exported variables.
+  # Do not source .env as shell code or overwrite the port resolved above.
   setsid nohup node "$API/dist/src/main.js" >> "$LOG_DIR/api.log" 2>&1 < /dev/null &
   echo $! > "$PID_DIR/api.pid"
-  for _ in $(seq 1 30); do is_listening 3101 && break; sleep 1; done
-  is_listening 3101 || { log "API failed to start — see logs/api.log"; tail -40 "$LOG_DIR/api.log"; return 1; }
-  log "API up on :3101 (pid $(cat "$PID_DIR/api.pid"))"
+  for _ in $(seq 1 30); do is_listening "$API_PORT" && break; sleep 1; done
+  is_listening "$API_PORT" || { log "API failed to start — see logs/api.log"; tail -40 "$LOG_DIR/api.log"; return 1; }
+  log "API up on :${API_PORT} (pid $(cat "$PID_DIR/api.pid"))"
 }
 
 start_web() {

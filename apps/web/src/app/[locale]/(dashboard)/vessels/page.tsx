@@ -1,4 +1,8 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -76,6 +80,7 @@ function toForm(v: VesselListItem): FormValues {
 }
 
 export default function VesselsPage() {
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('vessels');
   const [data, setData] = useState<PaginatedResult<VesselListItem> | null>(null);
@@ -83,6 +88,7 @@ export default function VesselsPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [typeFilter, setTypeFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
 
@@ -111,17 +117,17 @@ export default function VesselsPage() {
       try {
         setData(await api.get<PaginatedResult<VesselListItem>>(`/vessels?${params.toString()}`));
       } catch (e) {
-        setError(e instanceof ApiError ? e.message : 'Failed to load vessels');
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadVessels'));
       } finally {
         setLoading(false);
       }
     },
-    []
+    [ui]
   );
 
   useEffect(() => {
-    load(page, search, typeFilter, activeFilter);
-  }, [load, page, search, typeFilter, activeFilter]);
+    load(page, debouncedSearch, typeFilter, activeFilter);
+  }, [load, page, debouncedSearch, typeFilter, activeFilter]);
 
   function applyFilters() {
     setPage(1);
@@ -149,14 +155,14 @@ export default function VesselsPage() {
     try {
       setDetail(await api.get<VesselDetail>(`/vessels/${v.id}`));
     } catch (e) {
-      setFormError(e instanceof ApiError ? e.message : 'Failed to load vessel details');
+      setFormError(e instanceof ApiError ? e.message : ui('failedToLoadVesselDetails'));
     }
   }
 
   async function submit() {
     setFormError(null);
     if (!form.code.trim() || !form.name.trim() || !form.flag.trim()) {
-      setFormError('Code, name and flag are required.');
+      setFormError(ui('codeNameAndFlagAreRequired'));
       return;
     }
     setSaving(true);
@@ -171,7 +177,7 @@ export default function VesselsPage() {
       }
       await load(page, search, typeFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to save vessel');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToSaveVessel'));
     } finally {
       setSaving(false);
     }
@@ -188,7 +194,7 @@ export default function VesselsPage() {
       setToggling(null);
       await load(page, search, typeFilter, activeFilter);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update vessel');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateVessel'));
     } finally {
       setSaving(false);
     }
@@ -198,24 +204,24 @@ export default function VesselsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Vessels' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Vessels</h1>
+          <Breadcrumbs items={[{ label: ui('vessels') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('vessels')}</h1>
           <p className="text-sm text-muted-foreground">
-            Vessel registry. A vessel with unfinished voyages cannot be deactivated.
+            {ui('vesselRegistryAVesselWithUnfinishedVoyagesCannotBeDeactivated')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New vessel
+            {ui('newVessel')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">Vessel registry</CardTitle>
-          <CardDescription>Live master data. No placeholder records.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('vesselRegistry')}</CardTitle>
+          <CardDescription>{ui('liveMasterDataNoPlaceholderRecords')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -227,10 +233,13 @@ export default function VesselsPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search code, name, flag, IMO…"
+              placeholder={ui('searchCodeNameFlagIMO')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search vessels"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchVessels')}
             />
             <select
               className={SELECT_CLASS}
@@ -239,7 +248,7 @@ export default function VesselsPage() {
                 setTypeFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by vessel type"
+              aria-label={ui('filterByVesselType')}
             >
               <option value="">{t('filter.allTypes')}</option>
               {VESSEL_TYPES.map((tv) => (
@@ -255,39 +264,45 @@ export default function VesselsPage() {
                 setActiveFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label="Filter by status"
+              aria-label={ui('filterByStatus')}
             >
-              <option value="">All status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
+              <option value="">{ui('allStatus')}</option>
+              <option value="true">{ui('active')}</option>
+              <option value="false">{ui('inactive')}</option>
             </select>
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading vessels…" />
+          <PageLoader label={ui('loadingVessels')} />
         ) : error ? (
           <CardContent>
-            <ErrorState message={error} onRetry={() => load(page, search, typeFilter, activeFilter)} />
+            <ErrorState
+              message={error}
+              onRetry={() => load(page, search, typeFilter, activeFilter)}
+            />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No vessels found" description="Try a different search or filter." />
+            <EmptyState
+              title={ui('noVesselsFound')}
+              description={ui('tryADifferentSearchOrFilter')}
+            />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Vessel</th>
+                  <th className="px-3 py-2 font-medium">{ui('vessel')}</th>
                   <th className="px-3 py-2 font-medium">IMO</th>
-                  <th className="px-3 py-2 font-medium">Flag</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Capacity (TEU)</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('flag')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('type')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('capacityTEU')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,9 +326,9 @@ export default function VesselsPage() {
                     </td>
                     <td className="px-3 py-2">
                       {v.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-2">
@@ -324,8 +339,8 @@ export default function VesselsPage() {
                             size="icon"
                             className="h-7 w-7"
                             onClick={() => openView(v)}
-                            title="View details"
-                            aria-label={`View vessel ${v.code}`}
+                            title={ui('viewDetails')}
+                            aria-label={ui('viewVesselValue', { value0: String(v.code) })}
                           >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -337,7 +352,7 @@ export default function VesselsPage() {
                             className="h-7 text-xs"
                             onClick={() => openEdit(v)}
                           >
-                            Edit
+                            {ui('edit')}
                           </Button>
                         )}
                         {canActivate && (
@@ -345,9 +360,12 @@ export default function VesselsPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(v)}
-                            title={v.isActive ? 'Deactivate' : 'Activate'}
-                            aria-label={v.isActive ? 'Deactivate vessel' : 'Activate vessel'}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(v);
+                            }}
+                            title={v.isActive ? ui('deactivate') : ui('activate')}
+                            aria-label={v.isActive ? ui('deactivateVessel') : ui('activateVessel')}
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -358,7 +376,7 @@ export default function VesselsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -382,9 +400,11 @@ export default function VesselsPage() {
             setEditing(null);
           }
         }}
-        title={editing ? `Edit — ${editing.code}` : 'New vessel'}
+        title={editing ? ui('editValue', { value0: String(editing.code) }) : ui('newVessel')}
         description={
-          editing ? 'Update the vessel master record. Code is immutable.' : 'Create a vessel master record.'
+          editing
+            ? ui('updateTheVesselMasterRecordCodeIsImmutable')
+            : ui('createAVesselMasterRecord')
         }
         footer={
           <>
@@ -396,10 +416,10 @@ export default function VesselsPage() {
                 setEditing(null);
               }}
             >
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={submit}>
-              {editing ? 'Save changes' : 'Create vessel'}
+              {editing ? ui('saveChanges') : ui('createVessel')}
             </Button>
           </>
         }
@@ -407,13 +427,13 @@ export default function VesselsPage() {
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="vessel-code" className="block">
-              Code *
+              {ui('codeRequired')}
             </Label>
             <Input
               id="vessel-code"
               value={form.code}
               onChange={(e) => updateField('code', e.target.value.toUpperCase())}
-              placeholder="MV-HORIZON"
+              placeholder={ui('mvHORIZON')}
               disabled={!!editing}
               autoFocus
             />
@@ -437,21 +457,23 @@ export default function VesselsPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="vessel-name" className="block">
-              Name *
+              {ui('nameRequired')}
             </Label>
             <Input
               id="vessel-name"
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
-              placeholder="MV Horizon"
+              placeholder={ui('mvHorizon')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="vessel-imo" className="block">
-              IMO number
+              {ui('imoNumber')}
             </Label>
             <Input
               id="vessel-imo"
+              inputMode="numeric"
+              maxLength={7}
               value={form.imo}
               onChange={(e) => updateField('imo', e.target.value.replace(/\D/g, '').slice(0, 7))}
               placeholder="1234567"
@@ -459,18 +481,18 @@ export default function VesselsPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="vessel-flag" className="block">
-              Flag *
+              {ui('flagRequired')}
             </Label>
             <Input
               id="vessel-flag"
               value={form.flag}
               onChange={(e) => updateField('flag', e.target.value.toUpperCase())}
-              placeholder="UAE"
+              placeholder={ui('uae')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="vessel-capacity" className="block">
-              Capacity (TEU)
+              {ui('capacityTEU')}
             </Label>
             <Input
               id="vessel-capacity"
@@ -483,28 +505,32 @@ export default function VesselsPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="vessel-notes" className="block">
-              Notes
+              {ui('notes')}
             </Label>
             <Input
               id="vessel-notes"
               value={form.notes}
               onChange={(e) => updateField('notes', e.target.value)}
-              placeholder="Optional"
+              placeholder={ui('optional')}
             />
           </div>
         </div>
-        {formError && <p className="mt-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mt-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
       </Dialog>
 
       {/* Detail dialog */}
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing ? viewing.name : 'Vessel'}
+        title={viewing ? viewing.name : ui('vessel')}
         description={viewing ? `${viewing.code} · ${viewing.flag}` : undefined}
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
-            Close
+            {ui('close')}
           </Button>
         }
       >
@@ -520,27 +546,27 @@ export default function VesselsPage() {
                 <div>{t(`type.${detail.vesselType}`)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Capacity (TEU)</div>
+                <div className="text-xs text-muted-foreground">{ui('capacityTEU')}</div>
                 <div>{detail.capacityTeu ?? '—'}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Status</div>
+                <div className="text-xs text-muted-foreground">{ui('status')}</div>
                 <div>
                   {detail.isActive ? (
-                    <Badge variant="success">Active</Badge>
+                    <Badge variant="success">{ui('active')}</Badge>
                   ) : (
-                    <Badge variant="neutral">Inactive</Badge>
+                    <Badge variant="neutral">{ui('inactive')}</Badge>
                   )}
                 </div>
               </div>
               <div className="col-span-2">
-                <div className="text-xs text-muted-foreground">Notes</div>
+                <div className="text-xs text-muted-foreground">{ui('notes')}</div>
                 <div>{detail.notes ?? '—'}</div>
               </div>
             </div>
           </div>
         ) : (
-          <PageLoader label="Loading vessel details…" />
+          <PageLoader label={ui('loadingVesselDetails')} />
         )}
       </Dialog>
 
@@ -548,16 +574,21 @@ export default function VesselsPage() {
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate vessel' : 'Activate vessel'}
+        title={toggling?.isActive ? ui('deactivateVessel') : ui('activateVessel')}
         description={
           toggling?.isActive
-            ? `Deactivating "${toggling?.name}" fails if it still has unfinished voyages. Historical records are preserved.`
-            : `Re-activating "${toggling?.name}" makes it available for new voyages.`
+            ? ui('deactivatingValueFailsIfItStillHasUnfinishedVoyagesHistoricalRecords', {
+                value0: String(toggling?.name),
+              })
+            : ui('reActivatingValueMakesItAvailableForNewVoyages', {
+                value0: String(toggling?.name),
+              })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleActive}
+        error={formError}
       />
     </div>
   );

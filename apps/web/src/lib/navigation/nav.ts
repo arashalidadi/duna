@@ -217,7 +217,12 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'planned',
         description: 'Discharge operations',
       },
-      { labelKey: 'deliveryOrders', icon: Truck, status: 'planned', description: 'Delivery orders' },
+      {
+        labelKey: 'deliveryOrders',
+        icon: Truck,
+        status: 'planned',
+        description: 'Delivery orders',
+      },
     ],
   },
   {
@@ -390,4 +395,18 @@ export const NAV_SECTIONS: NavSection[] = [
       { labelKey: 'reports', icon: BarChart3, status: 'planned', description: 'Reporting & P&L' },
     ],
   },
+];
+
+/** Shared operational order for the sidebar and overview. */
+export const NAV_SECTION_ORDER = [
+  'overview',
+  'operations',
+  'commercial',
+  'masterData',
+  'people',
+  'correspondence',
+  'portal',
+  'accessControl',
+  'administration',
+  'insightControl',
 ];

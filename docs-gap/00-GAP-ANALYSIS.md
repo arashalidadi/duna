@@ -160,7 +160,7 @@
 ```bash
 cd /home/arash/shipping-dashboard/new-erp
 pnpm install              # if new deps added
-pnpm dev                  # web:3000 + api:3001
+pnpm dev                  # web:3000 + api:3101 (current required API default)
 pnpm typecheck            # tsc --noEmit
 pnpm lint                 # eslint
 pnpm build                # production build

@@ -1,4 +1,6 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -6,7 +8,7 @@ import type { BookingRequest, BookingStatus, PaginatedResult } from '@shipping/s
 import { CalendarCheck, CheckCircle2, XCircle, Eye, Search } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { formatDateTime } from '@/lib/date';
+import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,6 +52,7 @@ export default function BookingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<'ALL' | BookingStatus>('ALL');
   const [customerId, setCustomerId] = useState('');
@@ -72,7 +75,9 @@ export default function BookingsPage() {
       if (s !== 'ALL') params.set('status', s);
       if (custId) params.set('customerId', custId);
       try {
-        const res = await api.get<PaginatedResult<BookingRequest>>(`/bookings?${params.toString()}`);
+        const res = await api.get<PaginatedResult<BookingRequest>>(
+          `/bookings?${params.toString()}`
+        );
         setData(res);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : tc('errors.generic'));
@@ -84,8 +89,8 @@ export default function BookingsPage() {
   );
 
   useEffect(() => {
-    load(page, search, status, customerId);
-  }, [load, page, search, status, customerId]);
+    load(page, debouncedSearch, status, customerId);
+  }, [load, page, debouncedSearch, status, customerId]);
 
   useEffect(() => {
     if (customers.length === 0) {
@@ -213,7 +218,7 @@ export default function BookingsPage() {
           {data && data.data.length === 0 && !loading ? (
             <EmptyState title={t('empty')} />
           ) : (
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-xs uppercase text-muted-foreground">
@@ -224,7 +229,7 @@ export default function BookingsPage() {
                     <th className="px-4 py-2.5 text-start font-medium">{t('fields.shipDate')}</th>
                     <th className="px-4 py-2.5 text-start font-medium">{t('fields.status')}</th>
                     <th className="px-4 py-2.5 text-start font-medium">{t('fields.response')}</th>
-                    <th className="px-4 py-2.5 text-end font-medium">{tc('actions')}</th>
+                    <th className="px-4 py-2.5 text-end font-medium">{tc('actions.title')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -234,7 +239,10 @@ export default function BookingsPage() {
                       <tr key={b.id} className="border-b last:border-0 hover:bg-muted/40">
                         <td className="px-4 py-2.5 font-mono text-xs">{b.bookingNumber}</td>
                         <td className="px-4 py-2.5">{b.customer?.name ?? '—'}</td>
-                        <td className="max-w-[220px] truncate px-4 py-2.5" title={b.cargoDescription}>
+                        <td
+                          className="max-w-[220px] truncate px-4 py-2.5"
+                          title={b.cargoDescription}
+                        >
                           {b.cargoDescription}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-muted-foreground">
@@ -243,7 +251,7 @@ export default function BookingsPage() {
                           {b.destinationPort?.name ?? '—'}
                         </td>
                         <td className="px-4 py-2.5 text-xs tabular-nums text-muted-foreground">
-                          {b.requestedShipDate ? b.requestedShipDate.slice(0, 10) : '—'}
+                          {b.requestedShipDate ? formatDateShort(b.requestedShipDate, locale) : '—'}
                         </td>
                         <td className="px-4 py-2.5">
                           <Badge variant={meta.variant}>{tb(`status.${b.status}`)}</Badge>
@@ -266,7 +274,12 @@ export default function BookingsPage() {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-end">
-                          <Button size="sm" variant="ghost" onClick={() => openDetail(b)} title={t('detail')}>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openDetail(b)}
+                            title={t('detail')}
+                          >
                             <Eye className="h-4 w-4" />
                           </Button>
                         </td>
@@ -275,7 +288,7 @@ export default function BookingsPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
           {data && (
             <Pagination
@@ -311,9 +324,14 @@ export default function BookingsPage() {
               />
               <DetailRow
                 label={t('fields.shipDate')}
-                value={detail.requestedShipDate ? detail.requestedShipDate.slice(0, 10) : '—'}
+                value={
+                  detail.requestedShipDate ? formatDateShort(detail.requestedShipDate, locale) : '—'
+                }
               />
-              <DetailRow label={t('fields.created')} value={formatDateTime(detail.createdAt, locale)} />
+              <DetailRow
+                label={t('fields.created')}
+                value={formatDateTime(detail.createdAt, locale)}
+              />
               <DetailRow
                 label={t('fields.containers')}
                 value={detail.containers != null ? String(detail.containers) : '—'}
@@ -322,7 +340,9 @@ export default function BookingsPage() {
                 label={t('fields.weightKg')}
                 value={detail.weightKg != null ? String(detail.weightKg) : '—'}
               />
-              {detail.notes && <DetailRow label={t('fields.notes')} value={detail.notes} className="col-span-2" />}
+              {detail.notes && (
+                <DetailRow label={t('fields.notes')} value={detail.notes} className="col-span-2" />
+              )}
               {detail.responseNote && (
                 <DetailRow
                   label={t('fields.responseNote')}

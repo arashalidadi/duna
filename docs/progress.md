@@ -1,6 +1,69 @@
 # Progress
 
+## Current priority — required API 3101 correction; publication on hold
+
+The user's previous interim port request was incorrect. **3101 is required**, while web 3000
+and PostgreSQL 5432 remain unchanged. The loader, proxy, examples, CLI resolver and current
+instructions have been corrected; history is labeled rather than rewritten. Do not push, open a
+PR or merge until the user reviews this correction and explicitly approves publication. Do not
+resume preview backend/login experiments. [Complete file-by-file audit](ops/api-port-correction.md)
+is authoritative for this correction, its fresh checks, remaining historical references and
+shallow-aware recovery archive. Earlier publication/login directives below are superseded.
+
+## Previous priority — publication preparation (superseded by port-review hold)
+
+The user has explicitly removed the Arena-login prerequisite. Stop preview backend provisioning
+and real-login attempts. Preserve the existing redesign, port configuration and regression tests;
+prepare a non-force branch publication and PR to `ai-test`, without merging. Current production
+environment variables and exact next-session GitHub commands are in
+`docs/ops/publication-handoff.md`; it supersedes login-first conditions in historical entries.
+This closed session cannot access GitHub, so do not claim a push or PR exists. The latest recovery
+archive must contain the final committed work and shallow-aware restoration instructions.
+
+Fresh publication checks all pass: web typecheck/lint, production build (108 static pages),
+translation/contract guards, **22/22 browser regressions** against that new build (3.0 minutes),
+config **10/10**, port checks **7/7**, shared/config builds/typechecks, and API method/path
+comparison on all 33 pages. Local diff review found no tracked real environment files, new
+credential patterns or runtime artifacts. Application source/auth/admin state were not changed.
+The production preview was restarted after the build; server-side acceptance remains with the user.
+
+## Latest real-admin login investigation — 2026-10-09
+
+- Existing commits and shallow-aware recovery archive survived this continuation and were verified; no redundant preservation checkpoint or redesign was made.
+- Submitted the supplied credentials once in a real, unmocked browser: `POST /api/v1/auth/login` returned **502 UPSTREAM_UNAVAILABLE**; dashboard not reached. Historical observation only: the then-built proxy targeted **3010** (the mistaken request, now corrected to **3101**).
+- Actual API startup exited 1 with **missing DATABASE_URL** before listening. Both JWT secrets and PostgreSQL/runtime connection are also absent. Prisma Client import fails; fresh engine generation remains download-blocked.
+- Account existence/password validity cannot be determined without the database. No account/password changes or seed were performed. Supplied credentials were not added to tracked files.
+- Fresh web typecheck/lint/guards, browser **22/22**, config **10/10**, and port tests **7/7** pass. Existing validated production build remains live; it was not rebuilt because application source is unchanged. Mocked UI passes are not real-login success.
+- Publication is still blocked by both the requested real-login gate and the closed session's GitHub restrictions. Full evidence and prerequisites: `docs/ops/admin-login-verification.md`.
+
+## Latest port/publication resumption — 2026-10-09
+
+- Restored files survived but previously reported `ba48f28` / `20ca01cd` objects and external bundles did not. Preserved 111 intended landing/dashboard changes in `3aa1f1b15f54e68c49451f670785617a5fa93507` on the same `arena/fe92d85a-duna` branch. Existing UI design/tests were not redone.
+- Historical, superseded change: the inconsistent 3001 API fallback and 3101 proxy/scripts/examples were aligned to the user's then-stated **3010**. That request was incorrect and has been withdrawn; **3101 is now required**. Browser requests remain same-origin `/api/v1`.
+- Fresh passes: web typecheck/lint/guards/build (108 pages), **22/22 browser tests**, shared/config build/typechecks, **10/10 config tests**, **7/7 port/script tests**. Real health still 502; API/database are absent. Prisma's matching native-engine checksum download is restricted; API build fails on missing generated types. No real credentials/DB workflows verified.
+- Backup restore testing found this checkout is shallow: bundle verification alone was insufficient. Include saved shallow-boundary metadata with the bundle; isolated import with metadata passes fsck and reproduces the tree. Download the final recovery archive separately, not as source in Git.
+- GitHub still disabled in this closed session. Neither target remote ref is cached. No live ancestry/ai-test comparison, push or PR creation claimed; PR body prepared only. See `docs/ops/backend-connection-audit.md` and `docs/ui/pr-ai-test.md` for safe next-session instructions.
+
+## Current continuation audit — 2026-10-09
+
+- Preserved 110 restored landing/dashboard files in local checkpoint `ba48f28869cb5607847ba195420151f3fca3297b` on `arena/fe92d85a-duna`, plus a verified complete-history bundle. Historical `b9e9018` / `104ba1f` / `0965762` / `431ed57` objects are absent from this restored checkout; no remote presence is inferred.
+- Corrected keyboard preference menus, stored-theme initialization, remaining address/notification/metadata localization, displayed date/number locale use, and light/dark error contrast. Date input payloads and API/business contracts preserved.
+- **Fresh passes:** web typecheck/lint/build (108 static pages), shared/config typecheck/build, config 6/6, i18n 2,114 leaves ×3, contract guard, independent method/path parity on 33 pages, and production Chromium **22/22** UI tests. The 24 creation modules ×3 locales now cannot be silently skipped. Unmocked login/outage and settled axe checks pass in EN/FA/AR × light/dark.
+- **Not complete:** actual API is absent (`/api/v1/health` = 502), PostgreSQL/env/accounts are not provisioned, Prisma engine download is blocked. API build/typecheck fail on generated-client dependencies; API E2E runs 0 tests (22 initialization failures). API lint has one unchanged baseline error and 33 warnings. No real login, database workflows or server RBAC acceptance is claimed; dynamic server errors remain untranslated.
+- Production web preview remains on `0.0.0.0:3000`. No fake data/auth bypass was added. This closed session cannot push or verify GitHub; all new commits remain local and require a new-session ancestry review before any non-force push.
+- Detailed evidence, prior-vs-current distinctions and backend setup: `docs/ui/dashboard-redesign.md`. Historical phase verification below is not a fresh backend test result.
+
 ## Completed
+
+### Dashboard UI/UX refresh (frontend implementation; live-backend verification pending)
+
+- Premium shared shell, responsive accordion/icon sidebar, mobile RTL drawer, localized language menu and persistent light/dark/system themes.
+- Redesigned login and live-health/module overview; existing operational routes, API contracts and RBAC retained.
+- Fixed dialog keystroke focus loss, recursive Shippers search icon, unassociated form labels, hidden confirmation errors, Arabic drawer direction, missing/localization keys and unsafe universal password-reset value.
+- Added localization guards and Playwright UI regression tests. Auth proxy now reports unavailable upstreams as 502, and session restoration offers recovery without erasing valid tokens on network failure.
+- Preview still needs a real API/database and environment configuration; this sandbox has neither, and Prisma binary downloads are network-blocked. No auth bypass or fake business data added.
+- Details and reproduction/setup steps: `docs/ui/dashboard-redesign.md`.
+
 ### Public landing page redesign (marketing site) (completed)
 
 - **Scope:** `apps/web` only — the public `/[locale]` home page. Dashboard pages, routes, API and business logic untouched.
@@ -922,9 +985,9 @@ seed vessel has `imo='1234567'` and the test creates another with the same IMO �
 This is a pre-existing test isolation issue unrelated to runtime changes.
   in `afterAll`, so no artifacts accumulate). A dedicated `shipping_erp_test` database with isolated
   migration/seed per run is still planned for a hardening pass.
-- **Sandbox port**: in the development sandbox, the API default port `3001` is occupied by an unrelated
-  process; the local (gitignored) `.env` overrides to `3101`. `.env.example` keeps `3001` as the
-  documented default.
+- **Historical sandbox port**: the original API default `3001` was occupied by an unrelated
+  process, prompting an explicit `3101` override. That was the earlier setup; **3101 is now the
+  required project default in the loader, proxy and examples**, not merely a local workaround.
 - **ts-jest warnings**: harmless warnings compiled `.js` dist files of workspace packages (allowJs not set);
   cosmetic only.
 - **pnpm build-script approval**: pnpm v11 prints a notice about ignored build scripts on first install;

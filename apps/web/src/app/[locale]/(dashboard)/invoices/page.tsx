@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -13,27 +16,13 @@ import type {
   Manifest,
   PaginatedResult,
 } from '@shipping/shared';
-import {
-  Plus,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  Stamp,
-  Save,
-  Trash2,
-} from 'lucide-react';
+import { Plus, Eye, CheckCircle2, XCircle, Stamp, Save, Trash2 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,9 +39,7 @@ const SELECT_CLASS =
 
 const STATUSES: InvoiceStatus[] = ['DRAFT', 'ISSUED', 'CANCELLED'];
 
-function statusVariant(
-  s: InvoiceStatus
-): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
+function statusVariant(s: InvoiceStatus): 'neutral' | 'success' | 'warning' | 'danger' | 'info' {
   switch (s) {
     case 'DRAFT':
       return 'neutral';
@@ -63,8 +50,10 @@ function statusVariant(
   }
 }
 
-const fmtMoney = (v: string | null | undefined) =>
-  v == null ? '—' : Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtMoney = (v: string | null | undefined, locale: string) =>
+  v == null
+    ? '—'
+    : Number(v).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 interface CreateForm {
   customerId: string;
@@ -115,6 +104,7 @@ interface ItemDraft {
 }
 
 export default function InvoicesPage() {
+  const ui = useUiTranslations('legacyUi');
   const t = useTranslations('invoice');
   const tNav = useTranslations('nav');
   const { hasPermission } = useAuth();
@@ -151,7 +141,12 @@ export default function InvoicesPage() {
   const [itemsError, setItemsError] = useState<string | null>(null);
 
   const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ description: '', quantity: '1', unitPrice: '', notes: '' });
+  const [addForm, setAddForm] = useState({
+    description: '',
+    quantity: '1',
+    unitPrice: '',
+    notes: '',
+  });
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -174,16 +169,14 @@ export default function InvoicesPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (unpaidFilter) params.set('unpaid', unpaidFilter);
       if (overdueFilter) params.set('overdue', overdueFilter);
-      const res = await api.get<PaginatedResult<Invoice>>(
-        `/invoices?${params.toString()}`
-      );
+      const res = await api.get<PaginatedResult<Invoice>>(`/invoices?${params.toString()}`);
       setData(res);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load invoices');
+      setError(e instanceof ApiError ? e.message : ui('failedToLoadInvoices'));
     } finally {
       setLoading(false);
     }
-  }, [page, search, statusFilter, unpaidFilter, overdueFilter]);
+  }, [page, search, statusFilter, unpaidFilter, overdueFilter, ui]);
 
   useEffect(() => {
     void load();
@@ -235,50 +228,53 @@ export default function InvoicesPage() {
       setViewingId(created.id);
       await openDetail(created.id);
     } catch (e) {
-      setCreateError(e instanceof ApiError ? e.message : 'Failed to create');
+      setCreateError(e instanceof ApiError ? e.message : ui('failedToCreate'));
     } finally {
       setCreating(false);
     }
   };
 
-  const openDetail = useCallback(async (id: string) => {
-    setViewingId(id);
-    setDetailLoading(true);
-    setDetail(null);
-    setHeaderError(null);
-    setActionError(null);
-    setItemsError(null);
-    try {
-      const d = await api.get<InvoiceDetail>(`/invoices/${id}`);
-      setDetail(d);
-      setHeaderDraft({
-        customerId: d.customerId,
-        title: d.title ?? '',
-        description: d.description ?? '',
-        currencyCode: d.currencyCode,
-        taxRate: d.taxRate != null ? String(Number(d.taxRate)) : '',
-        discountAmount: d.discountAmount != null ? String(Number(d.discountAmount)) : '',
-        issueDate: d.issueDate ? d.issueDate.slice(0, 10) : '',
-        dueDate: d.dueDate ? d.dueDate.slice(0, 10) : '',
-        notes: d.notes ?? '',
-      });
-      const drafts: Record<string, ItemDraft> = {};
-      for (const it of d.items) {
-        drafts[it.id] = {
-          id: it.id,
-          description: it.description ?? '',
-          quantity: String(it.quantity),
-          unitPrice: String(Number(it.unitPrice)),
-          notes: it.notes ?? '',
-        };
+  const openDetail = useCallback(
+    async (id: string) => {
+      setViewingId(id);
+      setDetailLoading(true);
+      setDetail(null);
+      setHeaderError(null);
+      setActionError(null);
+      setItemsError(null);
+      try {
+        const d = await api.get<InvoiceDetail>(`/invoices/${id}`);
+        setDetail(d);
+        setHeaderDraft({
+          customerId: d.customerId,
+          title: d.title ?? '',
+          description: d.description ?? '',
+          currencyCode: d.currencyCode,
+          taxRate: d.taxRate != null ? String(Number(d.taxRate)) : '',
+          discountAmount: d.discountAmount != null ? String(Number(d.discountAmount)) : '',
+          issueDate: d.issueDate ? d.issueDate.slice(0, 10) : '',
+          dueDate: d.dueDate ? d.dueDate.slice(0, 10) : '',
+          notes: d.notes ?? '',
+        });
+        const drafts: Record<string, ItemDraft> = {};
+        for (const it of d.items) {
+          drafts[it.id] = {
+            id: it.id,
+            description: it.description ?? '',
+            quantity: String(it.quantity),
+            unitPrice: String(Number(it.unitPrice)),
+            notes: it.notes ?? '',
+          };
+        }
+        setItemDrafts(drafts);
+      } catch (e) {
+        setActionError(e instanceof ApiError ? e.message : ui('failedToLoadInvoice'));
+      } finally {
+        setDetailLoading(false);
       }
-      setItemDrafts(drafts);
-    } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to load invoice');
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+    },
+    [ui]
+  );
 
   const refreshDetail = useCallback(async () => {
     if (viewingId) await openDetail(viewingId);
@@ -301,7 +297,7 @@ export default function InvoicesPage() {
       });
       await refreshDetail();
     } catch (e) {
-      setHeaderError(e instanceof ApiError ? e.message : 'Failed to save');
+      setHeaderError(e instanceof ApiError ? e.message : ui('failedToSave'));
     } finally {
       setSavingHeader(false);
     }
@@ -320,7 +316,7 @@ export default function InvoicesPage() {
       });
       setDetail(d);
     } catch (e) {
-      setItemsError(e instanceof ApiError ? e.message : 'Failed to save item');
+      setItemsError(e instanceof ApiError ? e.message : ui('failedToSaveItem'));
     }
   };
 
@@ -356,7 +352,7 @@ export default function InvoicesPage() {
       setAddOpen(false);
       setAddForm({ description: '', quantity: '1', unitPrice: '', notes: '' });
     } catch (e) {
-      setAddError(e instanceof ApiError ? e.message : 'Failed to add');
+      setAddError(e instanceof ApiError ? e.message : ui('failedToAdd'));
     } finally {
       setAdding(false);
     }
@@ -368,7 +364,7 @@ export default function InvoicesPage() {
       const d = await api.del<InvoiceDetail>(`/invoices/${viewingId}/items/${itemId}`);
       setDetail(d);
     } catch (e) {
-      setItemsError(e instanceof ApiError ? e.message : 'Failed to remove');
+      setItemsError(e instanceof ApiError ? e.message : ui('failedToRemove'));
     } finally {
       setConfirmRemoveItem(null);
     }
@@ -381,7 +377,7 @@ export default function InvoicesPage() {
       const d = await api.post<InvoiceDetail>(`/invoices/${viewingId}/issue`, {});
       setDetail(d);
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to issue');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToIssue'));
     }
   };
 
@@ -395,7 +391,7 @@ export default function InvoicesPage() {
       setDetail(d);
       setCancelReason('');
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to cancel');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToCancel'));
     }
   };
 
@@ -408,7 +404,7 @@ export default function InvoicesPage() {
       setDetail(null);
       await load();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Failed to delete');
+      setActionError(e instanceof ApiError ? e.message : ui('failedToDelete'));
     }
   };
 
@@ -420,15 +416,14 @@ export default function InvoicesPage() {
   const canCancel = hasPermission('invoice:cancel');
   const isDraft = detail?.status === 'DRAFT';
   const isIssued = detail?.status === 'ISSUED';
-  const paid = detail ? Number(detail.paidAmount) >= Number(detail.totalAmount) && Number(detail.totalAmount) > 0 : false;
+  const paid = detail
+    ? Number(detail.paidAmount) >= Number(detail.totalAmount) && Number(detail.totalAmount) > 0
+    : false;
 
   return (
     <div className="space-y-6">
       <Breadcrumbs
-        items={[
-          { label: tNav('commercial'), href: '/dashboard' },
-          { label: tNav('invoices') },
-        ]}
+        items={[{ label: tNav('commercial'), href: '/dashboard' }, { label: tNav('invoices') }]}
       />
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -509,12 +504,9 @@ export default function InvoicesPage() {
           ) : error ? (
             <ErrorState message={error} onRetry={() => void load()} />
           ) : !data || data.data.length === 0 ? (
-            <EmptyState
-              title={t('list.empty.title')}
-              description={t('list.empty.description')}
-            />
+            <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
           ) : (
-            <div className="overflow-x-auto">
+            <TableScroll className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-start text-xs uppercase tracking-wide text-muted-foreground">
@@ -542,10 +534,10 @@ export default function InvoicesPage() {
                       >
                         <td className="px-3 py-2 font-mono text-xs">{inv.invoiceNumber}</td>
                         <td className="px-3 py-2">
-                          <Badge variant={statusVariant(inv.status)}>{t(`status.${inv.status}`)}</Badge>
-                          {invUnpaid && (
-                            <span className="ms-1 text-xs text-warning">●</span>
-                          )}
+                          <Badge variant={statusVariant(inv.status)}>
+                            {t(`status.${inv.status}`)}
+                          </Badge>
+                          {invUnpaid && <span className="ms-1 text-xs text-warning">●</span>}
                         </td>
                         <td className="px-3 py-2">{inv.customer?.name ?? '—'}</td>
                         <td className="px-3 py-2">{inv.title ?? '—'}</td>
@@ -556,9 +548,9 @@ export default function InvoicesPage() {
                           {inv.manifest?.manifestNumber ?? '—'}
                         </td>
                         <td className="px-3 py-2 font-medium">
-                          {fmtMoney(inv.totalAmount)} {inv.currencyCode}
+                          {fmtMoney(inv.totalAmount, locale)} {inv.currencyCode}
                         </td>
-                        <td className="px-3 py-2">{fmtMoney(inv.paidAmount)}</td>
+                        <td className="px-3 py-2">{fmtMoney(inv.paidAmount, locale)}</td>
                         <td className="px-3 py-2 text-xs">
                           {inv.dueDate ? formatDateShort(inv.dueDate, locale) : '—'}
                         </td>
@@ -579,7 +571,7 @@ export default function InvoicesPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
           {data && totalPages > 1 && (
             <Pagination
@@ -748,7 +740,7 @@ export default function InvoicesPage() {
         title={detail ? `${detail.invoiceNumber}` : t('detail.loading')}
         description={
           detail
-            ? `${t(`status.${detail.status}`)} — ${detail.customer?.name ?? ''} (${fmtMoney(detail.totalAmount)} ${detail.currencyCode})`
+            ? `${t(`status.${detail.status}`)} — ${detail.customer?.name ?? ''} (${fmtMoney(detail.totalAmount, locale)} ${detail.currencyCode})`
             : undefined
         }
       >
@@ -795,7 +787,10 @@ export default function InvoicesPage() {
                       disabled={!isDraft}
                       value={headerDraft.currencyCode}
                       onChange={(e) =>
-                        setHeaderDraft({ ...headerDraft, currencyCode: e.target.value.toUpperCase() })
+                        setHeaderDraft({
+                          ...headerDraft,
+                          currencyCode: e.target.value.toUpperCase(),
+                        })
                       }
                     />
                   </div>
@@ -830,7 +825,9 @@ export default function InvoicesPage() {
                       type="date"
                       disabled={!isDraft}
                       value={headerDraft.issueDate}
-                      onChange={(e) => setHeaderDraft({ ...headerDraft, issueDate: e.target.value })}
+                      onChange={(e) =>
+                        setHeaderDraft({ ...headerDraft, issueDate: e.target.value })
+                      }
                     />
                   </div>
                   <div className="grid gap-1.5">
@@ -868,23 +865,25 @@ export default function InvoicesPage() {
               <div className="grid grid-cols-3 gap-3 rounded-md border p-3 text-center md:grid-cols-5">
                 <div>
                   <p className="text-xs text-muted-foreground">{t('fields.subtotal')}</p>
-                  <p className="text-base font-semibold">{fmtMoney(detail.subtotal)}</p>
+                  <p className="text-base font-semibold">{fmtMoney(detail.subtotal, locale)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('fields.discountAmount')}</p>
-                  <p className="text-base font-semibold">{fmtMoney(detail.discountAmount)}</p>
+                  <p className="text-base font-semibold">
+                    {fmtMoney(detail.discountAmount, locale)}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('fields.taxAmount')}</p>
-                  <p className="text-base font-semibold">{fmtMoney(detail.taxAmount)}</p>
+                  <p className="text-base font-semibold">{fmtMoney(detail.taxAmount, locale)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('fields.totalAmount')}</p>
-                  <p className="text-lg font-semibold">{fmtMoney(detail.totalAmount)}</p>
+                  <p className="text-lg font-semibold">{fmtMoney(detail.totalAmount, locale)}</p>
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('fields.paidAmount')}</p>
-                  <p className="text-base font-semibold">{fmtMoney(detail.paidAmount)}</p>
+                  <p className="text-base font-semibold">{fmtMoney(detail.paidAmount, locale)}</p>
                 </div>
               </div>
               {isIssued && (
@@ -916,7 +915,14 @@ export default function InvoicesPage() {
                       <Save className="ms-1 h-3.5 w-3.5" />
                       {t('items.saveAll')}
                     </Button>
-                    <Button size="sm" onClick={() => { setAddForm({ description: '', quantity: '1', unitPrice: '', notes: '' }); setAddError(null); setAddOpen(true); }}>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setAddForm({ description: '', quantity: '1', unitPrice: '', notes: '' });
+                        setAddError(null);
+                        setAddOpen(true);
+                      }}
+                    >
                       <Plus className="ms-1 h-3.5 w-3.5" />
                       {t('items.add')}
                     </Button>
@@ -929,7 +935,7 @@ export default function InvoicesPage() {
                   {t('items.empty')}
                 </p>
               ) : (
-                <div className="overflow-x-auto rounded-md border">
+                <TableScroll className="overflow-x-auto rounded-md border">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
@@ -946,7 +952,9 @@ export default function InvoicesPage() {
                         const draft = itemDrafts[it.id];
                         return (
                           <tr key={it.id} className="border-b last:border-0">
-                            <td className="px-2 py-1.5 text-xs text-muted-foreground">{it.sequence}</td>
+                            <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                              {it.sequence}
+                            </td>
                             <td className="px-2 py-1.5">
                               {isDraft && draft ? (
                                 <Input
@@ -960,7 +968,7 @@ export default function InvoicesPage() {
                                   }
                                 />
                               ) : (
-                                it.description ?? '—'
+                                (it.description ?? '—')
                               )}
                             </td>
                             <td className="px-2 py-1.5 w-20">
@@ -997,10 +1005,12 @@ export default function InvoicesPage() {
                                   }
                                 />
                               ) : (
-                                fmtMoney(it.unitPrice)
+                                fmtMoney(it.unitPrice, locale)
                               )}
                             </td>
-                            <td className="px-2 py-1.5 font-medium">{fmtMoney(it.amount)}</td>
+                            <td className="px-2 py-1.5 font-medium">
+                              {fmtMoney(it.amount, locale)}
+                            </td>
                             <td className="px-2 py-1.5 text-end">
                               {isDraft && canUpdate && (
                                 <Button
@@ -1017,7 +1027,7 @@ export default function InvoicesPage() {
                       })}
                     </tbody>
                   </table>
-                </div>
+                </TableScroll>
               )}
             </section>
 
@@ -1181,7 +1191,7 @@ export default function InvoicesPage() {
       );
       await refreshDetail();
     } catch (e) {
-      setItemsError(e instanceof ApiError ? e.message : 'Failed to save items');
+      setItemsError(e instanceof ApiError ? e.message : ui('failedToSaveItems'));
     } finally {
       setSavingItems(false);
     }

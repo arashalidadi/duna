@@ -1,4 +1,7 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+
+import { useLocale as useUiLocale } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
@@ -9,9 +12,7 @@ import type {
   Employee,
   EmployeeListResult,
 } from '@shipping/shared';
-import {
-  Plus, Eye, CheckCircle2, Banknote, XCircle, Trash2, Wallet,
-} from 'lucide-react';
+import { Plus, Eye, CheckCircle2, Banknote, XCircle, Trash2, Wallet } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateTime } from '@/lib/date';
@@ -42,8 +43,11 @@ function statusVariant(s: SalaryStatus): 'info' | 'success' | 'danger' | 'outlin
   return 'outline';
 }
 
-function money(v: string): string {
-  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function money(v: string, displayLocale: string): string {
+  return Number(v).toLocaleString(displayLocale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
 }
 
 function periodLabel(year: number, month: number): string {
@@ -62,6 +66,7 @@ type FormState = {
 };
 
 export default function SalaryRecordsPage() {
+  const uiLocale = useUiLocale();
   const t = useTranslations('salary');
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -101,7 +106,9 @@ export default function SalaryRecordsPage() {
     }
   }, [page, search, statusFilter, yearFilter, monthFilter, employeeFilter, tc]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // employee picker data (create + filter)
   useEffect(() => {
@@ -109,7 +116,9 @@ export default function SalaryRecordsPage() {
       try {
         const res = await api.get<EmployeeListResult>('/employees?pageSize=100&status=ACTIVE');
         setEmployees(res.data);
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     })();
   }, []);
 
@@ -118,16 +127,28 @@ export default function SalaryRecordsPage() {
   // create
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<FormState>({
-    employeeId: '', year: String(new Date().getFullYear()), month: String(new Date().getMonth() + 1),
-    base: '0', additions: '0', deductions: '0', currencyCode: 'IRR', notes: '',
+    employeeId: '',
+    year: String(new Date().getFullYear()),
+    month: String(new Date().getMonth() + 1),
+    base: '0',
+    additions: '0',
+    deductions: '0',
+    currencyCode: 'IRR',
+    notes: '',
   });
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');
 
   const openCreate = () => {
     setForm({
-      employeeId: '', year: String(new Date().getFullYear()), month: String(new Date().getMonth() + 1),
-      base: '0', additions: '0', deductions: '0', currencyCode: 'IRR', notes: '',
+      employeeId: '',
+      year: String(new Date().getFullYear()),
+      month: String(new Date().getMonth() + 1),
+      base: '0',
+      additions: '0',
+      deductions: '0',
+      currencyCode: 'IRR',
+      notes: '',
     });
     setFormError('');
     setCreateOpen(true);
@@ -151,7 +172,10 @@ export default function SalaryRecordsPage() {
   })();
 
   const submitCreate = async () => {
-    if (!form.employeeId) { setFormError(t('create.errors.employeeRequired')); return; }
+    if (!form.employeeId) {
+      setFormError(t('create.errors.employeeRequired'));
+      return;
+    }
     setCreating(true);
     setFormError('');
     try {
@@ -217,7 +241,9 @@ export default function SalaryRecordsPage() {
       await load();
     } catch (e: any) {
       setError(e?.message ?? tc('errors.generic'));
-    } finally { setApproving(false); }
+    } finally {
+      setApproving(false);
+    }
   };
 
   const doPay = async () => {
@@ -234,21 +260,27 @@ export default function SalaryRecordsPage() {
       await load();
     } catch (e: any) {
       setError(e?.message ?? tc('errors.generic'));
-    } finally { setPaying(false); }
+    } finally {
+      setPaying(false);
+    }
   };
 
   const doCancel = async () => {
     if (!cancelTarget || !cancelReason.trim()) return;
     setCancelling(true);
     try {
-      await api.post(`/salary-records/${cancelTarget.id}/cancel`, { cancelReason: cancelReason.trim() });
+      await api.post(`/salary-records/${cancelTarget.id}/cancel`, {
+        cancelReason: cancelReason.trim(),
+      });
       setCancelTarget(null);
       setCancelReason('');
       setDetailOpen(false);
       await load();
     } catch (e: any) {
       setError(e?.message ?? tc('errors.generic'));
-    } finally { setCancelling(false); }
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const doDelete = async () => {
@@ -261,12 +293,16 @@ export default function SalaryRecordsPage() {
     } catch (e: any) {
       setError(e?.message ?? tc('errors.generic'));
       setDeleteTarget(null);
-    } finally { setDeleting(false); }
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <Breadcrumbs items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]} />
+      <Breadcrumbs
+        items={[{ label: tc('nav.home'), href: '/dashboard' }, { label: t('page.title') }]}
+      />
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -277,7 +313,10 @@ export default function SalaryRecordsPage() {
           <p className="text-muted-foreground">{t('page.description')}</p>
         </div>
         {hasPermission('salary:create') && (
-          <Button onClick={openCreate}><Plus className="size-4" />{t('actions.create')}</Button>
+          <Button onClick={openCreate}>
+            <Plus className="size-4" />
+            {t('actions.create')}
+          </Button>
         )}
       </div>
 
@@ -288,34 +327,87 @@ export default function SalaryRecordsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); setSearch(searchInput); setPage(1); }}>
-              <Input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder={t('list.search')} className="w-56" />
-              <Button type="submit" variant="outline" size="sm">{tc('actions.search')}</Button>
+            <form
+              className="flex items-center gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSearch(searchInput);
+                setPage(1);
+              }}
+            >
+              <Input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder={t('list.search')}
+                className="w-56"
+              />
+              <Button type="submit" variant="outline" size="sm">
+                {tc('actions.search')}
+              </Button>
             </form>
-            <select className={SELECT_CLASS} value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as any); setPage(1); }}>
+            <select
+              className={SELECT_CLASS}
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as any);
+                setPage(1);
+              }}
+            >
               <option value="ALL">{t('list.allStatuses')}</option>
-              {SALARY_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
-            </select>
-            <select className={SELECT_CLASS} value={yearFilter}
-              onChange={(e) => { setYearFilter(e.target.value); setPage(1); }}>
-              <option value="ALL">{t('list.allYears')}</option>
-              {years.map((y) => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <select className={SELECT_CLASS} value={monthFilter}
-              onChange={(e) => { setMonthFilter(e.target.value); setPage(1); }}>
-              <option value="ALL">{t('list.allMonths')}</option>
-              {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
-                <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+              {SALARY_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`status.${s}`)}
+                </option>
               ))}
             </select>
-            <select className={SELECT_CLASS} value={employeeFilter}
-              onChange={(e) => { setEmployeeFilter(e.target.value); setPage(1); }}>
-              <option value="ALL">{t('list.allEmployees')}</option>
-              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            <select
+              className={SELECT_CLASS}
+              value={yearFilter}
+              onChange={(e) => {
+                setYearFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">{t('list.allYears')}</option>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
             </select>
-            <span className="ms-auto text-sm text-muted-foreground">{tc('list.total')}: {meta.totalItems}</span>
+            <select
+              className={SELECT_CLASS}
+              value={monthFilter}
+              onChange={(e) => {
+                setMonthFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">{t('list.allMonths')}</option>
+              {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
+                <option key={m} value={m}>
+                  {String(m).padStart(2, '0')}
+                </option>
+              ))}
+            </select>
+            <select
+              className={SELECT_CLASS}
+              value={employeeFilter}
+              onChange={(e) => {
+                setEmployeeFilter(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">{t('list.allEmployees')}</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+            <span className="ms-auto text-sm text-muted-foreground">
+              {tc('list.total')}: {meta.totalItems}
+            </span>
           </div>
 
           {loading ? (
@@ -326,7 +418,7 @@ export default function SalaryRecordsPage() {
             <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
           ) : (
             <>
-              <div className="overflow-x-auto rounded-md border">
+              <TableScroll className="overflow-x-auto rounded-md border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground">
@@ -345,36 +437,92 @@ export default function SalaryRecordsPage() {
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/30">
                         <td className="p-3">
-                          <button className="font-mono text-primary underline-offset-4 hover:underline"
-                            onClick={() => void openDetail(r.id)}>{r.recordNumber}</button>
+                          <button
+                            className="font-mono text-primary underline-offset-4 hover:underline"
+                            onClick={() => void openDetail(r.id)}
+                          >
+                            {r.recordNumber}
+                          </button>
                         </td>
                         <td className="p-3">{r.employee?.name ?? '—'}</td>
                         <td className="p-3 font-mono text-xs">{periodLabel(r.year, r.month)}</td>
-                        <td className="p-3 text-end">{money(r.base)}</td>
-                        <td className="p-3 text-end text-success-foreground">{money(r.additions)}</td>
-                        <td className="p-3 text-end text-destructive">{money(r.deductions)}</td>
-                        <td className="p-3 text-end font-medium">
-                          {money(r.net)} <span className="text-xs font-normal text-muted-foreground">{r.currencyCode}</span>
+                        <td className="p-3 text-end">{money(r.base, uiLocale)}</td>
+                        <td className="p-3 text-end text-success-foreground">
+                          {money(r.additions, uiLocale)}
                         </td>
-                        <td className="p-3"><Badge variant={statusVariant(r.status)}>{t(`status.${r.status}`)}</Badge></td>
+                        <td className="p-3 text-end text-destructive">
+                          {money(r.deductions, uiLocale)}
+                        </td>
+                        <td className="p-3 text-end font-medium">
+                          {money(r.net, uiLocale)}{' '}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            {r.currencyCode}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant={statusVariant(r.status)}>{t(`status.${r.status}`)}</Badge>
+                        </td>
                         <td className="p-3">
                           <div className="flex justify-end gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => void openDetail(r.id)} title={t('actions.view')}><Eye className="size-4" /></Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => void openDetail(r.id)}
+                              title={t('actions.view')}
+                            >
+                              <Eye className="size-4" />
+                            </Button>
                             {r.status === 'DRAFT' && hasPermission('salary:approve') && (
-                              <Button size="sm" variant="ghost" className="text-success-foreground" title={t('actions.approve')}
-                                onClick={() => setApproveTarget(r)}><CheckCircle2 className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-success-foreground"
+                                title={t('actions.approve')}
+                                onClick={() => setApproveTarget(r)}
+                              >
+                                <CheckCircle2 className="size-4" />
+                              </Button>
                             )}
                             {r.status === 'APPROVED' && hasPermission('salary:pay') && (
-                              <Button size="sm" variant="ghost" className="text-info-foreground" title={t('actions.pay')}
-                                onClick={() => { setPayTarget(r); setPayMethod('BANK_TRANSFER'); setPayRef(''); }}><Banknote className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-info-foreground"
+                                title={t('actions.pay')}
+                                onClick={() => {
+                                  setPayTarget(r);
+                                  setPayMethod('BANK_TRANSFER');
+                                  setPayRef('');
+                                }}
+                              >
+                                <Banknote className="size-4" />
+                              </Button>
                             )}
-                            {(r.status === 'DRAFT' || r.status === 'APPROVED') && hasPermission('salary:cancel') && (
-                              <Button size="sm" variant="ghost" className="text-warning-foreground" title={t('actions.cancel')}
-                                onClick={() => { setCancelTarget(r); setCancelReason(''); }}><XCircle className="size-4" /></Button>
-                            )}
+                            {(r.status === 'DRAFT' || r.status === 'APPROVED') &&
+                              hasPermission('salary:cancel') && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-warning"
+                                  title={t('actions.cancel')}
+                                  onClick={() => {
+                                    setCancelTarget(r);
+                                    setCancelReason('');
+                                  }}
+                                >
+                                  <XCircle className="size-4" />
+                                </Button>
+                              )}
                             {r.status === 'DRAFT' && hasPermission('salary:delete') && (
-                              <Button size="sm" variant="ghost" className="text-destructive" title={t('actions.delete')}
-                                onClick={() => setDeleteTarget(r)}><Trash2 className="size-4" /></Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                title={t('actions.delete')}
+                                onClick={() => setDeleteTarget(r)}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -382,41 +530,67 @@ export default function SalaryRecordsPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <Pagination page={meta.page} pageSize={meta.pageSize} totalItems={meta.totalItems} totalPages={meta.totalPages} onPageChange={setPage} />
+              </TableScroll>
+              <Pagination
+                page={meta.page}
+                pageSize={meta.pageSize}
+                totalItems={meta.totalItems}
+                totalPages={meta.totalPages}
+                onPageChange={setPage}
+              />
             </>
           )}
         </CardContent>
       </Card>
 
       {/* create dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}
-        title={t('create.title')} description={t('create.description')}
+      <Dialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title={t('create.title')}
+        description={t('create.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>{tc('actions.cancel')}</Button>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              {tc('actions.cancel')}
+            </Button>
             <Button onClick={() => void submitCreate()} disabled={creating}>
               {creating ? t('create.creating') : tc('actions.save')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="grid gap-4">
           {formError && <p className="text-sm text-destructive">{formError}</p>}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.employee')} *</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.employeeId}
-                onChange={(e) => onPickEmployee(e.target.value)}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.employeeId}
+                onChange={(e) => onPickEmployee(e.target.value)}
+              >
                 <option value="">{t('create.selectEmployee')}</option>
-                {employees.map((e) => <option key={e.id} value={e.id}>{e.name} ({e.code})</option>)}
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.code})
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.currency')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.currencyCode}
-                onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}>
-                {['IRR', 'USD', 'AED', 'EUR', 'TRY', 'CNY'].map((c) => <option key={c} value={c}>{c}</option>)}
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.currencyCode}
+                onChange={(e) => setForm({ ...form, currencyCode: e.target.value })}
+              >
+                {['IRR', 'USD', 'AED', 'EUR', 'TRY', 'CNY'].map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -424,15 +598,25 @@ export default function SalaryRecordsPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.year')}</Label>
-              <Input type="number" min={2000} max={2100} value={form.year}
-                onChange={(e) => setForm({ ...form, year: e.target.value })} />
+              <Input
+                type="number"
+                min={2000}
+                max={2100}
+                value={form.year}
+                onChange={(e) => setForm({ ...form, year: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.month')}</Label>
-              <select className={SELECT_CLASS + ' w-full'} value={form.month}
-                onChange={(e) => setForm({ ...form, month: e.target.value })}>
+              <select
+                className={SELECT_CLASS + ' w-full'}
+                value={form.month}
+                onChange={(e) => setForm({ ...form, month: e.target.value })}
+              >
                 {Array.from({ length: 12 }, (_, i) => String(i + 1)).map((m) => (
-                  <option key={m} value={m}>{String(m).padStart(2, '0')}</option>
+                  <option key={m} value={m}>
+                    {String(m).padStart(2, '0')}
+                  </option>
                 ))}
               </select>
             </div>
@@ -441,81 +625,153 @@ export default function SalaryRecordsPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.base')}</Label>
-              <Input type="number" min="0" value={form.base}
-                onChange={(e) => setForm({ ...form, base: e.target.value })} />
+              <Input
+                type="number"
+                min="0"
+                value={form.base}
+                onChange={(e) => setForm({ ...form, base: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.additions')}</Label>
-              <Input type="number" min="0" value={form.additions}
-                onChange={(e) => setForm({ ...form, additions: e.target.value })} />
+              <Input
+                type="number"
+                min="0"
+                value={form.additions}
+                onChange={(e) => setForm({ ...form, additions: e.target.value })}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.deductions')}</Label>
-              <Input type="number" min="0" value={form.deductions}
-                onChange={(e) => setForm({ ...form, deductions: e.target.value })} />
+              <Input
+                type="number"
+                min="0"
+                value={form.deductions}
+                onChange={(e) => setForm({ ...form, deductions: e.target.value })}
+              />
             </div>
           </div>
 
           {/* live net */}
           <div className="rounded-md border bg-muted/30 p-3 text-sm">
-            <div className="flex justify-between"><span>{t('fields.base')}</span><span>{money(form.base)}</span></div>
-            <div className="flex justify-between text-success-foreground"><span>{t('fields.additions')}</span><span>+ {money(form.additions)}</span></div>
-            <div className="flex justify-between text-destructive"><span>{t('fields.deductions')}</span><span>− {money(form.deductions)}</span></div>
-            <div className="mt-1 flex justify-between border-t pt-1 font-medium"><span>{t('fields.net')}</span><span>{money(String(netPreview))} {form.currencyCode}</span></div>
+            <div className="flex justify-between">
+              <span>{t('fields.base')}</span>
+              <span>{money(form.base, uiLocale)}</span>
+            </div>
+            <div className="flex justify-between text-success-foreground">
+              <span>{t('fields.additions')}</span>
+              <span>+ {money(form.additions, uiLocale)}</span>
+            </div>
+            <div className="flex justify-between text-destructive">
+              <span>{t('fields.deductions')}</span>
+              <span>− {money(form.deductions, uiLocale)}</span>
+            </div>
+            <div className="mt-1 flex justify-between border-t pt-1 font-medium">
+              <span>{t('fields.net')}</span>
+              <span>
+                {money(String(netPreview), uiLocale)} {form.currencyCode}
+              </span>
+            </div>
           </div>
 
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
-            <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            <Input
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+            />
           </div>
         </div>
       </Dialog>
 
       {/* detail */}
-      <Dialog open={detailOpen} onOpenChange={(o) => { setDetailOpen(o); if (!o) setDetail(null); }}
-        title={detail ? detail.recordNumber : t('detail.title')}>
+      <Dialog
+        open={detailOpen}
+        onOpenChange={(o) => {
+          setDetailOpen(o);
+          if (!o) setDetail(null);
+        }}
+        title={detail ? detail.recordNumber : t('detail.title')}
+      >
         {detailLoading || !detail ? (
           <PageLoader />
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>
-              <span className="text-sm text-muted-foreground">{detail.employee?.name} — {periodLabel(detail.year, detail.month)}</span>
+              <span className="text-sm text-muted-foreground">
+                {detail.employee?.name} — {periodLabel(detail.year, detail.month)}
+              </span>
             </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
-              <div><dt className="text-muted-foreground">{t('fields.base')}</dt><dd>{money(detail.base)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('fields.additions')}</dt><dd className="text-success-foreground">{money(detail.additions)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('fields.deductions')}</dt><dd className="text-destructive">{money(detail.deductions)}</dd></div>
-              <div><dt className="text-muted-foreground">{t('fields.currency')}</dt><dd>{detail.currencyCode}</dd></div>
-              <div className="col-span-2 border-t pt-2"><dt className="text-muted-foreground">{t('fields.net')}</dt>
-                <dd className="text-lg font-bold">{money(detail.net)} {detail.currencyCode}</dd></div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.base')}</dt>
+                <dd>{money(detail.base, uiLocale)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.additions')}</dt>
+                <dd className="text-success-foreground">{money(detail.additions, uiLocale)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.deductions')}</dt>
+                <dd className="text-destructive">{money(detail.deductions, uiLocale)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.currency')}</dt>
+                <dd>{detail.currencyCode}</dd>
+              </div>
+              <div className="col-span-2 border-t pt-2">
+                <dt className="text-muted-foreground">{t('fields.net')}</dt>
+                <dd className="text-lg font-bold">
+                  {money(detail.net, uiLocale)} {detail.currencyCode}
+                </dd>
+              </div>
               {detail.paymentMethod && (
-                <div><dt className="text-muted-foreground">{t('fields.paymentMethod')}</dt><dd>{t(`method.${detail.paymentMethod}`)}</dd></div>
+                <div>
+                  <dt className="text-muted-foreground">{t('fields.paymentMethod')}</dt>
+                  <dd>{t(`method.${detail.paymentMethod}`)}</dd>
+                </div>
               )}
               {detail.paymentRef && (
-                <div><dt className="text-muted-foreground">{t('fields.paymentRef')}</dt><dd className="font-mono text-xs">{detail.paymentRef}</dd></div>
+                <div>
+                  <dt className="text-muted-foreground">{t('fields.paymentRef')}</dt>
+                  <dd className="font-mono text-xs">{detail.paymentRef}</dd>
+                </div>
               )}
               {detail.approvedAt && (
-                <div><dt className="text-muted-foreground">{t('detail.approvedOn')}</dt>
-                  <dd>{formatDateTime(detail.approvedAt, locale)}</dd></div>
+                <div>
+                  <dt className="text-muted-foreground">{t('detail.approvedOn')}</dt>
+                  <dd>{formatDateTime(detail.approvedAt, locale)}</dd>
+                </div>
               )}
               {detail.paidAt && (
-                <div><dt className="text-muted-foreground">{t('detail.paidOn')}</dt>
-                  <dd>{formatDateTime(detail.paidAt, locale)}</dd></div>
+                <div>
+                  <dt className="text-muted-foreground">{t('detail.paidOn')}</dt>
+                  <dd>{formatDateTime(detail.paidAt, locale)}</dd>
+                </div>
               )}
               {detail.cancelledAt && (
-                <div><dt className="text-muted-foreground">{t('detail.cancelledOn')}</dt>
-                  <dd>{formatDateTime(detail.cancelledAt, locale)}</dd></div>
+                <div>
+                  <dt className="text-muted-foreground">{t('detail.cancelledOn')}</dt>
+                  <dd>{formatDateTime(detail.cancelledAt, locale)}</dd>
+                </div>
               )}
               {detail.cancelReason && (
-                <div className="col-span-2"><dt className="text-muted-foreground">{t('fields.cancelReason')}</dt>
-                  <dd className="text-destructive">{detail.cancelReason}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">{t('fields.cancelReason')}</dt>
+                  <dd className="text-destructive">{detail.cancelReason}</dd>
+                </div>
               )}
               {detail.notes && (
-                <div className="col-span-2"><dt className="text-muted-foreground">{t('fields.notes')}</dt><dd>{detail.notes}</dd></div>
+                <div className="col-span-2">
+                  <dt className="text-muted-foreground">{t('fields.notes')}</dt>
+                  <dd>{detail.notes}</dd>
+                </div>
               )}
-              <div className="col-span-2"><dt className="text-muted-foreground">{t('detail.createdAt')}</dt>
-                <dd>{formatDateTime(detail.createdAt, locale)}</dd></div>
+              <div className="col-span-2">
+                <dt className="text-muted-foreground">{t('detail.createdAt')}</dt>
+                <dd>{formatDateTime(detail.createdAt, locale)}</dd>
+              </div>
             </dl>
           </div>
         )}
@@ -523,72 +779,123 @@ export default function SalaryRecordsPage() {
 
       {/* approve confirm */}
       <ConfirmDialog
-        open={!!approveTarget} onOpenChange={(o) => { if (!o) setApproveTarget(null); }}
+        open={!!approveTarget}
+        onOpenChange={(o) => {
+          if (!o) setApproveTarget(null);
+        }}
         title={t('confirm.approve.title')}
-        description={approveTarget
-          ? t('confirm.approve.description', { number: approveTarget.recordNumber, net: money(approveTarget.net) })
-          : ''}
-        confirmLabel={t('actions.approve')} loading={approving}
+        description={
+          approveTarget
+            ? t('confirm.approve.description', {
+                number: approveTarget.recordNumber,
+                net: money(approveTarget.net, uiLocale),
+              })
+            : ''
+        }
+        confirmLabel={t('actions.approve')}
+        loading={approving}
         onConfirm={() => void doApprove()}
+        error={formError}
       />
 
       {/* pay dialog */}
-      <Dialog open={!!payTarget} onOpenChange={(o) => { if (!o) setPayTarget(null); }}
-        title={t('pay.title')} description={t('pay.description')}
+      <Dialog
+        open={!!payTarget}
+        onOpenChange={(o) => {
+          if (!o) setPayTarget(null);
+        }}
+        title={t('pay.title')}
+        description={t('pay.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setPayTarget(null)}>{tc('actions.cancel')}</Button>
+            <Button variant="outline" onClick={() => setPayTarget(null)}>
+              {tc('actions.cancel')}
+            </Button>
             <Button onClick={() => void doPay()} disabled={paying}>
               {paying ? t('pay.paying') : t('actions.pay')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="space-y-4">
           {payTarget && (
             <p className="text-sm text-muted-foreground">
-              {payTarget.recordNumber} — {payTarget.employee?.name} — {money(payTarget.net)} {payTarget.currencyCode}
+              {payTarget.recordNumber} — {payTarget.employee?.name} —{' '}
+              {money(payTarget.net, uiLocale)} {payTarget.currencyCode}
             </p>
           )}
           <div className="space-y-1.5">
             <Label>{t('fields.paymentMethod')}</Label>
-            <select className={SELECT_CLASS + ' w-full'} value={payMethod}
-              onChange={(e) => setPayMethod(e.target.value)}>
-              {PAY_METHODS.map((m) => <option key={m} value={m}>{t(`method.${m}`)}</option>)}
+            <select
+              className={SELECT_CLASS + ' w-full'}
+              value={payMethod}
+              onChange={(e) => setPayMethod(e.target.value)}
+            >
+              {PAY_METHODS.map((m) => (
+                <option key={m} value={m}>
+                  {t(`method.${m}`)}
+                </option>
+              ))}
             </select>
           </div>
           <div className="space-y-1.5">
             <Label>{t('fields.paymentRef')}</Label>
-            <Input value={payRef} onChange={(e) => setPayRef(e.target.value)}
-              placeholder={t('pay.referencePlaceholder')} />
+            <Input
+              value={payRef}
+              onChange={(e) => setPayRef(e.target.value)}
+              placeholder={t('pay.referencePlaceholder')}
+            />
           </div>
         </div>
       </Dialog>
 
       {/* cancel with reason */}
-      <Dialog open={!!cancelTarget} onOpenChange={(o) => { if (!o) setCancelTarget(null); }}
-        title={t('cancel.title')} description={t('cancel.description')}
+      <Dialog
+        open={!!cancelTarget}
+        onOpenChange={(o) => {
+          if (!o) setCancelTarget(null);
+        }}
+        title={t('cancel.title')}
+        description={t('cancel.description')}
         footer={
           <>
-            <Button variant="outline" onClick={() => setCancelTarget(null)}>{tc('actions.cancel')}</Button>
-            <Button variant="destructive" disabled={cancelling || !cancelReason.trim()} onClick={() => void doCancel()}>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>
+              {tc('actions.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={cancelling || !cancelReason.trim()}
+              onClick={() => void doCancel()}
+            >
               {cancelling ? t('actions.cancelling') : t('actions.cancel')}
             </Button>
           </>
-        }>
+        }
+      >
         <div className="space-y-1.5">
           <Label>{t('cancel.reason')}</Label>
-          <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)}
-            placeholder={t('cancel.reasonPlaceholder')} />
+          <Input
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder={t('cancel.reasonPlaceholder')}
+          />
         </div>
       </Dialog>
 
       {/* delete confirm */}
       <ConfirmDialog
-        open={!!deleteTarget} onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+        open={!!deleteTarget}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
         title={t('confirm.delete.title')}
-        description={deleteTarget ? t('confirm.delete.description', { number: deleteTarget.recordNumber }) : ''}
-        confirmLabel={tc('actions.delete')} loading={deleting}
+        description={
+          deleteTarget ? t('confirm.delete.description', { number: deleteTarget.recordNumber }) : ''
+        }
+        confirmLabel={tc('actions.delete')}
+        loading={deleting}
         onConfirm={() => void doDelete()}
+        error={formError}
       />
     </div>
   );

@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations, useFormatter } from 'next-intl';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -22,6 +23,8 @@ export function Pagination({
   onPageChange,
   className,
 }: PaginationProps) {
+  const t = useTranslations('workspaceUi');
+  const format = useFormatter();
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
   return (
@@ -32,7 +35,7 @@ export function Pagination({
       )}
     >
       <span className="text-[13px] tabular-nums text-muted-foreground">
-        Page {page} of {totalPages || 1} · {totalItems} item{totalItems === 1 ? '' : 's'}
+        {t('pagination', { page, pages: totalPages || 1, count: totalItems })}
       </span>
       <div className="flex items-center gap-1.5">
         <Button
@@ -40,21 +43,22 @@ export function Pagination({
           size="sm"
           onClick={() => onPageChange(page - 1)}
           disabled={!hasPrev}
-          aria-label="Previous page"
+          aria-label={t('previousPage')}
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          <ChevronLeft className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
         </Button>
         <span className="px-1 text-[13px] tabular-nums text-muted-foreground">
-          {page}{pageSize ? ` · ${pageSize}/page` : ''}
+          {format.number(page)}
+          {pageSize ? ` · ${t('perPage', { count: pageSize })}` : ''}
         </span>
         <Button
           variant="outline"
           size="sm"
           onClick={() => onPageChange(page + 1)}
           disabled={!hasNext}
-          aria-label="Next page"
+          aria-label={t('nextPage')}
         >
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+          <ChevronRight className="h-4 w-4 rtl:rotate-180" aria-hidden="true" />
         </Button>
       </div>
     </div>

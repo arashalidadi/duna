@@ -1,4 +1,10 @@
 'use client';
+import { TableScroll } from '@/components/ui/table-scroll';
+import { useDebouncedValue } from '@/lib/hooks/use-debounced-value';
+
+import { useLocale as useUiLocale } from 'next-intl';
+
+import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -29,6 +35,8 @@ import { cn } from '@/lib/utils';
 const PAGE_SIZE = 25;
 
 export default function UsersPage() {
+  const uiLocale = useUiLocale();
+  const ui = useUiTranslations('legacyUi');
   const { hasPermission, user: me } = useAuth();
   const [data, setData] = useState<PaginatedResult<UserListItem> | null>(null);
   const [roles, setRoles] = useState<RoleListItem[]>([]);
@@ -36,6 +44,7 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<UserListItem | null>(null);
@@ -47,36 +56,42 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [resetValue, setResetValue] = useState('');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string; code: string }[]>([]);
   const [portalSel, setPortalSel] = useState('');
 
   const activeRoles = useMemo(() => roles.filter((r) => r.isActive !== false), [roles]);
 
-  const load = useCallback(async (p: number, q: string) => {
-    setLoading(true);
-    setError(null);
-    const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
-    if (q) params.set('search', q);
-    try {
-      const [userData, roleData, customerData] = await Promise.all([
-        api.get<PaginatedResult<UserListItem>>(`/users?${params.toString()}`),
-        api.get<RoleListItem[]>('/roles/active'),
-        api.get<PaginatedResult<{ id: string; name: string; code: string }>>('/customers?pageSize=200'),
-      ]);
-      setData(userData);
-      setRoles(roleData);
-      setCustomers(customerData.data ?? []);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (p: number, q: string) => {
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
+      if (q) params.set('search', q);
+      try {
+        const [userData, roleData, customerData] = await Promise.all([
+          api.get<PaginatedResult<UserListItem>>(`/users?${params.toString()}`),
+          api.get<RoleListItem[]>('/roles/active'),
+          api.get<PaginatedResult<{ id: string; name: string; code: string }>>(
+            '/customers?pageSize=200'
+          ),
+        ]);
+        setData(userData);
+        setRoles(roleData);
+        setCustomers(customerData.data ?? []);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : ui('failedToLoadUsers'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [ui]
+  );
 
   useEffect(() => {
-    load(page, search);
-  }, [load, page, search]);
+    load(page, debouncedSearch);
+  }, [load, page, debouncedSearch]);
 
   const canCreate = hasPermission('user:create');
   const canUpdate = hasPermission('user:update');
@@ -97,11 +112,11 @@ export default function UsersPage() {
     e.preventDefault();
     setFormError(null);
     if (!email.trim() || !fullName.trim() || !password) {
-      setFormError('Email, name and password are required.');
+      setFormError(ui('emailNameAndPasswordAreRequired'));
       return;
     }
     if (selectedRoleIds.length === 0) {
-      setFormError('Assign at least one role.');
+      setFormError(ui('assignAtLeastOneRole'));
       return;
     }
     setSaving(true);
@@ -117,7 +132,7 @@ export default function UsersPage() {
       setPage(1);
       await load(1, search);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to create user');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToCreateUser'));
     } finally {
       setSaving(false);
     }
@@ -145,7 +160,7 @@ export default function UsersPage() {
       setEditing(null);
       await load(page, search);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update roles');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateRoles'));
     } finally {
       setSaving(false);
     }
@@ -162,24 +177,25 @@ export default function UsersPage() {
       setToggling(null);
       await load(page, search);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to update user');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateUser'));
     } finally {
       setSaving(false);
     }
   }
 
   async function resetPassword() {
-    if (!resetting) return;
+    if (!resetting || resetValue.length < 8) return;
     setSaving(true);
     setFormError(null);
     try {
       await api.post<{ reset: true }>(`/users/${resetting.id}/reset-password`, {
-        newPassword: 'ChangeMe123!',
+        newPassword: resetValue,
       });
       setResetting(null);
+      setResetValue('');
       setFormError(null);
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Failed to reset password');
+      setFormError(err instanceof ApiError ? err.message : ui('failedToResetPassword'));
     } finally {
       setSaving(false);
     }
@@ -198,24 +214,24 @@ export default function UsersPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Breadcrumbs items={[{ label: 'Users' }]} />
-          <h1 className="mt-2 text-lg font-semibold tracking-tight">Users</h1>
+          <Breadcrumbs items={[{ label: ui('users') }]} />
+          <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('users')}</h1>
           <p className="text-sm text-muted-foreground">
-            Staff accounts. Password hashes are never exposed by the API.
+            {ui('staffAccountsPasswordHashesAreNeverExposedByTheAPI')}
           </p>
         </div>
         {canCreate && (
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" />
-            New user
+            {ui('newUser')}
           </Button>
         )}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm font-semibold">User registry</CardTitle>
-          <CardDescription>Active staff accounts and their access.</CardDescription>
+          <CardTitle className="text-sm font-semibold">{ui('userRegistry')}</CardTitle>
+          <CardDescription>{ui('activeStaffAccountsAndTheirAccess')}</CardDescription>
         </CardHeader>
         <CardContent className="border-b border-border pb-3 pt-0">
           <form
@@ -227,36 +243,39 @@ export default function UsersPage() {
           >
             <Input
               className="max-w-xs"
-              placeholder="Search email or name…"
+              placeholder={ui('searchEmailOrName')}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search users"
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              aria-label={ui('searchUsers')}
             />
             <Button type="submit" variant="secondary">
-              Search
+              {ui('search')}
             </Button>
           </form>
         </CardContent>
         {loading ? (
-          <PageLoader label="Loading users…" />
+          <PageLoader label={ui('loadingUsers')} />
         ) : error ? (
           <CardContent>
             <ErrorState message={error} onRetry={() => load(page, search)} />
           </CardContent>
         ) : data && data.data.length === 0 ? (
           <CardContent>
-            <EmptyState title="No users found" description="Try a different search term." />
+            <EmptyState title={ui('noUsersFound')} description={ui('tryADifferentSearchTerm')} />
           </CardContent>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
+          <TableScroll className="overflow-x-auto">
+            <table className="w-full text-start">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">User</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Roles</th>
-                  <th className="px-3 py-2 text-right font-medium">Last login</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{ui('user')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('status')}</th>
+                  <th className="px-3 py-2 font-medium">{ui('roles')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('lastLogin')}</th>
+                  <th className="px-3 py-2 text-end font-medium">{ui('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,23 +291,25 @@ export default function UsersPage() {
                             <span className="truncate text-[13px] font-medium text-foreground">
                               {u.fullName}
                             </span>
-                            {u.id === me?.id && <Badge variant="info">You</Badge>}
+                            {u.id === me?.id && <Badge variant="info">{ui('you')}</Badge>}
                           </div>
-                          <div className="truncate text-[12px] text-muted-foreground">{u.email}</div>
+                          <div className="truncate text-[12px] text-muted-foreground">
+                            {u.email}
+                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-3 py-2">
                       {u.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{ui('active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive</Badge>
+                        <Badge variant="neutral">{ui('inactive')}</Badge>
                       )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1">
                         {u.roles.length === 0 ? (
-                          <span className="text-xs text-muted-foreground">No roles</span>
+                          <span className="text-xs text-muted-foreground">{ui('noRoles')}</span>
                         ) : (
                           u.roles.map((r) => (
                             <Badge key={r.id} variant="outline" className="text-[11px]">
@@ -298,14 +319,14 @@ export default function UsersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right text-[12px] tabular-nums text-muted-foreground">
+                    <td className="px-3 py-2 text-end text-[12px] tabular-nums text-muted-foreground">
                       {u.lastLoginAt
-                        ? new Date(u.lastLoginAt).toLocaleDateString([], {
+                        ? new Date(u.lastLoginAt).toLocaleDateString(uiLocale, {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric',
                           })
-                        : 'Never'}
+                        : ui('never')}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -317,7 +338,7 @@ export default function UsersPage() {
                             onClick={() => openRoles(u)}
                           >
                             <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                            Roles
+                            {ui('roles')}
                           </Button>
                         )}
                         {canUpdate && (
@@ -325,9 +346,13 @@ export default function UsersPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setResetting(u)}
-                            title="Reset password to ChangeMe123!"
-                            aria-label={`Reset password for ${u.email}`}
+                            onClick={() => {
+                              setResetValue('');
+                              setFormError(null);
+                              setResetting(u);
+                            }}
+                            title={ui('resetPassword')}
+                            aria-label={ui('resetPasswordForValue', { value0: String(u.email) })}
                           >
                             <KeyRound className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -337,16 +362,19 @@ export default function UsersPage() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7"
-                            onClick={() => setToggling(u)}
+                            onClick={() => {
+                              setFormError(null);
+                              setToggling(u);
+                            }}
                             disabled={u.id === me?.id && u.isActive}
                             title={
                               u.id === me?.id && u.isActive
-                                ? 'You cannot disable your own account'
+                                ? ui('youCannotDisableYourOwnAccount')
                                 : u.isActive
-                                  ? 'Deactivate'
-                                  : 'Activate'
+                                  ? ui('deactivate')
+                                  : ui('activate')
                             }
-                            aria-label={u.isActive ? 'Deactivate user' : 'Activate user'}
+                            aria-label={u.isActive ? ui('deactivateUser') : ui('activateUser')}
                           >
                             <Power className="h-4 w-4" aria-hidden="true" />
                           </Button>
@@ -357,7 +385,7 @@ export default function UsersPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
         {data && data.meta.totalPages > 1 && (
           <CardFooter className="block px-0">
@@ -376,15 +404,15 @@ export default function UsersPage() {
       <Dialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        title="New user"
-        description="Create a staff account. The user must change their password on first sign-in."
+        title={ui('newUser')}
+        description={ui('createAStaffAccountWithTheAppropriateRoles')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={createUser}>
-              Create user
+              {ui('createUser')}
             </Button>
           </>
         }
@@ -392,7 +420,7 @@ export default function UsersPage() {
         <div className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="user-email" className="block">
-              Email
+              {ui('email')}
             </Label>
             <Input
               id="user-email"
@@ -405,18 +433,18 @@ export default function UsersPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="user-name" className="block">
-              Full name
+              {ui('fullName')}
             </Label>
             <Input
               id="user-name"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Jane Doe"
+              placeholder={ui('janeDoe')}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="user-password" className="block">
-              Temporary password
+              {ui('temporaryPassword')}
             </Label>
             <Input
               id="user-password"
@@ -424,15 +452,19 @@ export default function UsersPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Min 8 characters"
+              placeholder={ui('min8Characters')}
             />
-            <p className="text-xs text-muted-foreground">This is shown once; change it on first use.</p>
+            <p className="text-xs text-muted-foreground">
+              {ui('shareThePasswordSecurelyWithTheUser')}
+            </p>
           </div>
           <div className="space-y-1.5">
-            <Label className="block">Roles</Label>
+            <Label className="block">{ui('roles')}</Label>
             <div className="flex flex-wrap gap-1.5">
               {activeRoles.length === 0 && (
-                <span className="text-xs text-muted-foreground">No active roles available.</span>
+                <span className="text-xs text-muted-foreground">
+                  {ui('noActiveRolesAvailable')}
+                </span>
               )}
               {activeRoles.map((r) => {
                 const checked = selectedRoleIds.includes(r.id);
@@ -462,7 +494,11 @@ export default function UsersPage() {
               })}
             </div>
           </div>
-          {formError && <p className="text-xs text-destructive" role="alert">{formError}</p>}
+          {formError && (
+            <p className="text-xs text-destructive" role="alert">
+              {formError}
+            </p>
+          )}
         </div>
       </Dialog>
 
@@ -470,23 +506,27 @@ export default function UsersPage() {
       <Dialog
         open={!!editing}
         onOpenChange={(open) => !open && setEditing(null)}
-        title={editing ? `Roles — ${editing.fullName}` : 'Roles'}
-        description="Choose the roles assigned to this user."
+        title={editing ? ui('rolesValue', { value0: String(editing.fullName) }) : ui('roles')}
+        description={ui('chooseTheRolesAssignedToThisUser')}
         footer={
           <>
             <Button variant="outline" size="sm" onClick={() => setEditing(null)}>
-              Cancel
+              {ui('cancel')}
             </Button>
             <Button size="sm" loading={saving} onClick={saveRoles}>
-              Save roles
+              {ui('saveRoles')}
             </Button>
           </>
         }
       >
-        {formError && <p className="mb-3 text-xs text-destructive" role="alert">{formError}</p>}
+        {formError && (
+          <p className="mb-3 text-xs text-destructive" role="alert">
+            {formError}
+          </p>
+        )}
         <div className="flex flex-wrap gap-1.5">
           {activeRoles.length === 0 && (
-            <span className="text-xs text-muted-foreground">No active roles available.</span>
+            <span className="text-xs text-muted-foreground">{ui('noActiveRolesAvailable')}</span>
           )}
           {activeRoles.map((r) => {
             const checked = selectedRoleIds.includes(r.id);
@@ -521,28 +561,78 @@ export default function UsersPage() {
       <ConfirmDialog
         open={!!toggling}
         onOpenChange={(open) => !open && setToggling(null)}
-        title={toggling?.isActive ? 'Deactivate user' : 'Activate user'}
+        title={toggling?.isActive ? ui('deactivateUser') : ui('activateUser')}
         description={
           toggling?.isActive
-            ? `Deactivating "${toggling?.fullName}" prevents them from signing in and revokes their sessions.`
-            : `Re-activating "${toggling?.fullName}" lets them sign in again.`
+            ? ui('deactivatingValuePreventsThemFromSigningInAndRevokesTheirSessions', {
+                value0: String(toggling?.fullName),
+              })
+            : ui('reActivatingValueLetsThemSignInAgain', { value0: String(toggling?.fullName) })
         }
-        confirmLabel={toggling?.isActive ? 'Deactivate' : 'Activate'}
+        confirmLabel={toggling?.isActive ? ui('deactivate') : ui('activate')}
         destructive={toggling?.isActive}
         loading={saving}
         onConfirm={toggleActive}
+        error={formError}
       />
 
-      {/* Reset password confirm */}
-      <ConfirmDialog
+      <Dialog
         open={!!resetting}
-        onOpenChange={(open) => !open && setResetting(null)}
-        title="Reset password"
-        description={`Reset the password for "${resetting?.fullName}" to the temporary password ChangeMe123!. Their existing sessions will be revoked.`}
-        confirmLabel="Reset password"
-        loading={saving}
-        onConfirm={resetPassword}
-      />
+        onOpenChange={(open) => {
+          if (!open && !saving) {
+            setResetting(null);
+            setResetValue('');
+          }
+        }}
+        title={ui('resetPasswordTitle')}
+        description={ui('resetPasswordDescription', { name: resetting?.fullName ?? '' })}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={() => {
+                setResetting(null);
+                setResetValue('');
+              }}
+            >
+              {ui('cancelAction')}
+            </Button>
+            <Button loading={saving} disabled={resetValue.length < 8} onClick={resetPassword}>
+              {ui('resetPasswordTitle')}
+            </Button>
+          </>
+        }
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void resetPassword();
+          }}
+          className="space-y-3"
+        >
+          <Label htmlFor="reset-password">{ui('newPasswordLabel')}</Label>
+          <Input
+            id="reset-password"
+            type="password"
+            autoComplete="new-password"
+            minLength={8}
+            maxLength={128}
+            required
+            value={resetValue}
+            onChange={(e) => setResetValue(e.target.value)}
+            aria-describedby="reset-password-help"
+          />
+          <p id="reset-password-help" className="text-xs text-muted-foreground">
+            {ui('passwordHelp')}
+          </p>
+          {formError && (
+            <p role="alert" className="text-sm text-destructive">
+              {formError}
+            </p>
+          )}
+        </form>
+      </Dialog>
     </div>
   );
 }
