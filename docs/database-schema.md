@@ -149,12 +149,18 @@ hard-deleted.
 
 ## Planned major entities (later phases)
 
-These are designed but **not yet implemented**. Listed to make future schema extensions predictable.
+> **Verified 2026-10-11 (audit correction — AUD-020).** This section previously described **all 18** entities
+> below as "designed but **not yet implemented**". That is no longer true: **15 of the 18 now exist** as
+> Prisma models. The original list is preserved verbatim immediately below, followed by a verified
+> status table. Nothing has been removed.
+
+Verbatim original listing (historical — superseded by the table below). The two preamble lines that appeared
+at the top of the original code block are retained here in a comment rather than inside the listing, so the
+entity list itself is reproduced exactly as published:
 
 ```
-Vessel and Voyage (Phase 6) are implemented (see above).
-
-Port / Yard / Customer / Cargo / YardInventory / Inspection / Vessel / Voyage are implemented (see above).
+// Vessel and Voyage (Phase 6) are implemented (see above).
+// Port / Yard / Customer / Cargo / YardInventory / Inspection / Vessel / Voyage are implemented (see above).
 
 LoadPlan / LoadList   (planned ↔ actual loading of containers/cargo onto a voyage)
 ActualLoading
@@ -178,6 +184,36 @@ DocumentTemplate    (configurable templates; company templates supplied later)
 
 AuditLog            (immutable audit records)
 ```
+
+### Verified status (2026-10-11, against `prisma/schema.prisma` — 52 models)
+
+| Listed as | Verified status | Actual model(s) |
+| --- | --- | --- |
+| `LoadList` | **Implemented** | `LoadList`, `LoadListItem` |
+| `ActualLoading` | **Implemented** | `ActualLoading`, `ActualLoadingItem` |
+| `Manifest` | **Implemented** | `Manifest`, `ManifestItem` |
+| `BillOfLading` | **Implemented** | `BillOfLading`, `BillOfLadingItem`, `BillOfLadingRevision` |
+| `Job` | **Implemented** | `Job` |
+| `Invoice` | **Implemented** | `Invoice` |
+| `ReleaseOrder` | **Implemented** | `ReleaseOrder` |
+| `DeliveryOrder` | **Implemented** | `DeliveryOrder` |
+| `Discharge` | **Implemented** | `Discharge`, `DischargeItem` |
+| `NumberingSequence` | **Implemented** | `NumberingSequence` |
+| `DocumentTemplate` | **Implemented** | `DocumentTemplate` (+ `DocumentTemplateVersion`, currently orphaned — 0 references) |
+| `AuditLog` | **Implemented** | `AuditLog` (model only — no browse/query API yet) |
+| `JobLine` | **Implemented under a different name** | `JobCostItem` |
+| `InvoiceLine` | **Implemented under a different name** | `InvoiceItem` |
+| `Payment` | **Implemented under a different name** | `Voucher` |
+| `LoadPlan` | **No model of this name** — functionality is carried by `LoadList` / `LoadListItem` | — |
+| `LedgerEntry` | **NOT implemented — and deliberately so.** The target design requires a real posting-based general ledger, not a derived balance. See DEC-078…DEC-081; roadmap **P6** | — |
+| `CurrencyRate` | **NOT implemented.** `Voucher.exchangeRate` exists in isolation; there is no rate history. Roadmap **P6**, and a prerequisite for P7 | — |
+
+**Summary: 12 exact names · 3 renamed · 1 covered by other models (`LoadPlan`) · 2 genuinely absent
+(`LedgerEntry`, `CurrencyRate`).**
+
+The two absent models are the financial spine referred to throughout `docs/duna-analysis/09-audit/`. Their
+absence is why reporting is sequenced late in the roadmap: cross-currency figures require recorded rate
+history, and a P&L requires posted accounting entries.
 
 These will be added incrementally in subsequent phases using the conventions above. No architectural
 changes to the foundation are expected when they land: they attach to existing roots

@@ -1,5 +1,22 @@
 # 07 Final Implementation Roadmap
 
+> ## 🗄️ HISTORICAL — SUPERSEDED (marked 2026-10-11)
+>
+> **This roadmap is no longer the plan.** It belongs to a complete earlier audit round (stages 0–7) and is
+> retained as evidence. Do not use it to make planning decisions.
+>
+> **The single planning entry point is now:**
+> [`docs/duna-analysis/09-audit/initial-roadmap.md`](../duna-analysis/09-audit/initial-roadmap.md) — phases
+> **P0–P12**.
+>
+> **Why superseded.** Stage 7 froze a **9-phase** roadmap against the evidence available at the time. It
+> predates the confirmed product decisions (`DEC-001`–`DEC-114`), the verified current-state assessment
+> (`09-audit/implementation-gap-analysis.md`) and the financial-spine requirements. Its Phase 1
+> (`NumberingSequence` + `AuditLog`) has since been partially built.
+>
+> **Nothing has been deleted.** The content below is unchanged and remains the record of that audit round.
+
+
 **Stage 7 complete — rebuilt.** Implementation roadmap derived from `docs/ai-audit/06-final-gap-analysis.md` and frozen by `docs/ai-audit/06.5-technical-decision-lock.md`. There are exactly 9 phases. The roadmap does not invent business rules; where employer decisions remain open, it states the decision dependency explicitly and designs the architecture to be configurable.
 
 ## Status legend

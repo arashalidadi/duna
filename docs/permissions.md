@@ -13,7 +13,25 @@ RefreshToken    (userId, tokenHash, lookupKey, expiresAt, revokedAt, replacedByT
 
 Permission codes follow `module:action`. A role is **active** when `deletedAt IS NULL` (ADR-015).
 
-## Seeded permissions (49)
+## Seeded permissions (160)
+
+> **Verified 2026-10-11 (audit correction — AUD-020).** This heading previously read **"Seeded permissions (49)"**.
+> The verified figure from `prisma/seed.ts` is **160 distinct permission codes across 33 modules**
+> (no duplicates).
+>
+> **The table below is preserved as-is, but it is now a *subset*** — it lists the 13 modules that existed at
+> the end of Phase 2. It is retained because it documents Phase-2 intent and explains the action vocabulary.
+> It is **not** the current permission registry.
+>
+> For the authoritative current list, read `prisma/seed.ts` (`permissionSeed`) — it is the single source.
+> A further 12 codes also appear in `scripts/seed-phase2-permissions.cjs`; all 12 are already present in
+> `prisma/seed.ts`, so that script adds nothing new to the count.
+>
+> **Note on my own earlier error:** an interim audit note recorded "160 codes / 35 modules". The module
+> figure was wrong — it conflated the **35 web pages** with permission modules. The verified count is
+> **33 modules**. Corrections are recorded in `docs/duna-analysis/09-audit/README.md` §5.
+
+### Modules seeded as at Phase 2 (13 of 33) — historical subset
 
 | Module     | Permissions                          |
 | ---------- | ------------------------------------ |
@@ -49,6 +67,29 @@ Notes:
   `:update` permission (`update` → `deletedAt`).
 - Delete-that-destroys is not offered — operational records and reference data are retained via
   status/soft-delete per the project conventions.
+
+### All 33 seeded permission modules (verified 2026-10-11)
+
+`actual_loading` · `agent` · `auth` · `bill` · `cargo` · `consignee` · `currency` · `customer` ·
+`dashboard` · `delivery` · `discharge` · `inspection` · `invoice` · `jobs` · `ledger` · `letters` ·
+`load_list` · `manifest` · `permission` · `port` · `portal` · `proforma` · `quotation` · `release` ·
+`role` · `salary` · `shipper` · `user` · `vessel` · `voucher` · `voyage` · `yard` · `yard-inventory`
+
+**Capability areas with NO seeded permission codes** — each is a target requirement, not yet built:
+
+| Area | Missing codes | Roadmap |
+| --- | --- | --- |
+| Reporting | `report:*` | P7 |
+| Documents / templates / output | `document:*` | P8 |
+| Notifications | `notification:*` | P10 |
+| Custom fields / configuration | `customfield:*` | P9 |
+| Exchange rates | `currencyrate:*` | P6 |
+| Audit browsing | `audit:*` | P11 |
+| Archiving / retention | `archive:*` | P12 |
+| Company settings | `setting:*` | P4 |
+
+A full proposed permission-code list for these areas is in
+`docs/duna-analysis/09-audit/target-security-audit-reporting.md` §7.
 
 ## Authorization flow (implemented)
 

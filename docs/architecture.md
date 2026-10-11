@@ -101,19 +101,44 @@ client using shared types from `@shipping/shared`.
 
 ## 3. Module boundaries
 
-Modules are split by bounded context, matching future deliverable phases:
+> **Verified 2026-10-11 (audit correction).** The table below previously marked Load Planning, Manifest,
+> Bill of Lading, Jobs, Invoices, Release/Delivery/Discharge and Agent Portal as "Planned". All of those
+> now exist as modules under `apps/api/src/modules/`. The table has been corrected to distinguish
+> **current implementation** from **target design**.
+>
+> - **IMPLEMENTED (unverified)** means the code exists and the paths were read, but the test suite could
+>   not be executed in this environment — see `docs/duna-analysis/09-audit/README.md` §4.
+> - **NOT IMPLEMENTED** means no module directory exists under `apps/api/src/modules/`.
+>
+> Verified counts: **32 API modules**, **52 Prisma models**, **32 enums**, **35 web pages**,
+> **160 seeded permission codes** across **33 modules**.
 
-| Module                                                       | Status  |
-| ------------------------------------------------------------ | ------- |
-| Foundation (users, roles, ports, yards, customers, settings) | Phase 1 |
-| Cargo / Yard Inventory (operational records + current yard placement) | Phase 4 |
-| Inspection (drives `inspectionStatus`; history ledger + approve/reject) | Phase 5 |
-| Vessel / Voyage (registry + operational sailing; state machine + overlap guard) | Phase 6 |
-| Load Planning / Load Lists / Actual Loading                            | Planned |
-| Manifest / Bill of Lading                                    | Planned |
-| Job / Job Costing / Invoices / Payments                      | Planned |
-| Release / Delivery / Discharge                               | Planned |
-| Reports / Voyage P&L / Documents / Audit / Agent Portal      | Planned |
+| Bounded context | Modules on disk | Current status |
+| --- | --- | --- |
+| Foundation | `auth`, `users`, `roles`, `permissions`, `health` | IMPLEMENTED (unverified) |
+| Reference data | `ports`, `yards`, `currencies`, `customers`, `agents`, `shippers`, `consignees` | IMPLEMENTED (unverified) |
+| Cargo / Yard Inventory | `cargo`, `yard-inventory` | IMPLEMENTED (unverified) |
+| Inspection | `inspections` | IMPLEMENTED (unverified) |
+| Vessel / Voyage | `vessels`, `voyages` | IMPLEMENTED (unverified) |
+| Load Planning / Load Lists / Actual Loading | `load-planning`, `actual-loading` | IMPLEMENTED (unverified) |
+| Manifest / Bill of Lading | `manifest`, `bill` | IMPLEMENTED (unverified) |
+| Jobs / Invoicing / Payments | `jobs`, `invoice`, `voucher`, `proforma`, `quotation`, `salary` | IMPLEMENTED (unverified) |
+| Release / Delivery / Discharge | `delivery-release`, `discharge` | IMPLEMENTED (unverified) |
+| Agent portal | `portal` | IMPLEMENTED (unverified) |
+| Letters | `letters` | IMPLEMENTED (unverified) |
+| Derived customer ledger | `ledger` | **PARTIAL** — a read-only derived statement (`ledger.controller.ts`). It is **not** a general ledger: there is no posting model, no `LedgerEntry` and no accounting entries. A real GL is required — see `09-audit/target-domain-and-finance.md` and DEC-078…081 |
+| Reports / Voyage P&L | — | **NOT IMPLEMENTED** (roadmap P7) |
+| Documents / templates / output | — | **NOT IMPLEMENTED** (roadmap P8) |
+| Notifications | — | **NOT IMPLEMENTED** (roadmap P10) |
+| Company settings endpoint | — | **NOT IMPLEMENTED** — the `CompanySettings` model exists but has no API surface, so TRN/company identity are not maintainable (roadmap P4) |
+| Audit browsing | — | **NOT IMPLEMENTED** — the `AuditLog` model exists; there is no audit module or viewer (roadmap P11) |
+| Configurability (custom fields, workflows) | — | **NOT IMPLEMENTED** (roadmap P9) |
+
+**Current vs target.** Everything marked IMPLEMENTED above is the *current* system. The *target* system
+additionally requires the financial spine (dated exchange rates, accounting entries, allocation,
+controlled correction), document output, reporting and configuration — none of which exist yet. Those are
+specified in `docs/duna-analysis/09-audit/` and sequenced in `09-audit/initial-roadmap.md` (P0–P12).
+Do not read "IMPLEMENTED" as "complete against the target design".
 
 Rules of thumb:
 

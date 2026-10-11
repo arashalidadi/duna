@@ -1,5 +1,23 @@
 # 09 Final Implementation Roadmap
 
+> ## 🗄️ HISTORICAL — SUPERSEDED (marked 2026-10-11)
+>
+> **This roadmap is no longer the plan.** It is retained as evidence of a prior planning round and explains
+> *why* the current system looks the way it does. Do not use it to make planning decisions.
+>
+> **The single planning entry point is now:**
+> [`docs/duna-analysis/09-audit/initial-roadmap.md`](../duna-analysis/09-audit/initial-roadmap.md) — phases
+> **P0–P12**.
+>
+> **Why superseded.** §2.2 and §2.3 below list four items as open that are in fact implemented:
+> manifest-first ordering, the B/L revision model, the `ManifestItem`→B/L item reference, and Customer-FK
+> parties. Beyond that, this roadmap predates the confirmed product decisions (`DEC-001`–`DEC-114`), the
+> financial-spine requirements (dated exchange rates, accounting entries, allocation, controlled
+> correction) and the document-output scope — none of which appear here.
+>
+> **Nothing has been deleted.** The content below is unchanged and remains the record of that round.
+
+
 ## 1. Roadmap principles
 
 - Follow the locked technical decisions unless a later explicit decision record overrides them.

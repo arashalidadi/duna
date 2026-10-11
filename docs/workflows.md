@@ -3,6 +3,27 @@
 > Documentation of the intended business workflows. These describe how modules will connect;
 > they are design intent, not yet-implemented features — validation happens per phase.
 
+> ## ⚠️ Read this before using the document (added 2026-10-11)
+>
+> Several sections below are **stale**: they describe work that has since been implemented, and two enum
+> values no longer match `prisma/schema.prisma`. Corrections have been applied **in place** at each
+> affected section and are dated, so the original intent remains readable.
+>
+> | Section | Was | Now |
+> | --- | --- | --- |
+> | §1 Cargo lifecycle | `READY`; transitions "not yet present" | `READY_FOR_LOADING`; transitions implemented |
+> | §1c Inspection | `PENDING → APPROVED \| REJECTED` | `PENDING → BOOKED → DONE \| FAILED`, plus `NEEDS_REINSPECTION` |
+> | §2 Load planning / Load List / Actual Loading / Manifest | all `[PHASE 7]` (unbuilt) | all **implemented** |
+>
+> **Current vs target.** "IMPLEMENTED" here means the code exists. It does **not** mean the feature is
+> complete against the target design in `docs/duna-analysis/09-audit/`. Notably: B/L lifecycle *labels*
+> are placeholders pending an owner answer (OQ-05); document output/templates do not exist (P8); and the
+> financial workflows in §4–§5 remain **target design only** — there is no general ledger, no allocation
+> and no rate history.
+>
+> For the authoritative current-state assessment see `09-audit/implementation-gap-analysis.md`; for the
+> target design see `09-audit/target-domain-and-finance.md`.
+
 ## 1. Cargo lifecycle
 
 **Implemented state machine (Phase 4, ADR-019)** — server-enforced via a `TRANSITIONS` table:
@@ -20,12 +41,26 @@ Allowed transitions (enforced in the service):
 | `REGISTERED`| `AT_YARD`   | Yard-Inventory *place* (transactional)             |
 | `REGISTERED`| `CANCELLED` | cancel                                             |
 | `AT_YARD`   | `REGISTERED`| Yard-Inventory *remove* (reverts)                  |
-| `AT_YARD`   | `READY`     | **requires `inspectionStatus = APPROVED`** (driven by Inspections, Phase 5; otherwise 409) |
-| `READY`     | `LOADED`    | Actual Loading (Phase 8) — endpoint not yet present |
-| `LOADED`    | `DELIVERED` | Delivery / Discharge (Phase 16) — not yet present  |
+| `AT_YARD`   | `READY_FOR_LOADING` | **requires an inspection in state `DONE`** (driven by Inspections; otherwise 409) |
+| `READY_FOR_LOADING` | `LOADED` | Actual Loading — **now implemented** (`actual-loading` module) |
+| `LOADED`    | `DELIVERED` | Delivery / Discharge — **now implemented** (`discharge` module) |
 
-`inspectionStatus` (`PENDING|APPROVED|REJECTED`) is the single authoritative **current** readiness state
-and is driven by the Inspections module (Phase 5); `loadingStatus` (`NOT_LOADED|LOADED`) is readiness
+> **Verified 2026-10-11 (audit correction — AUD-020).** Two values in this section no longer matched
+> `prisma/schema.prisma`:
+>
+> 1. **`CargoStatus`** — this document used `READY`. The enum in the schema is
+>    `REGISTERED · AT_YARD · READY_FOR_LOADING · LOADED · DELIVERED · CANCELLED` (6 values). `READY`
+>    does not exist.
+> 2. **`InspectionStatus`** — this document used `PENDING|APPROVED|REJECTED`. The enum in the schema is
+>    `PENDING · BOOKED · DONE · FAILED · NEEDS_REINSPECTION` (5 values). `APPROVED` and `REJECTED`
+>    **do not exist**; the equivalent of "approved" is **`DONE`**, and of "rejected" is **`FAILED`**.
+>
+> Both transitions marked "endpoint not yet present" are now implemented. Corrections applied in place;
+> the original phrasing is retained in the notes below where it still explains intent.
+
+`inspectionStatus` (**`PENDING|BOOKED|DONE|FAILED|NEEDS_REINSPECTION`** — *corrected*; this document
+previously said `PENDING|APPROVED|REJECTED`) is the single authoritative **current** readiness state
+and is driven by the Inspections module; `loadingStatus` (`NOT_LOADED|LOADED`) is readiness
 scaffolding not yet driven by business workflows. Rules:
 
 - Cargo belongs to a Customer; `reference` auto-generated `CRG-<YYMM>-<seq5>` (configurable numbering is
@@ -48,9 +83,17 @@ Full placement history is deferred to a later phase.
 
 **Implemented state machine** for a single inspection:
 
+> **Corrected 2026-10-11.** This document previously showed `PENDING → APPROVED | REJECTED`. The enum in
+> `prisma/schema.prisma` is `PENDING · BOOKED · DONE · FAILED · NEEDS_REINSPECTION`. The state machine
+> below is the corrected one; the legacy names are mapped so historical references still resolve.
+
 ```
-PENDING → APPROVED | REJECTED   (both terminal for that inspection row)
+PENDING → BOOKED → DONE | FAILED        (DONE and FAILED are terminal for that inspection row)
+              └──→ NEEDS_REINSPECTION   (a rejected/review case → a NEW Inspection row is created)
 ```
+
+**Legacy-name mapping:** "APPROVED" in earlier notes = **`DONE`** · "REJECTED" in earlier notes =
+**`FAILED`** or **`NEEDS_REINSPECTION`** depending on whether a re-inspection is required.
 
 Each `Inspection` row is a **traceable inspection attempt**. `Cargo.inspectionStatus` is the single
 authoritative **current** readiness state; both are updated in one transaction (ADR-024).
@@ -70,7 +113,13 @@ authoritative **current** readiness state; both are updated in one transaction (
   in the Cargo service).
 
 Readiness contract for future phases: `InspectionService.isCargoInspectionApproved(cargoId)` reads
-`Cargo.inspectionStatus === 'APPROVED'` (`CargoLoadReadiness`).
+`Cargo.inspectionStatus === 'DONE'` (`CargoLoadReadiness`).
+
+> **Corrected 2026-10-11.** This line previously read `=== 'APPROVED'`. Verified in code: the gate is
+> `=== 'DONE'` — see `actual-loading.service.ts:401,515,711`, `cargo.service.ts:292` and
+> `inspection.service.ts:414`. A stale comment at `cargo.service.ts:12` still says `APPROVED`; it is a
+> source-code comment and is **out of scope** for this documentation-only change, but it should be
+> corrected during implementation.
 
 ## 1d. Vessel & Voyage (Phase 6, ADR-026 / ADR-027)
 
@@ -99,15 +148,23 @@ Create Vessel (active master: unique code, IMO, flag, type, capacity)
 ```
 Vessel schedules a Voyage (implemented Phase 6, see 1d)
   → Ports of call & dates (implemented Phase 6)
-  → Load Planning: assign planned cargo/containers to voyage slots  [PHASE 7]
-  → Load List: published planned document (template-based)         [PHASE 7]
-  → Actual Loading: executed record; discrepancies flagged         [PHASE 7]
-  → Manifest: finalized summary of shipped cargo (locked after finalization) [PHASE 7]
+  → Load Planning: assign planned cargo/containers to voyage slots  [IMPLEMENTED — module `load-planning`]
+  → Load List: published planned document (template-based)         [IMPLEMENTED — module `load-planning`; template output still P8]
+  → Actual Loading: executed record; discrepancies flagged         [IMPLEMENTED — module `actual-loading`]
+  → Manifest: finalized summary of shipped cargo                   [IMPLEMENTED — module `manifest`]
 ```
 
 - A voyage has capacity constraints (slots / tons) — Load Planning (Phase 7) will consume
   `Vessel.capacityTeu` (declared master data) and the voyage/vessel references created in Phase 6.
 - Manifest is finalized once and then immutable; finalization writes an audit event.
+
+> **Status corrected 2026-10-11.** All four steps above were marked `[PHASE 7]` (i.e. not built). They are
+> now implemented. **Verified behaviour:** a cargo only enters a load list when its inspection is `DONE`
+> (`load-planning.service.ts:381,556`); a B/L is created from a `COMPLETED` Actual Loading with
+> `actualQuantity > 0` (`bill.service.ts:304,589-601,918-920`); a manifest consolidates `APPROVED` B/Ls
+> (`manifest.service.ts:293-347`). **What is still open:** the *status labels* used for the B/L lifecycle
+> are placeholders, not official company names (open question **OQ-05**), and no document output/template
+> rendering exists yet (roadmap **P8**).
 
 ## 3. Bill of Lading
 
