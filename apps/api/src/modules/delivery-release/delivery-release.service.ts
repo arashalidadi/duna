@@ -14,7 +14,22 @@ type Tx = Prisma.TransactionClient;
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { RELEASE_ORDER_ELIGIBILITY_POLICY as RELEASE_POLICY } from './release-order.policy';
 
-type ACTX = { canOverride?: boolean; userId?: string; actorEmail?: string };
+/**
+ * DEC-116 — `canOverride` is the capability layer (the `release:override`
+ * permission). `authorizationBasis` records WHY this actor may exercise it:
+ *   - 'primary-administrator' — the company owner, authorized directly.
+ *   - 'explicit-grant'        — a manager/delegate granted the permission by the owner.
+ *
+ * Possession of the permission alone is never treated as proof of authority; the
+ * basis is recorded so the approval is traceable, without adding any approval
+ * step above the primary administrator.
+ */
+type ACTX = {
+  canOverride?: boolean;
+  userId?: string;
+  actorEmail?: string;
+  authorizationBasis?: 'primary-administrator' | 'explicit-grant';
+};
 
 @Injectable()
 export class DeliveryReleaseService {
@@ -371,6 +386,11 @@ export class DeliveryReleaseService {
             invoicesTotal: fin.invoicesTotal,
             invoicesPaid: fin.invoicesPaid,
             outstanding: fin.outstanding,
+            // DEC-116: who approved, and on what authority.
+            approverId: ctx.userId,
+            approverEmail: ctx.actorEmail,
+            authorizationBasis: ctx.authorizationBasis ?? 'explicit-grant',
+            decidedAt: new Date().toISOString(),
           },
         });
       }

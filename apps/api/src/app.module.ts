@@ -37,6 +37,10 @@ import { ConsigneesModule } from './modules/consignees/consignees.module';
 import { AgentsModule } from './modules/agents/agents.module';
 import { PermissionsGuard } from './common/auth/guards/permissions.guard';
 import { AppController } from './app.controller';
+// DEC-044..048 / DEC-116 — audit review surface. AuditService could always write
+// rows; until now nothing could read them back. The owner's confirmed decision
+// requires the primary administrator to be able to review audit records.
+import { AuditController } from './common/infrastructure/audit/audit.controller';
 import { StorageModule } from './common/infrastructure/storage/storage.module';
 import { AuditModule } from './common/infrastructure/audit/audit.module';
 import { NumberingModule } from './common/infrastructure/numbering/numbering.module';
@@ -89,7 +93,7 @@ import { DocumentTemplateModule } from './common/infrastructure/templates/docume
     AttachmentModule,
     DocumentTemplateModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, AuditController],
   providers: [
     // Secure-by-default: every handler requires a valid JWT unless @Public().
     { provide: APP_GUARD, useClass: JwtAuthGuard },

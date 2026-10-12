@@ -163,6 +163,58 @@ export class AuditService {
     return { items: items as AuditLogRecord[], total };
   }
 
+  /**
+   * DEC-044..048 / DEC-116 — filtered audit query.
+   *
+   * Exists so that the primary administrator (who is explicitly required to be
+   * able to "review relevant audit records") and any user holding `audit:read`
+   * can actually browse the audit trail. Without this the service could write
+   * audit rows but nothing could read them back.
+   *
+   * Read-only: the audit log is append-only (DEC-047/048). This method never
+   * mutates and never deletes.
+   */
+  async query(filters: {
+    action?: string;
+    entityType?: string;
+    entityId?: string;
+    actorId?: string;
+    from?: Date;
+    to?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<AuditResult> {
+    const limit = Math.min(Math.max(filters.limit ?? 100, 1), 500);
+    const offset = Math.max(filters.offset ?? 0, 0);
+
+    const where: Prisma.AuditLogWhereInput = {
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.entityType ? { entityType: filters.entityType } : {}),
+      ...(filters.entityId ? { entityId: filters.entityId } : {}),
+      ...(filters.actorId ? { actorId: filters.actorId } : {}),
+      ...(filters.from || filters.to
+        ? {
+            timestamp: {
+              ...(filters.from ? { gte: filters.from } : {}),
+              ...(filters.to ? { lte: filters.to } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return { items: items as AuditLogRecord[], total };
+  }
+
   async byTimeRange(
     start: Date,
     end: Date,

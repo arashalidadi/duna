@@ -68,7 +68,13 @@ export class ReleaseOrderController {
     return this.service.createRelease(dto, {
       userId: user.id,
       actorEmail: user.email, // P4-U6: actor email for the audited override row
-      canOverride: user.permissions.includes('release:override'),
+      // DEC-116 — two layers. The permission is the capability; the primary
+      // administrator also qualifies by implicit full authority, so they can
+      // approve a release exception directly without holding the grant.
+      canOverride:
+        user.isPrimaryAdmin === true || user.permissions.includes('release:override'),
+      authorizationBasis:
+        user.isPrimaryAdmin === true ? 'primary-administrator' : 'explicit-grant',
     });
   }
 
