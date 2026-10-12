@@ -111,7 +111,8 @@ client using shared types from `@shipping/shared`.
 > - **NOT IMPLEMENTED** means no module directory exists under `apps/api/src/modules/`.
 >
 > Verified counts: **32 API modules**, **52 Prisma models**, **32 enums**, **35 web pages**,
-> **160 seeded permission codes** across **33 modules**.
+> **161 seeded permission codes** across **34 modules** (the `audit` module was added 2026-10-12
+> for DEC-044…048 / DEC-116 audit review).
 
 | Bounded context | Modules on disk | Current status |
 | --- | --- | --- |

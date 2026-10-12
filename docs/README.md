@@ -4,7 +4,7 @@
 supersedes nothing.
 
 Verified counts at the time of writing: **32 API modules · 52 Prisma models · 32 enums · 35 web pages ·
-160 seeded permission codes across 33 modules · 22 e2e suites (not executed)**.
+161 seeded permission codes across 34 modules · 22 e2e suites (not executed)**.
 
 ---
 
@@ -78,7 +78,7 @@ Recorded so they are not re-discovered. Full detail in
 | **E1** | A fabricated receipt-voucher number `DSR/26-190` propagated through 9 files. The real voucher is **No. 477**. | **Corrected 2026-10-11** in all 9 files; correction noted in place. |
 | **E2** | "62 models / 25 enums" | Actual **52 / 32** |
 | **E3** | "33 API modules" | Actual **32** |
-| **E4** | "105 permissions / 12 resources"; later "160 codes / 35 modules" | Actual **160 codes / 33 modules** (the "35" conflated 35 web pages with permission modules) |
+| **E4** | "105 permissions / 12 resources"; later "160 codes / 35 modules" | At correction time: **160 codes / 33 modules** (the "35" conflated 35 web pages with permission modules). **Current: 161 codes / 34 modules** — `audit:read` was added 2026-10-12 |
 | **E5** | Contradiction C-17 framed as a source conflict | Re-framed as a legacy defect; finding unchanged |
 | **E6** | `¶n` paragraph-index drift (720 paragraphs vs 725 cited) | Content complete; labels inconsistent |
 | **E7** | Self-reported "46 files, ~16,000 lines" | Actual **45 files / 11,536 lines** |

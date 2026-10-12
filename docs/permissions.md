@@ -13,10 +13,11 @@ RefreshToken    (userId, tokenHash, lookupKey, expiresAt, revokedAt, replacedByT
 
 Permission codes follow `module:action`. A role is **active** when `deletedAt IS NULL` (ADR-015).
 
-## Seeded permissions (160)
+## Seeded permissions (161)
 
 > **Verified 2026-10-11 (audit correction — AUD-020).** This heading previously read **"Seeded permissions (49)"**.
-> The verified figure from `prisma/seed.ts` is **160 distinct permission codes across 33 modules**
+> The verified figure from `prisma/seed.ts` is **161 distinct permission codes across 34 modules**
+> (re-verified 2026-10-12 after `audit:read` was added)
 > (no duplicates).
 >
 > **The table below is preserved as-is, but it is now a *subset*** — it lists the 13 modules that existed at
@@ -28,10 +29,11 @@ Permission codes follow `module:action`. A role is **active** when `deletedAt IS
 > `prisma/seed.ts`, so that script adds nothing new to the count.
 >
 > **Note on my own earlier error:** an interim audit note recorded "160 codes / 35 modules". The module
-> figure was wrong — it conflated the **35 web pages** with permission modules. The verified count is
-> **33 modules**. Corrections are recorded in `docs/duna-analysis/09-audit/README.md` §5.
+> figure was wrong — it conflated the **35 web pages** with permission modules. The verified count was
+> **33 modules** and is now **34** after the `audit` module was added (2026-10-12). Corrections are
+> recorded in `docs/duna-analysis/09-audit/README.md` §5.
 
-### Modules seeded as at Phase 2 (13 of 33) — historical subset
+### Modules seeded as at Phase 2 (13 of 34) — historical subset
 
 | Module     | Permissions                          |
 | ---------- | ------------------------------------ |

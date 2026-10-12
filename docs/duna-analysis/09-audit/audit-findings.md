@@ -44,7 +44,7 @@ approximate figures recorded in `05-current-project/` and `FINAL-REPORT.md` (see
 | API modules | **32** | `apps/api/src/modules/` |
 | e2e suites | **22** | `apps/api/src/**/*.e2e-spec.ts` |
 | Dashboard pages (route dirs) | 35 | `apps/web/src/app/[locale]/(dashboard)/` |
-| Seeded permission codes / modules | **160 / 33** | `prisma/seed.ts` — corrected 2026-10-11; an earlier note said 35, conflating 35 web pages with permission modules |
+| Seeded permission codes / modules | **161 / 34** | `prisma/seed.ts` — corrected 2026-10-11; an earlier note said 35, conflating 35 web pages with permission modules |
 | Nav sections | **10** | `apps/web/src/lib/navigation/nav.ts` (`NAV_SECTION_ORDER`) |
 
 ### 1.1 State machines as shipped (VERIFIED — the authoritative list)
