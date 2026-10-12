@@ -40,6 +40,7 @@ describe('Agent Portal (e2e)', () => {
   let agentBId = ''; // fixture Agent master linked to user B (portalAgentId)
   let portId = '';
   let voyageId = '';
+  let fixtureVesselId = ''; // Phase 1 fixture — removed in afterAll
   let manifestAId = '';
   let bookingAId = '';
   let bookingBId = '';
@@ -102,12 +103,20 @@ describe('Agent Portal (e2e)', () => {
     // Cutover DONE: manifests.agentId FKs the Agent master, so fixtures carry the
     // fixture AGENT ids; scoping assertions below pass through portalAgentId —
     // the legacy portalCustomerId leg has been removed (post-cutover follow-up).
+    // Own fixtures (Phase 1): this suite creates its own vessel and voyage, and removes
+    // them in afterAll. It must not depend on whatever voyage the demonstration seed
+    // happened to leave in the database — a required-seed-only database has none.
     const port = await prisma.port.findFirst({ select: { id: true } });
-    const voyage = await prisma.voyage.findFirst({ select: { id: true } });
     expect(port).not.toBeNull();
-    expect(voyage).not.toBeNull();
     portId = port!.id;
-    voyageId = voyage!.id;
+    const fxVessel = await prisma.vessel.create({
+      data: { code: `PFV-${tag}`, name: `Portal Fixture Vessel ${randomTag}`, flag: 'AE', vesselType: 'CONTAINER' },
+    });
+    fixtureVesselId = fxVessel.id;
+    const fxVoyage = await prisma.voyage.create({
+      data: { voyageNumber: `VOY-PF${tag}`, vesselId: fxVessel.id, originPortId: portId, destinationPortId: portId },
+    });
+    voyageId = fxVoyage.id;
     const mA = await prisma.manifest.create({
       data: {
         manifestNumber: `MAN-PF${tag}-A`,
@@ -156,6 +165,8 @@ describe('Agent Portal (e2e)', () => {
       await prisma.bookingRequest.deleteMany({ where: { customerId: { in: [customerAId, customerBId, customerCId] } } });
       await prisma.manifest.deleteMany({ where: { manifestNumber: { startsWith: `MAN-PF${tag}` } } });
       await prisma.agent.deleteMany({ where: { id: { in: [agentAId, agentBId].filter(Boolean) } } });
+      await prisma.voyage.deleteMany({ where: { id: { in: [voyageId].filter(Boolean) } } });
+      await prisma.vessel.deleteMany({ where: { id: { in: [fixtureVesselId].filter(Boolean) } } });
       const users = await prisma.user.findMany({
         where: { email: { contains: `-${randomTag}@shipping.local` } },
         select: { id: true },

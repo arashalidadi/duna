@@ -4,6 +4,8 @@
 knowledge-base corrections*. This is the **only** roadmap followed.
 **Verdict:** 🔶 **PARTIALLY COMPLETE** — documentation half complete and verified; implementation half not started.
 
+**Update 2026-10-12 (Phase 1 review, additive).** Status after the review: documentation corrections applied (seed-dependency inventory, traceability REQ-001 row, testing record, documented deviation D-NAV-01, Q-AUD-15 basis); **A2 verified** by search (every surviving `DSR` mention is a dated correction); **A3 runtime test PASSED** on a disposable DB (`pnpm test:seed-safety`); **A4 still requires the owner's server** (`pnpm test:e2e-baseline` on a disposable test DB). The sandbox run is recorded in [`e2e-sandbox-run-2026-10-12.md`](e2e-sandbox-run-2026-10-12.md): 22/22 suites and 403/403 tests on a fresh DB, through a sandbox-only WASM engine. The root `pnpm test` recursion bug was fixed. One pre-existing lint error remains (not in Phase 1 scope). The P0 backup and restore has **not** been verified. The rows above that read "0 of 22 executed" are superseded by this update.
+
 ---
 
 ## 1 · ⚠️ Two different "Phase 1"s — do not confuse them

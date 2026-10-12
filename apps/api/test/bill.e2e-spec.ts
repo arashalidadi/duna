@@ -1336,20 +1336,40 @@ describe('BillOfLading (e2e)', () => {
   });
 
   it('legacy-format numbers are immutable and coexist with the new format under the global unique index', async () => {
-    const list = await request(app.getHttpServer())
-      .get('/api/v1/bills?pageSize=100')
-      .set(auth(adminToken))
-      .expect(200);
-    const rows = list.body.data.data as Array<{ billNumber: string; destinationPortId: string | null }>;
-    const legacy = rows.filter((r) => /^BOL-\d{4}-\d{5}$/.test(r.billNumber));
-    const fresh = rows.filter((r) => /^BOL-.+-\d{4}-\d{5}$/.test(r.billNumber));
-    expect(legacy.length).toBeGreaterThanOrEqual(1); // the shipped BOL-2609-* bills survive untouched
-    expect(fresh.length).toBeGreaterThanOrEqual(1); // new-format numbers minted this suite
-    // both formats live in the same table => the @unique index accepted both (no violation)
-    // decision (c) evidence: every row carries its destination scope key
-    for (const r of rows) {
-      expect(r.destinationPortId).not.toBeNull();
+    // Phase 1 fixture: the BOL-YYMM-##### rows this test needs used to come from the opt-in
+    // demonstration seed. The test now creates its own legacy-format bill and checks the
+    // coexistence rule directly in the database, so list ordering or paging cannot hide rows.
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    let legacyId = '';
+    try {
+      const voyage = await prisma.voyage.findUnique({ where: { id: voyageId }, select: { destinationPortId: true } });
+      const suffix = String(10000 + Math.floor(Math.random() * 89999));
+      const legacy = await prisma.billOfLading.create({
+        data: {
+          billNumber: `BOL-2609-${suffix}`,
+          voyageId,
+          vesselName: 'Legacy-format fixture',
+          destinationPortId: voyage!.destinationPortId,
+          status: 'DRAFT',
+        },
+      });
+      legacyId = legacy.id;
+      const rows = await prisma.billOfLading.findMany({ select: { billNumber: true, destinationPortId: true } });
+      const legacyRows = rows.filter((r: { billNumber: string }) => /^BOL-\d{4}-\d{5}$/.test(r.billNumber));
+      const freshRows = rows.filter((r: { billNumber: string }) => /^BOL-.+-\d{4}-\d{5}$/.test(r.billNumber));
+      expect(legacyRows.length).toBeGreaterThanOrEqual(1); // the legacy-format fixture survives untouched
+      expect(freshRows.length).toBeGreaterThanOrEqual(1); // new-format numbers minted earlier in this suite
+      // both formats live in the same table => the @unique index accepted both (no violation)
+      // decision (c) evidence: every row carries its destination scope key
+      for (const r of rows as Array<{ destinationPortId: string | null }>) {
+        expect(r.destinationPortId).not.toBeNull();
+      }
+    } finally {
+      if (legacyId) await prisma.billOfLading.deleteMany({ where: { id: legacyId } });
+      await prisma.$disconnect();
     }
+
     // one more create alongside both formats
     const extra = await request(app.getHttpServer())
       .post('/api/v1/bills')
@@ -1359,30 +1379,61 @@ describe('BillOfLading (e2e)', () => {
     createdStandaloneBills.push({ id: extra.body.data.id });
     expect(extra.body.data.billNumber).toMatch(/^BOL-.+-\d{4}-\d{5}$/);
   });
-
   // ---------------------------------------------------------------------------
   // P4-U4 — lifecycle (roadmap Tests 4 part 1, Acceptance 4 part 1 lifecycle half):
   // backfill, the ADR-046 four-state edge set, the issue alias, and the inert
   // APPROVED -> RELEASED edge (no endpoint until U6: bill:release + AuditLog).
   // ---------------------------------------------------------------------------
 
-  it('backfill: no ISSUED rows remain; the live legacy bills carry APPROVED (ADR-046 ruling 1)', async () => {
-    const list = await request(app.getHttpServer())
-      .get('/api/v1/bills?pageSize=100')
-      .set(auth(adminToken))
-      .expect(200);
-    const rows = list.body.data.data as Array<{ billNumber: string; status: string }>;
-    // the ISSUED -> APPROVED UPDATE ran with the migration and is idempotent
-    expect(rows.filter((b) => b.status === 'ISSUED')).toHaveLength(0);
-    const byNumber = (n: string) => rows.find((b) => b.billNumber === n);
-    // the two shipped legacy-issued bills were backfilled...
-    expect(byNumber('BOL-2609-00001')?.status).toBe('APPROVED');
-    expect(byNumber('BOL-2609-00002')?.status).toBe('APPROVED');
-    // ...while DRAFT is untouched (backfill touches ISSUED only)
-    expect(byNumber('BOL-2609-00003')?.status).toBe('DRAFT');
-    const statuses = new Set(rows.map((b) => b.status));
-    for (const s of statuses) {
-      expect(['DRAFT', 'FINAL', 'APPROVED', 'RELEASED', 'CANCELLED']).toContain(s);
+  it('backfill: legacy ISSUED rows map to APPROVED, DRAFT is untouched (ADR-046 ruling 1; migration 20261004000001)', async () => {
+    // Phase 1 fixture — this test no longer assumes the demonstration bills BOL-2609-0000x
+    // exist. It creates its own bills, forces the legacy ISSUED state (the API can no longer
+    // produce it), runs the migration's UPDATE scoped to those fixtures, and cleans up.
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const tag = Math.random().toString(36).slice(2, 8).toUpperCase();
+    let vesselId = '';
+    let voyageId = '';
+    const billIds: string[] = [];
+    try {
+      const [origin, destination] = await prisma.port.findMany({ orderBy: { code: 'asc' }, take: 2, select: { id: true } });
+      const vessel = await prisma.vessel.create({
+        data: { code: `BLB-${tag}`, name: `Bill Backfill Fixture ${tag}`, flag: 'AE', vesselType: 'CONTAINER' },
+      });
+      vesselId = vessel.id;
+      const voyage = await prisma.voyage.create({
+        data: { voyageNumber: `VOY-BLB${tag}`, vesselId, originPortId: origin.id, destinationPortId: destination.id },
+      });
+      voyageId = voyage.id;
+      const legacyIssued = await prisma.billOfLading.create({
+        data: { billNumber: `BLB-${tag}-1`, voyageId, vesselName: `Bill Backfill Fixture ${tag}`, status: 'ISSUED' },
+      });
+      const draft = await prisma.billOfLading.create({
+        data: { billNumber: `BLB-${tag}-2`, voyageId, vesselName: `Bill Backfill Fixture ${tag}`, status: 'DRAFT' },
+      });
+      billIds.push(legacyIssued.id, draft.id);
+
+      // The migration's statement, identical except scoped to this fixture's ids.
+      const backfill = () =>
+        prisma.$executeRaw`UPDATE "bills_of_lading" SET "status" = 'APPROVED'
+          WHERE "status" = 'ISSUED' AND "id" IN (${legacyIssued.id}, ${draft.id})`;
+      expect(await backfill()).toBe(1);
+
+      const after = await prisma.billOfLading.findMany({
+        where: { id: { in: billIds } },
+        select: { id: true, status: true },
+      });
+      const byId = (id: string) => after.find((b: { id: string }) => b.id === id)?.status;
+      expect(byId(legacyIssued.id)).toBe('APPROVED');
+      expect(byId(draft.id)).toBe('DRAFT');
+
+      // idempotent: a re-run matches nothing
+      expect(await backfill()).toBe(0);
+    } finally {
+      if (billIds.length) await prisma.billOfLading.deleteMany({ where: { id: { in: billIds } } });
+      if (voyageId) await prisma.voyage.deleteMany({ where: { id: voyageId } });
+      if (vesselId) await prisma.vessel.deleteMany({ where: { id: vesselId } });
+      await prisma.$disconnect();
     }
   });
 

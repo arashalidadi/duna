@@ -819,26 +819,56 @@ describe('Voyage (e2e)', () => {
     );
   });
 
-  it('backfill regression: pre-existing voyages have exactly 1 leg mirroring the parent number', async () => {
+  it('backfill regression: a pre-migration voyage gets exactly 1 leg mirroring its number (migration 20260929164932, step 4)', async () => {
+    // Phase 1 fixture — this test no longer assumes legacy voyages exist. It builds the
+    // PRE-MIGRATION state (a voyage with no VoyageDestination row), runs the migration's
+    // own backfill INSERT scoped to that voyage, then checks the result and idempotency.
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient();
+    const tag = Math.random().toString(36).slice(2, 8).toUpperCase();
+    let vesselId = '';
+    let voyageId = '';
     try {
-      // voyages that existed before this task (legNumber=1 rows created by the
-      // migration backfill) must mirror their parent voyageNumber.
-      const legacy = await prisma.voyage.findMany({
-        where: { voyageNumber: { startsWith: 'VOY-24' } }, // seeded/backfilled era
-        select: {
-          voyageNumber: true,
-          legs: { where: { deletedAt: null }, select: { legNumber: true, voyageNumber: true } },
+      const [origin, destination] = await prisma.port.findMany({ orderBy: { code: 'asc' }, take: 2, select: { id: true } });
+      const vessel = await prisma.vessel.create({
+        data: { code: `BKF-${tag}`, name: `Backfill Fixture ${tag}`, flag: 'AE', vesselType: 'CONTAINER' },
+      });
+      vesselId = vessel.id;
+      const voyage = await prisma.voyage.create({
+        data: {
+          voyageNumber: `VOY-BKF${tag}`,
+          vesselId,
+          originPortId: origin.id,
+          destinationPortId: destination.id,
         },
       });
-      expect(legacy.length).toBeGreaterThan(0);
-      for (const voyage of legacy) {
-        expect(voyage.legs).toHaveLength(1);
-        expect(voyage.legs[0].legNumber).toBe(1);
-        expect(voyage.legs[0].voyageNumber).toBe(voyage.voyageNumber);
-      }
+      voyageId = voyage.id;
+      expect(await prisma.voyageDestination.count({ where: { voyageId } })).toBe(0);
+
+      // The migration's backfill statement, identical except scoped to this fixture voyage.
+      const backfill = () =>
+        prisma.$executeRaw`
+          INSERT INTO "VoyageDestination"
+            ("id", "voyageId", "destinationPortId", "legNumber", "voyageNumber", "createdAt", "updatedAt")
+          SELECT replace(gen_random_uuid()::text, '-', ''), v."id", v."destinationPortId", 1, v."voyageNumber", NOW(), NOW()
+          FROM "Voyage" v
+          WHERE v."id" = ${voyageId}
+            AND NOT EXISTS (SELECT 1 FROM "VoyageDestination" vd WHERE vd."voyageId" = v."id")`;
+
+      expect(await backfill()).toBe(1);
+      const legs = await prisma.voyageDestination.findMany({ where: { voyageId } });
+      expect(legs).toHaveLength(1);
+      expect(legs[0].legNumber).toBe(1);
+      expect(legs[0].voyageNumber).toBe(voyage.voyageNumber);
+
+      // idempotent: a second run inserts nothing
+      expect(await backfill()).toBe(0);
     } finally {
+      if (voyageId) {
+        await prisma.voyageDestination.deleteMany({ where: { voyageId } });
+        await prisma.voyage.deleteMany({ where: { id: voyageId } });
+      }
+      if (vesselId) await prisma.vessel.deleteMany({ where: { id: vesselId } });
       await prisma.$disconnect();
     }
   });

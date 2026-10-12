@@ -1,5 +1,13 @@
 # Requirements Traceability Matrix
 
+> **Correction (2026-10-12, Phase 1 review — additive; the original row is retained as recorded).**
+> The REQ-001 row's *Current* value "❌ flat menu" is **contradicted by the source**. The dashboard
+> sidebar renders each navigation section as a collapsible accordion
+> (`apps/web/src/components/layout/sidebar.tsx`, `NavGroup`, with `aria-expanded` and a `titleKey`).
+> The true gap is different: the sidebar has **10** top-level sections where REQ-001 requires **6**
+> (39 items in total). The status 🟡 Phase 9 is unchanged. The discrepancy is recorded in
+> [`documented-deviations.md`](../09-audit/documented-deviations.md) as D-NAV-01.
+
 > Every `REQ-*` requirement traced across all four evidence layers:
 > **employer statement → real documents → legacy system → current system**.
 >

@@ -509,6 +509,7 @@ These are settled and are **not** questions:
 - **Test coverage** — the real figure must be measured, not asserted.
 - **Notifications** — configurable thresholds confirmed.
 - **Six-vs-ten navigation** — discrepancy **preserved**, not resolved.
+  - *Update 2026-10-12 (additive):* reclassified as a **documented deviation**, D-NAV-01 in [`documented-deviations.md`](documented-deviations.md), as required by Q-AUD-15 in `question-reconciliation.md`. No navigation was deleted. Q-AUD-15 wrongly lists `accessControl` among the extra sections; see D-NAV-01.
 - **Agent portal** — agents only; not customers.
 - **Voyage cost categories** — not the legacy columns.
 - **Job definition** — a job is not a B/L, voyage, manifest, invoice or payment.

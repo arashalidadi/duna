@@ -180,7 +180,7 @@ Manifest       DSMAN/<DEST>-<yy>-<seq3>   e.g. DSMAN/KHO-26-006
 Invoice        DSINV/<yy>-<seq3>    e.g. DSINV/26-172
 Proforma       DSPRO/<yy>-<seq3>    e.g. DSPRO/26-001
 Quotation      DSQUO/<yy>-<seq3>    e.g. DSQUO/25-017
-Receipt        plain sequential number        e.g. 477      (CORRECTED — was DSR/<yy>-<seq3>, fabricated)
+Receipt        plain sequential number        e.g. 477      (CORRECTED 2026-10-11 — was DSR/<yy>-<seq3>, fabricated)
 Balance        Debit − Credit
 Invoice maths  lineAmount = unit×qty × (1 + vat%) · Sub Total = Σ lineAmount · Total = Sub Total
 Release        "no money, no cargo" — B/L releases only when its invoices are fully paid

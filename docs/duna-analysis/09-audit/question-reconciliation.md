@@ -206,6 +206,8 @@ Every item records: (1) ID and original meaning · (2) original concern · (3) e
 9. **REQ/phase.** REQ-198, AUD-014/022 · **P0/P1**.
 10. **Status.** `IMPLEMENTATION PENDING`.
 
+**Update 2026-10-12 (Phase 1 review, additive).** On 2026-10-12 the 22 API e2e suites were executed in a sandbox against a fresh, disposable database with only the required seed: **22/22 suites and 403/403 tests passed**, and a second run on the same database also passed. This used a sandbox-only WASM Prisma engine and a test-only Jest mapping, not the production native engine, so it is evidence about the code under that harness. The native-engine baseline on the owner's server is still pending (acceptance A4). See [`e2e-sandbox-run-2026-10-12.md`](e2e-sandbox-run-2026-10-12.md).
+
 ### Q-AUD-12 · Load list: 3 states or 6?
 1. **Meaning.** How many states do Load List / Actual Loading have?
 2. **Concern.** ADR-041 says 3; the enum has 6.
@@ -241,6 +243,7 @@ Every item records: (1) ID and original meaning · (2) original concern · (3) e
 8. **Remaining work.** P1 — document the deviation; remove the stale entry.
 9. **REQ/phase.** REQ-001, AUD-021 · **P1**.
 10. **Status.** `RESOLVED (DESIGN DECISION)`.
+    *Update 2026-10-12 (additive):* the reclassification required by item 6 is recorded as documented deviation **D-NAV-01** (`documented-deviations.md`). Item 3 is corrected: `accessControl` is one of the six required sections and is not an extra section. Item 4's basis is recorded only for four of the six extra sections.
 
 ### Q-AUD-16 · Portal: customers too?
 1. **Meaning.** Should customers get portal logins?

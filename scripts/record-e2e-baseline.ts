@@ -5,7 +5,7 @@
  * unverified `403/403`" (`initial-roadmap.md:74`), and P1's acceptance requires
  * "test status unchanged from the P0 baseline". Neither figure could be produced
  * in the build environment — the Prisma query engine cannot be downloaded there,
- * so 0 of the 22 suites have ever executed. This script produces the figure on a
+ * so 0 of the 22 suites have ever executed. [Update 2026-10-12: all 22 were executed in a sandbox through a sandbox-only WASM engine, 403/403 — see docs/duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md. The owner's server figure is still required.] This script produces the figure on a
  * machine that has a working database.
  *
  * Run:  pnpm test:e2e-baseline
@@ -96,6 +96,20 @@ console.log(output.trim().split('\n').slice(-40).join('\n'));
 
 const summary = parseJest(output);
 const exitCode = result.status ?? -1;
+
+// A baseline is a measurement of tests that actually ran. If Jest executed zero tests
+// (suites failed at load — unbuilt workspace packages, missing env, unreachable DB),
+// there is nothing to measure: write nothing and fail, rather than record "22 failed"
+// as if it were a result.
+const testsExecuted = Number(/(\d+)\s+total/.exec(summary.tests)?.[1] ?? 0);
+if (testsExecuted === 0) {
+  console.error(
+    `\nNO BASELINE RECORDED — no test was executed (Jest: suites "${summary.suites}", tests "${summary.tests}").\n` +
+      'Read the errors above. The usual causes are: workspace packages not built (run `pnpm build`),\n' +
+      'a missing environment variable, or an unreachable DATABASE_URL. Nothing was written to docs/.'
+  );
+  process.exit(3);
+}
 
 const verdict =
   exitCode === 0

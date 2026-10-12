@@ -65,6 +65,8 @@ No other test failed. No test is reported as passing that did not run.
 | **Browser / UI verification** | No browser and no reachable deployment. `dashboard.3ree.eu.cc` resolves but is blocked by the build environment's egress allow-list, which permits only GitHub and the package registries. | ⚠️ Manual — see §5 |
 | **`prisma migrate` / seed idempotency in this environment** | Prisma CLI cannot start without its engine. | ✅ Covered by §4 |
 
+> **Correction 2026-10-12 (additive).** The row above that reads "0 of 22 have ever executed here" is superseded. All 22 suites **did** execute in the sandbox on a fresh database, through a sandbox-only WASM engine: 22/22 suites and 403/403 tests, twice (see [`e2e-sandbox-run-2026-10-12.md`](e2e-sandbox-run-2026-10-12.md)). The native engine is still unavailable here (`binaries.prisma.sh` returned no response on 2026-10-12), so the server-side baseline (§4.2) is still required.
+
 ### The engine blocker was investigated, not assumed
 
 Before accepting this limitation, alternative routes to run the real seed offline
@@ -159,6 +161,8 @@ It writes `docs/duna-analysis/09-audit/e2e-baseline-<date>.md` containing the
 date, command, database, suite/test counts and the failing-suite list. Commit that
 file — it is the baseline A4 refers to.
 
+> **Correction 2026-10-12 (additive).** (1) The recorder writes this file whenever Jest executes at least one test, **including when some tests fail**. Commit only a run you intend to keep as the baseline. (2) The suites leave `AuditLog`, `RefreshToken` and `NumberingSequence` rows behind (measured in the sandbox), so use only a disposable test database. (3) Before the 2026-10-12 review, root `pnpm test` never completed: the script called itself recursively. This is fixed in `package.json`; see §7.
+
 If it exits 2, a prerequisite is missing. If Jest reports no summary, the suites
 failed at load (almost always a missing `.env` variable) — the script says so
 rather than recording a figure.
@@ -191,3 +195,26 @@ dead duplicate nav entry and nothing else. No route, page or permission changed.
 | **Second dead nav entry: `jobs`** | `nav.ts` has a `planned` "Job costing" entry sharing the `jobs` key with the implemented `/jobs` register, so `sidebar.tsx` suppresses it — the same defect class as the removed Agent portal entry. | The roadmap's Phase 1 task names **only** the Agent portal entry. Removing this one is a product decision (it may be intended as a marker for a future Job Costing screen). Reported by `check-navigation.mjs` as a **known finding**, not silently ignored. One line to remove on your instruction. |
 | **`discharge` vs `discharges`** | `nav.ts` has a `planned` "Discharge operations" entry (`discharge`) alongside the implemented "Record unloading at destination" (`discharges`). These are *different* keys, so **both render** — the planned one appears as a "soon" item. | Not obviously a defect: it may be an intentional marker for a richer planned screen. Flagged for the owner; out of Phase 1 scope. |
 | **REQ-001 six-vs-ten sections** | The sidebar does not have the employer's six top-level sections. Recorded as a documented deviation. | Deferred to Phase 9 by the roadmap (`requirements-traceability.md:134`). |
+
+
+> **Correction 2026-10-12 (additive).** The statement "Deferred to Phase 9 by the roadmap" is **wrong**: `initial-roadmap.md` does not mention REQ-001. The 🟡 Phase 9 status is recorded at `requirements-traceability.md` line 134. The deviation is now documented as D-NAV-01 in [`documented-deviations.md`](documented-deviations.md).
+
+---
+
+## 7 · Phase 1 review — corrections and results (2026-10-12, additive)
+
+**Corrections to this file's earlier content**
+
+- §3, the "0 of 22 have ever executed here" statement is superseded (see the note under the §3 table).
+- §6, "Deferred to Phase 9 by the roadmap" is wrong (see the note under §6).
+- §5 / §3, `dashboard.3ree.eu.cc`: **re-checked 2026-10-12**. DNS resolves; an HTTPS request from the sandbox returned no response. The statement that the build environment's egress allow-list blocks it is consistent with the sandbox's documented restriction. It was not separately verified.
+- §4.2 prerequisites: the repo-root `.env` requirement is **confirmed** (`apps/api/test/setup-env.ts` loads `../../.env` through dotenv).
+
+**Results** — the full record is [`e2e-sandbox-run-2026-10-12.md`](e2e-sandbox-run-2026-10-12.md).
+
+| Bucket | Items |
+| --- | --- |
+| **Executed and passed** | 22/22 API e2e suites and 403/403 tests (fresh DB, required seed only), again on a second run of the same DB; seed-safety runtime test (exit 0); `packages/config` 10/10; web guards (contract, navigation, page-size, i18n); root `pnpm typecheck` (4 projects) |
+| **Executed and failed — resolved** | 17 data-dependency failures in `portal`, `bill`, `voyage` (fixed by per-suite fixtures); root `pnpm test`/`typecheck`/`lint` recursion (fixed by `pnpm -r run`); recorder zero-test and invalid-artifact cases (guard added; invalid artifacts deleted) |
+| **Executed and failed — not resolved** | Root `pnpm lint`: 1 pre-existing `prefer-const` error in `apps/api/src/modules/voyages/voyages.service.ts:333`, unchanged since the base commit; 34 warnings. Root `pnpm test` API part: native engine unavailable here. |
+| **Not executed — reason** | Server baseline (A4), server seed-safety (A3, server copy), P0 backup and restore, native-engine API run, browser/UI checks. See `e2e-sandbox-run-2026-10-12.md` §6 and the owner steps in `phase-1-deployment-runbook.md`. |

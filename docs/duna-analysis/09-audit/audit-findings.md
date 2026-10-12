@@ -935,6 +935,8 @@ that one is unambiguous.
 - **`node_modules`, PostgreSQL and `.env` are all absent**, so no suite was run. The "403/403 green" figure is
   DOCUMENTED in `docs/current-plan/11-implementation-state.md` and **UNVERIFIED** here.
 
+**Update 2026-10-12 (Phase 1 review, additive).** On 2026-10-12 the 22 API e2e suites were executed in a sandbox against a fresh, disposable database with only the required seed: **22/22 suites and 403/403 tests passed**, and a second run on the same database also passed. This used a sandbox-only WASM Prisma engine and a test-only Jest mapping, not the production native engine, so it is evidence about the code under that harness. The native-engine baseline on the owner's server is still pending (acceptance A4). See [`e2e-sandbox-run-2026-10-12.md`](e2e-sandbox-run-2026-10-12.md).
+
 **Proposed change.** Phase 0 of the roadmap is: install, configure, migrate, run the suite, and record the real
 number. Everything else is built on that. Add ledger and numbering e2e suites in the relevant phases.
 

@@ -1,5 +1,25 @@
 # Seed-dependency inventory
 
+> **Correction (2026-10-12, Phase 1 review — additive; the original text below is retained as recorded).**
+> The result in §2 — "Suites depending on **demonstration** rows: **0**" and "No suite depends on
+> demonstration data" — is **wrong**. Three suites did depend on demonstration rows, and an earlier
+> version of this inventory missed them:
+>
+> | Suite | Demonstration dependency found | Status after Phase 1 review |
+> | --- | --- | --- |
+> | `test/portal.e2e-spec.ts` | `beforeAll` took `prisma.voyage.findFirst()`; a fresh required-seed DB has no voyage, so 14 tests failed | Creates its own vessel `PFV-<tag>` and voyage `VOY-PF<tag>`; deletes them in `afterAll` |
+> | `test/bill.e2e-spec.ts` | Asserted on seeded `BOL-2609-00001` / `-00002`; the legacy-format test relied on the paged list | Creates its own fixture vessel, voyage and bills; the legacy-format assertion is now a direct DB check; cleans up in `finally` |
+> | `test/voyage.e2e-spec.ts` | Backfill test expected legacy `VOY-24*` voyages | Creates its own vessel and voyage, runs the migration step against that voyage only, cleans up in `finally` |
+>
+> Evidence: on a fresh DB with only the required seed, the pre-fix suites produced 17 failed tests
+> (`jest-full.log`, sandbox). After the fixes, all 22 suites pass on a fresh DB with only the required
+> seed, and again on a second run on the same DB (see `e2e-sandbox-run-2026-10-12.md`).
+>
+> Also corrected: `vessel.e2e-spec.ts` (the one suite the original text describes as fixed in commit
+> `6f09493`) is not the only one. The count of suites that depend on the **required** seed (admin and
+> permission catalogue) is still 22: all 22 suites reference the seeded admin account
+> (`SEED_ADMIN_EMAIL`, default `admin@shipping.local`, checked by grep 2026-10-12).
+
 **Created 2026-10-12** (Phase 1). This is the P0 deliverable *"the seed-dependency
 list is written down"* (`initial-roadmap.md:74`), which Phase 1 lists as its
 prerequisite. It was missing from the record until now.

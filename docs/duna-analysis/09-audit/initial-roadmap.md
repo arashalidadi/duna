@@ -3,6 +3,8 @@
 **Status:** Revised 2026-10-11. Supersedes the initial 11-phase version. **Documentation only — not yet approved,
 and it authorises no code change.**
 
+**Update 2026-10-12 (Phase 1 review, additive).** Phase 1 review completed in this sandbox, with server-only steps outstanding. See `phase-1-audit-2026-10-12.md` (update section), `documented-deviations.md` (D-NAV-01) and `e2e-sandbox-run-2026-10-12.md`. Still required from the owner's server: A4 baseline and A3 server copy (disposable test DB), and the P0 verified backup and restore. Phase 2 has not been started.
+
 **Authority:** derived from `confirmed-decisions.md` (DEC-001…DEC-114) and `question-reconciliation.md`. Where the
 initial roadmap and a confirmed decision conflict, the decision wins.
 

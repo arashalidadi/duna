@@ -5,6 +5,8 @@
 >
 > State as of **2026-10-06**: Phase 5 unit 4 complete; **403/403** API tests green; 37 migrations up
 > to date.
+>
+> **Update 2026-10-12 (Phase 1 review, additive).** On 2026-10-12 the 22 API e2e suites were executed in a sandbox against a fresh, disposable database with only the required seed: **22/22 suites and 403/403 tests passed**, and a second run on the same database also passed. This used a sandbox-only WASM Prisma engine and a test-only Jest mapping, not the production native engine, so it is evidence about the code under that harness. The native-engine baseline on the owner's server is still pending (acceptance A4). See [`../09-audit/e2e-sandbox-run-2026-10-12.md`](../09-audit/e2e-sandbox-run-2026-10-12.md).
 
 ---
 
