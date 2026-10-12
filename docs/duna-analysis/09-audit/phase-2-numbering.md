@@ -97,7 +97,7 @@ Not run:
 Nothing has been run on the server or against any real database. In order:
 
 1. Pull `arena/be9b4e5b-duna`. Run `pnpm install` if dependencies changed.
-2. Run `prisma generate` for the API. The schema has a new field, `numberingVesselId`.
+2. Regenerate the Prisma Client from the repository root with `pnpm db:generate`. The schema has a new field, `numberingVesselId`. Do not run `prisma generate` inside `apps/api`: the CLI cannot find the schema there and fails with "Could not find Prisma Schema". See the correction below.
 3. **Review, then run `prisma migrate deploy` for `20261013000000_voyage_leg_vessel_scope`.**
    - Effects: adds `numberingVesselId`, backfills it from `Voyage.vesselId`, sets NOT NULL, adds the FK, and swaps the unique index on `VoyageDestination`. Additive. No rows are deleted, and existing leg numbers are kept.
    - The migration depends on `Voyage.vesselId` being non-null for every voyage that has legs. Check this on the server before deploying.
@@ -132,3 +132,24 @@ These cannot be inferred safely from the code or documents. None of them blocks 
 - `quotation.service.ts` unused `created` (pre-existing warning, HEAD line 277).
 - Voucher module `any` warnings (pre-existing, HEAD).
 - The Prettier failures in changed files already exist at HEAD.
+
+## 8. Correction 2026-10-13: `numberingVesselId` TypeScript errors after pull
+
+**Reported:** owner's server type check gave `TS2353` at `apps/api/src/modules/voyages/voyages.service.ts` lines 285 and 672. `numberingVesselId` was reported as missing from the `VoyageDestination` where and create types.
+
+**Root cause: stale generated Prisma Client, not missing code.** The schema, migration `20261013000000_voyage_leg_vessel_scope`, and service are consistent at `d558d06`. `@prisma/client` resolves to one version (5.22.0) in `pnpm-lock.yaml`. Before generation, the `.prisma/client` types came from the pre-Phase-2 schema, which has no `numberingVesselId`.
+
+**Reproduced locally (sandbox, type generation only):**
+- Client generated from `66aa7ec:prisma/schema.prisma`, then `tsc --noEmit -p tsconfig.json` in `apps/api`: exactly two errors, `voyages.service.ts(285,9)` and `(672,13)`, both `numberingVesselId` not in type.
+- Client generated from the current `prisma/schema.prisma`: `tsc` exit 0, zero errors. No code change was needed.
+
+**Fix (owner server):** regenerate the client from the repository root, then type-check:
+```
+pnpm db:generate
+pnpm --filter ./apps/api run typecheck
+```
+`typecheck` does not regenerate the client, so a type check run straight after a pull reads the old client. Run `pnpm db:generate` after every pull that changes `prisma/schema.prisma`.
+
+**Also needed for the API type check:** the `@shipping/config` and `@shipping/shared` packages must be built. Otherwise `tsc` reports `TS2307: Cannot find module '@shipping/shared'`. Run `pnpm --filter @shipping/config --filter @shipping/shared run build` first. This does not change the database.
+
+**Scope:** no code, schema, or migration change. Vessel-scoped leg numbering is unchanged. This note does not change any database.
