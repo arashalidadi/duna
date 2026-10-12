@@ -101,6 +101,7 @@ The seven documents match the source-pack inventory exactly:
 | **Company output templates absent** (REQ-125) | Affects **template fidelity and validation in P8 only**. Does not block specification or any other phase (DEC-098). |
 | **Legal/accounting retention periods absent** | Affects configuration of retention (P12), not the design. Not inventible. |
 | **ETOZ / ETDZ undefined** | Recorded as requiring evidence (DEC-072). Not invented. |
+| **Manifest filename discrepancy** | The owner's written reference is `AN-MEHDI 11 KHO-26-006.pdf`; the file on disk is **`MAN-MEHDI 11 KHO-26-006.pdf`** (leading `M`). Treated as an unconfirmed **transcription truncation**, **not** as a different document. **No file has been renamed, moved or substituted on the basis of an assumption.** The `MAN-` form is used consistently across `duna_source_pack.md`, `document-catalog.md`, `source-inventory.md` and this README. See change-log row 19. |
 
 ---
 
@@ -261,6 +262,15 @@ change.**
 | 17 | Added a **Risks** row to all 13 phases and a §5 revalidation record | `initial-roadmap.md` |
 | 18 | Reconciled the open-item register: the two documents each listed 12 items **but not the same 12**; merged to **15** | `open-questions.md`, `question-reconciliation.md` |
 
-**Not approved and not executed (gated in `doc-consolidation-proposal.md`):** D1 (four stale top-level docs),
-D2 (historical headers on `current-plan/09` and `ai-audit/07`), the residual six hits of D3, D4 (`docs/README.md`
-index), D5 (cross-reference open business decisions), D6 (traceability legend). No file has been deleted.
+| 19 | **Recorded the manifest filename discrepancy** (`AN-` in the owner's written reference vs `MAN-` on disk) as an unconfirmed transcription truncation. **No file renamed, moved or substituted** | `README.md` §3.1 |
+| 20 | Corrected the reconciliation classification: an earlier draft double-counted OQ-08 and made the totals unverifiable. Every OQ now appears **exactly once**; **6 + 3 + 4 + 2 = 15** | `question-reconciliation.md` (new Closure statement) |
+| 21 | Corrected **OQ-02** (premise was a misreading — `DSKHS-26-005` is on a different document and voyage, 0 occurrences in the Manifest), **OQ-08** (re-framed: samples and a rendering spec exist; only *editable source files* are absent), and **OQ-13** (all 4 sampled invoice lines are 0% VAT; 5% appears once as a spoken example) | `open-questions.md` |
+| 22 | Reclassified contradiction **C-02 from B (blocks implementation) to L (low)** after the premise correction; original text retained. Severity table updated: B 3 → 2, L 1 → 2 | `04-business-analysis/contradictions-register.md` |
+| 23 | Added **DEC-115…DEC-118** (§8 Owner decisions): customer codes, release-exception authority and the primary administrator, Rajaee/Bandar Abbas as one port, retention policy. Register total **114 → 118**. Added cross-refs from DEC-024, DEC-062, DEC-065, DEC-083 | `confirmed-decisions.md` |
+| 24 | Added §8 recording the **owner's stated position on R-01** (credentials of no importance; must not hold up progress) with explicit evidentiary limits. **R-01 remains 🔴 OPEN** | `SECURITY-INCIDENT-R01.md` |
+
+> **Correction to the note that previously ended this table.** An earlier draft listed D1–D6 as "not approved
+> and not executed". That was **stale and wrong**: D1, D2, D5 and D6 were applied (change-log row 14) and are
+> present in the working tree. The residual item is **D3** (fabricated `DSR` references — partially applied;
+> row 14 records 9 corrected) and the **consolidation/cleanup proposal** in `doc-consolidation-proposal.md`,
+> which remains **unapproved**. **No file has been deleted** at any point in this audit round.

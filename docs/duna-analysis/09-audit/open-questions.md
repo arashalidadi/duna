@@ -67,12 +67,21 @@ becomes self-evident and no question is needed.
 
 ### OQ-02 · Manifest numbering — two incompatible formats in one sample
 
-**Description.** The single manifest sample carries `DSMAN/KHO-26-006` (stamped on the page) **and**
-`DSKHS-26-005` (in the table). If the valid form is `DSMAN/<code>-<yy>-<seq>`, then `DSKHS-26-005` is
-malformed or legacy.
+> ⚠️ **PREMISE CORRECTED (2026-10-12) — this was a misreading, not a contradiction.**
+> `DSKHS-26-005` occurs **zero times** in the Manifest PDF. It is a field on the **Tax Invoice**
+> (`INV-GRAND CRANE ...0127-1.pdf`), which covers a **different voyage**: vessel **DAHAR 10**, B/L
+> `KHS/26-108`. The Manifest covers barge **MEHDI 11** with B/Ls `KHS/26-110`...`KHS/26-139`.
+> **Two documents, two voyages — there is no conflict within a single document.** Contradiction **C-02** and
+> its "unresolved" verdict rest on this error and have been updated in `contradictions-register.md`.
 
-**Why still open.** Two mutually exclusive readings of the same document. The conflict is recorded rather than
-resolved because picking the one that matches current code would be circular. Contradiction **C-02**.
+**Description.** ~~The single manifest sample carries `DSMAN/KHO-26-006` (stamped on the page) **and**
+`DSKHS-26-005` (in the table).~~ **Corrected:** the Manifest carries only `DSMAN/KHO-26-006`. `DSKHS-26-005`
+belongs to a different document (the Tax Invoice) and a different voyage.
+
+**Why still open.** ~~Two mutually exclusive readings of the same document.~~ **Corrected:** there is only one
+reading of the Manifest. The cross-document comparison was invalid. Contradiction **C-02** is therefore
+**weakened** — the "two manifest series in the evidence" reading is withdrawn; a residual "typo vs separate
+series" reading survives only for `DSKHS` itself, which is a single occurrence on an unrelated document.
 
 **Resolution type:** **OWNER**, supported by **EVIDENCE**.
 
@@ -89,6 +98,12 @@ entry. Two or three further manifests would settle it without a decision.
 ---
 
 ### OQ-03 · Customer code format — unresolved at source
+
+> ✅ **RESOLVED (2026-10-12) — by owner decision. Recorded as `DEC-115`.**
+> Customer codes are **administrator-configurable**; the code is **unique**; and when the configured format
+> changes, **existing codes are never silently or automatically rewritten**. No company-specific format is
+> invented. The item is now configuration data, not an open question.
+> *Blocking scope: none.*
 
 **Description.** Customer code autogeneration is confirmed. The exact pattern is stated nowhere, and the
 meaning of a trailing `01` seen in examples is unexplained.
@@ -156,6 +171,18 @@ configuration when answered.
 
 ### OQ-06 · Release exceptions — who may approve?
 
+> ✅ **RESOLVED (2026-10-12) — by owner decision. Recorded as `DEC-116`.**
+> The **primary administrator (the company owner)** may approve a release exception **directly**, with no
+> approval from any other user. A **manager or formally delegated representative** may approve one **only if
+> the primary administrator has explicitly granted the relevant permission**. Ordinary managers and
+> administrators **must not** inherit release-exception authority automatically.
+> Every exception records **who approved it, when, the related transaction, and the decision**.
+> *Provenance, not a second approval layer:* only the primary administrator may grant the permission, and every
+> grant/revocation is audited — so a permission check is never taken on its own as proof of authority, and no
+> authority is created above the owner.
+> *Blocking scope: none.* The hard constraint below remains in force as **design guidance**: fail closed where
+> no authorized approver or valid delegation is configured.
+
 **Description.** The requirement for an approval step on release exceptions (releasing cargo where payment is
 not complete) is **confirmed**. The **identity or role of the approver** is unstated.
 
@@ -209,8 +236,16 @@ formal definition, record them as informal shorthand and keep the literal string
 
 ### OQ-08 · Official document templates — not supplied
 
-**Description.** No official company templates exist in the repository or the source pack. The 7 sample PDFs
-are **produced output**, not reusable templates.
+> ⚠️ **RE-FRAMED (2026-10-12) — "missing templates" was overstated.**
+> The **official sample PDFs are present** and have been inspected: `MAN-MEHDI 11 KHO-26-006.pdf`,
+> `BL-1X D155A CH NO 8308-1.pdf` and five others. A rendering **specification** also exists in
+> `docs/duna-analysis/legacy-source/docs-summary.md`.
+> What is genuinely absent is the **editable template source files** (letterhead, stamp, signature images, and
+> the editable layout sources). That is a narrower gap than "templates not supplied".
+
+**Description.** ~~No official company templates exist in the repository or the source pack.~~ **Corrected:**
+official **sample outputs** and a rendering specification **do** exist; **editable template source files** do
+not. The 7 sample PDFs are **produced output**, not reusable templates.
 
 **Why still open.** The templates exist in the company but have never been provided. Source finding **SRC-07**
 / question **Q-AUD-06**.
@@ -242,6 +277,15 @@ authorised-signature images.
 ---
 
 ### OQ-09 · Bandar Abbas vs Bandar Rajaee — one port or two?
+
+> ✅ **RESOLVED (2026-10-12) — by owner decision. Recorded as `DEC-117`.**
+> **Bandar Abbas and Rajaee are two names for the same port**, not two ports. The system must support **one
+> canonical port record with alternative names/aliases** and an **administrable port list**.
+> Do **not** create two separate port records merely because both names occur in source documents. Preserve
+> historical references (DEC-066) and avoid destructive merges.
+> **This is a confirmed decision, not a conditional one.** Documentary evidence may still be recorded for data
+> **provenance**, but it does **not** reopen the decision and does **not** gate implementation.
+> *Blocking scope: none.*
 
 **Description.** `IRBND` unambiguously means Bandar Abbas. Whether Bandar Abbas and Bandar Rajaee are the same
 port under two names, or two distinct ports, is unresolved.
@@ -307,6 +351,14 @@ delete recommendation and record it as a technical decision rather than a busine
 
 ### OQ-12 · Sensitive-document retention — a compliance input
 
+> ✅ **RESOLVED AS POLICY (2026-10-12) — by owner decision. Recorded as `DEC-118`.**
+> The **policy** is confirmed: the design must support **configurable retention periods**, access restriction,
+> audit trails and secure deletion.
+> ⚠️ **The exact retention periods remain OUTSTANDING** as a **compliance/legal input**. They must **not** be
+> invented, assumed, or presented as company policy or as a legal requirement.
+> A pending input is **not** an open business decision.
+> *Blocking scope: none.*
+
 **Description.** The system will hold salary slips and identity documents for employees, crew and others. The
 **retention period** for these is unknown.
 
@@ -360,6 +412,11 @@ the owner acting on their advice. **Not** the implementation team.
 
 ### OQ-13 · Which services are taxable, and at what rates?
 
+> ⚠️ **CORRECTED (2026-10-12).** An earlier reading claimed the invoice sample showed "both 0% and 5% lines".
+> That is **wrong**. All **4** line items on the sampled Tax Invoice carry **0%** VAT (subtotal
+> AED 27,370.00). The **5%** figure occurs **once**, as a *spoken example* in the employer statements
+> (EMP-115); it is **not** evidenced on any invoice line.
+
 **Description.** Per-line VAT is **confirmed** (`DEC-100`…`DEC-104`). Which specific services are taxable, and
 the applicable rates, are **not** confirmed.
 
@@ -375,7 +432,10 @@ historical preservation) is built either way.
 taxability**. A wrong default would silently produce incorrect tax on real invoices.
 
 **Recommended next action.** Ask which services are taxable and at what rate. Confirm whether more than one
-rate applies (the invoice sample shows both 0% and 5% lines, so assume a **multi-rate** model).
+rate applies. ~~the invoice sample shows both 0% and 5% lines, so assume a **multi-rate** model~~
+**Corrected:** the sampled invoice shows **0% on all 4 lines**; 5% appears only as a spoken example
+(EMP-115). Keep a **multi-rate** model — that remains sound design — but do **not** cite the sample invoice as
+evidence for a 5% rate.
 
 **Best positioned to resolve:** **Business owner**, with the **company's accountant** confirming the tax
 treatment.
@@ -457,22 +517,26 @@ These are settled and are **not** questions:
 
 ## §3 · Consolidated dependency summary
 
-| Priority | ID | Item | Type | Blocks | Gate |
-|---|---|---|---|---|---|
-| **Higher** | OQ-06 | Release-exception approver | OWNER | CONFIG | Before release approval goes live |
-| **Higher** | OQ-12 | Sensitive-document retention | COMPLIANCE | PROD-ENABLE | Before production capture |
-| **Higher** | OQ-13 | Taxable services and rates | OWNER + COMPLIANCE | CONFIG | Before invoicing goes live |
-| Medium | OQ-08 | Official templates | EVIDENCE | PROD-ENABLE (fidelity) | Before output sign-off |
-| Medium | OQ-07 | ETOZ / ETDZ | OWNER | NONE | Any time |
-| Medium | OQ-15 | FX gain policy | COMPLIANCE + TECHNICAL | CONFIG | During P6 design |
-| Low | OQ-01 | B/L number format | OWNER + EVIDENCE | CONFIG | Before P2 seeding |
-| Low | OQ-02 | Manifest number conflict | OWNER + EVIDENCE | CONFIG | Before P2 seeding |
-| Low | OQ-03 | Customer code format | OWNER | CONFIG | Before P2 seeding |
-| Low | OQ-09 | Bandar Abbas vs Rajaee | OWNER + EVIDENCE | CONFIG | Before P10 constraint |
-| Low | OQ-14 | Complete port list | EVIDENCE | CONFIG | Before P10 constraint |
-| Low | OQ-04 | B/L number window | EVIDENCE | NONE | Opportunistic |
-| Low | OQ-11 | Cargo deletion policy | OWNER | NONE | Before P10 |
-| Low | OQ-10 | Jebel Ali English name | OWNER | NONE | Trivial / any time |
+| Priority | ID | Item | Type | Status | Blocks | Gate |
+|---|---|---|---|---|---|---|
+| **Higher** | OQ-13 | Taxable services and rates | OWNER + COMPLIANCE | Open | CONFIG | Before invoicing goes live |
+| Medium | OQ-08 | Editable template source files | EVIDENCE | Open | PROD-ENABLE (fidelity) | Before output sign-off |
+| Medium | OQ-07 | ETOZ / ETDZ | OWNER | Open | NONE | Any time |
+| Medium | OQ-15 | FX gain policy | COMPLIANCE + TECHNICAL | Open | CONFIG | During P6 design |
+| Low | OQ-01 | B/L number format | OWNER + EVIDENCE | Open | CONFIG | Before P2 seeding |
+| Low | OQ-14 | Complete port list | EVIDENCE | Open | CONFIG | Before P10 constraint |
+| Low | OQ-04 | B/L number window | EVIDENCE | Open | NONE | Opportunistic |
+| Low | OQ-11 | Cargo deletion policy | OWNER | Open | NONE | Before P10 |
+| Low | OQ-10 | Jebel Ali English name | OWNER | Open | NONE | Trivial / any time |
+| — | OQ-03 | Customer code format | OWNER | ✅ Resolved (DEC-115) | NONE | — |
+| — | OQ-06 | Release-exception approver | OWNER | ✅ Resolved (DEC-116) | NONE | — |
+| — | OQ-09 | Bandar Abbas vs Rajaee | OWNER | ✅ Resolved (DEC-117) | NONE | — |
+| — | OQ-12 | Sensitive-document retention | OWNER + COMPLIANCE | ✅ Policy resolved (DEC-118); periods pending | NONE | — |
+| — | OQ-02 | Manifest number "conflict" | EVIDENCE | ✅ Premise corrected (not a conflict) | NONE | — |
+| — | OQ-05 | Official B/L status labels | OWNER | ✅ Resolved by employer statements | NONE | — |
+
+**All 15 items (OQ-01…OQ-15) are accounted for above: 9 remain open as source/configuration inputs, 6 are
+resolved. None of the 15 is an unanswered business decision.**
 
 ---
 
@@ -482,17 +546,22 @@ These are settled and are **not** questions:
 
 - **Zero** items block at **PROGRAMME** level.
 - **Zero** items block a whole **PHASE**.
-- **Three** items (OQ-06, OQ-12, OQ-13) must be answered before their **specific area goes live** — and in all
-  three cases the mechanism can be built now and configured on answer.
-- **Two** items (OQ-08, OQ-12) are **production-enablement** gates: build and test proceed; production
-  activation waits.
-- The remaining ten are configuration detail, display strings, or deferred policy.
+- **Zero** items are unanswered **business decisions**. Following the owner decisions of 2026-10-12
+  (**DEC-115** customer codes, **DEC-116** release-exception authority and the primary administrator,
+  **DEC-117** Rajaee/Bandar Abbas as one port, **DEC-118** retention policy), no business decision remains open.
+- **One** item (OQ-13, taxable services and rates) must be answered before **invoicing goes live** — the
+  mechanism can be built now and configured on answer.
+- **One** item (OQ-08, editable template source files) is a **production-enablement** gate for output
+  fidelity: build and test proceed; production activation waits.
+- The remaining open items are configuration detail, display strings, or deferred policy.
 
 **Two hard constraints govern several of these items and must not be relaxed:**
 
-1. **Do not invent company approval authority** (OQ-06). Fail closed rather than defaulting to "anyone may
-   approve".
-2. **Do not invent legal retention periods** (OQ-12). Obtain them from the compliance owner.
+1. **Do not invent company approval authority** (OQ-06 — now settled by **DEC-116**). The primary
+   administrator approves directly; managers only on explicit grant. The fail-closed rule remains in force as
+   design guidance where no authorized approver or valid delegation is configured.
+2. **Do not invent legal retention periods** (OQ-12 — policy settled by **DEC-118**; periods still
+   outstanding). Obtain the exact periods from the compliance owner.
 
 Where a technical preference is genuinely available — OQ-11 (soft delete), OQ-15 (defer the policy) — it is
 offered as a **recommendation**, clearly marked as such, and never presented as confirmed company policy.

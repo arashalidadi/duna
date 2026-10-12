@@ -70,6 +70,27 @@ format is random and shares nothing with either.
 
 **Question:** is `DSKHS-26-005` the same series as `DSMAN/KHO-26-006`?
 
+> **Status update (2026-10-12) — premise corrected.** The original text above is **retained for history**; the
+> correction is recorded here.
+>
+> `DSKHS-26-005` occurs **zero times** in the Manifest PDF (`MAN-MEHDI 11 KHO-26-006.pdf`). It is a field on
+> the **Tax Invoice** (`INV-GRAND CRANE ...0127-1.pdf`), which covers a **different voyage**: vessel
+> **DAHAR 10**, B/L `KHS/26-108`. The Manifest covers barge **MEHDI 11** with B/Ls `KHS/26-110`...`KHS/26-139`.
+>
+> **Consequences:**
+> - The reading *"at least two manifest series in the evidence"* is **withdrawn**. There is only one manifest
+>   series evidenced (`DSMAN/<DEST>-<yy>-<seq3>`).
+> - The **"typo" reading is weakened but not eliminated**: `DSKHS-26-005` remains a single occurrence on an
+>   unrelated document and a different voyage, so it cannot be assumed to be a mistyped manifest number. It is
+>   now best classified as an **out-of-scope reference on another document**, not as a competing manifest
+>   series.
+> - **C-02 no longer blocks implementation.** The manifest format needed for P2 seeding is evidenced directly
+>   by the Manifest itself. C-02 is reclassified from **B — blocks implementation** to **L — low (data
+>   hygiene)**.
+>
+> *Verified by:* direct text-layer extraction from both PDFs; `DSKHS` returned 0 matches in the Manifest and
+> 1 match in the Tax Invoice. **No visual inspection was performed or claimed.**
+
 ---
 
 ### C-03 · Invoice number — **H**
@@ -373,10 +394,10 @@ against it. **Any conclusion here is provisional with respect to that missing so
 
 | Severity | Count | IDs |
 |---|---|---|
-| **B** — blocks implementation | 3 | C-01, C-02, C-08 |
+| **B** — blocks implementation | 3 → **2** | C-01, C-08 — **C-02 reclassified to L (2026-10-12)** |
 | **H** — high | 12 | C-03, C-05, C-09, C-11, C-13, C-15, C-16, C-17, C-18, C-22 |
 | **M** — medium | 8 → **7** | C-04, C-06, ~~C-07~~, C-10, C-12, C-14, C-19, C-21 — **C-07 withdrawn** |
-| **L** — low | 1 | C-20 |
+| **L** — low | 1 → **2** | C-20, **C-02** (reclassified from B, 2026-10-12) |
 
 ### 7.1 The pattern
 

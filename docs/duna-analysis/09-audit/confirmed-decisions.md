@@ -163,6 +163,7 @@ numbering independently for each document type: prefix, suffix, year/period comp
 scope (branch, destination, year or other configured dimension), reset rules where permitted, uniqueness
 constraints, and effective dates or configuration versions.
 *Class:* CONFIRMED DECISION. *Phase:* P2/P8.
+*Cross-ref:* **DEC-115** (§8) — owner confirmation on customer codes: configurable format, unique, existing codes never silently rewritten.
 *Implementation gap:* `NumberingSequence` exists and supports prefix/format/padding/period/scope, but only
 **3 of 14** document types use it (`bill`, `manifest`, `voyages`); 11 use hard-coded local generators (AUD-013).
 **No `NumberingSequence` rows are seeded** — the service creates them on first use.
@@ -402,6 +403,8 @@ releasing cargo. A B/L status alone must not be treated as a substitute for the 
 *Class:* CONFIRMED DECISION. *Phase:* P5.
 *Resolves:* Q-AUD-07. *Evidence:* EMP-685-690 — the release document records whether the customer *"paid in
 full, it's Paid"*, took it *"on credit — it's Unpaid"*, or made a *"Partial Payment"*.
+*Cross-ref:* **DEC-116** — who may approve an exceptional release (primary administrator directly; a manager or
+delegate only on explicit grant by the primary administrator).
 
 **DEC-063 — Workflow flexibility must not bypass controls.** Workflow configuration must not bypass required
 accounting, authorization, data-integrity or audit rules.
@@ -424,8 +427,15 @@ Bandar Abbas, Bushehr, Jebel Ali, Rajaee, Sohar, Dubai. Preserve documented code
 *Evidence:* EMP-264-266 establishes HAM = Hamriyah. KHS and RJS are evidenced by real B/L numbers
 (`KHS/26-110`) and by EMP-544/546 (`KHS`, `RJS` = Rajaee). Port names appear across transcripts: Hamriyah (28),
 Khorramshahr (33), Bandar Abbas (13), Bushehr (11), Jebel Ali (10), Rajaee (4), Sohar (2), Dubai (12).
-*Caution:* "Bandar Abbas" and "Rajaee" may refer to the same port complex (Bandar Abbas / Shahid Rajaee). **Not
-resolved by available evidence** — recorded as OPEN (see `open-questions.md`).
+*Correction (2026-10-12, per **DEC-117**):* the caution below is **superseded**. "Bandar Abbas" and "Rajaee" are
+**two names for the same port**, confirmed by the owner. See DEC-117 (§8).
+*Superseded caution:* ~~"Bandar Abbas" and "Rajaee" may refer to the same port complex (Bandar Abbas / Shahid
+Rajaee). Not resolved by available evidence — recorded as OPEN.~~
+*Consequence for the seed list above:* the list enumerates Bandar Abbas **and** Rajaee as separate entries. Per
+DEC-117 the corrected seed is **7 canonical ports** — Hamriyah, Khorramshahr, **Bandar Abbas**, Bushehr,
+Jebel Ali, Sohar, Dubai — with **Rajaee retained as an alias** of the canonical Bandar Abbas record, alongside
+the verified code **RJS**. The choice of canonical display name is a reversible configuration setting; both
+names remain usable, and **Rajaee must not be created as a second port record**.
 
 **DEC-066 — Historical port names are immutable.** Historical documents must retain the names and codes
 originally used; changing a port's current display name or status must not silently rewrite issued documents.
@@ -551,6 +561,8 @@ archive criteria, **subject to legal, accounting, security and dependency constr
 *Class:* CONFIRMED DECISION. *Phase:* P12. *Resolves:* Q-AUD-25.
 *Important:* no specific retention period is invented. Legal/accounting retention is a compliance input to be
 obtained, not assumed (see `open-questions.md`).
+*Cross-ref:* **DEC-118** (§8) — owner confirmation of the retention *policy* (configurable periods, access
+restriction, audit trails, secure deletion). The exact periods remain a pending compliance input, not a decision.
 
 **DEC-084 — Archived records remain visible.** Archived records must remain searchable or visible in relevant
 reports according to permissions.
@@ -730,6 +742,91 @@ rotation by the owner is required. Values are not reproduced anywhere in this do
 
 ---
 
+## 8 · Owner decisions (2026-10-12)
+
+This section records decisions the owner gave directly during the 2026-10-12 reconciliation. They are
+**confirmed owner decisions**, not proposals and not technical findings. Each resolves one open question from
+`open-questions.md` and reconciles the earlier design decisions named in its cross-references.
+
+**DEC-115 — Customer code configuration.** Customer codes are **administrator-configurable**; the format is
+chosen by configuration, not hard-coded. Codes are **unique**. When the configured format changes, **existing
+codes are never silently or automatically rewritten** — a format change applies to newly issued codes only.
+No company-specific format is invented or assumed by the implementation.
+*Class:* **CONFIRMED DECISION.** *Phase:* P2. *Cross-ref:* DEC-024…DEC-028, DEC-026 (issued numbers are never
+rewritten). *Resolves:* **OQ-03**.
+
+**DEC-116 — Release-exception approval authority and the primary administrator.**
+*Class:* **CONFIRMED DECISION (owner, 2026-10-12, final clarification).** *Phase:* P5/P9.
+*Cross-ref:* DEC-062, DEC-063. *Resolves:* **OQ-06**.
+
+*The primary administrator.* The company has **exactly one primary administrator: the owner of the company**.
+The primary administrator holds **full authority** within the Duna system; **no person or account is above
+them**, and they **require no approval from any other user** to exercise administrative authority or to approve
+operations. The primary administrator may: access and manage all system areas and operations; create, update,
+activate and deactivate manager and other user accounts; create and manage roles; assign or revoke permissions
+for each role and user; **assign release-exception approval permission to selected managers**; **approve
+release exceptions directly as owner**; manage company settings, document types, numbering, templates, ports
+and other configurable master data; and **review relevant audit records**.
+
+The primary administrator's authority is **implicit and not derived from role membership or permission rows**,
+so it cannot be lost through permission misconfiguration. The system must be able to identify the primary
+administrator unambiguously, and must prevent accidental removal of the last primary administrator.
+
+*Managers and other users.* Managers and other users receive **only the permissions assigned to them by the
+primary administrator**. Two managers may hold different permissions — one may be authorized to approve a
+release exception while another is not. Permissions must be **enforced on the server as well as in the user
+interface**.
+
+*Release exceptions.*
+- The **primary administrator** is authorized to approve a release exception **directly**, as owner. **No
+  approval from another user is required.**
+- A **manager or formally delegated representative** may approve a release exception **only if the primary
+  administrator has explicitly granted the relevant permission** to them.
+- **Ordinary managers and administrators must not automatically inherit** release-exception approval
+  authority. It is never granted by default and never by role inheritance.
+- Every exception must record **who approved it, when it happened, the related transaction, and the
+  decision**.
+
+*A permission check alone is not proof of authority.* The earlier concern — that possession of a permission
+does not by itself prove a person is an authorized manager — is satisfied by **provenance, not by a second
+approval layer**: the system permits **only the primary administrator** to grant the release-exception
+permission, and every grant and revocation is audited. The grant is therefore traceable to the owner without
+introducing any authority above the owner.
+
+*Audit records authority; it does not create hierarchy.* The audit trail **records actions**. It does **not**
+create an additional approval hierarchy above the primary administrator, and it never gates the primary
+administrator's own actions.
+
+**DEC-117 — Rajaee and Bandar Abbas are two names for the same port.** Bandar Abbas and Rajaee are **two names
+for the same port**, not two separate ports. The system must therefore support **one canonical port record with
+alternative names/aliases**, backed by an **administrable port list**.
+*Class:* **CONFIRMED DECISION (owner clarification, 2026-10-12).** *Phase:* P10.
+*Cross-ref:* DEC-064, DEC-065, DEC-066. *Resolves:* **OQ-09**.
+
+1. **One canonical record.** Do **not** create two separate port records merely because both names occur in
+   source documents.
+2. **Aliases.** The alternative name must be retained as an alias on the canonical record, per DEC-064.
+3. **No destructive merges.** Where separate records already exist, reconcile by alias/redirect rather than by
+   deleting or destructively merging records.
+4. **Historical references preserved.** Documents already issued retain the name originally used; per DEC-066,
+   historical port names are immutable and must not be silently rewritten.
+5. **Administrable.** The port list, canonical names and aliases are administrator-maintained.
+
+*Evidence note (provenance only, non-blocking).* Documentary confirmation of the relationship may still be
+recorded for data provenance. **It does not reopen this decision, and it does not gate implementation.** The
+business relationship is settled by owner clarification and is not awaiting further owner input.
+
+**DEC-118 — Sensitive-document retention policy.** Retention of sensitive identity documents, signatures and
+company assets is **policy-confirmed**: the design must support **configurable retention periods**, access
+restriction, audit trails and secure deletion.
+*Class:* **CONFIRMED DECISION** (policy), with **PENDING INPUT** (the exact periods).
+*Phase:* P4/P12. *Cross-ref:* DEC-083, DEC-086, DEC-091. *Resolves:* **OQ-12** (as policy).
+
+The **exact retention periods are not decided** and must **not** be invented, assumed, or presented as
+company policy or as a legal requirement. They remain a **compliance/legal input**, not an owner decision.
+
+---
+
 ## Summary counts
 
 | Group | Decisions |
@@ -755,11 +852,27 @@ rotation by the owner is required. Values are not reproduced anywhere in this do
 | Templates & output (5.19) | DEC-093…098 |
 | Documents & tax (§6) | DEC-099…105 |
 | Security (§7) | DEC-106…114 |
+| Owner decisions (§8) | DEC-115…118 |
 
-**Total: 114 confirmed decisions/requirements — the ID space is `DEC-001`…`DEC-114` with no gaps.** Every one is
+**Total: 118 confirmed decisions/requirements — the ID space is `DEC-001`…`DEC-118` with no gaps.** Every one is
 mapped to a roadmap phase in `initial-roadmap.md` and traceable from `question-reconciliation.md`.
 
-> **ID integrity note (2026-10-11).** An earlier draft of this file carried three cross-references to
-> `DEC-118`, `DEC-120` and `DEC-121`, which were never defined. They have been retargeted onto the real audit
-> decisions (`DEC-044`…`DEC-048`, `DEC-023`). **Any document citing a DEC number above 114 is citing a
-> non-existent decision.**
+> **ID integrity note (updated 2026-10-12).** An earlier draft of this file carried three cross-references to
+> `DEC-118`, `DEC-120` and `DEC-121`, which were never defined. They were retargeted onto the real audit
+> decisions (`DEC-044`…`DEC-048`, `DEC-023`).
+>
+> `DEC-118` is **now defined** (sensitive-document retention policy, §8), so that specific retargeting note is
+> superseded for `DEC-118` only. `DEC-120` and `DEC-121` remain undefined.
+>
+> **Any document citing a DEC number above 118, or citing `DEC-120`/`DEC-121`, is citing a non-existent
+> decision.**
+
+### Decision classes used in §8
+
+| Class | Meaning |
+| --- | --- |
+| CONFIRMED DECISION | Settled by the owner; implement as written. |
+| PENDING INPUT (on a confirmed decision) | The decision is confirmed; a named *input* (for example a retention period) is still outstanding. A pending input is **not** an open business decision. |
+
+No decision in this register is currently conditional. DEC-117 was recorded as conditional in an earlier draft
+and is **confirmed** by the owner clarification of 2026-10-12.

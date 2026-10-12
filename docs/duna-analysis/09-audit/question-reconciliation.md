@@ -523,3 +523,52 @@ Only these remain. Everything else is settled or is an implementation task.
 
 **Rows marked in bold were recovered from this table during reconciliation** — they were open in the master
 disposition but had been omitted from `open-questions.md`.
+
+---
+
+## Closure statement (2026-10-12)
+
+Following owner decisions on **OQ-03**, **OQ-06**, **OQ-09** and **OQ-12**, **no business-decision question
+remains unanswered** from the 15-item register.
+
+### Classification — every OQ appears exactly once (total 15)
+
+| Category | Count | OQ IDs |
+| --- | --- | --- |
+| A · Resolved by employer evidence (EMP statements / official documents) | 6 | OQ-01, OQ-02, OQ-05, OQ-07, OQ-10, OQ-13 |
+| B · Resolved by an existing confirmed decision (no new owner input) | 3 | OQ-11, OQ-14, OQ-15 |
+| C · Resolved by owner decision (2026-10-12) | 4 | OQ-03, OQ-06, OQ-09, OQ-12 |
+| D · Not a business decision (data/source item, no decision required) | 2 | OQ-04, OQ-08 |
+| **Total** | **15** | **OQ-01 … OQ-15, each exactly once** |
+
+**6 + 3 + 4 + 2 = 15.**
+
+> **Correction note (2026-10-12).** An earlier draft of this classification placed OQ-08 in a category with an
+> ambiguous parenthetical ("2 (OQ-02, 04, 08 → 3 incl. OQ-08)"), which made the arithmetic unverifiable and
+> made OQ-08 appear in more than one place. **Each OQ now belongs to exactly one category.** The totals above
+> are the authoritative counts.
+
+### Basis per category
+
+- **A — employer evidence.** Answered from the employer's own statements or from the official sample PDFs
+  (per-OQ evidence is recorded in `open-questions.md`).
+- **B — existing confirmed decision.** Settled by a pre-existing decision: DEC-049/050 (OQ-11),
+  DEC-064/065 (OQ-14), DEC-010 (OQ-15). No new owner input was required.
+- **C — owner decision.** Settled by owner decision on 2026-10-12 and recorded as DEC-115 (OQ-03),
+  DEC-116 (OQ-06), DEC-117 (OQ-09), DEC-118 (OQ-12).
+- **D — not a business decision.** No decision exists to be made: OQ-04 is a data anomaly in one sample;
+  OQ-08 is the absence of **editable template source files** (official samples and a rendering specification
+  are present).
+
+### Outstanding inputs — none of these is a business decision
+
+| Input | Type | Needed for | Blocking |
+| --- | --- | --- | --- |
+| Documentary confirmation of Rajaee ↔ Bandar Abbas | Data **provenance** (non-blocking, DEC-117) | Port record provenance | **No** — the decision is settled |
+| Retention periods for identity documents / salary slips | Compliance / legal (DEC-118) | Production enablement of sensitive capture only | No |
+| Editable template source files | Source | Visual-fidelity validation only (P8) | No |
+| Complete port list | Data entry | P10 constraint step | No |
+| Customer code format string | Configuration | P2 seeding | No |
+| Taxable services and VAT rates | Business configuration + tax compliance | P3 invoicing configuration | No |
+
+Phase P0 is **not** blocked by any open question.

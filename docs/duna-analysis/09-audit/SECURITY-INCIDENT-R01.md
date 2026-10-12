@@ -136,3 +136,39 @@ Recorded so nobody assumes they were overlooked:
 
 > ⚠️ **Do not treat this incident as closed on the basis that the credentials have not been committed *again*.**
 > It closes only when the exposed credentials have been rotated at their providers and confirmed revoked.
+
+---
+
+## 8 · Owner position on R-01 (recorded 2026-10-12, as stated)
+
+The repository owner has stated that **any credentials or other sensitive information contained in the legacy
+archive are of no importance to them**, and that this **must not hold up progress**.
+
+This section records that statement. It does **not** change the technical status of R-01, and it does not
+close the incident.
+
+### What the owner statement does and does not change
+
+| | Effect |
+| --- | --- |
+| Programme blocking | **Unchanged.** R-01 never blocked planning or P0 start. The owner statement confirms it should not delay delivery work. |
+| Technical exposure | **Unchanged.** The archive is tracked, committed, pushed and public. Rotation at the providers remains the only effective remedy. |
+| Incident status | **🔴 Still OPEN.** Owner preference about importance does not revoke a published credential. |
+| Documentation | **Unchanged.** No credential value is reproduced anywhere. |
+| Deletion / history rewrite | **Still not performed.** No authorization has been given to delete the archive or rewrite Git history. |
+
+### Evidentiary limits — stated plainly
+
+- The owner's position is recorded **as stated**. It is a statement about the owner's own priorities, not a
+  finding about the archive contents.
+- **No claim is made** about whether the exposed credentials remain valid, whether they have been used, or
+  whether any third party has accessed them. None of that has been verified, and it is not verifiable from
+  inside this repository.
+- **R-01 is kept separate** from the business-decision reconciliation and from P0 planning. It is not used to
+  reopen any settled business question, and no business question depends on it.
+
+### Remaining action
+
+Rotation by the owner, at the credential providers, remains the only effective remedy. Until that is done and
+confirmed, R-01 stays **OPEN** regardless of delivery progress elsewhere. The owner has been informed and has
+made their priority explicit; this section exists so the decision is auditable and is not re-litigated.
