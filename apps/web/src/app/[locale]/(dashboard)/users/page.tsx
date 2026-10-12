@@ -11,6 +11,7 @@ import { useTranslations } from 'next-intl';
 import type { PaginatedResult, RoleListItem, UserListItem } from '@shipping/shared';
 import { Users, Plus, KeyRound, Power, ShieldCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { fetchAllPages } from '@/lib/api/pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,9 @@ import { Pagination } from '@/components/ui/pagination';
 import { cn } from '@/lib/utils';
 
 const PAGE_SIZE = 25;
+
+/** Shape returned by `GET /customers`, used by the portal-customer picker. */
+type CustomerOption = { id: string; name: string; code: string };
 
 export default function UsersPage() {
   const uiLocale = useUiLocale();
@@ -58,7 +62,7 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [resetValue, setResetValue] = useState('');
   const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
-  const [customers, setCustomers] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [portalSel, setPortalSel] = useState('');
 
   const activeRoles = useMemo(() => roles.filter((r) => r.isActive !== false), [roles]);
@@ -69,22 +73,31 @@ export default function UsersPage() {
       setError(null);
       const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
       if (q) params.set('search', q);
+      // The user list is the only hard requirement of this screen, so it is
+      // fetched on its own and rendered as soon as it arrives. It used to be
+      // batched with the role and customer lists in a single Promise.all, which
+      // meant one unrelated failure — a 400 from the customer request — rejected
+      // the whole batch and left the Users table empty.
       try {
-        const [userData, roleData, customerData] = await Promise.all([
-          api.get<PaginatedResult<UserListItem>>(`/users?${params.toString()}`),
-          api.get<RoleListItem[]>('/roles/active'),
-          api.get<PaginatedResult<{ id: string; name: string; code: string }>>(
-            '/customers?pageSize=200'
-          ),
-        ]);
+        const userData = await api.get<PaginatedResult<UserListItem>>(
+          `/users?${params.toString()}`
+        );
         setData(userData);
-        setRoles(roleData);
-        setCustomers(customerData.data ?? []);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : ui('failedToLoadUsers'));
-      } finally {
         setLoading(false);
+        return;
       }
+      setLoading(false);
+
+      // Optional dropdown data — only needed when creating or editing a user.
+      // Allowed to fail without blanking the table.
+      const [roleData, customerData] = await Promise.all([
+        api.get<RoleListItem[]>('/roles/active').catch(() => [] as RoleListItem[]),
+        fetchAllPages<CustomerOption>('/customers').catch(() => [] as CustomerOption[]),
+      ]);
+      setRoles(roleData);
+      setCustomers(customerData);
     },
     [ui]
   );

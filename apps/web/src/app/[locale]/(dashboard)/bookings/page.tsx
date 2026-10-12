@@ -7,6 +7,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import type { BookingRequest, BookingStatus, PaginatedResult } from '@shipping/shared';
 import { CalendarCheck, CheckCircle2, XCircle, Eye, Search } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { fetchAllPages } from '@/lib/api/pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
@@ -94,9 +95,8 @@ export default function BookingsPage() {
 
   useEffect(() => {
     if (customers.length === 0) {
-      api
-        .get<PaginatedResult<CustomerOption>>('/customers?pageSize=200')
-        .then((res) => setCustomers(res.data ?? []))
+      fetchAllPages<CustomerOption>('/customers')
+        .then((rows) => setCustomers(rows))
         .catch(() => undefined);
     }
   }, [customers.length]);

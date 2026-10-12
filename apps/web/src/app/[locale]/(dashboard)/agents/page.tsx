@@ -13,6 +13,7 @@ import type {
 } from '@shipping/shared';
 import { Plus, Power, Trash2, Search, MapPin, Building2, Truck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { fetchAllPages } from '@/lib/api/pagination';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
@@ -78,11 +79,8 @@ let portCache: { id: string; code: string; name: string }[] | null = null;
 async function loadPorts(): Promise<{ id: string; code: string; name: string }[]> {
   if (portCache) return portCache;
   try {
-    const res = await api.get<{ data: { id: string; code: string; name: string }[] }>(
-      '/ports?pageSize=500'
-    );
-    portCache = res.data;
-    return res.data;
+    portCache = await fetchAllPages<{ id: string; code: string; name: string }>('/ports');
+    return portCache;
   } catch {
     portCache = [];
     return [];
