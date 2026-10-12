@@ -146,6 +146,9 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   { code: 'invoice:delete', module: 'invoice', action: 'delete' },
   { code: 'invoice:issue', module: 'invoice', action: 'issue' },
   { code: 'invoice:cancel', module: 'invoice', action: 'cancel' },
+  // Phase 3 (DEC-020/022): controlled correction and its approval. Explicit grant only.
+  { code: 'invoice:correct', module: 'invoice', action: 'correct' },
+  { code: 'invoice:approve_correction', module: 'invoice', action: 'approve_correction' },
   { code: 'voucher:read', module: 'voucher', action: 'read' },
   { code: 'voucher:create', module: 'voucher', action: 'create' },
   { code: 'voucher:update', module: 'voucher', action: 'update' },
@@ -287,7 +290,13 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   // (inspect -> snapshot -> classify -> revoke), which is deliberately NOT done
   // automatically here.
   // ==========================================================================
-  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override']);
+  // Phase 3: invoice correction and correction approval are financial-control authority,
+  // so they are explicit grants too (the owner's rule: managers get only assigned permissions).
+  const EXPLICIT_GRANT_ONLY = new Set<string>([
+    'release:override',
+    'invoice:correct',
+    'invoice:approve_correction',
+  ]);
 
   for (const [code, permissionId] of Object.entries(createdPermissions)) {
     if (EXPLICIT_GRANT_ONLY.has(code)) {

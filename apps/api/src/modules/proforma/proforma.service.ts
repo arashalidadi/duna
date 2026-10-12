@@ -8,6 +8,7 @@ import { Prisma, ProformaStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import { recomputeInvoiceTax } from '../invoice/invoice-tax';
 import {
   NumberingService,
   nextSequenceAfter,
@@ -486,29 +487,15 @@ export class ProformaService {
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             amount: item.amount,
+            // Phase 3: copied lines carry the proforma's rate; line VAT is computed below.
+            taxRate: existing.taxRate,
           },
         });
       }
 
-      // Recompute the invoice totals from copied items (same math as Phase 11).
-      const agg = await tx.invoiceItem.aggregate({
-        where: { invoiceId: invoice.id },
-        _sum: { amount: true },
-      });
-      const subtotal = Number(agg._sum.amount ?? 0);
-      const discount = Number(existing.discountAmount ?? 0);
-      const rate = Number(existing.taxRate ?? 0);
-      const taxable = Math.max(subtotal - discount, 0);
-      const tax = Number(((taxable * rate) / 100).toFixed(2));
-      const total = Number((taxable + tax).toFixed(2));
-      await tx.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
-          taxAmount: new Prisma.Decimal(tax.toFixed(2)),
-          totalAmount: new Prisma.Decimal(total.toFixed(2)),
-        },
-      });
+      // Recompute line VAT and invoice totals from the copied items (shared Phase 3 math;
+      // identical to the previous header computation for single-rate invoices).
+      const computed = await recomputeInvoiceTax(tx, invoice.id);
 
       await tx.proforma.update({
         where: { id },
@@ -526,7 +513,7 @@ export class ProformaService {
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
           status: 'DRAFT',
-          totalAmount: total.toFixed(2),
+          totalAmount: computed.total.toFixed(2),
         },
       };
     });

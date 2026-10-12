@@ -30,6 +30,12 @@ export class JobController {
     return this.jobs.create(dto, user);
   }
 
+  @Get(':id/invoices')
+  @RequirePermissions(['job:read', 'invoice:read'])
+  invoices(@Param('id') id: string) {
+    return this.jobs.listInvoices(id);
+  }
+
   @Get(':id')
   @RequirePermissions('job:read')
   detail(@Param('id') id: string) {

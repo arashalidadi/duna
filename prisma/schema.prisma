@@ -79,6 +79,8 @@ model User {
   releaseOrdersCancelled  ReleaseOrder[]   @relation("ReleaseOrderCancelledBy")
   vouchersCancelled       Voucher[]        @relation("VoucherCancelledBy")
   invoicesCancelled       Invoice[]        @relation("InvoiceCancelledBy")
+  invoiceCorrectionsRequested InvoiceCorrection[] @relation("InvoiceCorrectionRequestedBy")
+  invoiceCorrectionsDecided   InvoiceCorrection[] @relation("InvoiceCorrectionDecidedBy")
   proformasCreated        Proforma[]       @relation("ProformaCreatedBy")
   proformasIssued         Proforma[]       @relation("ProformaIssuedBy")
   proformasCancelled      Proforma[]       @relation("ProformaCancelledBy")
@@ -196,6 +198,8 @@ model CompanySettings {
   timezone                String   @default("Asia/Dubai")
   defaultCurrency         String   @default("USD")
   supportedCurrenciesJson String   @default("[\"USD\",\"AED\"]")
+  // DEC-022 — manager approval for invoice corrections is configuration. Default off.
+  invoiceCorrectionApprovalRequired Boolean @default(false)
   createdByUserId         String?
   updatedByUserId         String?
   createdAt               DateTime @default(now())
@@ -1354,6 +1358,8 @@ model BillOfLading {
   @@index([consigneeId])
   @@index([createdAt])
   @@index([createdById])
+  invoiceLinks InvoiceBill[]
+
   @@map("bills_of_lading")
 }
 
@@ -1476,10 +1482,18 @@ model Invoice {
   voyage            Voyage?       @relation("InvoiceVoyage", fields: [voyageId], references: [id])
   items             InvoiceItem[]
   convertedProforma Proforma?     @relation("ProformaConvertedInvoice")
+  jobLinks          InvoiceJob[]
+  billLinks         InvoiceBill[]
+  correctionsAsOriginal   InvoiceCorrection[] @relation("CorrectionOriginal")
+  correctionAsReplacement InvoiceCorrection?  @relation("CorrectionReplacement")
   vouchers          Voucher[]     @relation("VoucherInvoice")
   createdBy         User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   issuedBy          User?         @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
   cancelledBy       User?         @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
+
+  // REQ-147 — Tax Registration Number, snapshotted from CompanySettings.taxNumber at
+  // creation/issue (DEC-102: later settings changes must not alter an issued invoice).
+  trn String? @map("trn") @db.VarChar(40)
 
   @@index([customerId])
   @@index([manifestId])
@@ -1509,9 +1523,74 @@ model InvoiceItem {
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
+  // Phase 3 (REQ-144, DEC-101): per-line VAT. Nullable so issued invoices that predate the
+  // column keep header-level tax (taxAmount stays NULL there; the header is authoritative).
+  taxRate   Decimal? @map("taxRate") @db.Decimal(5, 2) // percent 0..100
+  taxAmount Decimal? @map("taxAmount") @db.Decimal(18, 2)
+
   @@index([invoiceId])
   @@index([sequence])
   @@map("invoice_items")
+}
+
+// ─── Phase 3: invoice joins (DEC-071 Job many-to-many, DEC-105 multi-B/L) ───────
+model InvoiceJob {
+  invoiceId String   @map("invoiceId")
+  jobId     String   @map("jobId")
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  job     Job     @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, jobId])
+  @@index([jobId])
+  @@map("invoice_jobs")
+}
+
+model InvoiceBill {
+  invoiceId      String   @map("invoiceId")
+  billOfLadingId String   @map("billOfLadingId")
+  createdAt      DateTime @default(now())
+
+  invoice      Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  billOfLading BillOfLading @relation(fields: [billOfLadingId], references: [id], onDelete: Cascade)
+
+  @@id([invoiceId, billOfLadingId])
+  @@index([billOfLadingId])
+  @@map("invoice_bills")
+}
+
+enum InvoiceCorrectionStatus {
+  PENDING_APPROVAL
+  APPLIED
+  REJECTED
+}
+
+// DEC-020/021/023 — controlled correction of an ISSUED invoice. The original row is never
+// edited: it moves ISSUED -> CANCELLED (reason, user, timestamp kept) and a new DRAFT
+// replacement is linked here. Mechanism is cancel-and-reissue; no credit note yet.
+model InvoiceCorrection {
+  id                   String                  @id @default(cuid())
+  originalInvoiceId    String                  @map("originalInvoiceId")
+  replacementInvoiceId String?                 @unique @map("replacementInvoiceId")
+  mechanism            String                  @default("CANCEL_AND_REISSUE") @db.VarChar(40)
+  status               InvoiceCorrectionStatus @default(PENDING_APPROVAL)
+  reason               String                  @db.VarChar(500)
+  requestedById        String?                 @map("requestedById")
+  requestedAt          DateTime                @default(now()) @map("requestedAt")
+  decidedById          String?                 @map("decidedById")
+  decidedAt            DateTime?               @map("decidedAt")
+  decisionNote         String?                 @map("decisionNote") @db.VarChar(500)
+  appliedAt            DateTime?               @map("appliedAt")
+
+  original    Invoice   @relation("CorrectionOriginal", fields: [originalInvoiceId], references: [id])
+  replacement Invoice?  @relation("CorrectionReplacement", fields: [replacementInvoiceId], references: [id])
+  requestedBy User?     @relation("InvoiceCorrectionRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  decidedBy   User?     @relation("InvoiceCorrectionDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([originalInvoiceId])
+  @@index([status])
+  @@map("invoice_corrections")
 }
 
 // ─── Phase 14: Proforma invoices (quotes) ─────────────────────────────────────
@@ -2010,6 +2089,7 @@ model Job {
   customer    Customer?     @relation("JobCustomer", fields: [customerId], references: [id], onDelete: SetNull)
   voyage      Voyage?       @relation("JobVoyage", fields: [voyageId], references: [id], onDelete: SetNull)
   items       JobCostItem[] @relation("JobItems")
+  invoiceLinks InvoiceJob[]
   createdBy   User?         @relation("JobCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   completedBy User?         @relation("JobCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
   cancelledBy User?         @relation("JobCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)

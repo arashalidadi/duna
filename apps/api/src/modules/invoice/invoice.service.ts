@@ -8,11 +8,9 @@ import { Prisma, InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
-import {
-  NumberingService,
-  nextSequenceAfter,
-  periodicSequenceRequest,
-} from '../../common/infrastructure/numbering';
+import { NumberingService } from '../../common/infrastructure/numbering';
+import { allocateInvoiceNumber } from './invoice-number';
+import { recomputeInvoiceTax } from './invoice-tax';
 import {
   AddInvoiceItemDto,
   CancelInvoiceDto,
@@ -30,6 +28,8 @@ import {
 // PAID is NOT a stored status: Phase 12 (Fin vouchers) maintains paidAmount,
 // and "paid" is derived (paidAmount >= totalAmount) at read time — the legacy
 // system mutated PAID/UNPAID through Fin records anyway.
+// Phase 3: an ISSUED invoice is corrected through InvoiceCorrectionService (DEC-020); its
+// money fields are never recomputed (DEC-023).
 // ---------------------------------------------------------------------------
 const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
   DRAFT: ['ISSUED', 'CANCELLED'],
@@ -37,7 +37,7 @@ const INVOICE_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
   CANCELLED: [],
 };
 
-// Only DRAFT invoices accept structural edits (header + items).
+// Only DRAFT invoices accept structural edits (header + items + links).
 const EDITABLE_STATUSES: InvoiceStatus[] = ['DRAFT'];
 
 const listSelect = {
@@ -59,6 +59,7 @@ const listSelect = {
   billOfLadingId: true,
   manifestId: true,
   voyageId: true,
+  trn: true,
   cancelReason: true,
   notes: true,
   createdById: true,
@@ -89,11 +90,45 @@ const detailSelect = {
       quantity: true,
       unitPrice: true,
       amount: true,
+      taxRate: true,
+      taxAmount: true,
       notes: true,
       createdAt: true,
       updatedAt: true,
     },
     orderBy: { sequence: 'asc' as const },
+  },
+  // DEC-071 / DEC-105 — every Job and B/L this invoice covers.
+  jobLinks: {
+    select: {
+      jobId: true,
+      job: { select: { id: true, jobNumber: true, title: true, status: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+  billLinks: {
+    select: {
+      billOfLadingId: true,
+      billOfLading: { select: { id: true, billNumber: true } },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+  // DEC-020/021 — correction history on both sides of the link.
+  correctionAsReplacement: {
+    select: { id: true, originalInvoiceId: true, status: true, reason: true, appliedAt: true },
+  },
+  correctionsAsOriginal: {
+    select: {
+      id: true,
+      replacementInvoiceId: true,
+      status: true,
+      reason: true,
+      requestedAt: true,
+      decidedAt: true,
+      decisionNote: true,
+      appliedAt: true,
+    },
+    orderBy: { requestedAt: 'desc' as const },
   },
 } satisfies Prisma.InvoiceSelect;
 
@@ -102,6 +137,22 @@ function parseBool(v: string | undefined): boolean | undefined {
   if (v === undefined || v === '') return undefined;
   return v === 'true';
 }
+
+/** De-duplicate and drop empty ids. A null/undefined list means "none". */
+function normalizeIds(list?: string[] | null, single?: string | null): string[] {
+  const source = list ?? (single ? [single] : []);
+  return [...new Set(source.filter((id) => typeof id === 'string' && id.trim() !== ''))];
+}
+
+interface AnchorResult {
+  billOfLadingId: string | null;
+  billOfLadingIds: string[];
+  manifestId: string | null;
+  voyageId: string | null;
+}
+
+/** Client shape shared by PrismaService and transaction clients. */
+type Db = Pick<Prisma.TransactionClient, 'companySettings'>;
 
 @Injectable()
 export class InvoiceService {
@@ -190,7 +241,8 @@ export class InvoiceService {
   /**
    * Create a DRAFT invoice for a customer. Optional B/L / Manifest anchors are
    * validated; voyageId is denormalized from whichever anchor exists (B/L
-   * preferred — it carries the manifest's voyage).
+   * preferred — it carries the manifest's voyage). Phase 3: B/Ls and Jobs may be
+   * given as lists (DEC-105, DEC-071); the single billOfLadingId still works.
    */
   async create(dto: CreateInvoiceDto, actor?: AuthenticatedUser) {
     const customer = await this.prisma.customer.findFirst({
@@ -201,31 +253,19 @@ export class InvoiceService {
       throw new NotFoundException('Customer not found');
     }
 
-    const anchors = await this.resolveAnchors(dto.billOfLadingId, dto.manifestId);
+    const billIds = normalizeIds(dto.billOfLadingIds, dto.billOfLadingId);
+    const anchors = await this.resolveAnchors(billIds, dto.manifestId ?? null);
+    const jobIds = normalizeIds(dto.jobIds);
+    await this.assertJobsExist(jobIds);
 
     // The number and the invoice are created in ONE transaction (DEC-027): concurrent creates
     // receive distinct INV numbers from the row-locked sequence, and a failed insert rolls the
     // counter back, so no number is consumed without a document.
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const req = periodicSequenceRequest('INVOICE', new Date());
-        const { sequence: invoiceNumber } = await this.numbering.allocateNumber({
-          ...req,
-          // Shared INV family with proforma-convert: seed from the highest existing INV number.
-          seedNextSequence: async (seedTx) =>
-            nextSequenceAfter(
-              req.prefix,
-              (
-                await seedTx.invoice.findFirst({
-                  where: { invoiceNumber: { startsWith: req.prefix } },
-                  orderBy: { invoiceNumber: 'desc' },
-                  select: { invoiceNumber: true },
-                })
-              )?.invoiceNumber ?? null,
-            ),
-          tx,
-        });
-        return tx.invoice.create({
+        const invoiceNumber = await allocateInvoiceNumber(this.numbering, tx, new Date());
+        const trn = dto.trn?.trim() || (await this.companyTrn(tx));
+        const invoice = await tx.invoice.create({
           data: {
             invoiceNumber,
             customerId: dto.customerId,
@@ -239,11 +279,15 @@ export class InvoiceService {
             billOfLadingId: anchors.billOfLadingId,
             manifestId: anchors.manifestId,
             voyageId: anchors.voyageId,
+            trn,
             notes: dto.notes,
             createdById: actor?.id,
           },
-          select: detailSelect,
+          select: { id: true },
         });
+        await this.replaceBillLinks(tx, invoice.id, anchors.billOfLadingIds);
+        await this.replaceJobLinks(tx, invoice.id, jobIds);
+        return tx.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: detailSelect });
       });
     } catch (e) {
       if (
@@ -258,26 +302,45 @@ export class InvoiceService {
 
   /**
    * Update invoice header fields. DRAFT only. Money fields (taxRate,
-   * discountAmount) recompute the derived totals.
+   * discountAmount) recompute the derived totals. A header taxRate is applied to every
+   * line (bulk default, kept for compatibility); per-line rates are set with updateItem.
    */
   async update(id: string, dto: UpdateInvoiceDto) {
     const existing = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
-    await this.assertEditable(existing, 'edited');
+    this.assertEditable(existing, 'edited');
 
-    let anchors: { billOfLadingId: string | null; manifestId: string | null; voyageId: string | null } | null = null;
-    if (dto.billOfLadingId !== undefined || dto.manifestId !== undefined) {
+    const touchesAnchors =
+      dto.billOfLadingIds !== undefined ||
+      dto.billOfLadingId !== undefined ||
+      dto.manifestId !== undefined;
+
+    let anchors: AnchorResult | null = null;
+    let billIds: string[] | undefined;
+    if (touchesAnchors) {
       const current = await this.prisma.invoice.findUniqueOrThrow({
         where: { id },
-        select: { billOfLadingId: true, manifestId: true },
+        select: { manifestId: true, billLinks: { select: { billOfLadingId: true } } },
       });
-      anchors = await this.resolveAnchors(
-        dto.billOfLadingId !== undefined ? dto.billOfLadingId || null : current.billOfLadingId,
-        dto.manifestId !== undefined ? dto.manifestId || null : current.manifestId,
-      );
+      billIds =
+        dto.billOfLadingIds !== undefined
+          ? normalizeIds(dto.billOfLadingIds)
+          : dto.billOfLadingId !== undefined
+            ? normalizeIds(undefined, dto.billOfLadingId)
+            : current.billLinks.map((l) => l.billOfLadingId);
+      const manifestId = dto.manifestId !== undefined ? dto.manifestId || null : current.manifestId;
+      anchors = await this.resolveAnchors(billIds, manifestId);
     }
+
+    let jobIds: string[] | undefined;
+    if (dto.jobIds !== undefined) {
+      jobIds = normalizeIds(dto.jobIds);
+      await this.assertJobsExist(jobIds);
+    }
+
+    const trnValue = dto.trn !== undefined ? dto.trn?.trim() || null : undefined;
 
     return this.prisma.$transaction(async (tx) => {
       await tx.invoice.update({
@@ -302,10 +365,23 @@ export class InvoiceService {
                 voyageId: anchors.voyageId,
               }
             : {}),
+          ...(trnValue !== undefined ? { trn: trnValue } : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         },
       });
-      await this.recomputeTotals(tx, id);
+      if (billIds !== undefined) {
+        await this.replaceBillLinks(tx, id, billIds);
+      }
+      if (jobIds !== undefined) {
+        await this.replaceJobLinks(tx, id, jobIds);
+      }
+      if (dto.taxRate !== undefined) {
+        await tx.invoiceItem.updateMany({
+          where: { invoiceId: id },
+          data: { taxRate: dto.taxRate ?? 0 },
+        });
+      }
+      await recomputeInvoiceTax(tx, id);
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -316,7 +392,7 @@ export class InvoiceService {
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
-    await this.assertEditable(existing, 'deleted');
+    this.assertEditable(existing, 'deleted');
 
     await this.prisma.invoice.update({
       where: { id },
@@ -329,13 +405,16 @@ export class InvoiceService {
   // Invoice Items
   // -------------------------------------------------------------------------
 
-  /** Add a line (DRAFT only). amount = quantity x unitPrice, server-side. */
+  /**
+   * Add a line (DRAFT only). amount = quantity x unitPrice, server-side. The line VAT rate
+   * defaults to the header rate when omitted (existing single-rate clients are unchanged).
+   */
   async addItem(id: string, dto: AddInvoiceItemDto) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
-      select: { id: true, status: true, deletedAt: true },
+      select: { id: true, status: true, deletedAt: true, taxRate: true },
     });
-    await this.assertEditable(invoice, 'modified');
+    this.assertEditable(invoice, 'modified');
 
     const maxSeq = await this.prisma.invoiceItem.aggregate({
       where: { invoiceId: id },
@@ -343,6 +422,7 @@ export class InvoiceService {
     });
     const sequence = (maxSeq._max.sequence ?? 0) + 1;
     const quantity = dto.quantity ?? 1;
+    const taxRate = dto.taxRate ?? Number(invoice.taxRate);
 
     return this.prisma.$transaction(async (tx) => {
       await tx.invoiceItem.create({
@@ -353,21 +433,22 @@ export class InvoiceService {
           quantity,
           unitPrice: dto.unitPrice,
           amount: new Prisma.Decimal(dto.unitPrice * quantity),
+          taxRate,
           notes: dto.notes,
         },
       });
-      await this.recomputeTotals(tx, id);
+      await recomputeInvoiceTax(tx, id);
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
-  /** Update a line (DRAFT only). amount maintained server-side. */
+  /** Update a line (DRAFT only). amount maintained server-side; taxRate only when given. */
   async updateItem(id: string, itemId: string, dto: UpdateInvoiceItemDto) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
-    await this.assertEditable(invoice, 'modified');
+    this.assertEditable(invoice, 'modified');
 
     const item = await this.prisma.invoiceItem.findFirst({
       where: { id: itemId, invoiceId: id },
@@ -388,10 +469,11 @@ export class InvoiceService {
           quantity,
           unitPrice,
           amount: new Prisma.Decimal(unitPrice * quantity),
+          ...(dto.taxRate !== undefined ? { taxRate: dto.taxRate ?? 0 } : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         },
       });
-      await this.recomputeTotals(tx, id);
+      await recomputeInvoiceTax(tx, id);
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -402,7 +484,7 @@ export class InvoiceService {
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
-    await this.assertEditable(invoice, 'modified');
+    this.assertEditable(invoice, 'modified');
 
     const item = await this.prisma.invoiceItem.findFirst({
       where: { id: itemId, invoiceId: id },
@@ -414,7 +496,7 @@ export class InvoiceService {
 
     return this.prisma.$transaction(async (tx) => {
       await tx.invoiceItem.delete({ where: { id: itemId } });
-      await this.recomputeTotals(tx, id);
+      await recomputeInvoiceTax(tx, id);
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -425,7 +507,8 @@ export class InvoiceService {
 
   /**
    * DRAFT -> ISSUED. Requires >= 1 line. Freezes the document (edits become
-   * 409); sets issueDate default now. Payments (paidAmount) are Phase 12.
+   * 409); sets issueDate default now. Snapshots the TRN from company settings if the
+   * draft has none. Payments (paidAmount) are Phase 12.
    */
   async issue(id: string, actor?: AuthenticatedUser) {
     const existing = await this.prisma.invoice.findUnique({
@@ -435,6 +518,7 @@ export class InvoiceService {
         status: true,
         deletedAt: true,
         issueDate: true,
+        trn: true,
         _count: { select: { items: true } },
       },
     });
@@ -453,6 +537,7 @@ export class InvoiceService {
         issuedAt: new Date(),
         issuedById: actor?.id,
         issueDate: existing.issueDate ?? new Date(),
+        trn: existing.trn ?? (await this.companyTrn(this.prisma)),
       },
       select: detailSelect,
     });
@@ -489,55 +574,106 @@ export class InvoiceService {
   // -------------------------------------------------------------------------
 
   /**
-   * Validate optional B/L / Manifest anchors and derive voyageId.
-   * The B/L carries its manifest's voyage; a manifest carries its own voyage.
+   * Validate the B/L list and optional Manifest anchor, and derive voyageId.
+   * Every B/L and the manifest must belong to the same voyage: an invoice can only bill one
+   * shipment. The first B/L is the legacy primary anchor (billOfLadingId).
    */
-  private async resolveAnchors(billOfLadingId?: string | null, manifestId?: string | null) {
+  private async resolveAnchors(billIds: string[], manifestId?: string | null): Promise<AnchorResult> {
     let voyageId: string | null = null;
+    const voyages = new Set<string>();
 
-    let billOfLading: { id: string; voyageId: string; deletedAt: Date | null } | null = null;
-    if (billOfLadingId) {
-      billOfLading = await this.prisma.billOfLading.findUnique({
-        where: { id: billOfLadingId },
+    if (billIds.length > 0) {
+      const bills = await this.prisma.billOfLading.findMany({
+        where: { id: { in: billIds } },
         select: { id: true, voyageId: true, deletedAt: true },
       });
-      if (!billOfLading || billOfLading.deletedAt) {
+      if (bills.length !== billIds.length || bills.some((b) => b.deletedAt)) {
         throw new NotFoundException('Bill of Lading not found');
       }
-      voyageId = billOfLading.voyageId;
+      for (const b of bills) {
+        voyages.add(b.voyageId);
+      }
+      voyageId = bills[0]?.voyageId ?? null;
     }
 
-    let manifest: { id: string; voyageId: string; deletedAt: Date | null } | null = null;
     if (manifestId) {
-      manifest = await this.prisma.manifest.findUnique({
+      const manifest = await this.prisma.manifest.findUnique({
         where: { id: manifestId },
         select: { id: true, voyageId: true, deletedAt: true },
       });
       if (!manifest || manifest.deletedAt) {
         throw new NotFoundException('Manifest not found');
       }
+      voyages.add(manifest.voyageId);
       voyageId = voyageId ?? manifest.voyageId;
     }
 
-    // Consistency guard: if both anchors are given, they must belong to the
-    // same voyage — an invoice cannot bill two different shipments.
-    if (billOfLading && manifest && billOfLading.voyageId !== manifest.voyageId) {
+    // Consistency guard: all anchors must belong to the same voyage.
+    if (voyages.size > 1) {
       throw new ConflictException(
         'The selected B/L and Manifest belong to different voyages; an invoice can only bill one shipment',
       );
     }
 
     return {
-      billOfLadingId: billOfLadingId ?? null,
+      billOfLadingId: billIds[0] ?? null,
+      billOfLadingIds: billIds,
       manifestId: manifestId ?? null,
       voyageId,
     };
   }
 
-  private async assertEditable(
+  /** Every Job id must exist and not be soft-deleted (DEC-071). */
+  private async assertJobsExist(jobIds: string[]): Promise<void> {
+    if (jobIds.length === 0) return;
+    const found = await this.prisma.job.findMany({
+      where: { id: { in: jobIds }, deletedAt: null },
+      select: { id: true },
+    });
+    if (found.length !== jobIds.length) {
+      throw new NotFoundException('Job not found');
+    }
+  }
+
+  /** Replace the B/L join rows (DEC-105). Caller validated the ids. */
+  private async replaceBillLinks(tx: Prisma.TransactionClient, invoiceId: string, billIds: string[]) {
+    await tx.invoiceBill.deleteMany({ where: { invoiceId } });
+    if (billIds.length > 0) {
+      await tx.invoiceBill.createMany({
+        data: billIds.map((billOfLadingId) => ({ invoiceId, billOfLadingId })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  /** Replace the Job join rows (DEC-071). Caller validated the ids. */
+  private async replaceJobLinks(tx: Prisma.TransactionClient, invoiceId: string, jobIds: string[]) {
+    await tx.invoiceJob.deleteMany({ where: { invoiceId } });
+    if (jobIds.length > 0) {
+      await tx.invoiceJob.createMany({
+        data: jobIds.map((jobId) => ({ invoiceId, jobId })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  /**
+   * Tax Registration Number from company settings (REQ-147). Null when settings have no TRN;
+   * the TRN is never invented.
+   */
+  async companyTrn(db: Db): Promise<string | null> {
+    const settings = await db.companySettings.findFirst({
+      select: { taxNumber: true },
+    });
+    const trn = settings?.taxNumber?.trim();
+    return trn ? trn : null;
+  }
+
+  /** Narrowing check: throws unless the invoice exists, is live, and is DRAFT. */
+  private assertEditable(
     row: { status: InvoiceStatus; deletedAt: Date | null } | null,
-    verb: string
-  ) {
+    verb: string,
+  ): asserts row is { status: InvoiceStatus; deletedAt: Date | null } {
     if (!row || row.deletedAt) {
       throw new NotFoundException('Invoice not found');
     }
@@ -550,39 +686,5 @@ export class InvoiceService {
     if (!INVOICE_TRANSITIONS[current]?.includes(target)) {
       throw new ConflictException(`Invoice transition ${current} -> ${target} is not allowed`);
     }
-  }
-
-  /**
-   * Recompute money aggregates from the lines:
-   *   subtotal       = SUM(item.amount)          (amount = qty x unitPrice)
-   *   taxAmount      = (subtotal - discount) x taxRate / 100, floored at 0
-   *   totalAmount    = subtotal - discount + tax
-   * paidAmount is untouched (owned by Phase 12).
-   */
-  private async recomputeTotals(tx: Prisma.TransactionClient, invoiceId: string) {
-    const invoice = await tx.invoice.findUniqueOrThrow({
-      where: { id: invoiceId },
-      select: { taxRate: true, discountAmount: true },
-    });
-
-    const agg = await tx.invoiceItem.aggregate({
-      where: { invoiceId },
-      _sum: { amount: true },
-    });
-    const subtotal = Number(agg._sum.amount ?? 0);
-    const discount = Number(invoice.discountAmount ?? 0);
-    const rate = Number(invoice.taxRate ?? 0);
-    const taxable = Math.max(subtotal - discount, 0);
-    const tax = Number(((taxable * rate) / 100).toFixed(2));
-    const total = Number((taxable + tax).toFixed(2));
-
-    await tx.invoice.update({
-      where: { id: invoiceId },
-      data: {
-        subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
-        taxAmount: new Prisma.Decimal(tax.toFixed(2)),
-        totalAmount: new Prisma.Decimal(total.toFixed(2)),
-      },
-    });
   }
 }

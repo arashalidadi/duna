@@ -4,6 +4,9 @@ import type { PaginatedResult } from './api';
 export type InvoiceStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED';
 
 export interface InvoiceItem {
+  /** Phase 3 (REQ-144): line VAT percentage and line VAT amount. Null on pre-Phase-3 issued lines. */
+  taxRate?: string | null;
+  taxAmount?: string | null;
   id: string;
   invoiceId: string;
   sequence: number;
@@ -19,6 +22,14 @@ export interface InvoiceItem {
 }
 
 export interface Invoice {
+  /** Phase 3 (REQ-147): Tax Registration Number, snapshotted on the invoice. */
+  trn?: string | null;
+  /** Phase 3 (DEC-071, DEC-105): Jobs and B/Ls this invoice covers. */
+  jobLinks?: InvoiceJobLink[];
+  billLinks?: InvoiceBillLink[];
+  /** Phase 3 (DEC-020/021): correction links, seen from either side. */
+  correctionAsReplacement?: InvoiceCorrectionRef | null;
+  correctionsAsOriginal?: InvoiceCorrectionRef[];
   id: string;
   invoiceNumber: string;
   /** Bill-to party (legacy invoices.user_id was the CREATOR; the new model separates customer vs createdById). */
@@ -63,6 +74,30 @@ export interface Invoice {
   issuedBy?: { id: string; email: string; fullName: string } | null;
   cancelledBy?: { id: string; email: string; fullName: string } | null;
   _count?: { items: number };
+}
+
+export interface InvoiceJobLink {
+  jobId: string;
+  job: { id: string; jobNumber: string; title: string; status: string };
+}
+
+export interface InvoiceBillLink {
+  billOfLadingId: string;
+  billOfLading: { id: string; billNumber: string };
+}
+
+export type InvoiceCorrectionStatus = 'PENDING_APPROVAL' | 'APPLIED' | 'REJECTED';
+
+export interface InvoiceCorrectionRef {
+  id: string;
+  originalInvoiceId?: string;
+  replacementInvoiceId?: string | null;
+  status: InvoiceCorrectionStatus;
+  reason: string;
+  requestedAt?: string;
+  appliedAt?: string | null;
+  decidedAt?: string | null;
+  decisionNote?: string | null;
 }
 
 export interface InvoiceDetail extends Invoice {

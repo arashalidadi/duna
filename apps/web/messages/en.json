@@ -894,7 +894,8 @@
       "taxAmount": "Tax",
       "taxRate": "Tax rate %",
       "title": "Title",
-      "totalAmount": "Total"
+      "totalAmount": "Total",
+      "trn": "TRN"
     },
     "items": {
       "add": "Add line",
@@ -911,7 +912,9 @@
       "remove": "Remove",
       "saveAll": "Save changes",
       "title": "Invoice lines",
-      "unitPrice": "Unit price"
+      "unitPrice": "Unit price",
+      "vatRate": "VAT %",
+      "vatRatePlaceholder": "Header rate"
     },
     "list": {
       "allDue": "Any due date",
@@ -935,6 +938,24 @@
       "CANCELLED": "Cancelled",
       "DRAFT": "Draft",
       "ISSUED": "Issued"
+    },
+    "links": {
+      "jobs": "Linked jobs",
+      "billsOfLading": "Bills of lading"
+    },
+    "correction": {
+      "reason": "Correction reason",
+      "request": "Request correction",
+      "approve": "Approve correction",
+      "reject": "Reject correction",
+      "reasonRequired": "Enter a reason in the field above to reject.",
+      "failed": "The correction request failed.",
+      "replacementOf": "This invoice replaces an earlier invoice.",
+      "status": {
+        "PENDING_APPROVAL": "Correction pending approval",
+        "APPLIED": "Correction applied",
+        "REJECTED": "Correction rejected"
+      }
     }
   },
   "jobs": {

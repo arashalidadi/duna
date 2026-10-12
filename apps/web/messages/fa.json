@@ -894,7 +894,8 @@
       "taxAmount": "مالیات",
       "taxRate": "نرخ مالیات ٪",
       "title": "عنوان",
-      "totalAmount": "مبلغ کل"
+      "totalAmount": "مبلغ کل",
+      "trn": "شماره ثبت مالیاتی (TRN)"
     },
     "items": {
       "add": "افزودن ردیف",
@@ -911,7 +912,9 @@
       "remove": "برداشتن",
       "saveAll": "ذخیره تغییرات",
       "title": "ردیف‌های فاکتور",
-      "unitPrice": "نرخ واحد"
+      "unitPrice": "نرخ واحد",
+      "vatRate": "مالیات بر ارزش افزوده %",
+      "vatRatePlaceholder": "نرخ سربرگ"
     },
     "list": {
       "allDue": "هر سررسیدی",
@@ -935,6 +938,24 @@
       "CANCELLED": "لغوشده",
       "DRAFT": "پیش‌نویس",
       "ISSUED": "صادرشده"
+    },
+    "links": {
+      "jobs": "کارهای مرتبط",
+      "billsOfLading": "بارنامه‌ها"
+    },
+    "correction": {
+      "reason": "دلیل اصلاح",
+      "request": "درخواست اصلاح",
+      "approve": "تأیید اصلاح",
+      "reject": "رد اصلاح",
+      "reasonRequired": "برای رد، دلیل را در فیلد بالا وارد کنید.",
+      "failed": "درخواست اصلاح انجام نشد.",
+      "replacementOf": "این فاکتور جایگزین فاکتور قبلی است.",
+      "status": {
+        "PENDING_APPROVAL": "اصلاح در انتظار تأیید",
+        "APPLIED": "اصلاح اعمال شد",
+        "REJECTED": "اصلاح رد شد"
+      }
     }
   },
   "jobs": {

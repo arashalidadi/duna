@@ -901,7 +901,8 @@
       "taxAmount": "الضريبة",
       "taxRate": "نسبة الضريبة ٪",
       "title": "العنوان",
-      "totalAmount": "الإجمالي"
+      "totalAmount": "الإجمالي",
+      "trn": "الرقم الضريبي (TRN)"
     },
     "items": {
       "add": "إضافة بند",
@@ -918,7 +919,9 @@
       "remove": "إزالة",
       "saveAll": "حفظ التغييرات",
       "title": "بنود الفاتورة",
-      "unitPrice": "سعر الوحدة"
+      "unitPrice": "سعر الوحدة",
+      "vatRate": "ضريبة القيمة المضافة %",
+      "vatRatePlaceholder": "نسبة الترويسة"
     },
     "list": {
       "allDue": "أي تاريخ استحقاق",
@@ -942,6 +945,24 @@
       "CANCELLED": "ملغاة",
       "DRAFT": "مسودة",
       "ISSUED": "صادرة"
+    },
+    "links": {
+      "jobs": "المهام المرتبطة",
+      "billsOfLading": "بوليصات الشحن"
+    },
+    "correction": {
+      "reason": "سبب التصحيح",
+      "request": "طلب تصحيح",
+      "approve": "اعتماد التصحيح",
+      "reject": "رفض التصحيح",
+      "reasonRequired": "أدخل سببًا في الحقل أعلاه للرفض.",
+      "failed": "تعذر طلب التصحيح.",
+      "replacementOf": "هذه الفاتورة بديلة لفاتورة سابقة.",
+      "status": {
+        "PENDING_APPROVAL": "التصحيح بانتظار الاعتماد",
+        "APPLIED": "تم تطبيق التصحيح",
+        "REJECTED": "تم رفض التصحيح"
+      }
     }
   },
   "jobs": {

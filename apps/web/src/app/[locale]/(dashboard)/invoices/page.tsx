@@ -100,6 +100,7 @@ interface ItemDraft {
   description: string;
   quantity: string;
   unitPrice: string;
+  taxRate: string;
   notes: string;
 }
 
@@ -145,9 +146,14 @@ export default function InvoicesPage() {
     description: '',
     quantity: '1',
     unitPrice: '',
+    taxRate: '',
     notes: '',
   });
   const [adding, setAdding] = useState(false);
+  // Phase 3 — controlled correction (DEC-020/022).
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionBusy, setCorrectionBusy] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
   const [confirmIssue, setConfirmIssue] = useState(false);
@@ -263,6 +269,7 @@ export default function InvoicesPage() {
             description: it.description ?? '',
             quantity: String(it.quantity),
             unitPrice: String(Number(it.unitPrice)),
+            taxRate: it.taxRate != null ? String(Number(it.taxRate)) : '',
             notes: it.notes ?? '',
           };
         }
@@ -312,11 +319,58 @@ export default function InvoicesPage() {
         description: draft.description,
         quantity: Number(draft.quantity),
         unitPrice: draft.unitPrice,
+        // Empty leaves the line's VAT rate unchanged (the field is omitted).
+        taxRate: draft.taxRate === '' ? undefined : Number(draft.taxRate),
         notes: draft.notes || null,
       });
       setDetail(d);
     } catch (e) {
       setItemsError(e instanceof ApiError ? e.message : ui('failedToSaveItem'));
+    }
+  };
+
+  /** Phase 3 — refresh the open invoice after a correction or approval step. */
+  const reloadDetail = async () => {
+    if (!viewingId) return;
+    const d = await api.get<InvoiceDetail>(`/invoices/${viewingId}`);
+    setDetail(d);
+  };
+
+  /** DEC-020 — request a controlled correction of the open ISSUED invoice. */
+  const requestCorrection = async () => {
+    if (!viewingId || !correctionReason.trim()) return;
+    setCorrectionBusy(true);
+    setCorrectionError(null);
+    try {
+      await api.post(`/invoices/${viewingId}/corrections`, { reason: correctionReason.trim() });
+      setCorrectionReason('');
+      await reloadDetail();
+    } catch (e) {
+      setCorrectionError(e instanceof ApiError ? e.message : t('correction.failed'));
+    } finally {
+      setCorrectionBusy(false);
+    }
+  };
+
+  /** DEC-022 — approve a pending correction, or reject it with the reason typed above. */
+  const decideCorrection = async (correctionId: string, action: 'approve' | 'reject') => {
+    if (action === 'reject' && !correctionReason.trim()) {
+      setCorrectionError(t('correction.reasonRequired'));
+      return;
+    }
+    setCorrectionBusy(true);
+    setCorrectionError(null);
+    try {
+      await api.post(
+        `/invoice-corrections/${correctionId}/${action}`,
+        action === 'reject' ? { reason: correctionReason.trim() } : undefined,
+      );
+      setCorrectionReason('');
+      await reloadDetail();
+    } catch (e) {
+      setCorrectionError(e instanceof ApiError ? e.message : t('correction.failed'));
+    } finally {
+      setCorrectionBusy(false);
     }
   };
 
@@ -333,6 +387,7 @@ export default function InvoicesPage() {
         description: addForm.description.trim(),
         quantity: addForm.quantity ? Number(addForm.quantity) : 1,
         unitPrice: addForm.unitPrice,
+        taxRate: addForm.taxRate === '' ? undefined : Number(addForm.taxRate),
         notes: addForm.notes || undefined,
       });
       setDetail(d);
@@ -344,13 +399,14 @@ export default function InvoicesPage() {
             description: it.description ?? '',
             quantity: String(it.quantity),
             unitPrice: String(Number(it.unitPrice)),
+            taxRate: it.taxRate != null ? String(Number(it.taxRate)) : '',
             notes: it.notes ?? '',
           };
         }
       }
       setItemDrafts(drafts);
       setAddOpen(false);
-      setAddForm({ description: '', quantity: '1', unitPrice: '', notes: '' });
+      setAddForm({ description: '', quantity: '1', unitPrice: '', taxRate: '', notes: '' });
     } catch (e) {
       setAddError(e instanceof ApiError ? e.message : ui('failedToAdd'));
     } finally {
@@ -414,6 +470,8 @@ export default function InvoicesPage() {
   const canDelete = hasPermission('invoice:delete');
   const canIssue = hasPermission('invoice:issue');
   const canCancel = hasPermission('invoice:cancel');
+  const canCorrect = hasPermission('invoice:correct');
+  const canApproveCorrection = hasPermission('invoice:approve_correction');
   const isDraft = detail?.status === 'DRAFT';
   const isIssued = detail?.status === 'ISSUED';
   const paid = detail
@@ -918,7 +976,7 @@ export default function InvoicesPage() {
                     <Button
                       size="sm"
                       onClick={() => {
-                        setAddForm({ description: '', quantity: '1', unitPrice: '', notes: '' });
+                        setAddForm({ description: '', quantity: '1', unitPrice: '', taxRate: '', notes: '' });
                         setAddError(null);
                         setAddOpen(true);
                       }}
@@ -943,6 +1001,7 @@ export default function InvoicesPage() {
                         <th className="px-2 py-2 text-start">{t('items.description')}</th>
                         <th className="px-2 py-2 text-start">{t('items.quantity')}</th>
                         <th className="px-2 py-2 text-start">{t('items.unitPrice')}</th>
+                        <th className="px-2 py-2 text-start">{t('items.vatRate')}</th>
                         <th className="px-2 py-2 text-start">{t('items.amount')}</th>
                         <th className="px-2 py-2" />
                       </tr>
@@ -1008,6 +1067,28 @@ export default function InvoicesPage() {
                                 fmtMoney(it.unitPrice, locale)
                               )}
                             </td>
+                            <td className="px-2 py-1.5 w-24">
+                              {isDraft && draft ? (
+                                <Input
+                                  className="h-8"
+                                  type="number"
+                                  step="0.01"
+                                  min={0}
+                                  max={100}
+                                  value={draft.taxRate}
+                                  onChange={(e) =>
+                                    setItemDrafts({
+                                      ...itemDrafts,
+                                      [it.id]: { ...draft, taxRate: e.target.value },
+                                    })
+                                  }
+                                />
+                              ) : it.taxRate != null ? (
+                                `${Number(it.taxRate).toFixed(2)}%`
+                              ) : (
+                                '—'
+                              )}
+                            </td>
                             <td className="px-2 py-1.5 font-medium">
                               {fmtMoney(it.amount, locale)}
                             </td>
@@ -1060,6 +1141,77 @@ export default function InvoicesPage() {
                   })}
                 </p>
               )}
+
+              {/* Phase 3 — TRN, linked Jobs and B/Ls, and controlled correction. */}
+              <div className="space-y-2 border-t pt-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">{t('fields.trn')}: </span>
+                  <span>{detail.trn || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('links.jobs')}: </span>
+                  <span>
+                    {detail.jobLinks && detail.jobLinks.length > 0
+                      ? detail.jobLinks.map((l) => l.job.jobNumber).join(', ')
+                      : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('links.billsOfLading')}: </span>
+                  <span>
+                    {detail.billLinks && detail.billLinks.length > 0
+                      ? detail.billLinks.map((l) => l.billOfLading.billNumber).join(', ')
+                      : '—'}
+                  </span>
+                </div>
+                {detail.correctionAsReplacement && (
+                  <p className="text-xs text-muted-foreground">{t('correction.replacementOf')}</p>
+                )}
+                {(detail.correctionsAsOriginal ?? []).map((c) => (
+                  <div key={c.id} className="rounded border p-2">
+                    <div>
+                      {t(`correction.status.${c.status}`)} — {c.reason}
+                    </div>
+                    {c.status === 'PENDING_APPROVAL' && canApproveCorrection && (
+                      <div className="mt-2 flex gap-2">
+                        <Button
+                          variant="outline"
+                          disabled={correctionBusy}
+                          onClick={() => decideCorrection(c.id, 'approve')}
+                        >
+                          {t('correction.approve')}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          disabled={correctionBusy}
+                          onClick={() => decideCorrection(c.id, 'reject')}
+                        >
+                          {t('correction.reject')}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {isIssued &&
+                  canCorrect &&
+                  !(detail.correctionsAsOriginal ?? []).some((c) => c.status !== 'REJECTED') && (
+                    <div className="space-y-2">
+                      <Label>{t('correction.reason')}</Label>
+                      <Input
+                        value={correctionReason}
+                        onChange={(e) => setCorrectionReason(e.target.value)}
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={!correctionReason.trim() || correctionBusy}
+                        onClick={requestCorrection}
+                      >
+                        {t('correction.request')}
+                      </Button>
+                    </div>
+                  )}
+                {correctionError && <p className="text-destructive">{correctionError}</p>}
+              </div>
             </section>
           </div>
         )}
@@ -1108,6 +1260,18 @@ export default function InvoicesPage() {
                 min={0}
                 value={addForm.unitPrice}
                 onChange={(e) => setAddForm({ ...addForm, unitPrice: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>{t('items.vatRate')}</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min={0}
+                max={100}
+                placeholder={t('items.vatRatePlaceholder')}
+                value={addForm.taxRate}
+                onChange={(e) => setAddForm({ ...addForm, taxRate: e.target.value })}
               />
             </div>
           </div>

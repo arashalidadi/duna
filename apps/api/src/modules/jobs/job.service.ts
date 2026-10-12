@@ -176,6 +176,31 @@ export class JobService {
   // Mutations
   // -------------------------------------------------------------------------
 
+  /** DEC-071 — the live invoices that bill this Job (Invoice <-> Job many-to-many). */
+  async listInvoices(id: string) {
+    await this.assertExists(id);
+    const links = await this.prisma.invoiceJob.findMany({
+      where: { jobId: id, invoice: { deletedAt: null } },
+      select: {
+        invoice: {
+          select: {
+            id: true,
+            invoiceNumber: true,
+            status: true,
+            issueDate: true,
+            dueDate: true,
+            currencyCode: true,
+            totalAmount: true,
+            paidAmount: true,
+            customer: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return links.map((l) => l.invoice);
+  }
+
   async create(dto: CreateJobDto, actor?: AuthenticatedUser) {
     if (dto.customerId) {
       const customer = await this.prisma.customer.findFirst({ where: { id: dto.customerId, deletedAt: null }, select: { id: true } });

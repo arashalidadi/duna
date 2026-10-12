@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsIn,
   IsInt,
@@ -97,6 +99,26 @@ export class CreateInvoiceDto {
   @IsString()
   @MaxLength(4000)
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'B/L ids this invoice covers (DEC-105)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  billOfLadingIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Job ids this invoice bills (DEC-071)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  jobIds?: string[];
+
+  @ApiPropertyOptional({ description: 'Tax Registration Number (default: company settings)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  trn?: string;
 }
 
 export class UpdateInvoiceDto {
@@ -158,6 +180,26 @@ export class UpdateInvoiceDto {
   @IsString()
   manifestId?: string | null;
 
+  @ApiPropertyOptional({ description: 'B/L ids (replaces the set; null or [] clears)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  billOfLadingIds?: string[] | null;
+
+  @ApiPropertyOptional({ description: 'Job ids (replaces the set; null or [] clears)', type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  jobIds?: string[] | null;
+
+  @ApiPropertyOptional({ description: 'Tax Registration Number (null to clear)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  trn?: string | null;
+
   @ApiPropertyOptional({ description: 'Notes (null to clear)' })
   @IsOptional()
   @IsString()
@@ -184,6 +226,14 @@ export class AddInvoiceItemDto {
   @IsInt()
   @Min(1)
   quantity?: number;
+
+  @ApiPropertyOptional({ description: 'Line VAT rate in percent (0-100); defaults to header rate', minimum: 0, maximum: 100 })
+  @IsOptional()
+  @ToMoney()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number;
 
   @ApiPropertyOptional({ description: 'Line notes' })
   @IsOptional()
@@ -213,6 +263,14 @@ export class UpdateInvoiceItemDto {
   @Min(1)
   quantity?: number;
 
+  @ApiPropertyOptional({ description: 'Line VAT rate in percent (0-100)', minimum: 0, maximum: 100 })
+  @IsOptional()
+  @ToMoney()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  taxRate?: number | null;
+
   @ApiPropertyOptional({ description: 'Line notes (null to clear)' })
   @IsOptional()
   @IsString()
@@ -226,6 +284,24 @@ export class CancelInvoiceDto {
   @IsString()
   @MaxLength(4000)
   cancelReason: string;
+}
+
+/** DEC-020 — request a controlled correction of an ISSUED invoice. */
+export class CorrectInvoiceDto {
+  @ApiProperty({ description: 'Why the invoice is being corrected (kept on the record)' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(500)
+  reason: string;
+}
+
+/** DEC-022 — reject a pending correction request. */
+export class RejectInvoiceCorrectionDto {
+  @ApiProperty({ description: 'Why the correction request is rejected' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(500)
+  reason: string;
 }
 
 export class ListInvoiceQueryDto {
