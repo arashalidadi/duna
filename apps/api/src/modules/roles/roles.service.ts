@@ -165,13 +165,18 @@ export class RolesService {
       throw new BadRequestException('One or more permissions do not exist');
     }
 
-    // DEC-116 (T-F) — release-exception authority may only be granted by the
-    // primary administrator. Ordinary ADMIN roles hold `role:permissions` and could
-    // otherwise self-escalate; this closes that path at the server.
-    await this.assertCanGrantReleaseOverride(
-      actor,
-      perms.map((p: { code: string }) => p.code)
-    );
+    // DEC-116 (T-F) — release-exception authority may only be granted or revoked
+    // by the primary administrator. Ordinary ADMIN roles hold `role:permissions`
+    // and could otherwise self-escalate; this closes that path at the server.
+    //
+    // Only an actual CHANGE of membership is refused. The role screen submits the
+    // role's complete permission set, so a non-owner editing an unrelated
+    // permission on a role that already holds `release:override` would otherwise
+    // be rejected with a misleading 403 although nothing about release authority
+    // changed. Retaining an existing grant is not a grant.
+    const beforeCodes = (before.permissions ?? []).map((p) => p.code);
+    const afterCodes = perms.map((p: { code: string }) => p.code);
+    await this.assertCanGrantReleaseOverride(actor, beforeCodes, afterCodes);
 
     await this.prisma.$transaction([
       this.prisma.rolePermission.deleteMany({ where: { roleId: id } }),
@@ -183,8 +188,6 @@ export class RolesService {
     // DEC-044..048 / DEC-116 — permission assignment is the most security-sensitive
     // role operation. The complete before/after code sets are recorded so that any
     // grant of release authority is traceable to the person who granted it.
-    const beforeCodes = (before.permissions ?? []).map((p) => p.code);
-    const afterCodes = perms.map((p: { code: string }) => p.code);
     await this.audit.record({
       action: 'role:permissions:set',
       entityType: 'Role',
@@ -215,13 +218,21 @@ export class RolesService {
    * grant is refused at write time and recorded, so its provenance is auditable.
    * The primary administrator is exempt by implicit full authority — no approval
    * above them is created.
+   *
+   * Revocation is covered too: DEC-116 states the owner may withhold release
+   * authority, so a non-owner must not be able to strip it out of a role either.
+   * A submission that leaves membership untouched is not a grant and not a
+   * revocation, and is therefore allowed.
    */
   private async assertCanGrantReleaseOverride(
     actor: AccountAccess,
-    permissionCodes: string[]
+    beforeCodes: string[],
+    afterCodes: string[]
   ): Promise<void> {
     if (actor.isPrimaryAdmin === true) return;
-    if (!permissionCodes.includes(RELEASE_OVERRIDE_PERMISSION)) return;
+    const heldBefore = beforeCodes.includes(RELEASE_OVERRIDE_PERMISSION);
+    const heldAfter = afterCodes.includes(RELEASE_OVERRIDE_PERMISSION);
+    if (heldBefore === heldAfter) return;
     throw new ForbiddenException(
       `Only the primary administrator may grant or revoke '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
     );

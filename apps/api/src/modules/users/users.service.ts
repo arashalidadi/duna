@@ -137,7 +137,9 @@ export class UsersService {
 
     // DEC-116 (T-F): a role set carrying release-exception authority may only be
     // assigned by the primary administrator. See assertCanGrantReleaseOverride.
-    await this.assertCanGrantReleaseOverride(_actor, dto.roleIds);
+    // A new user holds no roles, so any release authority in the requested set is
+    // a fresh grant.
+    await this.assertCanGrantReleaseOverride(_actor, [], dto.roleIds);
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
@@ -254,13 +256,16 @@ export class UsersService {
     const target = await this.findById(id);
     await this.validateRoleIds(dto.roleIds);
 
+    // findById() returns `roles` already flattened to `{ id, code, name }[]`,
+    // so `r.id` is the role id — the `UserRole` join row has no separate id.
+    const existingRoleIds = target.roles.map((r) => r.id);
+
     // DEC-116 (T-F): a role set carrying release-exception authority may only be
-    // assigned by the primary administrator.
-    await this.assertCanGrantReleaseOverride(actor, dto.roleIds);
+    // assigned by the primary administrator. See assertCanGrantReleaseOverride.
+    await this.assertCanGrantReleaseOverride(actor, existingRoleIds, dto.roleIds);
 
     // Prevent removing your own last/only roles (self-lockout of management).
     if (actor.id === id) {
-      const existingRoleIds = target.roles.map((r) => r.id);
       const removed = existingRoleIds.filter((r) => !dto.roleIds.includes(r));
       const retained = dto.roleIds.filter((r) => existingRoleIds.includes(r));
       if (removed.length > 0 && retained.length === 0) {
@@ -401,20 +406,40 @@ export class UsersService {
   }
 
   /**
-   * DEC-116 (T-F) — release-exception authority may only be conferred by the
-   * primary administrator.
+   * DEC-116 (T-F) — release-exception authority may only be conferred or
+   * withdrawn by the primary administrator.
    *
    * Possession of `release:override` is necessary but not sufficient for a manager
    * to exercise release authority: it must have been granted explicitly by the
    * owner. Enforcing that at write time (rather than inferring it at read time)
    * is what makes the grant's provenance auditable — and it introduces no
    * approval layer above the owner, who is exempt by implicit full authority.
+   *
+   * Only a CHANGE is refused. Re-assigning a user the same roles they already
+   * hold — which is what the user-management screen submits — is neither a grant
+   * nor a revocation and must not be rejected as if it were an escalation.
    */
   private async assertCanGrantReleaseOverride(
     actor: AccountAccess,
-    roleIds: string[]
+    beforeRoleIds: string[],
+    afterRoleIds: string[]
   ): Promise<void> {
-    if (actor.isPrimaryAdmin === true || roleIds.length === 0) return;
+    if (actor.isPrimaryAdmin === true) return;
+
+    const [heldBefore, heldAfter] = await Promise.all([
+      this.rolesCarryReleaseOverride(beforeRoleIds),
+      this.rolesCarryReleaseOverride(afterRoleIds),
+    ]);
+    if (heldBefore === heldAfter) return;
+
+    throw new ForbiddenException(
+      `Only the primary administrator may grant or revoke '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
+    );
+  }
+
+  /** True when any of the given roles currently carries `release:override`. */
+  private async rolesCarryReleaseOverride(roleIds: string[]): Promise<boolean> {
+    if (roleIds.length === 0) return false;
 
     // RolePermission has a composite primary key @@id([roleId, permissionId]) and
     // therefore has NO `id` column — select roleId, which is the column we need.
@@ -425,11 +450,7 @@ export class UsersService {
       },
       select: { roleId: true },
     });
-    if (grant) {
-      throw new ForbiddenException(
-        `Only the primary administrator may grant '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
-      );
-    }
+    return grant !== null;
   }
 
   /**

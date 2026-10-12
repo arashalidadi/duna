@@ -340,6 +340,16 @@ describe('Vessel (e2e)', () => {
   });
 
   it('pre-existing vessels keep their type after the enum extension (backfill-safe)', async () => {
+    // Phase 1 (A3): this suite must not depend on seeded sample data. The row
+    // standing in for a "pre-existing" vessel is created by the suite itself.
+    const legacyCreated = await request(app.getHttpServer())
+      .post('/api/v1/vessels')
+      .set(auth(adminToken))
+      .send({ ...vesselBase(), code: `VESL-${tag}`, name: `MV Legacy ${randomTag}` })
+      .expect(201);
+    const legacyId = legacyCreated.body.data.id as string;
+    createdVessels.push({ id: legacyId });
+
     const res = await request(app.getHttpServer())
       .get('/api/v1/vessels?pageSize=100')
       .set(auth(adminToken))
@@ -353,13 +363,12 @@ describe('Vessel (e2e)', () => {
       expect(allowed.has(v.vesselType)).toBe(true);
     }
 
-    // The seeded legacy vessel is still readable with its original type.
+    // The vessel written before the enum extension is still readable with its
+    // original type.
     const legacy = await request(app.getHttpServer())
-      .get('/api/v1/vessels?search=MV-HORIZON')
+      .get(`/api/v1/vessels/${legacyId}`)
       .set(auth(adminToken))
       .expect(200);
-    const row = legacy.body.data.data.find((v: { code: string }) => v.code === 'MV-HORIZON');
-    expect(row).toBeDefined();
-    expect(row.vesselType).toBe('CONTAINER');
+    expect(legacy.body.data.vesselType).toBe('CONTAINER');
   });
 });

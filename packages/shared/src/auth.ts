@@ -36,6 +36,12 @@ export interface UserListItem {
   email: string;
   fullName: string;
   isActive: boolean;
+  /**
+   * DEC-116 — true for the single primary administrator (the company owner),
+   * whose authority is implicit and not derived from roles. Always present in
+   * /users responses; the users screen does not yet render it.
+   */
+  isPrimaryAdmin: boolean;
   portalCustomerId?: string | null;
   portalCustomer?: { id: string; name: string; code: string } | null;
   lastLoginAt: string | null;
