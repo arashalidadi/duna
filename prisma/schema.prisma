@@ -626,6 +626,7 @@ model Vessel {
   voyages Voyage[]
   tugVoyages   Voyage[]      @relation("VoyageTug")
   bargeVoyages Voyage[]      @relation("VoyageBarge")
+  legNumberingVessels VoyageDestination[] @relation("VoyageLegNumberingVessel")
 
   @@index([code])
   @@index([name])
@@ -721,15 +722,19 @@ model VoyageDestination {
   voyageId          String
   destinationPortId String
   legNumber         Int
-  voyageNumber      String // destination-scoped document number, e.g. 1/26
+  voyageNumber      String // vessel + destination + year scoped document number, e.g. 1/26 (REQ-040)
+  // Vessel whose per-vessel counter issued voyageNumber. Set once when the leg is numbered and
+  // never rewritten, so an issued number keeps its scope even if the voyage's vessel changes (DEC-026).
+  numberingVesselId String
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
   deletedAt         DateTime? // soft delete (schema convention)
 
   voyage          Voyage @relation(fields: [voyageId], references: [id], onDelete: Cascade)
   destinationPort Port   @relation("VoyageLegPort", fields: [destinationPortId], references: [id])
+  numberingVessel Vessel @relation("VoyageLegNumberingVessel", fields: [numberingVesselId], references: [id])
 
-  @@unique([destinationPortId, voyageNumber])
+  @@unique([destinationPortId, numberingVesselId, voyageNumber], map: "VoyageDestination_dest_vessel_number_key")
   @@unique([voyageId, destinationPortId])
   @@index([voyageId])
   @@index([destinationPortId])

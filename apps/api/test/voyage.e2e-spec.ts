@@ -701,15 +701,23 @@ describe('Voyage (e2e)', () => {
       .expect(404);
   });
 
-  it('number-preview returns the next {seq}/{YY} per destination without allocating', async () => {
+  it('number-preview returns the next {seq}/{YY} per vessel + destination without allocating', async () => {
     const destPort = await createPort('VOYPRE', 'Voy Preview Dest');
+    // REQ-040: leg numbers are scoped per vessel, so the preview needs the vessel.
     const before = await request(app.getHttpServer())
-      .get(`/api/v1/voyages/number-preview?destinationPortIds=${destPort}`)
+      .get(`/api/v1/voyages/number-preview?destinationPortIds=${destPort}&vesselId=${vesselId}`)
       .set(auth(adminToken))
       .expect(200);
     expect(before.body.data).toHaveLength(1);
     expect(before.body.data[0].destinationPortId).toBe(destPort);
     expect(before.body.data[0].nextVoyageNumber).toBe(`1/${yy}`);
+
+    // Without a vessel the vessel-scoped number is unknown: preview is null, not a guess.
+    const noVessel = await request(app.getHttpServer())
+      .get(`/api/v1/voyages/number-preview?destinationPortIds=${destPort}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(noVessel.body.data[0].nextVoyageNumber).toBeNull();
 
     // creating a voyage there advances the sequence the preview reported
     const created = await request(app.getHttpServer())
@@ -721,7 +729,7 @@ describe('Voyage (e2e)', () => {
     expect(created.body.data.legs[0].voyageNumber).toBe(`1/${yy}`);
 
     const after = await request(app.getHttpServer())
-      .get(`/api/v1/voyages/number-preview?destinationPortIds=${destPort}`)
+      .get(`/api/v1/voyages/number-preview?destinationPortIds=${destPort}&vesselId=${vesselId}`)
       .set(auth(adminToken))
       .expect(200);
     expect(after.body.data[0].nextVoyageNumber).toBe(`2/${yy}`);
@@ -845,12 +853,13 @@ describe('Voyage (e2e)', () => {
       voyageId = voyage.id;
       expect(await prisma.voyageDestination.count({ where: { voyageId } })).toBe(0);
 
-      // The migration's backfill statement, identical except scoped to this fixture voyage.
+      // The historical backfill statement, scoped to this fixture voyage. It now also sets the
+      // NOT NULL numberingVesselId column added by 20261013000000_voyage_leg_vessel_scope.
       const backfill = () =>
         prisma.$executeRaw`
           INSERT INTO "VoyageDestination"
-            ("id", "voyageId", "destinationPortId", "legNumber", "voyageNumber", "createdAt", "updatedAt")
-          SELECT replace(gen_random_uuid()::text, '-', ''), v."id", v."destinationPortId", 1, v."voyageNumber", NOW(), NOW()
+            ("id", "voyageId", "destinationPortId", "numberingVesselId", "legNumber", "voyageNumber", "createdAt", "updatedAt")
+          SELECT replace(gen_random_uuid()::text, '-', ''), v."id", v."destinationPortId", v."vesselId", 1, v."voyageNumber", NOW(), NOW()
           FROM "Voyage" v
           WHERE v."id" = ${voyageId}
             AND NOT EXISTS (SELECT 1 FROM "VoyageDestination" vd WHERE vd."voyageId" = v."id")`;

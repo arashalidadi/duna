@@ -6,13 +6,21 @@ import {
 } from '@nestjs/common';
 import { Prisma, VoucherStatus, VoucherType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
 import type { LedgerEntry, LedgerSummary, Voucher } from '@shipping/shared';
 
 const PAGE_SIZE_MAX = 100;
 
 @Injectable()
 export class VoucherService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -61,20 +69,6 @@ export class VoucherService {
           }
         : null,
     };
-  }
-
-  /** Next voucher number per type: RCP-YYMM-##### / PMT-YYMM-#####. */
-  private async nextNumber(tx: Prisma.TransactionClient, type: VoucherType): Promise<string> {
-    const now = new Date();
-    const yy = String(now.getFullYear() % 100).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const prefix = `${type === VoucherType.RECEIPT ? 'RCP' : 'PMT'}-${yy}${mm}-`;
-    for (let seq = 1; seq <= 9999; seq++) {
-      const candidate = `${prefix}${String(seq).padStart(5, '0')}`;
-      const exists = await tx.voucher.findUnique({ where: { voucherNumber: candidate }, select: { id: true } });
-      if (!exists) return candidate;
-    }
-    throw new ConflictException(`voucher number space exhausted for ${prefix}`);
   }
 
   /**
@@ -171,16 +165,7 @@ export class VoucherService {
   async create(dto: { type: VoucherType; customerId: string; invoiceId?: string; amount: number; currencyCode?: string; exchangeRate?: number; method?: any; reference?: string; description?: string; note?: string; voucherDate?: string }, user?: { id: string }) {
     if (dto.amount <= 0) throw new BadRequestException('amount must be positive');
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): the voucher
-    // and delivery-release suites create vouchers in parallel, and nextNumber() is
-    // find-then-insert without a lock, so the loser of an RCP/PMT-YYMM-##### race hits the
-    // unique voucherNumber index (P2002 -> 409 via the filter). On that collision we re-run
-    // the transaction so nextNumber() sees the committed winner and moves to the next free
-    // sequence; every other error keeps its existing behavior.
-    const MAX_VOUCHER_ATTEMPTS = 10;
-    for (let attempt = 1; ; attempt += 1) {
-      try {
-        const created = await this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findFirst({ where: { id: dto.customerId, deletedAt: null } });
       if (!customer) throw new NotFoundException('customer not found');
 
@@ -199,9 +184,31 @@ export class VoucherService {
         throw new ConflictException('voucher currency must match invoice currency');
       }
 
+      // Number allocated inside the transaction, after the checks above, so a rejected
+      // voucher consumes no number (DEC-026, DEC-027).
+      const req = periodicSequenceRequest(
+        dto.type === VoucherType.RECEIPT ? 'VOUCHER_RECEIPT' : 'VOUCHER_PAYMENT',
+        new Date(),
+      );
+      const { sequence: voucherNumber } = await this.numbering.allocateNumber({
+        ...req,
+        seedNextSequence: async (seedTx) =>
+          nextSequenceAfter(
+            req.prefix,
+            (
+              await seedTx.voucher.findFirst({
+                where: { voucherNumber: { startsWith: req.prefix } },
+                orderBy: { voucherNumber: 'desc' },
+                select: { voucherNumber: true },
+              })
+            )?.voucherNumber ?? null,
+          ),
+        tx,
+      });
+
       const voucher = await tx.voucher.create({
         data: {
-          voucherNumber: await this.nextNumber(tx, dto.type),
+          voucherNumber,
           type: dto.type,
           customerId: dto.customerId,
           invoiceId: invoice?.id ?? null,
@@ -218,25 +225,11 @@ export class VoucherService {
         },
       });
 
-          if (invoice) await this.recomputeInvoicePaid(tx, invoice.id);
-          return voucher;
-        });
+      if (invoice) await this.recomputeInvoicePaid(tx, invoice.id);
+      return voucher;
+    });
 
-        return this.detail(created.id);
-      } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002' &&
-          attempt < MAX_VOUCHER_ATTEMPTS &&
-          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
-            'voucherNumber'
-          )
-        ) {
-          continue; // lost the number race: re-run so nextNumber() sees the winner
-        }
-        throw e;
-      }
-    }
+    return this.detail(created.id);
   }
 
   async update(id: string, dto: { method?: any; reference?: string; description?: string; note?: string; voucherDate?: string; amount?: number; exchangeRate?: number }) {

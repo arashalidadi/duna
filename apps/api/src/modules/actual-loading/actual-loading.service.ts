@@ -10,6 +10,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   CreateActualLoadingDto,
   UpdateActualLoadingItemDto,
   BulkUpdateActualLoadingItemsDto,
@@ -159,7 +164,10 @@ const itemSelect = {
 
 @Injectable()
 export class ActualLoadingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Actual Loading CRUD
@@ -246,22 +254,33 @@ export class ActualLoadingService {
       throw new BadRequestException('Cannot create Actual Loading for an empty Load List');
     }
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): several e2e
-    // suites create Actual Loadings in parallel and generateReference() is read-then-write, so
-    // two requests can compute the same AL-YYMM-##### and the loser hits the unique number index.
-    // On that collision we re-read the committed max and retry; any other P2002/P2018 (e.g. the
-    // one-per-load-list rule) keeps the existing 409 semantics.
-    const MAX_AL_ATTEMPTS = 10;
-    for (let attempt = 1; ; attempt += 1) {
-      const actualLoadingNumber = await this.generateReference();
-      try {
+    // Number and record (with its ADR-042 items) are created in ONE transaction (DEC-027):
+    // concurrent creates get distinct AL numbers from the row-locked sequence, and any failed
+    // insert (including the one-per-load-list rule) rolls back the counter.
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('ACTUAL_LOADING', new Date());
+        const { sequence: actualLoadingNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.actualLoading.findFirst({
+                  where: { actualLoadingNumber: { startsWith: req.prefix } },
+                  orderBy: { actualLoadingNumber: 'desc' },
+                  select: { actualLoadingNumber: true },
+                })
+              )?.actualLoadingNumber ?? null,
+            ),
+          tx,
+        });
         // ADR-042 copy-on-create: materialize every Load List line as an ActualLoadingItem
-        // (actualQuantity null, result NOT_LOADED — the enum default) in the SAME create, so
-        // the number-allocation retry stays atomic: a loadListItemId unique collision rolls
-        // this attempt back, does NOT match the actualLoadingNumber retry discriminator below,
-        // and falls through to the existing 409 path. Mirrors Discharge.create()'s nested
-        // `items: { create: [...] }` shape.
-        return await this.prisma.actualLoading.create({
+        // (actualQuantity null, result NOT_LOADED — the enum default) in the SAME create, so the
+        // number allocation and the nested items commit or roll back together. A loadListItemId
+        // unique collision rolls the number back too and falls through to the 409 path.
+        // Mirrors Discharge.create()'s nested `items: { create: [...] }` shape.
+        return tx.actualLoading.create({
           data: {
             actualLoadingNumber,
             loadListId: dto.loadListId,
@@ -278,25 +297,15 @@ export class ActualLoadingService {
           },
           select: detailSelect,
         });
-      } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002' &&
-          attempt < MAX_AL_ATTEMPTS &&
-          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
-            'actualLoadingNumber'
-          )
-        ) {
-          continue; // lost the number race: re-read the committed max and retry
-        }
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          (e.code === 'P2002' || e.code === 'P2018')
-        ) {
-          throw new ConflictException('Could not create Actual Loading: duplicate reference');
-        }
-        throw e;
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === 'P2002' || e.code === 'P2018')
+      ) {
+        throw new ConflictException('Could not create Actual Loading: duplicate reference');
       }
+      throw e;
     }
   }
 
@@ -790,22 +799,4 @@ export class ActualLoadingService {
     }
   }
 
-  /** Stable, ordered actual loading number: AL-YYMM-##### (mirrors VOY/INS/CRG/LL pattern). */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `AL-${yymm}-`;
-
-    const latest = await this.prisma.actualLoading.findFirst({
-      where: { actualLoadingNumber: { startsWith: prefix } },
-      orderBy: { actualLoadingNumber: 'desc' },
-      select: { actualLoadingNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.actualLoadingNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
 }

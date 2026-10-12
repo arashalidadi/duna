@@ -9,6 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   AddProformaItemDto,
   CancelProformaDto,
   CreateProformaDto,
@@ -88,7 +93,10 @@ const detailSelect = {
 
 @Injectable()
 export class ProformaService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Proforma CRUD
@@ -154,10 +162,25 @@ export class ProformaService {
       throw new NotFoundException('Customer not found');
     }
 
-    const proformaNumber = await this.generateReference();
-
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('PROFORMA', new Date());
+        // PRF family is shared with quotation-convert, so both paths draw from one counter.
+        const { sequence: proformaNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.proforma.findFirst({
+                  where: { proformaNumber: { startsWith: req.prefix } },
+                  orderBy: { proformaNumber: 'desc' },
+                  select: { proformaNumber: true },
+                })
+              )?.proformaNumber ?? null,
+            ),
+          tx,
+        });
         const created = await tx.proforma.create({
           data: {
             proformaNumber,
@@ -419,10 +442,24 @@ export class ProformaService {
       throw new BadRequestException('Cannot convert a proforma with no lines');
     }
 
-    // Invoice number via the invoice module's own reference generator shape.
-    const invoiceNumber = await this.generateInvoiceReference();
-
     return this.prisma.$transaction(async (tx) => {
+      // INV family is shared with the invoice module, so both paths draw from one counter.
+      const req = periodicSequenceRequest('INVOICE', new Date());
+      const { sequence: invoiceNumber } = await this.numbering.allocateNumber({
+        ...req,
+        seedNextSequence: async (seedTx) =>
+          nextSequenceAfter(
+            req.prefix,
+            (
+              await seedTx.invoice.findFirst({
+                where: { invoiceNumber: { startsWith: req.prefix } },
+                orderBy: { invoiceNumber: 'desc' },
+                select: { invoiceNumber: true },
+              })
+            )?.invoiceNumber ?? null,
+          ),
+        tx,
+      });
       const invoice = await tx.invoice.create({
         data: {
           invoiceNumber,
@@ -545,43 +582,5 @@ export class ProformaService {
         totalAmount: new Prisma.Decimal(total.toFixed(2)),
       },
     });
-  }
-
-  /** PRF-YYMM-##### — same shape as the rest of the suite. */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `PRF-${yymm}-`;
-
-    const latest = await this.prisma.proforma.findFirst({
-      where: { proformaNumber: { startsWith: prefix } },
-      orderBy: { proformaNumber: 'desc' },
-      select: { proformaNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.proformaNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
-
-  /** INV-YYMM-##### for the converted invoice (mirrors the invoice module). */
-  private async generateInvoiceReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `INV-${yymm}-`;
-
-    const latest = await this.prisma.invoice.findFirst({
-      where: { invoiceNumber: { startsWith: prefix } },
-      orderBy: { invoiceNumber: 'desc' },
-      select: { invoiceNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.invoiceNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   }
 }

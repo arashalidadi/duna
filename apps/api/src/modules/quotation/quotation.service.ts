@@ -9,6 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   AddQuotationItemDto,
   CancelQuotationDto,
   CreateQuotationDto,
@@ -101,7 +106,10 @@ function parseBool(v: string | undefined): boolean | undefined {
 
 @Injectable()
 export class QuotationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Queries
@@ -173,8 +181,6 @@ export class QuotationService {
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const quotationNumber = await this.generateReference();
-
     // Pre-compute line amounts + header totals in memory (same math as invoice).
     const items = (dto.items ?? []).map((it, idx) => {
       const quantity = it.quantity ?? 1;
@@ -196,7 +202,24 @@ export class QuotationService {
     );
 
     try {
-      return await this.prisma.quotation.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('QUOTATION', new Date());
+        const { sequence: quotationNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.quotation.findFirst({
+                  where: { quotationNumber: { startsWith: req.prefix } },
+                  orderBy: { quotationNumber: 'desc' },
+                  select: { quotationNumber: true },
+                })
+              )?.quotationNumber ?? null,
+            ),
+          tx,
+        });
+        return tx.quotation.create({
         data: {
           quotationNumber,
           customerId: dto.customerId,
@@ -215,6 +238,7 @@ export class QuotationService {
           items: { create: items },
         },
         select: detailSelect,
+        });
       });
     } catch (e) {
       if (
@@ -419,7 +443,23 @@ export class QuotationService {
     });
 
     return this.prisma.$transaction(async (tx) => {
-      const proformaNumber = await this.generateProformaReference(tx);
+      // PRF family is shared with proforma create, so both paths draw from one counter.
+      const proformaReq = periodicSequenceRequest('PROFORMA', new Date());
+      const { sequence: proformaNumber } = await this.numbering.allocateNumber({
+        ...proformaReq,
+        seedNextSequence: async (seedTx) =>
+          nextSequenceAfter(
+            proformaReq.prefix,
+            (
+              await seedTx.proforma.findFirst({
+                where: { proformaNumber: { startsWith: proformaReq.prefix } },
+                orderBy: { proformaNumber: 'desc' },
+                select: { proformaNumber: true },
+              })
+            )?.proformaNumber ?? null,
+          ),
+        tx,
+      });
       const proforma = await tx.proforma.create({
         data: {
           proformaNumber,
@@ -571,37 +611,5 @@ export class QuotationService {
         totalAmount: totals.total,
       },
     });
-  }
-
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1,
-    ).padStart(2, '0')}`;
-    const prefix = `QT-${yymm}-`;
-    const latest = await this.prisma.quotation.findFirst({
-      where: { quotationNumber: { startsWith: prefix } },
-      orderBy: { quotationNumber: 'desc' },
-      select: { quotationNumber: true },
-    });
-    const lastSeq = latest ? Number(latest.quotationNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
-
-  private async generateProformaReference(tx: Prisma.TransactionClient): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1,
-    ).padStart(2, '0')}`;
-    const prefix = `PRF-${yymm}-`;
-    const latest = await tx.proforma.findFirst({
-      where: { proformaNumber: { startsWith: prefix } },
-      orderBy: { proformaNumber: 'desc' },
-      select: { proformaNumber: true },
-    });
-    const lastSeq = latest ? Number(latest.proformaNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   }
 }

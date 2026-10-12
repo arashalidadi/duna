@@ -4,6 +4,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
 import { CreateCargoDto, ListCargoQueryDto, UpdateCargoDto } from './dto/cargo.dto';
 
 /**
@@ -76,7 +81,10 @@ type CargoRow = Prisma.CargoGetPayload<{ select: typeof select }>;
 
 @Injectable()
 export class CargoService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   async list(query: ListCargoQueryDto) {
     const pagination = parsePagination(query);
@@ -148,22 +156,28 @@ export class CargoService {
   async create(dto: CreateCargoDto, actor?: AuthenticatedUser) {
     await this.validateRelations(dto.portId, dto.customerId, dto.yardId, dto.destinationPortId);
 
-    // Atomic reference allocation by BOUNDED RETRY on P2002. generateReference() is
-    // read-then-write (read the current max, then create), so under concurrent creates two
-    // requests can compute the same CRG-YYMM-##### and the loser hits the unique index
-    // (P2002 -> 409 via the exception filter). On collision we re-read the max — the
-    // winner's row is committed, so max has advanced — and allocate again. generateReference
-    // counts soft-deleted rows too (no deletedAt filter), so numbers are never reused, and
-    // the format + "highest existing sequence for the current month + 1" semantics are
-    // preserved without any schema/sequence change.
-    const MAX_REFERENCE_ATTEMPTS = 10;
-    for (let attempt = 1; ; attempt += 1) {
-      const reference = await this.generateReference();
-      try {
-        return await this.prisma.cargo
-          .create({
-            data: {
-              reference,
+    // Number and record are created in ONE transaction (DEC-027): concurrent creates get distinct
+    // CRG numbers from the row-locked sequence, and a failed insert rolls the counter back.
+    const row = await this.prisma.$transaction(async (tx) => {
+      const req = periodicSequenceRequest('CARGO', new Date());
+      const { sequence: reference } = await this.numbering.allocateNumber({
+        ...req,
+        seedNextSequence: async (seedTx) =>
+          nextSequenceAfter(
+            req.prefix,
+            (
+              await seedTx.cargo.findFirst({
+                where: { reference: { startsWith: req.prefix } },
+                orderBy: { reference: 'desc' },
+                select: { reference: true },
+              })
+            )?.reference ?? null,
+          ),
+        tx,
+      });
+      return tx.cargo.create({
+        data: {
+          reference,
               customerId: dto.customerId,
               portId: dto.portId,
               yardId: dto.yardId,
@@ -196,20 +210,10 @@ export class CargoService {
               cargoValueCurrency: dto.cargoValueCurrency ?? null,
               createdById: actor?.id,
             },
-            select,
-          })
-          .then((row) => this.normalize(row));
-      } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002' &&
-          attempt < MAX_REFERENCE_ATTEMPTS
-        ) {
-          continue; // lost the allocation race: re-read the committed max and retry
-        }
-        throw e;
-      }
-    }
+        select,
+      });
+    });
+    return this.normalize(row);
   }
 
   async update(id: string, dto: UpdateCargoDto, _actor?: AuthenticatedUser) {
@@ -379,27 +383,6 @@ export class CargoService {
         throw new ConflictException('Yard does not belong to the selected port');
       }
     }
-  }
-
-  /** Deterministic unique human-friendly reference: CRG-<YYMM>-<padded seq>. */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `CRG-${yymm}-`;
-
-    // Highest existing sequence for the current month avoids collisions when
-    // earlier records were deleted or soft-deleted.
-    const latest = await this.prisma.cargo.findFirst({
-      where: { reference: { startsWith: prefix } },
-      orderBy: { reference: 'desc' },
-      select: { reference: true },
-    });
-
-    const lastSeq = latest ? Number(latest.reference.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   }
 
   /** Prisma returns Decimal for weight; surface it as a string (JSON-safe). */

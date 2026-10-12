@@ -122,7 +122,7 @@ export default function VoyagesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState<VoyageForm>(EMPTY_FORM);
   // destinationPortId -> next per-destination number ({seq}/{YY}), advisory only.
-  const [numberPreview, setNumberPreview] = useState<Record<string, string>>({});
+  const [numberPreview, setNumberPreview] = useState<Record<string, string | null>>({});
 
   const canCreate = hasPermission('voyage:create');
   const canRead = hasPermission('voyage:read');
@@ -185,9 +185,11 @@ export default function VoyagesPage() {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await api.get<Array<{ destinationPortId: string; nextVoyageNumber: string }>>(
-          `/voyages/number-preview?destinationPortIds=${ids.join(',')}`
-        );
+        // Leg numbers are scoped per vessel + destination + year (REQ-040), so the vessel is part of the preview.
+        const vesselParam = form.vesselId ? `&vesselId=${encodeURIComponent(form.vesselId)}` : '';
+        const rows = await api.get<
+          Array<{ destinationPortId: string; nextVoyageNumber: string | null }>
+        >(`/voyages/number-preview?destinationPortIds=${ids.join(',')}${vesselParam}`);
         if (!cancelled) {
           setNumberPreview(
             Object.fromEntries(rows.map((row) => [row.destinationPortId, row.nextVoyageNumber]))
@@ -200,7 +202,7 @@ export default function VoyagesPage() {
     return () => {
       cancelled = true;
     };
-  }, [form.destinationPortId, form.destinations]);
+  }, [form.destinationPortId, form.destinations, form.vesselId]);
 
   function applyFilters() {
     setPage(1);

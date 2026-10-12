@@ -1002,9 +1002,9 @@ export class ManifestService {
   }
 
   /**
-   * Per-destination manifest number (ADR-047 decision 7): replaces the local
-   * read-then-write `generateReference()` (`MAN-YYMM-#####`) with NumberingService
-   * .allocateNumber.
+   * Per-destination manifest number (ADR-047 decision 7): allocated through
+   * NumberingService.allocateNumber (replaces the former local read-then-write
+   * generator, `MAN-YYMM-#####`).
    *  - format `MAN-{DEST}-YYMM-#####` — the destination segment disambiguates
    *    under the same `manifestNumber @unique` index (collision-proofing same as bills).
    *  - `{DEST}` = Port `abbreviation` when present, else `code` (same resolution as bills).

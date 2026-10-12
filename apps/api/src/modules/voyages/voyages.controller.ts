@@ -26,12 +26,15 @@ export class VoyagesController {
   // Declared before ':id' so the literal path is not swallowed as an id.
   @Get('number-preview')
   @RequirePermissions('voyage:read')
-  numberPreview(@Query('destinationPortIds') destinationPortIds?: string) {
+  numberPreview(
+    @Query('destinationPortIds') destinationPortIds?: string,
+    @Query('vesselId') vesselId?: string,
+  ) {
     const ids = (destinationPortIds ?? '')
       .split(',')
       .map((part) => part.trim())
       .filter(Boolean);
-    return this.voyagesService.previewDestinationNumbers(ids);
+    return this.voyagesService.previewDestinationNumbers(ids, vesselId?.trim() || undefined);
   }
 
   @Get(':id')

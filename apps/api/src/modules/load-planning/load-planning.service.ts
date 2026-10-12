@@ -9,6 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   AddLoadListItemDto,
   BulkAddLoadListItemsDto,
   CancelLoadListDto,
@@ -175,7 +180,10 @@ interface CargoEligibilityResult {
 
 @Injectable()
 export class LoadPlanningService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Load List CRUD
@@ -257,16 +265,27 @@ export class LoadPlanningService {
       );
     }
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): six e2e
-    // suites create load lists in parallel and generateReference() is read-then-write, so the
-    // loser of an LL-YYMM-##### race hits the unique number index (observed blocking the
-    // deterministic full run). Re-read the committed max and retry; other P2002/P2018 keep
-    // the existing 409 semantics.
-    const MAX_LL_ATTEMPTS = 10;
-    for (let attempt = 1; ; attempt += 1) {
-      const loadListNumber = await this.generateReference();
-      try {
-        return await this.prisma.loadList.create({
+    // Number and record are created in ONE transaction (DEC-027): concurrent creates get
+    // distinct LL numbers from the row-locked sequence, and a failed insert rolls back the counter.
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('LOAD_LIST', new Date());
+        const { sequence: loadListNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.loadList.findFirst({
+                  where: { loadListNumber: { startsWith: req.prefix } },
+                  orderBy: { loadListNumber: 'desc' },
+                  select: { loadListNumber: true },
+                })
+              )?.loadListNumber ?? null,
+            ),
+          tx,
+        });
+        return tx.loadList.create({
           data: {
             loadListNumber,
             voyageId: dto.voyageId,
@@ -275,25 +294,15 @@ export class LoadPlanningService {
           },
           select: detailSelect,
         });
-      } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002' &&
-          attempt < MAX_LL_ATTEMPTS &&
-          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
-            'loadListNumber'
-          )
-        ) {
-          continue; // lost the number race: re-read the committed max and retry
-        }
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          (e.code === 'P2002' || e.code === 'P2018')
-        ) {
-          throw new ConflictException('Could not create load list: duplicate reference');
-        }
-        throw e;
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === 'P2002' || e.code === 'P2018')
+      ) {
+        throw new ConflictException('Could not create load list: duplicate reference');
       }
+      throw e;
     }
   }
 
@@ -836,22 +845,4 @@ export class LoadPlanningService {
     }
   }
 
-  /** Stable, ordered load list number: LL-YYMM-##### (mirrors VOY/INS/CRG pattern). */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `LL-${yymm}-`;
-
-    const latest = await this.prisma.loadList.findFirst({
-      where: { loadListNumber: { startsWith: prefix } },
-      orderBy: { loadListNumber: 'desc' },
-      select: { loadListNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.loadListNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
 }

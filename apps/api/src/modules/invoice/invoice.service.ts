@@ -9,6 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   AddInvoiceItemDto,
   CancelInvoiceDto,
   CreateInvoiceDto,
@@ -100,7 +105,10 @@ function parseBool(v: string | undefined): boolean | undefined {
 
 @Injectable()
 export class InvoiceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Invoice CRUD
@@ -195,16 +203,29 @@ export class InvoiceService {
 
     const anchors = await this.resolveAnchors(dto.billOfLadingId, dto.manifestId);
 
-    // Atomic number allocation by BOUNDED RETRY (same pattern as Cargo.reference): invoice,
-    // voucher, proforma-convert and delivery-release suites create invoices in parallel and
-    // generateReference() is read-then-write, so the loser of an INV-YYMM-##### race hits the
-    // unique number index. Re-read the committed max and retry; other P2002/P2018 keep the
-    // existing 409 semantics.
-    const MAX_INVOICE_ATTEMPTS = 10;
-    for (let attempt = 1; ; attempt += 1) {
-      const invoiceNumber = await this.generateReference();
-      try {
-        return await this.prisma.invoice.create({
+    // The number and the invoice are created in ONE transaction (DEC-027): concurrent creates
+    // receive distinct INV numbers from the row-locked sequence, and a failed insert rolls the
+    // counter back, so no number is consumed without a document.
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('INVOICE', new Date());
+        const { sequence: invoiceNumber } = await this.numbering.allocateNumber({
+          ...req,
+          // Shared INV family with proforma-convert: seed from the highest existing INV number.
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.invoice.findFirst({
+                  where: { invoiceNumber: { startsWith: req.prefix } },
+                  orderBy: { invoiceNumber: 'desc' },
+                  select: { invoiceNumber: true },
+                })
+              )?.invoiceNumber ?? null,
+            ),
+          tx,
+        });
+        return tx.invoice.create({
           data: {
             invoiceNumber,
             customerId: dto.customerId,
@@ -223,25 +244,15 @@ export class InvoiceService {
           },
           select: detailSelect,
         });
-      } catch (e) {
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          e.code === 'P2002' &&
-          attempt < MAX_INVOICE_ATTEMPTS &&
-          String((e.meta as { target?: unknown } | undefined)?.target ?? '').includes(
-            'invoiceNumber'
-          )
-        ) {
-          continue; // lost the number race: re-read the committed max and retry
-        }
-        if (
-          e instanceof Prisma.PrismaClientKnownRequestError &&
-          (e.code === 'P2002' || e.code === 'P2018')
-        ) {
-          throw new ConflictException('Could not create invoice: duplicate reference');
-        }
-        throw e;
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === 'P2002' || e.code === 'P2018')
+      ) {
+        throw new ConflictException('Could not create invoice: duplicate reference');
       }
+      throw e;
     }
   }
 
@@ -573,24 +584,5 @@ export class InvoiceService {
         totalAmount: new Prisma.Decimal(total.toFixed(2)),
       },
     });
-  }
-
-  /** Stable, ordered invoice number: INV-YYMM-##### (mirrors MAN/BOL/AL/LL). */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1
-    ).padStart(2, '0')}`;
-    const prefix = `INV-${yymm}-`;
-
-    const latest = await this.prisma.invoice.findFirst({
-      where: { invoiceNumber: { startsWith: prefix } },
-      orderBy: { invoiceNumber: 'desc' },
-      select: { invoiceNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.invoiceNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
   }
 }

@@ -8,6 +8,11 @@ import {
 import { Prisma, ManifestStatus, BookingStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { VoucherService } from '../voucher/voucher.service';
+import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
 
 export interface PortalActor {
   id?: string;
@@ -90,6 +95,7 @@ export class PortalService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vouchers: VoucherService,
+    private readonly numbering: NumberingService,
   ) {}
 
   /** Resolve the portal company for a user; 403 when not linked. */
@@ -144,16 +150,6 @@ export class PortalService {
       throw new ForbiddenException('This account is not linked to a portal company');
     }
     return user.portalAgentId ? [user.portalAgentId] : [];
-  }
-
-  private async nextBookingNumber(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getFullYear()).slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const prefix = `BRK-${yymm}-`;
-    const count = await this.prisma.bookingRequest.count({
-      where: { bookingNumber: { startsWith: prefix } },
-    });
-    return `${prefix}${String(count + 1).padStart(5, '0')}`;
   }
 
   async me(actor: PortalActor) {
@@ -269,20 +265,39 @@ export class PortalService {
   }) {
     const customerId = await this.portalCustomerIdOf(actor);
     await this.validatePorts(dto.originPortId, dto.destinationPortId);
-    const bookingNumber = await this.nextBookingNumber();
-    const row = await this.prisma.bookingRequest.create({
-      data: {
-        bookingNumber,
-        customerId,
-        cargoDescription: dto.cargoDescription.trim(),
-        originPortId: dto.originPortId ?? null,
-        destinationPortId: dto.destinationPortId ?? null,
-        requestedShipDate: dto.requestedShipDate ? new Date(dto.requestedShipDate) : null,
-        containers: dto.containers ?? null,
-        weightKg: dto.weightKg != null ? new Prisma.Decimal(dto.weightKg) : null,
-        notes: dto.notes?.trim() || null,
-      },
-      select: bookingSelect,
+    // Number and booking are created in ONE transaction (DEC-027): concurrent requests get
+    // distinct BRK numbers from the row-locked sequence, and a failed insert rolls back the counter.
+    const row = await this.prisma.$transaction(async (tx) => {
+      const req = periodicSequenceRequest('BOOKING_REQUEST', new Date());
+      const { sequence: bookingNumber } = await this.numbering.allocateNumber({
+        ...req,
+        seedNextSequence: async (seedTx) =>
+          nextSequenceAfter(
+            req.prefix,
+            (
+              await seedTx.bookingRequest.findFirst({
+                where: { bookingNumber: { startsWith: req.prefix } },
+                orderBy: { bookingNumber: 'desc' },
+                select: { bookingNumber: true },
+              })
+            )?.bookingNumber ?? null,
+          ),
+        tx,
+      });
+      return tx.bookingRequest.create({
+        data: {
+          bookingNumber,
+          customerId,
+          cargoDescription: dto.cargoDescription.trim(),
+          originPortId: dto.originPortId ?? null,
+          destinationPortId: dto.destinationPortId ?? null,
+          requestedShipDate: dto.requestedShipDate ? new Date(dto.requestedShipDate) : null,
+          containers: dto.containers ?? null,
+          weightKg: dto.weightKg != null ? new Prisma.Decimal(dto.weightKg) : null,
+          notes: dto.notes?.trim() || null,
+        },
+        select: bookingSelect,
+      });
     });
     return mapBooking(row);
   }

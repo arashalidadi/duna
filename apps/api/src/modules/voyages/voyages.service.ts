@@ -16,6 +16,7 @@ import {
 } from './dto/voyage.dto';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import type { AllocatedNumber } from '../../common/infrastructure/numbering/numbering-sequence.types';
+import { nextSequenceAfter } from '../../common/infrastructure/numbering/document-number-formats';
 
 const TRANSITIONS: Record<VoyageStatus, VoyageStatus[]> = {
   DRAFT: ['SCHEDULED', 'CANCELLED'],
@@ -264,35 +265,67 @@ export class VoyagesService {
     }
   }
 
+  /** Per-vessel, per-destination, per-year counter key (REQ-040). */
+  private legSequenceName(vesselId: string, destinationPortId: string, yy: string): string {
+    return `voyage-leg-${vesselId}-${destinationPortId}-${yy}`;
+  }
+
   /**
-   * Destination-scoped voyage number (docs 01:58-64 — one sequence per
-   * destination per year, rendered `{seq}/{YY}` -> `1/26`, `2/26`).
-   * Sequence key `voyage-<portId>-<YY>` is year-rotating and distinct from the
-   * parent `voyage-<yymm>` sequence and the stale `voyage-<portId>` rows.
+   * First leg number for a NEW counter row: the highest `n` already issued to this vessel for this
+   * destination in this year, plus one. Soft-deleted legs count, so an issued number is never reused.
    */
-  private async allocateLegNumber(destinationPortId: string): Promise<string> {
+  private async seedLegSequence(
+    db: Pick<Prisma.TransactionClient, 'voyageDestination'>,
+    vesselId: string,
+    destinationPortId: string,
+    yy: string,
+  ): Promise<number> {
+    const legs = await db.voyageDestination.findMany({
+      where: {
+        numberingVesselId: vesselId,
+        destinationPortId,
+        voyageNumber: { endsWith: `/${yy}` },
+      },
+      select: { voyageNumber: true },
+    });
+    let highest = 0;
+    for (const leg of legs) {
+      const n = Number(leg.voyageNumber.split('/')[0]);
+      if (Number.isFinite(n) && n > highest) highest = n;
+    }
+    return highest + 1;
+  }
+
+  /**
+   * Vessel + destination scoped voyage number (REQ-040: `n/yy`, trips counted per vessel,
+   * per destination and per year, restarting at 1 for each new combination).
+   * The counter key is `voyage-leg-<vesselId>-<portId>-<YY>`.
+   */
+  private async allocateLegNumber(destinationPortId: string, vesselId: string): Promise<string> {
     const yy = new Date()
       .getUTCFullYear()
       .toString()
       .slice(-2);
     const allocated = await this.numbering.allocateNumber({
-      name: `voyage-${destinationPortId}-${yy}`,
+      name: this.legSequenceName(vesselId, destinationPortId, yy),
       documentType: 'VOYAGE',
-      scopeType: 'DESTINATION',
-      scopeValue: destinationPortId,
+      scopeType: 'VESSEL_DESTINATION',
+      scopeValue: `${vesselId}:${destinationPortId}`,
       prefix: '',
       padding: 1,
       format: `{sequence}/${yy}`,
       period: 'YY',
+      seedNextSequence: (tx) => this.seedLegSequence(tx, vesselId, destinationPortId, yy),
     });
     return allocated.sequence;
   }
 
   /**
-   * Read-only next-number preview for the create dialog (no allocation):
-   * renders what allocateLegNumber WOULD return for each destination.
+   * Read-only next-number preview for the create dialog (no allocation): renders what
+   * allocateLegNumber WOULD return for each destination, for the given vessel.
+   * Without a vesselId the vessel-scoped number cannot be known, so it returns null.
    */
-  async previewDestinationNumbers(destinationPortIds: string[]) {
+  async previewDestinationNumbers(destinationPortIds: string[], vesselId?: string) {
     if (!destinationPortIds.length) {
       throw new BadRequestException('destinationPortIds is required');
     }
@@ -301,22 +334,36 @@ export class VoyagesService {
     }
     await this.assertDestinationLegs(destinationPortIds);
 
+    if (!vesselId) {
+      return destinationPortIds.map((destinationPortId) => ({
+        destinationPortId,
+        nextVoyageNumber: null,
+      }));
+    }
+
     const yy = new Date()
       .getUTCFullYear()
       .toString()
       .slice(-2);
     const sequences = await this.prisma.numberingSequence.findMany({
-      where: { name: { in: destinationPortIds.map((id) => `voyage-${id}-${yy}`) } },
-      select: { name: true, nextSequence: true, isActive: true },
+      where: {
+        name: { in: destinationPortIds.map((id) => this.legSequenceName(vesselId, id, yy)) },
+      },
+      select: { name: true, nextSequence: true },
     });
     const byName = new Map(sequences.map((seq) => [seq.name, seq]));
 
-    return destinationPortIds.map((destinationPortId) => {
-      const seq = byName.get(`voyage-${destinationPortId}-${yy}`);
-      // Allocation upserts an inactive/missing sequence from 1 — mirror that.
-      const next = seq && seq.isActive ? seq.nextSequence : 1;
-      return { destinationPortId, nextVoyageNumber: `${next}/${yy}` };
-    });
+    return Promise.all(
+      destinationPortIds.map(async (destinationPortId) => {
+        const seq = byName.get(this.legSequenceName(vesselId, destinationPortId, yy));
+        // Allocation seeds a missing counter from issued legs and keeps an existing counter as-is
+        // (including an inactive one), so the preview mirrors both cases.
+        const next = seq
+          ? seq.nextSequence
+          : await this.seedLegSequence(this.prisma, vesselId, destinationPortId, yy);
+        return { destinationPortId, nextVoyageNumber: `${next}/${yy}` };
+      }),
+    );
   }
 
   private async assertNoOverlap(
@@ -379,22 +426,34 @@ export class VoyagesService {
       .slice(-2)}${(now.getUTCMonth() + 1).toString().padStart(2, '0')}`;
 
     // Parent number: existing global allocation, format VOY-YYMM-##### unchanged.
+    const voyagePrefix = `VOY-${yymm}-`;
     const voyageNumber = await this.numbering
       .allocateNumber({
         name: `voyage-${yymm}`,
         documentType: 'VOYAGE',
         scopeType: 'YEAR_PERIOD',
         scopeValue: yymm,
-        prefix: `VOY-${yymm}-`,
+        prefix: voyagePrefix,
         padding: 5,
         format: '{prefix}{sequence}',
+        seedNextSequence: async (tx) =>
+          nextSequenceAfter(
+            voyagePrefix,
+            (
+              await tx.voyage.findFirst({
+                where: { voyageNumber: { startsWith: voyagePrefix } },
+                orderBy: { voyageNumber: 'desc' },
+                select: { voyageNumber: true },
+              })
+            )?.voyageNumber ?? null,
+          ),
       })
       .then((a: AllocatedNumber) => a.sequence);
 
     // Each leg gets its own destination-scoped number ({seq}/{YY} -> 1/26).
     const legNumbers: string[] = [];
     for (const destinationPortId of destinationIds) {
-      legNumbers.push(await this.allocateLegNumber(destinationPortId));
+      legNumbers.push(await this.allocateLegNumber(destinationPortId, dto.vesselId));
     }
 
     try {
@@ -411,6 +470,8 @@ export class VoyagesService {
           legs: {
             create: destinationIds.map((destinationPortId, index) => ({
               destinationPort: { connect: { id: destinationPortId } },
+              // The vessel whose counter issued this number; never rewritten (DEC-026).
+              numberingVessel: { connect: { id: dto.vesselId } },
               legNumber: index + 1,
               voyageNumber: legNumbers[index],
             })),
@@ -460,6 +521,8 @@ export class VoyagesService {
     // SCHEDULED voyages reach here only for notes — dto.destinations is
     // rejected above alongside the other route fields.
     let desiredDestinations: string[] | null = null;
+    // Vessel for NEW leg numbers on a route change: the requested vessel, else the current one.
+    let legVesselId: string | null = null;
     let currentLegs: Array<{
       id: string;
       destinationPortId: string;
@@ -477,6 +540,7 @@ export class VoyagesService {
       dto.destinations !== undefined
     ) {
       const current = await this.findById(id);
+      legVesselId = dto.vesselId ?? current.vessel.id;
       await this.assertMasterData(
         dto.vesselId ?? current.vessel.id,
         dto.originPortId ?? current.originPort.id,
@@ -546,6 +610,10 @@ export class VoyagesService {
         select: detailSelect,
       });
     }
+    if (!legVesselId) {
+      throw new Error('Leg vessel was not resolved for a route change');
+    }
+    const numberingVesselId: string = legVesselId;
 
     // --- Leg sync (DRAFT only): keep / revive / add / soft-remove ---
     const activeByPort = new Map(
@@ -574,7 +642,10 @@ export class VoyagesService {
     }
     const freshNumbers = new Map<string, string>();
     for (const destinationPortId of needsNumber) {
-      freshNumbers.set(destinationPortId, await this.allocateLegNumber(destinationPortId));
+      freshNumbers.set(
+        destinationPortId,
+        await this.allocateLegNumber(destinationPortId, numberingVesselId),
+      );
     }
     for (const [index, destinationPortId] of desiredDestinations.entries()) {
       if (activeByPort.has(destinationPortId)) continue;
@@ -584,7 +655,7 @@ export class VoyagesService {
         legWrites.push(
           this.prisma.voyageDestination.update({
             where: { id: revived.id },
-            data: { deletedAt: null, legNumber: index + 1, voyageNumber },
+            data: { deletedAt: null, legNumber: index + 1, voyageNumber, numberingVesselId },
           }),
         );
       } else {
@@ -593,6 +664,7 @@ export class VoyagesService {
             data: {
               voyageId: id,
               destinationPortId,
+              numberingVesselId,
               legNumber: index + 1,
               voyageNumber,
             },

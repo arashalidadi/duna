@@ -22,9 +22,14 @@ const allSeqFields = {
 } as const;
 
 /**
- * Transactional, row-locked document-number allocation (ADR-008).
- * Sequences are upserted lazily on first use and incremented under
- * `SELECT ... FOR UPDATE` so concurrent allocations never collide.
+ * Transactional, row-locked document-number allocation (ADR-008, DEC-027).
+ *
+ * - A sequence row is created at most once. Its starting value comes from
+ *   `seedNextSequence` (existing max + 1), so no database restarts at 1.
+ * - An existing row's counter is NEVER reset. Reactivating an inactive row
+ *   keeps its counter (DEC-026: issued numbers are immutable).
+ * - Increments happen under `SELECT ... FOR UPDATE`, so concurrent callers
+ *   receive distinct numbers and no unique-index collision (no 409).
  */
 @Injectable()
 export class NumberingService {
@@ -33,84 +38,90 @@ export class NumberingService {
   constructor(private readonly prisma: PrismaService) {}
 
   async allocateNumber(req: AllocateNumberRequest): Promise<AllocatedNumber> {
-    const format = req.format ?? '{prefix}{sequence}';
-    const padding = req.padding ?? 5;
-    const prefix = req.prefix ?? '';
-    const period = req.period ?? 'YYYY';
+    if (req.tx) {
+      return this.allocateIn(req.tx, req);
+    }
+    return this.prisma.$transaction((tx) => this.allocateIn(tx, req));
+  }
 
-    return this.prisma.$transaction(async (tx) => {
-      let sequence = await tx.numberingSequence.findUnique({
-        where: { name: req.name },
-        select: allSeqFields,
-      });
+  private async allocateIn(
+    tx: Prisma.TransactionClient,
+    req: AllocateNumberRequest,
+  ): Promise<AllocatedNumber> {
+    const existing = await tx.numberingSequence.findUnique({
+      where: { name: req.name },
+      select: { id: true },
+    });
 
-      if (!sequence || !sequence.isActive) {
-        sequence = await tx.numberingSequence.upsert({
-          where: { name: req.name },
-          create: {
+    if (!existing) {
+      const firstNumber = req.seedNextSequence ? await req.seedNextSequence(tx) : 1;
+      // Two first-time callers can race here. The unique `name` index lets one
+      // insert win; the other is skipped and then locks the winner's row below.
+      await tx.numberingSequence.createMany({
+        data: [
+          {
             id: req.name,
             name: req.name,
             documentType: req.documentType,
             scopeType: req.scopeType,
             scopeValue: req.scopeValue ?? null,
-            prefix,
-            padding,
-            format,
-            nextSequence: 1,
-            period,
+            prefix: req.prefix ?? '',
+            padding: req.padding ?? 5,
+            format: req.format ?? '{prefix}{sequence}',
+            nextSequence: firstNumber,
+            period: req.period ?? 'YYYY',
             companyId: req.companyId ?? null,
             isActive: true,
           },
-          update: {
-            isActive: true,
-            documentType: req.documentType,
-            scopeType: req.scopeType,
-            scopeValue: req.scopeValue ?? null,
-            prefix: prefix ?? '',
-            padding: padding ?? 5,
-            format: format ?? '{prefix}{sequence}',
-            period: period ?? 'YYYY',
-            companyId: req.companyId ?? null,
-            nextSequence: 1,
-          },
-          select: allSeqFields,
-        });
-      }
-
-      const locked = await tx.$queryRaw<{ nextSequence: number }[]>`
-        SELECT "nextSequence" FROM "NumberingSequence"
-        WHERE "id" = ${sequence.id}
-        FOR UPDATE
-      `;
-      if (!locked.length) {
-        throw new Error(`Numbering sequence vanished during allocation: ${req.name}`);
-      }
-
-      const current = locked[0].nextSequence;
-      await tx.numberingSequence.update({
-        where: { id: sequence.id },
-        data: { nextSequence: current + 1 },
+        ],
+        skipDuplicates: true,
       });
+    }
 
-      const rendered = this.renderNumber({
-        prefix: sequence.prefix,
-        sequenceNumber: current,
-        padding: sequence.padding,
-        format: sequence.format,
-      });
+    const locked = await tx.$queryRaw<{ id: string; nextSequence: number; isActive: boolean }[]>`
+      SELECT "id", "nextSequence", "isActive" FROM "NumberingSequence"
+      WHERE "name" = ${req.name}
+      FOR UPDATE
+    `;
+    if (!locked.length) {
+      throw new Error(`Numbering sequence vanished during allocation: ${req.name}`);
+    }
 
-      return {
-        sequence: rendered,
-        rawSequence: current,
-        sequenceName: sequence.name,
-        scopeType: sequence.scopeType,
-        scopeValue: sequence.scopeValue,
-        prefix: sequence.prefix,
-        padding: sequence.padding,
-        format: sequence.format,
-        period: sequence.period,
-      };
+    const row = locked[0];
+    if (!row.isActive) {
+      // Reactivate without touching the counter (never restart a sequence).
+      await tx.numberingSequence.update({ where: { id: row.id }, data: { isActive: true } });
+    }
+
+    const sequence = await tx.numberingSequence.findUniqueOrThrow({
+      where: { id: row.id },
+      select: allSeqFields,
     });
+
+    const current = row.nextSequence;
+    await tx.numberingSequence.update({
+      where: { id: row.id },
+      data: { nextSequence: current + 1 },
+    });
+
+    const rendered = this.renderNumber({
+      prefix: sequence.prefix,
+      sequenceNumber: current,
+      padding: sequence.padding,
+      format: sequence.format,
+    });
+
+    return {
+      sequence: rendered,
+      rawSequence: current,
+      sequenceName: sequence.name,
+      scopeType: sequence.scopeType,
+      scopeValue: sequence.scopeValue,
+      prefix: sequence.prefix,
+      padding: sequence.padding,
+      format: sequence.format,
+      period: sequence.period,
+    };
   }
 
   renderNumber(params: {

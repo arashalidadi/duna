@@ -9,6 +9,11 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
+import {
   CancelSalaryRecordDto,
   CreateSalaryRecordDto,
   ListSalaryRecordQueryDto,
@@ -68,7 +73,10 @@ function round2(v: number): number {
 
 @Injectable()
 export class SalaryRecordService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Queries
@@ -148,23 +156,42 @@ export class SalaryRecordService {
     const net = this.computeNet(base, additions, deductions);
     const currencyCode = dto.currencyCode ?? employee.currencyCode;
 
-    const recordNumber = await this.generateRecordNumber();
     try {
-      return await this.prisma.salaryRecord.create({
-        data: {
-          recordNumber,
-          employeeId: dto.employeeId,
-          year,
-          month,
-          base: new Prisma.Decimal(round2(base)),
-          additions: new Prisma.Decimal(round2(additions)),
-          deductions: new Prisma.Decimal(round2(deductions)),
-          net: new Prisma.Decimal(net),
-          currencyCode,
-          notes: dto.notes,
-          createdById: actor?.id,
-        },
-        select: listSelect,
+      // Number and record are created in ONE transaction (DEC-027): concurrent creates get
+      // distinct SAL numbers from the row-locked sequence, and a failed insert rolls back the counter.
+      return await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('SALARY_RECORD', new Date());
+        const { sequence: recordNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.salaryRecord.findFirst({
+                  where: { recordNumber: { startsWith: req.prefix } },
+                  orderBy: { recordNumber: 'desc' },
+                  select: { recordNumber: true },
+                })
+              )?.recordNumber ?? null,
+            ),
+          tx,
+        });
+        return tx.salaryRecord.create({
+          data: {
+            recordNumber,
+            employeeId: dto.employeeId,
+            year,
+            month,
+            base: new Prisma.Decimal(round2(base)),
+            additions: new Prisma.Decimal(round2(additions)),
+            deductions: new Prisma.Decimal(round2(deductions)),
+            net: new Prisma.Decimal(net),
+            currencyCode,
+            notes: dto.notes,
+            createdById: actor?.id,
+          },
+          select: listSelect,
+        });
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -346,20 +373,4 @@ export class SalaryRecordService {
     }
   }
 
-  /** SAL-YYMM-##### sequential within the record's creation month. */
-  private async generateRecordNumber(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1,
-    ).padStart(2, '0')}`;
-    const prefix = `SAL-${yymm}-`;
-    const latest = await this.prisma.salaryRecord.findFirst({
-      where: { recordNumber: { startsWith: prefix } },
-      orderBy: { recordNumber: 'desc' },
-      select: { recordNumber: true },
-    });
-    const lastSeq = latest ? Number(latest.recordNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
 }

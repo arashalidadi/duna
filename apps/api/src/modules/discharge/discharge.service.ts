@@ -15,6 +15,11 @@ import {
   ListDischargeQueryDto,
   UpdateDischargeItemDto,
 } from './dto/discharge.dto';
+import {
+  NumberingService,
+  nextSequenceAfter,
+  periodicSequenceRequest,
+} from '../../common/infrastructure/numbering';
 
 // ---------------------------------------------------------------------------
 // Discharge lifecycle (server-side). Mirror of Actual Loading:
@@ -126,7 +131,10 @@ function flatten(row: DischargeDetail) {
 
 @Injectable()
 export class DischargeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: NumberingService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // CRUD
@@ -265,10 +273,26 @@ export class DischargeService {
       );
     }
 
-    const dischargeNumber = await this.generateReference();
-
     try {
+      // Number and record are created in ONE transaction (DEC-027): concurrent creates get
+      // distinct DIS numbers from the row-locked sequence, and a failed insert rolls back the counter.
       const created = await this.prisma.$transaction(async (tx) => {
+        const req = periodicSequenceRequest('DISCHARGE', new Date());
+        const { sequence: dischargeNumber } = await this.numbering.allocateNumber({
+          ...req,
+          seedNextSequence: async (seedTx) =>
+            nextSequenceAfter(
+              req.prefix,
+              (
+                await seedTx.discharge.findFirst({
+                  where: { dischargeNumber: { startsWith: req.prefix } },
+                  orderBy: { dischargeNumber: 'desc' },
+                  select: { dischargeNumber: true },
+                })
+              )?.dischargeNumber ?? null,
+            ),
+          tx,
+        });
         const row = await tx.discharge.create({
           data: {
             dischargeNumber,
@@ -557,22 +581,4 @@ export class DischargeService {
     }
   }
 
-  /** Stable, ordered discharge number: DIS-YYMM-##### (mirrors AL- pattern). */
-  private async generateReference(): Promise<string> {
-    const now = new Date();
-    const yymm = `${String(now.getUTCFullYear() % 100).padStart(2, '0')}${String(
-      now.getUTCMonth() + 1,
-    ).padStart(2, '0')}`;
-    const prefix = `DIS-${yymm}-`;
-
-    const latest = await this.prisma.discharge.findFirst({
-      where: { dischargeNumber: { startsWith: prefix } },
-      orderBy: { dischargeNumber: 'desc' },
-      select: { dischargeNumber: true },
-    });
-
-    const lastSeq = latest ? Number(latest.dischargeNumber.slice(prefix.length)) : 0;
-    const nextSeq = Number.isFinite(lastSeq) ? lastSeq + 1 : 1;
-    return `${prefix}${String(nextSeq).padStart(5, '0')}`;
-  }
 }
