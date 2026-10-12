@@ -58,7 +58,65 @@ acceptance criterion **A3 is demonstrably not met**.
 
 ---
 
+## 2b · Phase 1 completion update — 2026-10-12 (later the same day)
+
+> The matrix above is the state at audit time and is left unedited. This section
+> records what changed afterwards. Commits: `6f09493` (seed + users), `a140fd3`
+> (pagination), and the Phase 1 completion commit that carries this note.
+
+| Task | Was | Now | Evidence |
+| --- | --- | --- | --- |
+| **Split `prisma/seed.ts`** | ⬜ | ✅ **Complete** | `prisma/seed.ts` is now an orchestrator; `prisma/seed/core.ts` (required) and `prisma/seed/demo.ts` (demonstration) hold the data. The split is mechanical: a line comparison against the previous file shows **0 of 618 body lines lost**. |
+| **Gate demonstration data behind opt-in + loud warning** | ⬜ | ✅ **Complete** | `SEED_DEMO_DATA === 'true'`, exact string match, never inferred from `NODE_ENV`; a boxed `console.warn` banner; `pnpm db:seed:demo` as the explicit opt-in path. Documented in `.env.example`. |
+| **Give any dependent suite its own fixtures** | ⬜ | ✅ **Complete** | `vessel.e2e-spec.ts` no longer asserts on the seeded `MV-HORIZON` row; it creates its own. Inventory of all 22 suites: **0 depend on demonstration data** — see [`seed-dependency-inventory.md`](seed-dependency-inventory.md). |
+| **Remove the stale `planned` "Agent portal" nav entry** | ⬜ | ✅ **Complete — but see §3 correction** | Entry removed from `nav.ts`. It was **dead code that never rendered**, not a visible defect. |
+| **Record the REQ-001 six-vs-ten nav discrepancy** | ✅ | ✅ Unchanged | — |
+| **A1** — no top-level doc contradicts verified source | ✅ | ✅ Met | D1–D6 verified |
+| **A2** — no uncorrected `DSR` reference survives | ✅ | ✅ Met | — |
+| **A3** — default seed creates zero cargo, customers, vessels, voyages, load lists | ❌ | 🟡 **Met in code; runtime test prepared, not yet executed** | `pnpm check:seed-safety` passes (static, executed here). `pnpm test:seed-safety` runs the seed twice against a disposable database and asserts it — **could not be executed in the build environment** (the Prisma query engine cannot be downloaded: `binaries.prisma.sh` is unreachable, and `driverAdapters` mode still requires the native engine). Run it on the server. |
+| **A4** — test status unchanged from the P0 baseline | ⛔ | ⛔ **Still blocked** | No baseline figure exists anywhere in the repository. `pnpm test:e2e-baseline` now produces it; **0 of 22 suites have ever executed here** because they need a live database. |
+| **T1/T2/T3** — idempotency, seeded-row assertion, suites still pass | ⛔ | 🟡 **T1/T2 prepared; T3 prepared** | `pnpm test:seed-safety` (T1, T2) and `pnpm test:e2e-baseline` (T3). None executed here. See [`phase-1-testing.md`](phase-1-testing.md). |
+
+**Phase 1 status after this update: implementation complete; two acceptance criteria
+await server-side execution.** A3 is enforced and statically verified but its runtime
+proof requires a database; A4 requires the P0 baseline figure, which the same server
+run produces. Nothing in Phase 1 remains unimplemented.
+
+---
+
 ## 3 · The stale nav entry is user-visible, not cosmetic
+
+> ## ⚠️ CORRECTION — 2026-10-12 (Phase 1)
+>
+> **The conclusion below is WRONG.** The stale entry was **never rendered**.
+>
+> `sidebar.tsx:149-152` builds `implementedLabels` from **every** item that has an
+> `href` — not from the Agent Portal entry alone. `nav.ts` contains a **second**
+> `labelKey: 'agents'` entry: Agent *master data*, `href: '/agents'`, status
+> `implemented` (now line 358). So `'agents'` **is** in `implementedLabels`, the
+> filter `(item.href || !implementedLabels.has(item.labelKey))` evaluates to
+> `false`, and the stale entry is suppressed.
+>
+> The error was reading `'agents'` as belonging only to the stale entry and
+> comparing it against the Agent Portal's `'agentPortal'` key. The Agent *master
+> data* entry shares the key and had been overlooked.
+>
+> Corrected consequences:
+> - Removing the entry (Phase 1, commit `a140fd3`) is **correct hygiene but had no
+>   user-visible effect**. It was dead code, not a visible "soon" badge.
+> - The audit's severity statement below — "user-visible", "visible to every user",
+>   "directly alongside a working Agent Portal item" — is **withdrawn**.
+> - The same defect class has a **second instance**: `nav.ts` still contains a
+>   `planned` "Job costing" entry sharing the `jobs` key with the implemented
+>   `/jobs` register. It is likewise dead. It is **not** Phase 1 scope (the roadmap
+>   names only the Agent portal entry), so it is left in place, reported by
+>   `apps/web/scripts/check-navigation.mjs` and recorded in
+>   [`phase-1-testing.md`](phase-1-testing.md). Removing it needs a product
+>   decision, not a silent deletion.
+> - `apps/web/scripts/check-navigation.mjs` now enforces the real invariant.
+>
+> The original text is retained below, unedited, per the project's rule that
+> corrections are additive and dated, never silent overwrites.
 
 `nav.ts:288` is **not** filtered out of the sidebar. `sidebar.tsx:155-158` keeps an item when
 `item.href || !implementedLabels.has(item.labelKey)`. The stale entry has no `href`, and its `labelKey` is
@@ -68,6 +126,7 @@ keys differ, `'agents'` is **not** in `implementedLabels`, so the stale item **r
 It renders as a disabled button with a **"soon"** badge at 50 % opacity (`sidebar.tsx:50-62`), carrying no
 `requiredPermission` and therefore visible to every user — directly alongside a working Agent Portal item
 elsewhere in the same sidebar.
+
 
 ---
 

@@ -17,9 +17,11 @@ Verified counts at the time of writing: **32 API modules · 52 Prisma models · 
 | **What the business requires** | [`duna-analysis/01-employer-statements/requirements-catalog.md`](duna-analysis/01-employer-statements/requirements-catalog.md) (REQ-nnn) |
 | **What has been decided** | [`decisions.md`](decisions.md) (ADR-001–047) **and** [`duna-analysis/09-audit/confirmed-decisions.md`](duna-analysis/09-audit/confirmed-decisions.md) (DEC-001–114) |
 | **What is still open** | [`duna-analysis/09-audit/open-questions.md`](duna-analysis/09-audit/open-questions.md) |
-| **Phase 1 status** | [`duna-analysis/09-audit/phase-1-audit-2026-10-12.md`](duna-analysis/09-audit/phase-1-audit-2026-10-12.md) — the 2026-10-12 audit that established what was complete |
+| **Phase 1 status** | [`duna-analysis/09-audit/phase-1-audit-2026-10-12.md`](duna-analysis/09-audit/phase-1-audit-2026-10-12.md) — the audit, plus §2b recording what was completed afterwards |
+| **What the tests did** | [`duna-analysis/09-audit/phase-1-testing.md`](duna-analysis/09-audit/phase-1-testing.md) — executed / failed / not-run, and how to run the server-side tests |
 | **Incidents** | [`duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md`](duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md) — missing `User.isPrimaryAdmin` column |
 | **Deploying a migration** | [`duna-analysis/09-audit/phase-1-deployment-runbook.md`](duna-analysis/09-audit/phase-1-deployment-runbook.md) — pre-flight, apply, verify, rollback |
+| **Which suites need seed data** | [`duna-analysis/09-audit/seed-dependency-inventory.md`](duna-analysis/09-audit/seed-dependency-inventory.md) — the P0 deliverable Phase 1 depended on |
 | **Structure and request/response conventions** | [`architecture.md`](architecture.md), [`api.md`](api.md) |
 | **Data model** | [`database-schema.md`](database-schema.md) |
 | **Access control** | [`permissions.md`](permissions.md) |

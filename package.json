@@ -34,6 +34,8 @@
     "db:seed:demo": "SEED_DEMO_DATA=true tsx prisma/seed.ts",
     "check:seed-safety": "node scripts/check-seed-safety.mjs",
     "test:pagination": "tsx apps/web/scripts/test-pagination.ts",
+    "test:seed-safety": "tsx scripts/test-seed-safety.ts",
+    "test:e2e-baseline": "tsx scripts/record-e2e-baseline.ts",
     "db:studio": "prisma studio",
     "docker:db": "docker compose -f docker/docker-compose.dev.yml up -d",
     "docker:db:down": "docker compose -f docker/docker-compose.dev.yml down"

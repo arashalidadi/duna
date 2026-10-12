@@ -285,7 +285,13 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'Release orders (R/O)',
         requiredPermission: 'release:read',
       },
-      { labelKey: 'agents', icon: UserCircle, status: 'planned', description: 'Agent portal' },
+      // Phase 1: the stale `planned` "Agent portal" entry was removed here. The
+      // Agent Portal is implemented — see the `portal` section below
+      // (`labelKey: 'agentPortal'`, href `/portal`). This entry duplicated it,
+      // shared the `agents` translation key with Agent master data, and could
+      // never render: sidebar.tsx keeps an item only when it has an href or its
+      // label is not already implemented. Agent master data (`/agents`) is a
+      // separate, also-implemented item in the master-data section.
     ],
   },
   {
