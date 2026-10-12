@@ -310,3 +310,39 @@ be satisfied until P0 is complete.
 No database was modified. No migration was applied, resolved, reset or rewritten. No `db push`, `migrate dev`
 or `db seed` was run. No branch was switched, merged or rebased; no history rewritten. No unrelated code was
 changed, and no Phase 2 work was started.
+
+---
+
+## Phase 1 implementation status — 2026-10-12 (final, additive)
+
+Recorded after the Phase 1 implementation pass. Each row names the commit or the evidence. Earlier rows in
+this file are kept as recorded.
+
+| Roadmap item (`initial-roadmap.md` §2, Phase 1) | Status | Commit / evidence |
+| --- | --- | --- |
+| Split `prisma/seed.ts` | ✅ Done | `6f09493`. `prisma/seed/core.ts` writes only reference data (settings, currencies, permissions, roles, ports, yards, administrator). `prisma/seed/demo.ts` writes the sample business records. |
+| Demonstration data behind an explicit opt-in with a loud warning | ✅ Done | `prisma/seed.ts` runs demo data only when `SEED_DEMO_DATA === 'true'`, otherwise prints *SKIPPED*. When it runs, it prints a warning. Sandbox positive control: flag set creates the sample rows; flag unset creates none. |
+| Dependent suites get their own fixtures | ✅ Done | `a8f334b`. `portal`, `bill` and `voyage` create and remove their own rows. The earlier list of seed-dependent suites was wrong; corrected in `seed-dependency-inventory.md`. |
+| Remove the stale `planned` "Agent portal" nav entry | ✅ Done | `b0e2682`. The implemented `/portal` entry is kept; the navigation guard reports no dead planned entries. |
+| Record REQ-001 six-vs-ten navigation as a documented deviation (no deletion) | ✅ Done | `documented-deviations.md` D-NAV-01. Navigation was not changed. |
+| Stop documentation misleading (no top-level doc contradicts verified source) | ✅ Done for every contradiction found in this pass; not a line-by-line re-audit of every document | Corrections are dated notes in: root `README.md` (demo opt-in); `docs/README.md` (sandbox run); `docs/architecture.md`; `docs/permissions.md`; `docs/workflows.md` (Agent Portal implemented); `requirements-traceability.md` (REQ-001); `phase-1-testing.md`; `seed-dependency-inventory.md`; `initial-roadmap.md`; `open-questions.md`; `question-reconciliation.md`; and the knowledge-base figure notes (`verified-figures-2026-10-12.md`). |
+| No uncorrected `DSR` reference survives | ✅ Verified | Search of `docs/` on 2026-10-12: every occurrence carries a correction note (E1). |
+| Correct recorded evidence errors E1–E7 | ✅ Done, with stated dispositions | E1 verified. E2 and E3 re-measured (52 / 32; 32 feature modules). E4 re-measured (161 codes / 34 module values; the 2026-10-12 change is dated). E5 unchanged. E6 not altered in place (recorded). E7 recorded, not re-measured. Measurements: `verified-figures-2026-10-12.md`. |
+| Reclassify the six-vs-ten entry in `open-questions.md` | ✅ Done | Q-AUD-15 and the open-questions entry point to D-NAV-01. |
+| `pnpm db:seed` on a fresh database creates zero cargo, customers, vessels, voyages and load lists | ✅ Verified in the sandbox | `pnpm test:seed-safety` (flag unset): all five counts 0 before and after two runs. Owner's server copy: see the owner step below. |
+| Seed idempotency (run twice) | ✅ Verified in the sandbox | Same test; administrator kept, permission and role counts stable. |
+| Seeded-row assertion with the flag unset | ✅ Verified in the sandbox | Same test. |
+| Existing suites still pass | ✅ Verified in the sandbox | 22/22 suites, 403/403 tests, fresh database, required seed only (sandbox WASM engine); repeated on the same database. Record: `e2e-sandbox-run-2026-10-12.md`. |
+| Test status unchanged from the P0 baseline | ⏳ Owner step | The P0 baseline has not been recorded on the owner's server. Sandbox result: 22/22 suites, 403/403 tests. |
+
+**Phase 1 implementation: complete.** The one open confirmation is the owner's server run (last row). It is a
+Phase 0 measurement, so this review does not repeat it. The owner's server results should be recorded
+against the sandbox figure above.
+
+**Owner action (server, disposable test database only):** `pnpm test:e2e-baseline` and `pnpm test:seed-safety`,
+with the commands and prerequisites in `phase-1-testing.md` §4. Both write to the test database only.
+
+**Not in Phase 1 (deferred, not started):** the port seed list (DEC-117 classifies it as Phase P10); the `jobs`
+planned entry and `discharge` vs `discharges` (owner decisions); the lint error in
+`apps/api/src/modules/voyages/voyages.service.ts` (pre-existing, outside Phase 1 scope); and the `build`,
+`start` and `test:watch` root scripts that have the same recursion defect as `test`, `typecheck` and `lint`.

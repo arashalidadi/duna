@@ -211,5 +211,7 @@ user role changed. Record: user, action, entity, entityId, timestamp, previousSt
 
 ## 8. Agent portal (future)
 
+> **Correction 2026-10-12 (additive).** The Agent Portal is implemented: module `apps/api/src/modules/portal`, route `/portal`, permission `portal:access`, and the end-to-end suite `portal.e2e-spec.ts` (see `progress.md`, Phase 20). The text below is the original design and is kept as recorded; the current permission model is in `permissions.md`.
+
 - Agents submit bookings / track status with a restricted role; read-mostly with scoped write
   permissions (e.g. `agent:booking:create`).

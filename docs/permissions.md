@@ -72,6 +72,8 @@ Notes:
 
 ### All 33 seeded permission modules (verified 2026-10-11)
 
+> *Update 2026-10-12 (additive):* this list was recorded on 2026-10-11 and is kept as recorded. The verified count on 2026-10-12 is **34 module values** — the `audit` module was added in commit `66628c3` on 2026-10-12. See [`duna-analysis/09-audit/verified-figures-2026-10-12.md`](duna-analysis/09-audit/verified-figures-2026-10-12.md).
+
 `actual_loading` · `agent` · `auth` · `bill` · `cargo` · `consignee` · `currency` · `customer` ·
 `dashboard` · `delivery` · `discharge` · `inspection` · `invoice` · `jobs` · `ledger` · `letters` ·
 `load_list` · `manifest` · `permission` · `port` · `portal` · `proforma` · `quotation` · `release` ·

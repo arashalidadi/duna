@@ -157,6 +157,8 @@ Recorded so the roadmap does not inherit them. Corrections are scheduled in **P1
 | **9 vs 11 document types explained** | REQ-124's nine are the explicit enumeration (EMP-721-725); B/L and Manifest are separately evidenced (EMP-035, EMP-572). All eleven in scope; nothing invented. |
 | **Dangling decision IDs removed** | `confirmed-decisions.md` previously cross-referenced `DEC-118`, `DEC-120` and `DEC-121`, which were never defined. Retargeted onto `DEC-044`…`DEC-048` and `DEC-023`. **The ID space is `DEC-001`…`DEC-114`, with no gaps.** |
 
+**Update 2026-10-12 (Phase 1, additive).** E2 and E3 re-measured from source: 52 Prisma models, 32 enums, 32 feature modules under `apps/api/src/modules` (38 `@Module` classes including app, infrastructure and Prisma). E4: 161 permission codes across 34 module values; the 161/34 figure comes from commit `66628c3` (2026-10-12), and the 160/33 correction of 2026-10-11 was correct on its date. E6: not altered in place; the drift remains recorded above. E7: recorded value kept (not re-measured). Measurements and commands: [`verified-figures-2026-10-12.md`](verified-figures-2026-10-12.md).
+
 ### 5.2 E1 — residual occurrences of the fabricated voucher number
 
 The C-07 entry in the contradictions register has been corrected. The original error spanned **9 files / 10
@@ -276,3 +278,6 @@ change.**
 > present in the working tree. The residual item is **D3** (fabricated `DSR` references — partially applied;
 > row 14 records 9 corrected) and the **consolidation/cleanup proposal** in `doc-consolidation-proposal.md`,
 > which remains **unapproved**. **No file has been deleted** at any point in this audit round.
+
+
+> **Update 2026-10-12 (Phase 1, additive).** D3 is complete for the `DSR` references: a search of `docs/` on 2026-10-12 found that every remaining occurrence carries a dated correction note (E1). The consolidation proposal is left as recorded; this review did not change its approval status. Phase 1 status: [`phase-1-audit-2026-10-12.md`](phase-1-audit-2026-10-12.md).

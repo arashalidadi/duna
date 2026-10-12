@@ -4,7 +4,7 @@
 supersedes nothing.
 
 Verified counts at the time of writing: **32 API modules · 52 Prisma models · 32 enums · 35 web pages ·
-161 seeded permission codes across 34 modules · 22 e2e suites (not executed)**.
+161 seeded permission codes across 34 modules · 22 e2e suites (not executed)**. *Update 2026-10-12: the 22 suites were executed in a sandbox — 22/22 suites and 403/403 tests on a fresh database with the required seed (sandbox WASM engine); the server run is still pending. See [`duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md`](duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md).*
 
 ---
 
@@ -63,7 +63,7 @@ never deleted; it is *labelled*, so a reader knows whether to follow it.
    (a permission count of 49 against an actual 160; `CargoStatus.READY` against an actual
    `READY_FOR_LOADING`). Prefer pointing at the schema over restating it.
 4. **The suite has not been executed in the audit environment.** Any "tests green" figure is **unverified**
-   until Phase 0 measures it. Do not claim tests pass without running them.
+   until Phase 0 measures it. Do not claim tests pass without running them. *Update 2026-10-12: measured in a sandbox (see the link above); the native-engine server run is still pending.*
 5. 🔴 **Security incident R-01 — credentials already published.** The archive
    `duna-analysis/legacy-source/duna-clean.zip` contains a **live production `.env`**, and it is **already
    committed, pushed, and the repository is public**. The credentials must be treated as compromised; see

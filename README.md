@@ -90,7 +90,9 @@ pnpm docker:db
 # 4. Generate Prisma, then apply migrations and seed ONLY an approved development DB
 pnpm db:generate
 pnpm db:migrate               # prisma migrate dev
-pnpm db:seed                  # seed reference data + admin user
+pnpm db:seed                  # seed reference data + admin user (no demonstration data)
+# Demonstration data is opt-in (Phase 1, 2026-10-12). Development database ONLY:
+# pnpm db:seed:demo           # SEED_DEMO_DATA=true — writes fabricated sample records
 
 # 5. Run the API (port 3101 by default)
 pnpm dev:api                # http://localhost:3101/api/v1  (Swagger at /docs)
