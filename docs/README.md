@@ -17,6 +17,8 @@ Verified counts at the time of writing: **32 API modules · 52 Prisma models · 
 | **What the business requires** | [`duna-analysis/01-employer-statements/requirements-catalog.md`](duna-analysis/01-employer-statements/requirements-catalog.md) (REQ-nnn) |
 | **What has been decided** | [`decisions.md`](decisions.md) (ADR-001–047) **and** [`duna-analysis/09-audit/confirmed-decisions.md`](duna-analysis/09-audit/confirmed-decisions.md) (DEC-001–114) |
 | **What is still open** | [`duna-analysis/09-audit/open-questions.md`](duna-analysis/09-audit/open-questions.md) |
+| **Phase 1 status** | [`duna-analysis/09-audit/phase-1-audit-2026-10-12.md`](duna-analysis/09-audit/phase-1-audit-2026-10-12.md) — 🔶 PARTIALLY COMPLETE (docs done, seed work not started) |
+| **Incidents** | [`duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md`](duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md) — missing `User.isPrimaryAdmin` column |
 | **Structure and request/response conventions** | [`architecture.md`](architecture.md), [`api.md`](api.md) |
 | **Data model** | [`database-schema.md`](database-schema.md) |
 | **Access control** | [`permissions.md`](permissions.md) |
@@ -82,3 +84,5 @@ Recorded so they are not re-discovered. Full detail in
 | **E5** | Contradiction C-17 framed as a source conflict | Re-framed as a legacy defect; finding unchanged |
 | **E6** | `¶n` paragraph-index drift (720 paragraphs vs 725 cited) | Content complete; labels inconsistent |
 | **E7** | Self-reported "46 files, ~16,000 lines" | Actual **45 files / 11,536 lines** |
+| **E8** | "Phase 1" is ambiguous: `ai-audit/00-audit-state.md` marks Phase 1 ✅ COMPLETE, but that is the **superseded 9-phase** roadmap ("safety & infrastructure"). The authoritative roadmap's Phase 1 ("documentation truth, seed safety") is 🔶 **PARTIALLY COMPLETE**. | Recorded 2026-10-12 in [`phase-1-audit-2026-10-12.md`](duna-analysis/09-audit/phase-1-audit-2026-10-12.md) §1. The old record was **not** edited — corrections are additive. |
+| **E9** | `ai-audit/phase-1-implementation-log.md` records 28 unit tests (`numbering` 9, `audit` 9, `attachment` 10). Those files **do not exist and were never committed** on any branch. | Recorded 2026-10-12, same file §7. The infrastructure modules themselves **do** exist and are registered. |
