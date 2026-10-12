@@ -323,7 +323,7 @@ export class VoucherService {
     ]);
 
     const kind = (params.kind ?? 'all') as 'invoice' | 'voucher' | 'all';
-    let entries: (LedgerEntry & { sortKey: number })[] = [];
+    const entries: (LedgerEntry & { sortKey: number })[] = [];
 
     if (kind === 'all' || kind === 'invoice') {
       for (const inv of invoices) {

@@ -759,6 +759,7 @@ describe('Voyage (e2e)', () => {
     // kept leg keeps its number; new leg gets a fresh per-destination number
     expect(added.body.data.legs[0].voyageNumber).toBe(originalNumber);
     expect(added.body.data.legs[1].voyageNumber).toMatch(LEG_NUMBER_RE);
+    const addedLegNumber = added.body.data.legs[1].voyageNumber;
 
     // remove it again -> back to 1 leg (soft-deleted server-side)
     const removed = await request(app.getHttpServer())
@@ -778,7 +779,8 @@ describe('Voyage (e2e)', () => {
       .expect(200);
     expect(revived.body.data.legs).toHaveLength(2);
     expect(revived.body.data.legs[1].destinationPortId).toBe(extra);
-    expect(revived.body.data.legs[1].voyageNumber).toMatch(LEG_NUMBER_RE);
+    // DEC-026: the revived leg keeps the number it was issued with; it is never renumbered.
+    expect(revived.body.data.legs[1].voyageNumber).toBe(addedLegNumber);
 
     // duplicate within the desired list -> 400
     await request(app.getHttpServer())
@@ -825,6 +827,26 @@ describe('Voyage (e2e)', () => {
     expect(patched.body.data.legs.map((l: { voyageNumber: string }) => l.voyageNumber)).toEqual(
       created.body.data.legs.map((l: { voyageNumber: string }) => l.voyageNumber)
     );
+  });
+
+  it('concurrent creates for one vessel + destination get distinct numbers (no duplicate, no 409)', async () => {
+    const destPort = await createPort('VOYC1', 'Voy Concurrent Dest');
+    const responses = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        request(app.getHttpServer())
+          .post('/api/v1/voyages')
+          .set(auth(adminToken))
+          .send({ ...voyageBase(), destinationPortId: destPort }),
+      ),
+    );
+    for (const res of responses) {
+      expect(res.status).toBe(201);
+      createdVoyages.push({ id: res.body.data.id });
+    }
+    const legNumbers = responses.map((res) => res.body.data.legs[0].voyageNumber);
+    const parentNumbers = responses.map((res) => res.body.data.voyageNumber);
+    expect(new Set(legNumbers).size).toBe(6);
+    expect(new Set(parentNumbers).size).toBe(6);
   });
 
   it('backfill regression: a pre-migration voyage gets exactly 1 leg mirroring its number (migration 20260929164932, step 4)', async () => {

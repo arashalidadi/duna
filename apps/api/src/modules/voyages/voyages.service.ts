@@ -301,7 +301,11 @@ export class VoyagesService {
    * per destination and per year, restarting at 1 for each new combination).
    * The counter key is `voyage-leg-<vesselId>-<portId>-<YY>`.
    */
-  private async allocateLegNumber(destinationPortId: string, vesselId: string): Promise<string> {
+  private async allocateLegNumber(
+    tx: Prisma.TransactionClient,
+    destinationPortId: string,
+    vesselId: string,
+  ): Promise<string> {
     const yy = new Date()
       .getUTCFullYear()
       .toString()
@@ -315,7 +319,8 @@ export class VoyagesService {
       padding: 1,
       format: `{sequence}/${yy}`,
       period: 'YY',
-      seedNextSequence: (tx) => this.seedLegSequence(tx, vesselId, destinationPortId, yy),
+      seedNextSequence: (seedTx) => this.seedLegSequence(seedTx, vesselId, destinationPortId, yy),
+      tx,
     });
     return allocated.sequence;
   }
@@ -425,59 +430,68 @@ export class VoyagesService {
       .toString()
       .slice(-2)}${(now.getUTCMonth() + 1).toString().padStart(2, '0')}`;
 
-    // Parent number: existing global allocation, format VOY-YYMM-##### unchanged.
-    const voyagePrefix = `VOY-${yymm}-`;
-    const voyageNumber = await this.numbering
-      .allocateNumber({
-        name: `voyage-${yymm}`,
-        documentType: 'VOYAGE',
-        scopeType: 'YEAR_PERIOD',
-        scopeValue: yymm,
-        prefix: voyagePrefix,
-        padding: 5,
-        format: '{prefix}{sequence}',
-        seedNextSequence: async (tx) =>
-          nextSequenceAfter(
-            voyagePrefix,
-            (
-              await tx.voyage.findFirst({
-                where: { voyageNumber: { startsWith: voyagePrefix } },
-                orderBy: { voyageNumber: 'desc' },
-                select: { voyageNumber: true },
-              })
-            )?.voyageNumber ?? null,
-          ),
-      })
-      .then((a: AllocatedNumber) => a.sequence);
-
-    // Each leg gets its own destination-scoped number ({seq}/{YY} -> 1/26).
-    const legNumbers: string[] = [];
-    for (const destinationPortId of destinationIds) {
-      legNumbers.push(await this.allocateLegNumber(destinationPortId, dto.vesselId));
-    }
-
     try {
-      return await this.prisma.voyage.create({
-        data: {
-          voyageNumber,
-          vesselId: dto.vesselId,
-          tugVesselId: dto.tugVesselId,
-          bargeVesselId: dto.bargeVesselId,
-          originPortId: dto.originPortId,
-          destinationPortId: dto.destinationPortId,
-          notes: dto.notes,
-          createdById: actor?.id,
-          legs: {
-            create: destinationIds.map((destinationPortId, index) => ({
-              destinationPort: { connect: { id: destinationPortId } },
-              // The vessel whose counter issued this number; never rewritten (DEC-026).
-              numberingVessel: { connect: { id: dto.vesselId } },
-              legNumber: index + 1,
-              voyageNumber: legNumbers[index],
-            })),
+      // The parent number, every leg number and the voyage row commit or roll back together,
+      // so a failed create never leaves an issued-but-unused number (DEC-027).
+      return await this.prisma.$transaction(async (tx) => {
+        // Parent number: existing global allocation, format VOY-YYMM-##### unchanged.
+        const voyagePrefix = `VOY-${yymm}-`;
+        const voyageNumber = await this.numbering
+          .allocateNumber({
+            name: `voyage-${yymm}`,
+            documentType: 'VOYAGE',
+            scopeType: 'YEAR_PERIOD',
+            scopeValue: yymm,
+            prefix: voyagePrefix,
+            padding: 5,
+            format: '{prefix}{sequence}',
+            seedNextSequence: async (seedTx) =>
+              nextSequenceAfter(
+                voyagePrefix,
+                (
+                  await seedTx.voyage.findFirst({
+                    where: { voyageNumber: { startsWith: voyagePrefix } },
+                    orderBy: { voyageNumber: 'desc' },
+                    select: { voyageNumber: true },
+                  })
+                )?.voyageNumber ?? null,
+              ),
+            tx,
+          })
+          .then((a: AllocatedNumber) => a.sequence);
+
+        // Each leg gets its own vessel + destination scoped number ({seq}/{YY} -> 1/26).
+        // Counters are locked in sorted destination order so concurrent route edits cannot deadlock.
+        const legNumberByPort = new Map<string, string>();
+        for (const destinationPortId of [...destinationIds].sort()) {
+          legNumberByPort.set(
+            destinationPortId,
+            await this.allocateLegNumber(tx, destinationPortId, dto.vesselId),
+          );
+        }
+
+        return tx.voyage.create({
+          data: {
+            voyageNumber,
+            vesselId: dto.vesselId,
+            tugVesselId: dto.tugVesselId,
+            bargeVesselId: dto.bargeVesselId,
+            originPortId: dto.originPortId,
+            destinationPortId: dto.destinationPortId,
+            notes: dto.notes,
+            createdById: actor?.id,
+            legs: {
+              create: destinationIds.map((destinationPortId, index) => ({
+                destinationPort: { connect: { id: destinationPortId } },
+                // The vessel whose counter issued this number; never rewritten (DEC-026).
+                numberingVessel: { connect: { id: dto.vesselId } },
+                legNumber: index + 1,
+                voyageNumber: legNumberByPort.get(destinationPortId)!,
+              })),
+            },
           },
-        },
-        select: detailSelect,
+          select: detailSelect,
+        });
       });
     } catch (e) {
       if (
@@ -616,84 +630,69 @@ export class VoyagesService {
     const numberingVesselId: string = legVesselId;
 
     // --- Leg sync (DRAFT only): keep / revive / add / soft-remove ---
-    const activeByPort = new Map(
-      currentLegs.filter((leg) => leg.deletedAt === null).map((leg) => [leg.destinationPortId, leg]),
-    );
-    const anyByPort = new Map(currentLegs.map((leg) => [leg.destinationPortId, leg]));
-
-    const legWrites: Prisma.PrismaPromise<any>[] = [];
-
-    // (Re)create legs whose destination has no active row: fresh allocation.
-    const needsNumber: string[] = [];
-    for (const [index, destinationPortId] of desiredDestinations.entries()) {
-      const active = activeByPort.get(destinationPortId);
-      if (active) {
-        if (active.legNumber !== index + 1) {
-          legWrites.push(
-            this.prisma.voyageDestination.update({
-              where: { id: active.id },
-              data: { legNumber: index + 1 },
-            }),
-          );
-        }
-        continue;
-      }
-      needsNumber.push(destinationPortId);
-    }
-    const freshNumbers = new Map<string, string>();
-    for (const destinationPortId of needsNumber) {
-      freshNumbers.set(
-        destinationPortId,
-        await this.allocateLegNumber(destinationPortId, numberingVesselId),
+    // One transaction: new numbers, leg rows and the voyage update commit or roll back together.
+    return this.prisma.$transaction(async (tx) => {
+      const activeByPort = new Map(
+        currentLegs.filter((leg) => leg.deletedAt === null).map((leg) => [leg.destinationPortId, leg]),
       );
-    }
-    for (const [index, destinationPortId] of desiredDestinations.entries()) {
-      if (activeByPort.has(destinationPortId)) continue;
-      const revived = anyByPort.get(destinationPortId);
-      const voyageNumber = freshNumbers.get(destinationPortId)!;
-      if (revived) {
-        legWrites.push(
-          this.prisma.voyageDestination.update({
-            where: { id: revived.id },
-            data: { deletedAt: null, legNumber: index + 1, voyageNumber, numberingVesselId },
-          }),
-        );
-      } else {
-        legWrites.push(
-          this.prisma.voyageDestination.create({
-            data: {
-              voyageId: id,
-              destinationPortId,
-              numberingVesselId,
-              legNumber: index + 1,
-              voyageNumber,
-            },
-          }),
+      const anyByPort = new Map(currentLegs.map((leg) => [leg.destinationPortId, leg]));
+
+      // Only a destination with no row at all needs a fresh number. A soft-deleted row keeps the
+      // number it was issued with (DEC-026): it is reactivated, never renumbered.
+      // Counters are locked in sorted destination order so concurrent route edits cannot deadlock.
+      const freshNumbers = new Map<string, string>();
+      for (const destinationPortId of desiredDestinations.filter((d) => !anyByPort.has(d)).sort()) {
+        freshNumbers.set(
+          destinationPortId,
+          await this.allocateLegNumber(tx, destinationPortId, numberingVesselId),
         );
       }
-    }
-    // Soft-remove active legs whose destination dropped out of the list.
-    const desiredSet = new Set(desiredDestinations);
-    for (const leg of activeByPort.values()) {
-      if (!desiredSet.has(leg.destinationPortId)) {
-        legWrites.push(
-          this.prisma.voyageDestination.update({
+
+      for (const [index, destinationPortId] of desiredDestinations.entries()) {
+        const legNumber = index + 1;
+        const active = activeByPort.get(destinationPortId);
+        if (active) {
+          if (active.legNumber !== legNumber) {
+            await tx.voyageDestination.update({ where: { id: active.id }, data: { legNumber } });
+          }
+          continue;
+        }
+        const revived = anyByPort.get(destinationPortId);
+        if (revived) {
+          await tx.voyageDestination.update({
+            where: { id: revived.id },
+            data: { deletedAt: null, legNumber },
+          });
+          continue;
+        }
+        await tx.voyageDestination.create({
+          data: {
+            voyageId: id,
+            destinationPortId,
+            numberingVesselId,
+            legNumber,
+            voyageNumber: freshNumbers.get(destinationPortId)!,
+          },
+        });
+      }
+
+      // Soft-remove active legs whose destination dropped out of the list.
+      const desiredSet = new Set(desiredDestinations);
+      for (const leg of activeByPort.values()) {
+        if (!desiredSet.has(leg.destinationPortId)) {
+          await tx.voyageDestination.update({
             where: { id: leg.id },
             data: { deletedAt: new Date() },
-          }),
-        );
+          });
+        }
       }
-    }
 
-    const results = await this.prisma.$transaction([
-      ...legWrites,
-      this.prisma.voyage.update({
+      return tx.voyage.update({
         where: { id },
         data: updateData,
         select: detailSelect,
-      }),
-    ]);
-    return results[results.length - 1];
+      });
+    });
   }
 
   async schedule(id: string, dto: ScheduleVoyageDto) {
