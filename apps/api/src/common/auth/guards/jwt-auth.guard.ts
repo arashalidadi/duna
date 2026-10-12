@@ -76,10 +76,12 @@ export class JwtAuthGuard implements CanActivate {
       email: user.email,
       roles: [], // hydrated below
       permissions: [],
+      isPrimaryAdmin: false, // hydrated below
     };
     const resolved = await this.authService.resolvePermissions(user.id);
     principal.roles = resolved.roles.map((r) => ({ id: r.id, code: r.code }));
     principal.permissions = resolved.permissions;
+    principal.isPrimaryAdmin = resolved.isPrimaryAdmin;
 
     request.user = principal;
     return true;

@@ -33,6 +33,12 @@ model User {
   passwordHash            String
   fullName                String
   isActive                Boolean          @default(true)
+  /// DEC-116 — the single primary administrator (the company owner).
+  /// Holds full system authority, implicit and NOT derived from roles or permission rows,
+  /// so it cannot be lost through permission misconfiguration.
+  /// At most one row may hold `true`: enforced by the partial unique index
+  /// "User_isPrimaryAdmin_key" (see migration 20261012000000_primary_administrator).
+  isPrimaryAdmin         Boolean          @default(false)
   lastLoginAt             DateTime?
   failedLoginAttempts     Int              @default(0)
   lockedUntil             DateTime?

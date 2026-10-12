@@ -25,6 +25,11 @@ export interface AuthTokenPair {
 export interface ResolvedPrincipal {
   permissions: string[];
   roles: { id: string; code: string; name?: string }[];
+  /**
+   * DEC-116 — the single primary administrator (company owner).
+   * Read from the user row, not from roles or permissions.
+   */
+  isPrimaryAdmin: boolean;
 }
 
 @Injectable()
@@ -41,10 +46,19 @@ export class AuthService {
    * or clients. Used by the authorization guard and /auth/me.
    */
   async resolvePermissions(userId: string): Promise<ResolvedPrincipal> {
-    const roles = await this.prisma.role.findMany({
-      where: { users: { some: { userId } }, deletedAt: null },
-      include: { permissions: { include: { permission: true } } },
-    });
+    // DEC-116: the primary-administrator flag is read together with the roles so
+    // that authority is resolved in the same server-side step as permissions and
+    // can never be influenced by the client.
+    const [user, roles] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { isPrimaryAdmin: true },
+      }),
+      this.prisma.role.findMany({
+        where: { users: { some: { userId } }, deletedAt: null },
+        include: { permissions: { include: { permission: true } } },
+      }),
+    ]);
 
     const permissions = new Set<string>();
     for (const role of roles) {
@@ -56,6 +70,7 @@ export class AuthService {
     return {
       permissions: [...permissions],
       roles: roles.map((r) => ({ id: r.id, code: r.code, name: r.name })),
+      isPrimaryAdmin: user?.isPrimaryAdmin === true,
     };
   }
 

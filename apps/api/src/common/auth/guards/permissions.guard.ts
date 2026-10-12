@@ -30,6 +30,19 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('Identified user not found');
     }
 
+    // DEC-116 — the primary administrator (the company owner) holds full system
+    // authority. It is IMPLICIT: deliberately not derived from roles or permission
+    // rows, so it cannot be lost through permission misconfiguration or by a
+    // mistaken permission revocation.
+    //
+    // This is not a hidden backdoor: the flag is a single, auditable database
+    // column constrained to at most one row, and every action is still written to
+    // the audit log. Audit RECORDS authority here — it does not gate it, and it
+    // creates no approval step above the owner.
+    if (user.isPrimaryAdmin === true) {
+      return true;
+    }
+
     const has = user.permissions ?? [];
     const ok =
       required.match === 'OR'

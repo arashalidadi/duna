@@ -7,7 +7,30 @@ export interface AuthenticatedUser {
   email: string;
   roles: { id: string; code: string }[];
   permissions: string[];
+  /**
+   * DEC-116 — true for the single primary administrator (the company owner).
+   *
+   * The primary administrator holds full system authority. That authority is
+   * IMPLICIT: it is not derived from role membership or permission rows, so it
+   * cannot be lost through permission misconfiguration, and `permissions` above
+   * is NOT the source of truth for them.
+   *
+   * Audit records actions; it never gates the primary administrator and never
+   * creates an approval hierarchy above them.
+   */
+  isPrimaryAdmin: boolean;
 }
+
+/**
+ * The permission code that grants the technical ability to approve a release
+ * exception where payment is incomplete.
+ *
+ * DEC-116: possession of this permission is NECESSARY BUT NOT SUFFICIENT for a
+ * manager to exercise release authority — it must have been granted explicitly
+ * by the primary administrator (enforced server-side in RolesService and
+ * UsersService). The primary administrator is exempt, by implicit full authority.
+ */
+export const RELEASE_OVERRIDE_PERMISSION = 'release:override';
 
 /**
  * Semantics for how multiple required permissions are evaluated by

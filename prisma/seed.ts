@@ -108,6 +108,10 @@ async function main() {
   { code: 'discharge:delete', module: 'discharge', action: 'delete' },
   { code: 'discharge:complete', module: 'discharge', action: 'complete' },
   { code: 'discharge:cancel', module: 'discharge', action: 'cancel' },
+  // DEC-044..048 / DEC-116 — audit review. The audit service could always WRITE
+  // rows; `audit:read` gates the browse surface added for the primary
+  // administrator to review relevant audit records.
+  { code: 'audit:read', module: 'audit', action: 'read' },
   { code: 'portal:access', module: 'portal', action: 'read' },
   { code: 'booking:create', module: 'portal', action: 'create' },
   { code: 'booking:read', module: 'portal', action: 'read' },
@@ -247,8 +251,33 @@ async function main() {
 
   console.log(`  Roles seeded: ${adminRole.code}, ${opsRole.code}`);
 
-  // Assign all permissions to ADMIN
-  for (const permissionId of Object.values(createdPermissions)) {
+  // ==========================================================================
+  // DEC-116 / OQ-06 — release-exception authority is a BUSINESS delegation,
+  // never a default grant.
+  //
+  // The ADMIN role is an ordinary administrative role. It must NOT receive
+  // `release:override` automatically: the owner confirmed that ordinary managers
+  // and administrators must not inherit release-exception approval authority
+  // unless it is explicitly assigned. `release:override` is therefore withheld
+  // here and may only be granted explicitly by the primary administrator
+  // (enforced server-side in RolesService.assertCanGrantReleaseOverride).
+  //
+  // The primary administrator (company owner) is unaffected: their authority is
+  // implicit via User.isPrimaryAdmin and does not depend on role grants.
+  //
+  // NOTE: this loop only ever ADDS grants (update: {}). It never revokes, so an
+  // existing database is not modified by re-running the seed. Revoking an
+  // inherited grant requires the separate, audited reconciliation procedure
+  // (inspect -> snapshot -> classify -> revoke), which is deliberately NOT done
+  // automatically here.
+  // ==========================================================================
+  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override']);
+
+  for (const [code, permissionId] of Object.entries(createdPermissions)) {
+    if (EXPLICIT_GRANT_ONLY.has(code)) {
+      console.log(`  Skipped default ADMIN grant (explicit grant required): ${code}`);
+      continue;
+    }
     await prisma.rolePermission.upsert({
       where: { roleId_permissionId: { roleId: adminRole.id, permissionId } },
       update: {},
@@ -313,6 +342,18 @@ async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@shipping.local';
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
   const passwordHash = await bcrypt.hash(adminPassword, 12);
+  // DEC-116 — designate the primary administrator (the company owner).
+  //
+  // The seed designates the owner's account ONLY when no primary administrator
+  // exists yet (idempotent, never overwrites). The account to designate is the
+  // SEED_ADMIN_EMAIL address; because the partial unique index permits at most
+  // one holder, a second seed run cannot create a second owner.
+  const existingPrimary = await prisma.user.findFirst({
+    where: { isPrimaryAdmin: true },
+    select: { id: true, email: true },
+  });
+  const shouldDesignatePrimary = existingPrimary === null;
+
   const adminUser = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
@@ -320,12 +361,15 @@ async function main() {
       isActive: true,
       failedLoginAttempts: 0,
       lockedUntil: null,
+      // Never remove the flag from an existing owner; only set it if unclaimed.
+      ...(shouldDesignatePrimary ? { isPrimaryAdmin: true } : {}),
     },
     create: {
       email: adminEmail,
       passwordHash,
       fullName: 'System Administrator',
       isActive: true,
+      isPrimaryAdmin: shouldDesignatePrimary,
       passwordChangedAt: new Date(),
     },
   });
