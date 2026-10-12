@@ -289,7 +289,9 @@ export class UsersService {
       entityId: id,
       actorId: actor.id,
       actorEmail: actor.email,
-      beforeData: { roleIds: target.roles.map((r) => r.role.id) },
+      // findById() returns `roles` already flattened to `{ id, code, name }[]`
+      // (it maps `user.roles.map(r => r.role)`). There is no `.role` sub-object here.
+      beforeData: { roleIds: target.roles.map((r) => r.id) },
       afterData: { roleIds: dto.roleIds },
       metadata: { grantedByPrimaryAdmin: actor.isPrimaryAdmin === true },
     });
@@ -414,12 +416,14 @@ export class UsersService {
   ): Promise<void> {
     if (actor.isPrimaryAdmin === true || roleIds.length === 0) return;
 
+    // RolePermission has a composite primary key @@id([roleId, permissionId]) and
+    // therefore has NO `id` column — select roleId, which is the column we need.
     const grant = await this.prisma.rolePermission.findFirst({
       where: {
         roleId: { in: roleIds },
         permission: { code: RELEASE_OVERRIDE_PERMISSION },
       },
-      select: { id: true },
+      select: { roleId: true },
     });
     if (grant) {
       throw new ForbiddenException(
