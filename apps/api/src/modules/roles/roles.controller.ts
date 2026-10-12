@@ -9,6 +9,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/auth/decorators/require-permissions.decorator';
+import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
+import { AccountAccess } from '../../common/auth/account-access';
 import { RolesService } from './roles.service';
 import {
   CreateRoleDto,
@@ -44,25 +46,29 @@ export class RolesController {
 
   @Post()
   @RequirePermissions('role:create')
-  create(@Body() dto: CreateRoleDto) {
-    return this.rolesService.create(dto);
+  create(@Body() dto: CreateRoleDto, @CurrentUser() actor: AccountAccess) {
+    return this.rolesService.create(dto, actor);
   }
 
   @Patch(':id')
   @RequirePermissions('role:update')
-  update(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
-    return this.rolesService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateRoleDto, @CurrentUser() actor: AccountAccess) {
+    return this.rolesService.update(id, dto, actor);
   }
 
   @Patch(':id/active')
   @RequirePermissions('role:update')
-  setActive(@Param('id') id: string, @Body() dto: SetRoleActiveDto) {
-    return this.rolesService.setActive(id, dto.isActive);
+  setActive(@Param('id') id: string, @Body() dto: SetRoleActiveDto, @CurrentUser() actor: AccountAccess) {
+    return this.rolesService.setActive(id, dto.isActive, actor);
   }
 
   @Patch(':id/permissions')
   @RequirePermissions('role:permissions')
-  setPermissions(@Param('id') id: string, @Body() dto: SetRolePermissionsDto) {
-    return this.rolesService.setPermissions(id, dto);
+  setPermissions(
+    @Param('id') id: string,
+    @Body() dto: SetRolePermissionsDto,
+    @CurrentUser() actor: AccountAccess
+  ) {
+    return this.rolesService.setPermissions(id, dto, actor);
   }
 }

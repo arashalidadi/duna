@@ -99,6 +99,16 @@ export class ResetUserPasswordDto {
   newPassword: string;
 }
 
+/**
+ * DEC-116 — transfer the primary administrator (company owner) designation.
+ * The target user must exist and be active.
+ */
+export class TransferPrimaryAdminDto {
+  @IsString()
+  @IsNotEmpty()
+  userId: string;
+}
+
 export class ChangeMyPasswordDto {
   @IsString()
   @IsNotEmpty()

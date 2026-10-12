@@ -18,6 +18,7 @@ import {
   ResetUserPasswordDto,
   SetUserActiveDto,
   SetUserRolesDto,
+  TransferPrimaryAdminDto,
   UpdateUserDto,
   ChangeMyPasswordDto,
 } from './dto/users.dto';
@@ -84,6 +85,22 @@ export class UsersController {
     @CurrentUser() user: AccountAccess
   ) {
     return this.usersService.setRoles(id, dto, user);
+  }
+
+  /**
+   * DEC-116 — transfer the primary administrator designation to another user.
+   *
+   * Atomic and audited: the flag is cleared on the current holder and set on the
+   * target inside one transaction, so the system can never be left without an
+   * owner. Only the current primary administrator may perform this.
+   */
+  @Post('primary-admin/transfer')
+  @RequirePermissions('user:roles')
+  transferPrimaryAdmin(
+    @Body() dto: TransferPrimaryAdminDto,
+    @CurrentUser() user: AccountAccess
+  ) {
+    return this.usersService.transferPrimaryAdmin(user, dto.userId);
   }
 
   @Post(':id/reset-password')

@@ -9,6 +9,9 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AccountAccess } from '../../common/auth/account-access';
+import { RELEASE_OVERRIDE_PERMISSION } from '../../common/auth/types';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import type { AuditContext } from '../../common/infrastructure/audit/audit.types';
 import {
   CreateUserDto,
   ListUsersQueryDto,
@@ -26,6 +29,7 @@ const userSelect = {
   email: true,
   fullName: true,
   isActive: true,
+  isPrimaryAdmin: true,
   deletedAt: true,
   lastLoginAt: true,
   failedLoginAttempts: true,
@@ -52,6 +56,7 @@ type UserWithRoles = {
   email: string;
   fullName: string;
   isActive: boolean;
+  isPrimaryAdmin: boolean;
   lastLoginAt: Date | null;
   failedLoginAttempts: number;
   lockedUntil: Date | null;
@@ -65,7 +70,10 @@ type UserWithRoles = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService
+  ) {}
 
   async list(query: ListUsersQueryDto, _actor: AccountAccess) {
     const pagination = parsePagination(query);
@@ -126,6 +134,11 @@ export class UsersService {
     if (dto.portalCustomerId) {
       await this.assertValidPortalCustomer(dto.portalCustomerId);
     }
+
+    // DEC-116 (T-F): a role set carrying release-exception authority may only be
+    // assigned by the primary administrator. See assertCanGrantReleaseOverride.
+    await this.assertCanGrantReleaseOverride(_actor, dto.roleIds);
+
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
     const user = await this.prisma.user.create({
@@ -142,11 +155,23 @@ export class UsersService {
       select: { ...userSelect, ...roleRelations },
     });
 
+    // DEC-044..048 / DEC-116 — user creation is a sensitive operation and is audited.
+    await this.audit.record({
+      action: 'user:create',
+      entityType: 'User',
+      entityId: user.id,
+      actorId: _actor.id,
+      actorEmail: _actor.email,
+      afterData: { email: user.email, fullName: user.fullName, roleIds: dto.roleIds },
+      metadata: { isPrimaryAdmin: user.isPrimaryAdmin === true },
+    });
+
     return this.mapOne(user);
   }
 
   async update(id: string, dto: UpdateUserDto, _actor: AccountAccess) {
-    await this.findById(id);
+    const before = await this.findById(id);
+    await this.assertPrimaryAdminUnchanged(id, dto as unknown as Record<string, unknown>);
 
     const data: Prisma.UserUpdateInput = {};
     if (dto.email !== undefined) {
@@ -175,11 +200,28 @@ export class UsersService {
       data,
       select: { ...userSelect, ...roleRelations },
     });
+
+    // DEC-044..048 — user modification is audited with before/after state.
+    await this.audit.record({
+      action: 'user:update',
+      entityType: 'User',
+      entityId: id,
+      actorId: _actor.id,
+      actorEmail: _actor.email,
+      beforeData: { email: before.email, fullName: before.fullName },
+      afterData: { email: user.email, fullName: user.fullName },
+    });
+
     return this.mapOne(user);
   }
 
   async setActive(id: string, dto: SetUserActiveDto, actor: AccountAccess) {
     await this.findById(id);
+
+    // DEC-116 (T-I): the primary administrator must never be deactivated. Doing so
+    // would remove the company owner's only route into the system.
+    await this.assertNotDeactivatingPrimaryAdmin(id, dto.isActive);
+
     // A user cannot deactivate their own account (would lock themselves out).
     if (actor.id === id && !dto.isActive) {
       throw new ForbiddenException('You cannot disable your own account');
@@ -194,12 +236,27 @@ export class UsersService {
       },
       select: { ...userSelect, ...roleRelations },
     });
+
+    await this.audit.record({
+      action: 'user:activate',
+      entityType: 'User',
+      entityId: id,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      beforeData: { isActive: !dto.isActive },
+      afterData: { isActive: dto.isActive },
+    });
+
     return this.mapOne(user);
   }
 
   async setRoles(id: string, dto: SetUserRolesDto, actor: AccountAccess) {
     const target = await this.findById(id);
     await this.validateRoleIds(dto.roleIds);
+
+    // DEC-116 (T-F): a role set carrying release-exception authority may only be
+    // assigned by the primary administrator.
+    await this.assertCanGrantReleaseOverride(actor, dto.roleIds);
 
     // Prevent removing your own last/only roles (self-lockout of management).
     if (actor.id === id) {
@@ -222,6 +279,21 @@ export class UsersService {
       where: { id },
       select: { ...userSelect, ...roleRelations },
     });
+
+    // DEC-044..048 / DEC-116 — role assignment is a sensitive operation; the
+    // before/after role sets and the actor are recorded so that any grant of
+    // release-exception authority is traceable to the person who granted it.
+    await this.audit.record({
+      action: 'user:roles:set',
+      entityType: 'User',
+      entityId: id,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      beforeData: { roleIds: target.roles.map((r) => r.role.id) },
+      afterData: { roleIds: dto.roleIds },
+      metadata: { grantedByPrimaryAdmin: actor.isPrimaryAdmin === true },
+    });
+
     return this.mapOne(user!);
   }
 
@@ -233,6 +305,16 @@ export class UsersService {
       data: { passwordHash, passwordChangedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
     await this.invalidateUserRefreshTokens(id);
+
+    await this.audit.record({
+      action: 'user:password:reset',
+      entityType: 'User',
+      entityId: id,
+      actorId: _actor.id,
+      actorEmail: _actor.email,
+      metadata: { method: 'admin-reset', sessionsInvalidated: true },
+    });
+
     return { reset: true };
   }
 
@@ -252,6 +334,153 @@ export class UsersService {
       data: { passwordHash, passwordChangedAt: new Date() },
     });
     await this.invalidateUserRefreshTokens(actor.id);
+
+    await this.audit.record({
+      action: 'user:password:self',
+      entityType: 'User',
+      entityId: actor.id,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      metadata: { method: 'self-service' },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // DEC-116 — Primary administrator (company owner)
+  //
+  // The owner holds full system authority implicitly. These guards protect that
+  // authority against accidental destruction. They do NOT create any approval
+  // step above the owner: the owner is never blocked from acting, and no other
+  // user's approval is ever required.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Blocks deactivation of the primary administrator. The owner's account must
+   * always remain active — it is the only guaranteed route into the system.
+   */
+  private async assertNotDeactivatingPrimaryAdmin(
+    userId: string,
+    nextIsActive: boolean
+  ): Promise<void> {
+    if (nextIsActive) return;
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPrimaryAdmin: true },
+    });
+    if (target?.isPrimaryAdmin === true) {
+      throw new ForbiddenException(
+        'The primary administrator cannot be deactivated. Transfer the primary administrator role to another user first.'
+      );
+    }
+  }
+
+  /**
+   * Blocks any update that would alter the isPrimaryAdmin flag.
+   *
+   * The public UpdateUserDto carries no such field, so TypeScript already prevents
+   * this; the runtime check is defence in depth against a future DTO change
+   * silently stripping or granting the owner's authority. Succession must go
+   * through transferPrimaryAdmin, which moves the flag atomically and audits it.
+   */
+  private async assertPrimaryAdminUnchanged(
+    userId: string,
+    dto: Record<string, unknown>
+  ): Promise<void> {
+    if (!Object.prototype.hasOwnProperty.call(dto, 'isPrimaryAdmin')) return;
+    const target = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isPrimaryAdmin: true },
+    });
+    if (target?.isPrimaryAdmin === true) {
+      throw new ForbiddenException(
+        'The primary administrator designation cannot be changed here. Use the transfer operation.'
+      );
+    }
+  }
+
+  /**
+   * DEC-116 (T-F) — release-exception authority may only be conferred by the
+   * primary administrator.
+   *
+   * Possession of `release:override` is necessary but not sufficient for a manager
+   * to exercise release authority: it must have been granted explicitly by the
+   * owner. Enforcing that at write time (rather than inferring it at read time)
+   * is what makes the grant's provenance auditable — and it introduces no
+   * approval layer above the owner, who is exempt by implicit full authority.
+   */
+  private async assertCanGrantReleaseOverride(
+    actor: AccountAccess,
+    roleIds: string[]
+  ): Promise<void> {
+    if (actor.isPrimaryAdmin === true || roleIds.length === 0) return;
+
+    const grant = await this.prisma.rolePermission.findFirst({
+      where: {
+        roleId: { in: roleIds },
+        permission: { code: RELEASE_OVERRIDE_PERMISSION },
+      },
+      select: { id: true },
+    });
+    if (grant) {
+      throw new ForbiddenException(
+        `Only the primary administrator may grant '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
+      );
+    }
+  }
+
+  /**
+   * DEC-116 — move the primary administrator designation to another user.
+   *
+   * Atomic and audited. Both writes happen in one transaction, so the system can
+   * never be left with zero primary administrators. The target must exist and be
+   * active. Only the current primary administrator may perform a transfer.
+   */
+  async transferPrimaryAdmin(actor: AccountAccess, targetUserId: string) {
+    if (actor.isPrimaryAdmin !== true) {
+      throw new ForbiddenException('Only the primary administrator may transfer the designation');
+    }
+    if (actor.id === targetUserId) {
+      throw new BadRequestException('The target user is already the primary administrator');
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, email: true, isActive: true, deletedAt: true, isPrimaryAdmin: true },
+    });
+    if (!target || target.deletedAt) {
+      throw new NotFoundException('User not found');
+    }
+    if (!target.isActive) {
+      throw new BadRequestException('The target user must be active');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: actor.id },
+        data: { isPrimaryAdmin: false },
+      }),
+      this.prisma.user.update({
+        where: { id: targetUserId },
+        data: { isPrimaryAdmin: true },
+      }),
+    ]);
+
+    await this.audit.record({
+      action: 'user:primary-admin:transfer',
+      entityType: 'User',
+      entityId: targetUserId,
+      actorId: actor.id,
+      actorEmail: actor.email,
+      beforeData: { primaryAdminId: actor.id, primaryAdminEmail: actor.email },
+      afterData: { primaryAdminId: targetUserId, primaryAdminEmail: target.email },
+      metadata: { reason: 'owner succession' },
+    });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { ...userSelect, ...roleRelations },
+    });
+    return this.mapOne(user!);
   }
 
   private async validateRoleIds(roleIds: string[]): Promise<void> {
@@ -297,6 +526,7 @@ export class UsersService {
       email: item.email,
       fullName: item.fullName,
       isActive: item.isActive,
+      isPrimaryAdmin: item.isPrimaryAdmin === true,
       lastLoginAt: item.lastLoginAt ? item.lastLoginAt.toISOString() : null,
       lockedUntil: item.lockedUntil ? item.lockedUntil.toISOString() : null,
       passwordChangedAt: item.passwordChangedAt ? item.passwordChangedAt.toISOString() : null,
