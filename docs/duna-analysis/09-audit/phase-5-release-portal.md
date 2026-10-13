@@ -29,7 +29,7 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 1. `ReleaseOrder.paymentState` (enum `PAID | PARTIAL | UNPAID`), recorded by the user at release, required, with audit. No automatic derivation.
 2. `DeliveryOrder.portId` (nullable FK to `Port`) plus a snapshot of the port name, so later port renames do not rewrite issued documents. Existing rows stay null. Migration additive only.
 3. Release exceptions (`financialOverride`): keep the current audited path. Do **not** build a new approval framework. Fail closed where a required approval would be missing.
-4. B/L lifecycle labels: a configurable table with neutral internal codes (`DRAFT`, `CORRECTION`, `APPROVAL`, `ISSUED`) and a display label that defaults to the code until the owner supplies the official wording.
+4. B/L lifecycle labels: a configurable table keyed by the existing `BlStatus` values (`DRAFT`, `FINAL`, `APPROVED`, `RELEASED`, `ISSUED`, `CANCELLED`), with the display label defaulting to the code until the owner supplies the official wording. An earlier draft of this document listed `CORRECTION` and `APPROVAL` as codes; those are not `BlStatus` values and are withdrawn.
 5. Agent portal: read-only endpoints `GET /portal/bills-of-lading`, `GET /portal/manifests`, `GET /portal/release-orders`. Each is scoped to the caller's `portalAgentId`. Each returns an explicit empty state, never a silent blank. A portal page shows B/L and release status.
 6. Customer-linked portal path: explicit empty state with a reason, not a silent blank.
 7. Tests: cross-destination isolation (mandatory, agent D vs agent E), release-state transitions, approval/override audit, unauthenticated and denied access.
@@ -51,6 +51,22 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 - **Cross-destination leakage** in the agent portal is the principal security risk. The isolation tests must run against a real database on the test environment.
 - **R-15:** do not copy legacy release defects.
 - Sandbox limit: no PostgreSQL and no Prisma engine. Isolation tests can be written here but cannot run here. The owner runs them on the test database.
+
+## 5a. Agent scope (verified in schema)
+
+- An agent's destinations are `AgentDestination` rows (`agentId`, `portId`, `isActive`, `deletedAt`).
+- A B/L carries `destinationPortId` (the denormalised destination).
+- Proposed rule: an agent sees B/Ls whose `destinationPortId` is in the agent's active destinations, and whose status is not `DRAFT`. Excluding `DRAFT` fails closed. The owner should confirm this rule.
+- A release order is visible when its B/L is visible.
+- Manifests keep the existing `portalAgentId` scoping.
+
+## 5b. Proposed slices (each committed, checked and stopped for approval)
+
+1. **Data model:** `ReleasePaymentState` enum; `ReleaseOrder.paymentState` (nullable for existing rows); `DeliveryOrder.portId` (nullable FK to `Port`) and `portName` snapshot; `BlLifecycleLabel` table seeded add-only. One additive migration.
+2. **Release and delivery services:** payment state required for new releases; port selected for new delivery orders; existing rows unchanged. The web forms and en/ar/fa strings are updated in the same slice so the UI never sends an invalid payload.
+3. **Agent portal read API:** `GET /portal/bills-of-lading`, `GET /portal/release-orders`, `GET /portal/manifests` (agent scope), plus `GET /portal/bl-labels`. Explicit empty state and reason for customer-only accounts.
+4. **Portal web page:** B/L and release status for the agent.
+5. **Isolation tests:** `portal-agent-isolation.e2e-spec.ts` (agents D and E, no leakage, unauthenticated and denied access, release-state transitions). Not runnable in this sandbox; the owner runs it on the test database.
 
 ## 6. Next step
 
