@@ -93,10 +93,11 @@ Branch `arena/be9b4e5b-duna`. Scope from `initial-roadmap.md` ~L142–160. Requi
 3. **Configure the server environment** (values must not be committed):
    - `ATTACHMENT_STORAGE_DIR`: an absolute directory outside the repository, owned by the API user, mode `0700`.
    - `ATTACHMENT_URL_SECRET`: at least 32 characters, generated with `openssl rand -base64 48`.
-   - `ATTACHMENT_IDENTITY_CAPTURE_ENABLED`: leave `false` in production.
+   - `ATTACHMENT_IDENTITY_CAPTURE_ENABLED`: `false` in production. Owner decision (2026-10-13): set it to `true` **only on the owner's test database**, for the e2e run in §7.
    - Restart the API after changing these.
 4. **Assign `attachment:identity` deliberately.** Only the owner decides which roles receive it.
-5. **Verify with read-only checks** before any use: that the six permission codes exist, and that ADMIN holds them (`GET /api/v1/permissions/all`, `GET /api/v1/auth/me`).
+5. **Run the Phase 4 e2e spec on the owner's test database only.** It creates a customer, a voucher, two roles, two users and one uploaded file there, and soft-deletes the file. It must not run on the live database (the Phase 3 spec's test records already on the live database are a separate open item; see the Phase 3 doc §9).
+6. **Verify with read-only checks** before any use: that the six permission codes exist, and that ADMIN holds them (`GET /api/v1/permissions/all`, `GET /api/v1/auth/me`).
 
 ---
 
@@ -148,6 +149,8 @@ Harness results come from code executed here with in-memory fakes. They are not 
 4. Decide whether deletion must be physical (DEC-091). Currently soft delete only, with the file kept.
 5. Confirm which roles should hold `attachment:identity`, besides ADMIN.
 6. Confirm whether CANCELLED vouchers may still receive identity documents. The code does not block this.
+
+**Owner answers recorded 2026-10-13:** the §3 technical defaults are accepted as proposed. Identity capture stays off in production and is enabled only on the owner's test database for the e2e run. Items 1 and 5 above are therefore closed for the defaults. Items 2, 3, 4 and 6 remain open.
 
 **Residual risks:**
 - **Download token in the URL.** Tokens may appear in web-server access logs. The short TTL limits exposure. Logs should not be shared.
