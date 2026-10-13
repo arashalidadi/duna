@@ -43,6 +43,8 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 3. **Delivery Order port:** choose from the existing Ports master (recommended), or free text?
 4. **B/L labels:** use neutral internal codes until the owner supplies the official wording (recommended), or supply the wording now?
 
+**Owner answers (2026-10-13):** all four recommended defaults accepted: (1) payment state recorded by the user at release; (2) configurable approval deferred to Phase 9, with the current audited override path and fail-closed behaviour; (3) DO port selected from the Ports master, with a name snapshot; (4) neutral internal B/L label codes until the owner supplies official wording.
+
 ## 5. Risks
 
 - **R-09:** a configurable approval must not become a bypass. Fail closed.
