@@ -130,7 +130,7 @@ it never replaces guard checks.
 
 | Role        | Scope                                     | System?            |
 | ----------- | ----------------------------------------- | ------------------ |
-| ADMIN       | Full access (bind-all seed permissions)   | yes (cannot deactivate) |
+| ADMIN       | Full access: every seed permission except `release:override` (DEC-116: explicit grant only). Includes `invoice:correct` and `invoice:approve_correction`. | yes (cannot deactivate) |
 | OPERATIONS  | Op module read + write, no finance        | no                 |
 
 Future roles (FINANCE, ACCOUNTANT, AGENT, VIEWER) are plain create-via-UI roles bound to the seeded

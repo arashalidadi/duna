@@ -8,6 +8,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -292,6 +293,7 @@ export class CorrectInvoiceDto {
   @IsNotEmpty()
   @IsString()
   @MaxLength(500)
+  @Matches(/\S/, { message: 'reason must not be blank' })
   reason: string;
 }
 
@@ -301,6 +303,7 @@ export class RejectInvoiceCorrectionDto {
   @IsNotEmpty()
   @IsString()
   @MaxLength(500)
+  @Matches(/\S/, { message: 'reason must not be blank' })
   reason: string;
 }
 

@@ -26,6 +26,7 @@ describe('Invoice Phase 3 (e2e)', () => {
   const tag = Math.random().toString(36).slice(2, 8);
   let adminToken = '';
   let noCorrectToken = '';
+  let approverToken = '';
   let customerId = '';
 
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
@@ -81,6 +82,29 @@ describe('Invoice Phase 3 (e2e)', () => {
       .expect(201);
     const nc = await api().post('/api/v1/auth/login').send({ email, password: 'ChangeMe123!' }).expect(200);
     noCorrectToken = nc.body.data.accessToken as string;
+
+    // A second user who may approve corrections but cannot request them.
+    const apRole = await api()
+      .post('/api/v1/roles')
+      .set(auth(adminToken))
+      .send({ code: `P3AP${tag}`.toUpperCase(), name: `P3 approver ${tag}` })
+      .expect(201);
+    const apIds = ['invoice:read', 'invoice:approve_correction'].map(
+      (c) => perms.body.data.find((p: { code: string }) => p.code === c).id,
+    );
+    await api()
+      .patch(`/api/v1/roles/${apRole.body.data.id}/permissions`)
+      .set(auth(adminToken))
+      .send({ permissionIds: apIds })
+      .expect(200);
+    const apEmail = `p3ap-${tag}@example.test`;
+    await api()
+      .post('/api/v1/users')
+      .set(auth(adminToken))
+      .send({ email: apEmail, password: 'ChangeMe123!', fullName: `P3 approver ${tag}`, roleIds: [apRole.body.data.id] })
+      .expect(201);
+    const ap = await api().post('/api/v1/auth/login').send({ email: apEmail, password: 'ChangeMe123!' }).expect(200);
+    approverToken = ap.body.data.accessToken as string;
   });
 
   afterAll(async () => {
@@ -257,6 +281,13 @@ describe('Invoice Phase 3 (e2e)', () => {
       .expect(409);
   });
 
+  it('ADMIN holds the correction permissions (catalogue + role grant) and not release:override (DEC-116)', async () => {
+    const me = await api().get('/api/v1/auth/me').set(auth(adminToken)).expect(200);
+    const codes: string[] = me.body.data.permissions;
+    expect(codes).toEqual(expect.arrayContaining(['invoice:correct', 'invoice:approve_correction']));
+    expect(codes).not.toContain('release:override');
+  });
+
   it('correction requires invoice:correct (403 without it) and a reason (400 when blank)', async () => {
     const id = await newDraft();
     await addLine(id, 'Item', 10);
@@ -273,18 +304,21 @@ describe('Invoice Phase 3 (e2e)', () => {
       .expect(400);
   });
 
-  it('approval gate (DEC-022): pending until decided; requester cannot self-approve; rejection leaves the invoice ISSUED', async () => {
+  it('approval gate (DEC-022): pending until a second user approves; requester cannot self-approve; rejection leaves the invoice ISSUED', async () => {
     const existing = await prisma.companySettings.findFirst();
-    const created = existing ? null : await prisma.companySettings.create({ data: { companyName: `P3 ${tag}` } });
-    const settingsId = (existing ?? created)?.id as string;
-    const previous = (await prisma.companySettings.findUnique({ where: { id: settingsId } }))
-      ?.invoiceCorrectionApprovalRequired ?? false;
+    const settingsId = existing
+      ? existing.id
+      : (await prisma.companySettings.create({ data: { companyName: `P3 ${tag}` } })).id;
+    const previous =
+      (await prisma.companySettings.findUnique({ where: { id: settingsId } }))?.invoiceCorrectionApprovalRequired ??
+      false;
     await prisma.companySettings.update({
       where: { id: settingsId },
       data: { invoiceCorrectionApprovalRequired: true },
     });
 
     try {
+      // Case 1: requested by ADMIN, approved by a different user.
       const id = await newDraft();
       await addLine(id, 'Item', 75, 5);
       await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken)).expect(200);
@@ -300,28 +334,44 @@ describe('Invoice Phase 3 (e2e)', () => {
       expect(stillIssued.status).toBe('ISSUED');
       expect(stillIssued.totalAmount).toBe(issued.totalAmount);
 
-      // Requester cannot approve their own request.
+      // The requester cannot approve their own request (ADMIN is not the primary administrator).
       await api()
         .post(`/api/v1/invoice-corrections/${req.body.data.id}/approve`)
         .set(auth(adminToken))
         .expect(403);
+      expect((await getInvoice(id)).status).toBe('ISSUED');
 
-      // Rejection leaves the original untouched.
+      // A different user with invoice:approve_correction approves: the correction applies.
+      const approved = await api()
+        .post(`/api/v1/invoice-corrections/${req.body.data.id}/approve`)
+        .set(auth(approverToken))
+        .expect(200);
+      expect(approved.body.data.status).toBe('APPLIED');
+      expect(approved.body.data.replacementInvoiceId).toBeTruthy();
+      expect((await getInvoice(id)).status).toBe('CANCELLED');
+
+      // Case 2: rejected by ADMIN; the original stays ISSUED.
+      const id2 = await newDraft();
+      await addLine(id2, 'Item', 20);
+      await api().post(`/api/v1/invoices/${id2}/issue`).set(auth(adminToken)).expect(200);
+      const req2 = await api()
+        .post(`/api/v1/invoices/${id2}/corrections`)
+        .set(auth(adminToken))
+        .send({ reason: `Reject test ${tag}` })
+        .expect(201);
       const rej = await api()
-        .post(`/api/v1/invoice-corrections/${req.body.data.id}/reject`)
+        .post(`/api/v1/invoice-corrections/${req2.body.data.id}/reject`)
         .set(auth(adminToken))
         .send({ reason: 'Not needed' })
         .expect(200);
       expect(rej.body.data.status).toBe('REJECTED');
-      expect((await getInvoice(id)).status).toBe('ISSUED');
+      expect((await getInvoice(id2)).status).toBe('ISSUED');
     } finally {
+      // Restore the approval flag only. Records created by the test are kept.
       await prisma.companySettings.update({
         where: { id: settingsId },
         data: { invoiceCorrectionApprovalRequired: previous },
       });
-      if (created) {
-        await prisma.companySettings.delete({ where: { id: created.id } });
-      }
     }
   });
 });

@@ -25,7 +25,8 @@ import { recomputeInvoiceTax } from './invoice-tax';
  *
  * Approval (DEC-022) is configuration: CompanySettings.invoiceCorrectionApprovalRequired.
  * When off, a correction applies immediately. When on, the request stays PENDING_APPROVAL
- * until a different user with invoice:approve_correction approves or rejects it.
+ * until a user with invoice:approve_correction approves or rejects it. That user must differ
+ * from the requester unless the requester is the primary administrator (DEC-116).
  *
  * A credit note is NOT implemented: it would need its own document type and number format,
  * which the owner has not defined.
@@ -134,7 +135,13 @@ export class InvoiceCorrectionService {
     });
   }
 
-  /** DEC-022 — approve a pending correction. The requester cannot approve their own request. */
+  /**
+   * DEC-022 — approve a pending correction.
+   *
+   * A non-owner cannot approve their own request (segregation of duties). The primary
+   * administrator is exempt: DEC-116 states the owner requires no approval from any other
+   * user to approve operations.
+   */
   async approve(correctionId: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const correction = await tx.invoiceCorrection.findUnique({
@@ -147,7 +154,7 @@ export class InvoiceCorrectionService {
       if (correction.status !== 'PENDING_APPROVAL') {
         throw new ConflictException(`Correction is ${correction.status}; only pending corrections can be approved`);
       }
-      if (correction.requestedById === actor.id) {
+      if (correction.requestedById === actor.id && actor.isPrimaryAdmin !== true) {
         throw new ForbiddenException('The user who requested a correction cannot approve it');
       }
 

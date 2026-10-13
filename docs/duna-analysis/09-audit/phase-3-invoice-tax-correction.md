@@ -29,13 +29,13 @@ Prisma models: `InvoiceJob`, `InvoiceBill` (~L1537, ~L1550) and `InvoiceCorrecti
   - `POST /invoices/:id/corrections` (`invoice:correct`)
   - `POST /invoice-corrections/:id/approve` and `/reject` (`invoice:approve_correction`)
   - The original moves ISSUED → CANCELLED, with reason, user and timestamp recorded. Its money fields are not touched. The replacement is a new DRAFT linked to the original. Each step writes an audit entry.
-  - The requester cannot approve their own correction. This applies to everyone, including the primary administrator (see §4).
+  - A non-owner requester cannot approve their own correction. The primary administrator is exempt, per DEC-116 (see §4 and §7).
 - `invoice.module.ts`: registers the correction controller and service.
 - `apps/api/src/modules/jobs/job.service.ts` and `job.controller.ts`: `GET /jobs/:id/invoices`, so a Job lists its invoices.
 - `apps/api/src/modules/proforma/proforma.service.ts`: proforma → invoice conversion copies the line `taxRate` and uses `recomputeInvoiceTax`.
 
 ### Permissions (`prisma/seed/core.ts`)
-- New codes `invoice:correct` and `invoice:approve_correction`. Both are **explicit grant only**: ADMIN does not receive them automatically (same pattern as `release:override`).
+- New codes `invoice:correct` and `invoice:approve_correction`. ADMIN receives them through the all-permissions loop. Only `release:override` is explicit grant only (DEC-116). This replaces the Phase 3 first version, which also excluded the two invoice codes. See §7.
 - The seed still does not insert demo data. No counter or invoice rows are seeded.
 
 ### Shared types (`packages/shared/src/invoice.ts`)
@@ -84,7 +84,7 @@ This report.
 
 ## 4. Owner-confirmable points
 
-1. **Approver must differ from requester, for everyone, including the primary administrator.** This follows the "no second approver" rule for the primary administrator. Under this rule the primary administrator cannot approve their own correction, so a correction they request needs a different approver, and if none exists it stays pending. The owner should confirm this.
+1. **Approver must differ from requester, except the primary administrator (DEC-116).** Changed in §7. The first version also blocked the owner from approving their own request, which DEC-116 does not allow. ADMIN-role users and other non-owner users remain blocked from self-approval. Owner to confirm.
 2. **Plain `invoice:cancel` on ISSUED invoices is unchanged** for backward compatibility. The existing test at `invoice.e2e-spec.ts` ~L360 relies on it. Whether plain cancel should be blocked in favour of the correction route is an open business decision.
 3. **Header `taxRate` on DRAFT update stays a bulk-apply input.** The existing e2e test at `invoice.e2e-spec.ts` ~L291 expects it to drive totals. AUD-001 proposed a read-only derived header. This is a deliberate deviation until the owner decides.
 4. **Mixed-rate discount allocation** (pro-rata by line amount, remainder on the last line, rounding per rate group) is a convention I chose. It is not in the decision log. The owner should confirm it.
@@ -94,19 +94,73 @@ This report.
 
 ## 5. Server-side actions required (not executed; owner authorization needed)
 
-Nothing has been run against the owner's server. Required steps, in order:
+Nothing has been run against the owner's server. Run these after pulling the commit that contains the §7 fix, in this order. Stop at any failed step.
 
-1. **Prerequisites:** the server project is `~/shipping-dashboard/new-erp`. Database backup or snapshot taken first. No secrets are needed in this report.
-2. **Verify migration state first:** check `_prisma_migrations` for the Phase 2 migrations and confirm no failed (P3009) rows. Do not run `migrate reset`, `db push`, or edit migration history.
-3. **Apply the migration:** `prisma migrate deploy` (applies only the pending `20261013120000_invoice_tax_links_correction`). **This writes to the database:** it adds columns and tables, and it sets `invoice_items.taxRate` on existing rows and copies `invoices.billOfLadingId` into `invoice_bills`. It deletes nothing. A test database is recommended first. Owner approval is required for this step.
-4. **Regenerate the Prisma client and rebuild/restart the API and web.** This is not a DB change.
-5. **Seed:** run only the permission-catalogue upsert. Do not run demo or sample seeds. `invoice:correct` and `invoice:approve_correction` are granted only where the owner assigns them.
-6. **Post-deploy check (read-only):** confirm an existing ISSUED invoice returns the same `subtotal`, `taxAmount`, `totalAmount` as before. Confirm `invoice_bills` row count equals the number of invoices that had a B/L.
+1. **Pull and install:** update the branch, then `pnpm install --frozen-lockfile`.
+2. **Preflight (read-only).** Confirm the primary administrator and the seeded admin account. Stop if there is more than one primary administrator.
+   `SELECT email, "isPrimaryAdmin", "isActive", "lockedUntil" FROM "User" WHERE "isPrimaryAdmin" OR email = '<SEED_ADMIN_EMAIL>';`
+   Also check that migration `20261013120000_invoice_tax_links_correction` is listed in `_prisma_migrations` and applied. If it is not, apply it first (step 3).
+3. **Phase 3 migration, only if pending:** `pnpm prisma migrate deploy`. It applies only pending migrations. It is additive. It sets `invoice_items.taxRate` on existing rows and copies `invoices.billOfLadingId` into `invoice_bills`. It deletes nothing. A test database first is recommended. Owner approval is required.
+4. **Core seed (writes to the database):** `pnpm db:seed`, with `SEED_DEMO_DATA` **unset**. Do not set it. The seed:
+   - creates any missing permission rows, including `invoice:correct` and `invoice:approve_correction`;
+   - adds missing ADMIN grants for every catalogue permission except `release:override`. It only adds and never revokes;
+   - upserts the admin account. On every run it sets `isActive = true` and clears `failedLoginAttempts` and `lockedUntil` for that account. This is existing seed behaviour. The owner should confirm it is acceptable before running;
+   - designates a primary administrator only if none exists.
+   The static guard `pnpm check:seed-safety` is passing. Demo data is not created by default.
+5. **Restart the API and web.** No re-login is needed. Permissions are resolved from the database on every request.
+6. **Verify (read-only).** Log in as the ADMIN account and call `GET /api/v1/auth/me`. The permissions list must include `invoice:correct` and `invoice:approve_correction`, and must not include `release:override`.
 
-Phase 3 changes are not deployed until steps 3–5 are executed with owner authorization.
+**Test commands (server or CI, not the production database):**
+- `cd apps/api && pnpm test -- invoice-phase3` runs the Phase 3 e2e suite. It needs a Postgres `DATABASE_URL` with the schema and seed applied. It writes test records (customers, invoices, roles, users, and two correction workflows) and keeps them. It does not delete data. Use a disposable or test database.
+- `pnpm test -- invoice.e2e-spec` and `pnpm test -- auth.e2e-spec` are the existing invoice and auth suites that cover permissions.
+- `pnpm test:seed-safety` writes to `SEED_TEST_DATABASE_URL`. Use a disposable database only.
+
+Fallback to step 4, if the owner does not want the full seed: if the permission rows already exist, the ADMIN role can be given the two codes on the Roles screen. That screen replaces the role's whole permission set, so the current set must be checked first. Creating the rows still requires the seed.
 
 ## 6. Not in scope
 
 - Phase 4 (not started).
 - Credit-note format, numbering or PDF. Not invented.
 - Changing live numbering formats or voyage behaviour.
+
+## 7. Review fix: ADMIN correction permissions (2026-10-13)
+
+**Reported.** Running `invoice-phase3.e2e-spec.ts` gave 5 passing and 3 failing tests. All three failures were `403 Forbidden` from the correction endpoints, for the ADMIN account.
+
+**Root cause (verified).** The ADMIN role was never given `invoice:correct` or `invoice:approve_correction`. In the first version of this phase, both codes were added to the explicit-grant-only set in `prisma/seed/core.ts`, copying the `release:override` rule. That was my error, not an owner decision:
+- DEC-116 reserves only release-exception authority. It says ordinary managers and administrators must not inherit `release:override`. It says nothing about invoice correction.
+- `docs/permissions.md` describes ADMIN as "Full access (bind-all seed permissions)".
+
+The permission path is ADMIN role → `RolePermission` rows → `AuthService.resolvePermissions` (per request, from the database) → `PermissionsGuard`. With the rows missing, the guard correctly returned 403. The guard and endpoint configuration were correct.
+
+**Fix.**
+- **Seed (`prisma/seed/core.ts`).** `EXPLICIT_GRANT_ONLY` is now `{'release:override'}`. ADMIN receives the two invoice codes through the same all-permissions loop as every other permission. `release:override` stays explicit only, per DEC-116. No isolated exception for this endpoint.
+- **Approval (`invoice-correction.service.ts`).** The requester-cannot-approve rule is kept for non-owner users, including ADMIN-role users. The primary administrator is exempt, per DEC-116 ("require no approval from any other user … to approve operations"). This is a change from the first version (§4 item 1).
+- **Validation (`dto/invoice.dto.ts`).** `CorrectInvoiceDto.reason` and `RejectInvoiceCorrectionDto.reason` reject whitespace-only text at the validation layer (400). The service check remains as a backstop.
+- **Tests (`apps/api/test/invoice-phase3.e2e-spec.ts`).**
+  - New assertion: ADMIN's `/auth/me` permissions include both codes and exclude `release:override`.
+  - The approval test now covers the full path: ADMIN requests; ADMIN is refused self-approval; a second user with `invoice:approve_correction` (and no `invoice:correct`) approves and the correction applies; a separate correction is rejected by ADMIN.
+  - The 403 for a user without `invoice:correct` and the 400 for a blank reason are unchanged.
+  - The `finally` block no longer deletes the `CompanySettings` row. Only the approval flag is restored.
+- **Docs.** `docs/permissions.md` ADMIN row states the exception. This section and §4/§5 are updated.
+
+**Files changed in this fix.** `prisma/seed/core.ts`, `apps/api/src/modules/invoice/invoice-correction.service.ts`, `apps/api/src/modules/invoice/dto/invoice.dto.ts`, `apps/api/test/invoice-phase3.e2e-spec.ts`, `docs/permissions.md`, and this report. No migration was added or changed.
+
+**Checks run in this review.**
+
+| Check | Result |
+|---|---|
+| Reproduce on the committed seed (in-memory harness, real seed + `resolvePermissions` + `PermissionsGuard`, sandbox only) | ADMIN lacks `invoice:correct`, `invoice:approve_correction`, and `release:override`. Guard returns `ForbiddenException` for ADMIN on `invoice:correct`. Matches the reported 403s. |
+| Same harness after the fix | ADMIN holds both invoice codes and lacks only `release:override`. Guard allows ADMIN and the primary administrator. Guard returns `ForbiddenException` for a user without `invoice:correct`. |
+| DTO check (class-validator) | `"   "` and `""` fail validation. `"Wrong freight rate"` and `" x "` pass. |
+| API `tsc --noEmit` | Exit 0, after dependencies were installed and the Prisma client types were generated. |
+| E2E spec type check | Exit 0. |
+| ESLint on changed API files | Exit 0. |
+| `pnpm check:seed-safety` | Exit 0. "SEED SAFETY OK". |
+
+**Not run in this review.** `invoice-phase3.e2e-spec.ts`, `invoice.e2e-spec.ts`, `auth.e2e-spec.ts`, and `scripts/test-seed-safety.ts`. This sandbox has no PostgreSQL, and the Prisma query engine cannot be downloaded (its host is not on the allowlist). The Prisma client was generated with a placeholder engine for type checks only, so no query was run. **No e2e pass is claimed here.** The reported run (5 pass, 3 fail) is the only runtime evidence. The rerun must be done on the server (§5, test commands).
+
+**Owner decisions to confirm.**
+1. The primary administrator may approve their own correction (DEC-116). Non-owner users, including ADMIN-role users, cannot.
+2. ADMIN holds `invoice:correct` and `invoice:approve_correction`. It does not hold `release:override` (DEC-116).
+3. The correction approval setting (`invoiceCorrectionApprovalRequired`) stays off by default.

@@ -290,13 +290,12 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   // (inspect -> snapshot -> classify -> revoke), which is deliberately NOT done
   // automatically here.
   // ==========================================================================
-  // Phase 3: invoice correction and correction approval are financial-control authority,
-  // so they are explicit grants too (the owner's rule: managers get only assigned permissions).
-  const EXPLICIT_GRANT_ONLY = new Set<string>([
-    'release:override',
-    'invoice:correct',
-    'invoice:approve_correction',
-  ]);
+  // Only codes that a confirmed owner decision reserves for explicit grant belong here.
+  // Invoice correction (`invoice:correct`, `invoice:approve_correction`) is NOT reserved
+  // by any decision: ADMIN is the system administrator and receives every other
+  // catalogue permission, including these two. Managers and other roles still get only
+  // what the administrator assigns.
+  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override']);
 
   for (const [code, permissionId] of Object.entries(createdPermissions)) {
     if (EXPLICIT_GRANT_ONLY.has(code)) {
