@@ -289,7 +289,8 @@
       },
       "recipientPlaceholder": "Who receives the cargo?",
       "selectBill": "Select B/L",
-      "title": "Create delivery order"
+      "title": "Create delivery order",
+      "selectPort": "Select port"
     },
     "detail": {
       "headerTitle": "Delivery order"
@@ -302,7 +303,8 @@
       "notes": "Notes",
       "recipient": "Recipient",
       "status": "Status",
-      "vehiclePlate": "Vehicle plate"
+      "vehiclePlate": "Vehicle plate",
+      "port": "Port"
     },
     "list": {
       "allStatuses": "All statuses",
@@ -321,6 +323,9 @@
     "status": {
       "CANCELLED": "Cancelled",
       "ISSUED": "Issued"
+    },
+    "errors": {
+      "portRequired": "Select the port."
     }
   },
   "discharge": {
@@ -1724,7 +1729,8 @@
       "overrideReasonPlaceholder": "Why release despite the outstanding balance?",
       "readyTitle": "Ready to release",
       "selectBill": "Select B/L",
-      "title": "Create release order"
+      "title": "Create release order",
+      "selectPaymentState": "Select payment state"
     },
     "detail": {
       "headerTitle": "Release order"
@@ -1741,7 +1747,8 @@
       "overrideReason": "Override reason",
       "releaseDate": "Release date",
       "settled": "Settled",
-      "status": "Status"
+      "status": "Status",
+      "paymentState": "Payment state"
     },
     "list": {
       "allStatuses": "All statuses",
@@ -1760,6 +1767,14 @@
     "status": {
       "CANCELLED": "Cancelled",
       "ISSUED": "Issued"
+    },
+    "paymentState": {
+      "PAID": "Paid",
+      "PARTIAL": "Partial payment",
+      "UNPAID": "Unpaid (on credit)"
+    },
+    "errors": {
+      "paymentStateRequired": "Select the payment state recorded at release."
     }
   },
   "roles": {

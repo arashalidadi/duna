@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -10,11 +11,19 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // ── Delivery Order (D/O) ─────────────────────────────────────────────────────
 
+/** Payment condition recorded at release (REQ-182, EMP-685..689). Keep in step with packages/shared. */
+export const RELEASE_PAYMENT_STATES = ['PAID', 'PARTIAL', 'UNPAID'] as const;
+
 export class CreateDeliveryOrderDto {
   @ApiProperty({ description: 'B/L to hand cargo over against' })
   @IsString()
   @IsNotEmpty()
   billOfLadingId!: string;
+
+  @ApiProperty({ description: 'Port stated on the delivery order (REQ-186), from the Ports master' })
+  @IsString()
+  @IsNotEmpty()
+  portId!: string;
 
   @ApiProperty({ description: 'Party physically receiving the cargo' })
   @IsString()
@@ -83,6 +92,10 @@ export class CreateReleaseOrderDto {
   @IsString()
   @IsNotEmpty()
   billOfLadingId!: string;
+
+  @ApiProperty({ enum: RELEASE_PAYMENT_STATES, description: 'Payment condition recorded at release (REQ-182)' })
+  @IsIn([...RELEASE_PAYMENT_STATES])
+  paymentState!: (typeof RELEASE_PAYMENT_STATES)[number];
 
   @ApiPropertyOptional()
   @IsOptional()

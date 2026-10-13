@@ -38,6 +38,7 @@ describe('Delivery & Release Orders (e2e)', () => {
   const invoiceIds: string[] = [];
 
   let adminToken = '';
+  let drPortId = ''; // Ports-master fixture used by delivery orders (REQ-186)
   let readerToken = ''; // delivery:read + release:read
   let writerToken = ''; // + create/update
   let cancellerToken = ''; // + cancel
@@ -126,6 +127,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     const portA = await S().post('/api/v1/ports').set(auth(adminToken))
       .send({ code: `DRP1-${tag}`, name: `DR Origin ${randomTag}`, country: 'AE' }).expect(201);
     createdPorts.push({ id: portA.body.data.id });
+    drPortId = portA.body.data.id;
     const portB = await S().post('/api/v1/ports').set(auth(adminToken))
       .send({ code: `DRP2-${tag}`, name: `DR Dest ${randomTag}`, country: 'IN' }).expect(201);
     createdPorts.push({ id: portB.body.data.id });
@@ -302,16 +304,16 @@ describe('Delivery & Release Orders (e2e)', () => {
 
   it('DO create: 403 for reader; 404 unknown B/L; 409 against DRAFT bill', async () => {
     await S().post('/api/v1/delivery-orders').set(auth(readerToken))
-      .send({ billOfLadingId: billId, recipient: 'X' }).expect(403);
+      .send({ portId: drPortId, billOfLadingId: billId, recipient: 'X' }).expect(403);
     await S().post('/api/v1/delivery-orders').set(auth(writerToken))
-      .send({ billOfLadingId: 'nonexistent-id', recipient: 'X' }).expect(404);
+      .send({ portId: drPortId, billOfLadingId: 'nonexistent-id', recipient: 'X' }).expect(404);
     await S().post('/api/v1/delivery-orders').set(auth(writerToken))
-      .send({ billOfLadingId: draftBillId, recipient: 'X' }).expect(409);
+      .send({ portId: drPortId, billOfLadingId: draftBillId, recipient: 'X' }).expect(409);
   });
 
   it('DO create against APPROVED bill (issued-equivalent); DO-YYMM-##### number; list + detail', async () => {
     const res = await S().post('/api/v1/delivery-orders').set(auth(writerToken))
-      .send({ billOfLadingId: billId, recipient: `Ali Reza ${randomTag}`, vehiclePlate: 'IR11-22B-33', notes: 'gate 4 pickup' })
+      .send({ portId: drPortId, billOfLadingId: billId, recipient: `Ali Reza ${randomTag}`, vehiclePlate: 'IR11-22B-33', notes: 'gate 4 pickup' })
       .expect(201);
     do1Id = res.body.data.id;
     expect(res.body.data.docNumber).toMatch(/^DO-\d{4}-\d{5}$/);
@@ -329,7 +331,7 @@ describe('Delivery & Release Orders (e2e)', () => {
 
   it('DO one-active-per-B/L: second active 409', async () => {
     await S().post('/api/v1/delivery-orders').set(auth(writerToken))
-      .send({ billOfLadingId: billId, recipient: 'Someone Else' }).expect(409);
+      .send({ portId: drPortId, billOfLadingId: billId, recipient: 'Someone Else' }).expect(409);
   });
 
   it('DO update: recipient/plate editable; cancel with reason freezes; delete gated', async () => {
@@ -347,7 +349,7 @@ describe('Delivery & Release Orders (e2e)', () => {
 
     // now a new DO can be issued for the same bill
     const redo = await S().post('/api/v1/delivery-orders').set(auth(writerToken))
-      .send({ billOfLadingId: billId, recipient: `Hossein ${randomTag}` }).expect(201);
+      .send({ portId: drPortId, billOfLadingId: billId, recipient: `Hossein ${randomTag}` }).expect(201);
     do1Id = redo.body.data.id;
     expect(redo.body.data.docNumber).toMatch(/^DO-/);
   });
@@ -367,14 +369,14 @@ describe('Delivery & Release Orders (e2e)', () => {
 
   it('RO money rule: unpaid → 409 without force; 403 without release:override permission', async () => {
     await S().post('/api/v1/release-orders').set(auth(plainCreatorToken))
-      .send({ billOfLadingId: billId }).expect(409);
+      .send({ paymentState: 'PAID', billOfLadingId: billId }).expect(409);
 
     await S().post('/api/v1/release-orders').set(auth(plainCreatorToken))
-      .send({ billOfLadingId: billId, force: true, overrideReason: 'trust this customer' }).expect(403);
+      .send({ paymentState: 'UNPAID', billOfLadingId: billId, force: true, overrideReason: 'trust this customer' }).expect(403);
 
     // authorized override works
     const res = await S().post('/api/v1/release-orders').set(auth(overriderToken))
-      .send({ billOfLadingId: billId, force: true, overrideReason: 'long-standing customer, wire pending' })
+      .send({ paymentState: 'UNPAID', billOfLadingId: billId, force: true, overrideReason: 'long-standing customer, wire pending' })
       .expect(201);
     ro1Id = res.body.data.id;
     expect(res.body.data.docNumber).toMatch(/^RO-\d{4}-\d{5}$/);
@@ -385,7 +387,7 @@ describe('Delivery & Release Orders (e2e)', () => {
 
   it('RO one-active-per-B/L: second active 409', async () => {
     await S().post('/api/v1/release-orders').set(auth(overriderToken))
-      .send({ billOfLadingId: billId, force: true, overrideReason: 'x' }).expect(409);
+      .send({ paymentState: 'UNPAID', billOfLadingId: billId, force: true, overrideReason: 'x' }).expect(409);
   });
 
   it('RO settle then release without override; cancel + delete gated', async () => {
@@ -402,7 +404,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     expect(elig.body.data.canRelease).toBe(true);
 
     const res = await S().post('/api/v1/release-orders').set(auth(plainCreatorToken))
-      .send({ billOfLadingId: billId, notes: 'settled release' }).expect(201);
+      .send({ paymentState: 'PAID', billOfLadingId: billId, notes: 'settled release' }).expect(201);
     const ro2 = res.body.data;
     expect(ro2.financialOverride).toBe(false);
     expect(ro2.financials.fullyPaid).toBe(true);
@@ -427,7 +429,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     // finalize the DRAFT guard bill (bill:issue permission — admin holds it)
     await S().post(`/api/v1/bills/${draftBillId}/finalize`).set(auth(adminToken)).expect(200);
     let r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
-      .send({ billOfLadingId: draftBillId, recipient: 'X' });
+      .send({ portId: drPortId, billOfLadingId: draftBillId, recipient: 'X' });
     expect(r.status).toBe(409);
     expect(JSON.stringify(r.body)).toContain('APPROVED'); // new vocabulary, not ISSUED
 
@@ -435,7 +437,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     await S().post(`/api/v1/bills/${draftBillId}/cancel`).set(auth(adminToken))
       .send({ cancelReason: 'P4-U4 gate vocabulary test' }).expect(200);
     r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
-      .send({ billOfLadingId: draftBillId, recipient: 'X' });
+      .send({ portId: drPortId, billOfLadingId: draftBillId, recipient: 'X' });
     expect(r.status).toBe(409);
     expect(JSON.stringify(r.body)).toContain('APPROVED');
 
@@ -449,11 +451,11 @@ describe('Delivery & Release Orders (e2e)', () => {
         data: { status: 'RELEASED' },
       });
       r = await S().post('/api/v1/delivery-orders').set(auth(adminToken))
-        .send({ billOfLadingId: draftBillId, recipient: 'X' });
+        .send({ portId: drPortId, billOfLadingId: draftBillId, recipient: 'X' });
       expect(r.status).toBe(409);
       expect(JSON.stringify(r.body)).toContain('APPROVED');
       const ro = await S().post('/api/v1/release-orders').set(auth(adminToken))
-        .send({ billOfLadingId: draftBillId });
+        .send({ paymentState: 'PAID', billOfLadingId: draftBillId });
       expect(ro.status).toBe(409);
       expect(JSON.stringify(ro.body)).toContain('APPROVED');
     } finally {
@@ -514,6 +516,67 @@ describe('Delivery & Release Orders (e2e)', () => {
     expect(Object.keys(P).sort()).toEqual(
       ['evaluate', 'name', 'paymentRule', 'paymentTolerance', 'requiredBillStatus'].sort()
     );
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 5 slice 2 — D/O port (REQ-186) and R/O payment state (REQ-182).
+  // ---------------------------------------------------------------------------
+
+  it('Slice 2: a delivery order requires a port (400) and rejects an unknown port (404)', async () => {
+    await S().post('/api/v1/delivery-orders').set(auth(adminToken))
+      .send({ billOfLadingId: billId, recipient: 'No port' }).expect(400);
+    await S().post('/api/v1/delivery-orders').set(auth(adminToken))
+      .send({ billOfLadingId: billId, portId: 'nonexistent-port-id', recipient: 'Unknown port' }).expect(404);
+  });
+
+  it('Slice 2: the D/O stores the port and a name snapshot that survives a later port rename', async () => {
+    const list = await S().get(`/api/v1/delivery-orders?billOfLadingId=${billId}&pageSize=100`)
+      .set(auth(adminToken)).expect(200);
+    const row = list.body.data.data.find((d: { recipient: string }) => d.recipient.includes('Hossein'));
+    expect(row).toBeDefined();
+    expect(row.portId).toBe(drPortId);
+    expect(row.portName).toBe(`DR Origin ${randomTag}`);
+
+    await S().patch(`/api/v1/ports/${drPortId}`).set(auth(adminToken))
+      .send({ name: `DR Origin renamed ${randomTag}` }).expect(200);
+    const after = await S().get(`/api/v1/delivery-orders/${row.id}`).set(auth(adminToken)).expect(200);
+    expect(after.body.data.portId).toBe(drPortId);
+    expect(after.body.data.portName).toBe(`DR Origin ${randomTag}`);
+  });
+
+  it('Slice 2: a release requires a valid payment state (400)', async () => {
+    await S().post('/api/v1/release-orders').set(auth(adminToken))
+      .send({ billOfLadingId: billId }).expect(400);
+    await S().post('/api/v1/release-orders').set(auth(adminToken))
+      .send({ billOfLadingId: billId, paymentState: 'SOMETIMES' }).expect(400);
+  });
+
+  it('Slice 2: a release reports its payment state; a legacy delivery order without a port reads back null', async () => {
+    const { PrismaClient } = require('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      const ro = await fx.releaseOrder.findFirst({ where: { billOfLadingId: billId, notes: 'settled release' } });
+      expect(ro).not.toBeNull();
+      expect(ro.paymentState).toBe('PAID');
+      const detail = await S().get(`/api/v1/release-orders/${ro.id}`).set(auth(adminToken)).expect(200);
+      expect(detail.body.data.paymentState).toBe('PAID');
+
+      // A delivery order written before Phase 5 has no port. It must read back as null and unchanged.
+      const adminRow = await fx.user.findFirst({ where: { email: admin.email } });
+      const legacy = await fx.deliveryOrder.create({
+        data: {
+          docNumber: `DO-LEG-${randomTag}`,
+          billOfLadingId: billId,
+          recipient: `Legacy ${randomTag}`,
+          createdById: adminRow.id,
+        },
+      });
+      const legacyRead = await S().get(`/api/v1/delivery-orders/${legacy.id}`).set(auth(adminToken)).expect(200);
+      expect(legacyRead.body.data.portId).toBeNull();
+      expect(legacyRead.body.data.portName).toBeNull();
+    } finally {
+      await fx.$disconnect();
+    }
   });
 });
 

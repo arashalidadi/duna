@@ -289,7 +289,8 @@
       },
       "recipientPlaceholder": "چه کسی بار را تحویل می‌گیرد؟",
       "selectBill": "انتخاب بارنامه",
-      "title": "ساخت حواله تحویل"
+      "title": "ساخت حواله تحویل",
+      "selectPort": "بندر را انتخاب کنید"
     },
     "detail": {
       "headerTitle": "حواله تحویل"
@@ -302,7 +303,8 @@
       "notes": "یادداشت",
       "recipient": "تحویل‌گیرنده",
       "status": "وضعیت",
-      "vehiclePlate": "پلاک خودرو"
+      "vehiclePlate": "پلاک خودرو",
+      "port": "بندر"
     },
     "list": {
       "allStatuses": "همه وضعیت‌ها",
@@ -321,6 +323,9 @@
     "status": {
       "CANCELLED": "لغوشده",
       "ISSUED": "صادرشده"
+    },
+    "errors": {
+      "portRequired": "بندر را انتخاب کنید."
     }
   },
   "discharge": {
@@ -1724,7 +1729,8 @@
       "overrideReasonPlaceholder": "چرا با وجود مانده بدهی ترخیص شود؟",
       "readyTitle": "آماده ترخیص",
       "selectBill": "انتخاب بارنامه",
-      "title": "ساخت مجوز ترخیص"
+      "title": "ساخت مجوز ترخیص",
+      "selectPaymentState": "وضعیت پرداخت را انتخاب کنید"
     },
     "detail": {
       "headerTitle": "مجوز ترخیص"
@@ -1741,7 +1747,8 @@
       "overrideReason": "دلیل تأیید ویژه",
       "releaseDate": "تاریخ ترخیص",
       "settled": "تسویه‌شده",
-      "status": "وضعیت"
+      "status": "وضعیت",
+      "paymentState": "وضعیت پرداخت"
     },
     "list": {
       "allStatuses": "همه وضعیت‌ها",
@@ -1760,6 +1767,14 @@
     "status": {
       "CANCELLED": "لغوشده",
       "ISSUED": "صادرشده"
+    },
+    "paymentState": {
+      "PAID": "پرداخت کامل",
+      "PARTIAL": "پرداخت بخشی",
+      "UNPAID": "پرداخت نشده (نسیه)"
+    },
+    "errors": {
+      "paymentStateRequired": "وضعیت پرداخت ثبت‌شده در زمان آزادسازی را انتخاب کنید."
     }
   },
   "roles": {

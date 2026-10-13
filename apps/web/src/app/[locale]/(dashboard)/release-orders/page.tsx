@@ -10,6 +10,7 @@ import type {
   PaginatedResult,
   ReleaseEligibility,
   ReleaseOrder,
+  ReleasePaymentState,
   BillOfLading,
 } from '@shipping/shared';
 import { Plus, Eye, XCircle, Trash2, ShieldAlert, BadgeCheck, FileCheck } from 'lucide-react';
@@ -29,6 +30,9 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
 
 const PAGE_SIZE = 20;
+
+/** Payment condition recorded at release (REQ-182). Must match the API DTO. */
+const PAYMENT_STATES: ReleasePaymentState[] = ['PAID', 'PARTIAL', 'UNPAID'];
 
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
@@ -109,6 +113,7 @@ export default function ReleaseOrdersPage() {
   const [fBill, setFBill] = useState('');
   const [elig, setElig] = useState<ReleaseEligibility | null>(null);
   const [eligLoading, setEligLoading] = useState(false);
+  const [fPayment, setFPayment] = useState<ReleasePaymentState | ''>('');
   const [fNotes, setFNotes] = useState('');
   const [force, setForce] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
@@ -119,6 +124,7 @@ export default function ReleaseOrdersPage() {
     setCreateOpen(true);
     setCreateError('');
     setFBill('');
+    setFPayment('');
     setElig(null);
     setFNotes('');
     setForce(false);
@@ -164,6 +170,10 @@ export default function ReleaseOrdersPage() {
       setCreateError(t('create.errors.billRequired'));
       return;
     }
+    if (!fPayment) {
+      setCreateError(t('create.errors.paymentStateRequired'));
+      return;
+    }
     if (elig && elig.needsOverride && !force) {
       setCreateError(t('create.blockedNeedsForce'));
       return;
@@ -177,6 +187,7 @@ export default function ReleaseOrdersPage() {
     try {
       await api.post('/release-orders', {
         billOfLadingId: fBill,
+        paymentState: fPayment,
         ...(fNotes.trim() ? { notes: fNotes.trim() } : {}),
         ...(force ? { force: true, overrideReason: overrideReason.trim() } : {}),
       });
@@ -423,6 +434,22 @@ export default function ReleaseOrdersPage() {
             </select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label>{t('fields.paymentState')}</Label>
+            <select
+              className={SELECT_CLASS + ' w-full'}
+              value={fPayment}
+              onChange={(e) => setFPayment(e.target.value as ReleasePaymentState | '')}
+            >
+              <option value="">{t('create.selectPaymentState')}</option>
+              {PAYMENT_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`paymentState.${s}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {eligLoading && (
             <p className="text-xs text-muted-foreground">{t('create.checkingEligibility')}</p>
           )}
@@ -507,6 +534,10 @@ export default function ReleaseOrdersPage() {
               <div>
                 <dt className="text-muted-foreground">{t('fields.releaseDate')}</dt>
                 <dd>{formatDateTime(detail.releaseDate, locale)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.paymentState')}</dt>
+                <dd>{detail.paymentState ? t(`paymentState.${detail.paymentState}`) : '—'}</dd>
               </div>
               {detail.financials && (
                 <>

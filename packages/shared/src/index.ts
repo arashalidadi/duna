@@ -192,6 +192,7 @@ export type {
   UpdateReleaseOrderDto,
   DeliveryOrderListResult,
   ReleaseOrderListResult,
+  ReleasePaymentState,
   ReleaseEligibility,
 } from './delivery-release';
 export * from './proforma';

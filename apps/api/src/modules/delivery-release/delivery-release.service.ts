@@ -153,6 +153,9 @@ export class DeliveryReleaseService {
       recipient: d.recipient,
       recipientId: d.recipientId,
       vehiclePlate: d.vehiclePlate,
+      /** Port on the D/O (REQ-186). Null on delivery orders created before Phase 5. */
+      portId: d.portId,
+      portName: d.portName,
       notes: d.notes,
       cancelReason: d.cancelReason,
       cancelledById: d.cancelledById,
@@ -205,9 +208,13 @@ export class DeliveryReleaseService {
   }
 
   async createDelivery(dto: {
-    billOfLadingId: string; recipient: string; recipientId?: string; vehiclePlate?: string; notes?: string; issueDate?: string;
+    billOfLadingId: string; portId: string; recipient: string; recipientId?: string; vehiclePlate?: string; notes?: string; issueDate?: string;
   }, ctx: ACTX) {
     const created = await this.prisma.$transaction(async (tx) => {
+      // REQ-186: the port must be a live, active Ports-master record. Its name is snapshotted
+      // so a later rename does not change an issued document.
+      const port = await tx.port.findFirst({ where: { id: dto.portId, deletedAt: null, isActive: true } });
+      if (!port) throw new NotFoundException('port not found or inactive');
       await this.requireIssuedBill(tx, dto.billOfLadingId);
       await this.assertNoActive(tx, 'DO', dto.billOfLadingId);
       if (dto.recipientId) {
@@ -220,6 +227,8 @@ export class DeliveryReleaseService {
           billOfLadingId: dto.billOfLadingId,
           recipient: dto.recipient,
           recipientId: dto.recipientId ?? null,
+          portId: port.id,
+          portName: port.name,
           vehiclePlate: dto.vehiclePlate,
           notes: dto.notes,
           issueDate: dto.issueDate ? new Date(dto.issueDate) : new Date(),
@@ -282,6 +291,8 @@ export class DeliveryReleaseService {
       billOfLadingId: r.billOfLadingId,
       status: r.status,
       releaseDate: r.releaseDate.toISOString(),
+      /** Payment condition recorded at release (REQ-182). Null on releases created before Phase 5. */
+      paymentState: r.paymentState,
       financialOverride: r.financialOverride,
       overrideReason: r.overrideReason,
       notes: r.notes,
@@ -340,7 +351,7 @@ export class DeliveryReleaseService {
   }
 
   async createRelease(dto: {
-    billOfLadingId: string; releaseDate?: string; notes?: string; force?: boolean; overrideReason?: string;
+    billOfLadingId: string; paymentState: 'PAID' | 'PARTIAL' | 'UNPAID'; releaseDate?: string; notes?: string; force?: boolean; overrideReason?: string;
   }, ctx: ACTX) {
     const created = await this.prisma.$transaction(async (tx) => {
       await this.requireIssuedBill(tx, dto.billOfLadingId);
@@ -364,6 +375,7 @@ export class DeliveryReleaseService {
           docNumber: await this.nextNumber(tx, 'RO'),
           billOfLadingId: dto.billOfLadingId,
           releaseDate: dto.releaseDate ? new Date(dto.releaseDate) : new Date(),
+          paymentState: dto.paymentState,
           notes: dto.notes,
           financialOverride,
           overrideReason,

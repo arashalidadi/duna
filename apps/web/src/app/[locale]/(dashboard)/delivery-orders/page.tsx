@@ -10,6 +10,7 @@ import type {
   DeliveryReleaseStatus,
   BillOfLading,
   PaginatedResult,
+  PortListItem,
 } from '@shipping/shared';
 import { Plus, Eye, XCircle, Trash2, Truck } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -52,6 +53,7 @@ export default function DeliveryOrdersPage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | DeliveryReleaseStatus>('ALL');
 
   const [bills, setBills] = useState<BillOfLading[]>([]);
+  const [ports, setPorts] = useState<PortListItem[]>([]);
   const [detail, setDetail] = useState<DeliveryOrder | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -59,6 +61,7 @@ export default function DeliveryOrdersPage() {
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState({
     billOfLadingId: '',
+    portId: '',
     recipient: '',
     vehiclePlate: '',
     notes: '',
@@ -103,8 +106,21 @@ export default function DeliveryOrdersPage() {
     })();
   }, [createOpen]);
 
+  useEffect(() => {
+    if (!createOpen) return;
+    void (async () => {
+      try {
+        // Active ports only: a new delivery order must name a live port (REQ-186).
+        const res = await api.get<PaginatedResult<PortListItem>>('/ports?pageSize=100&isActive=true');
+        setPorts(res.data);
+      } catch {
+        /* best-effort */
+      }
+    })();
+  }, [createOpen]);
+
   const openCreate = () => {
-    setForm({ billOfLadingId: '', recipient: '', vehiclePlate: '', notes: '' });
+    setForm({ billOfLadingId: '', portId: '', recipient: '', vehiclePlate: '', notes: '' });
     setFormError('');
     setCreateOpen(true);
   };
@@ -112,6 +128,10 @@ export default function DeliveryOrdersPage() {
   const submitCreate = async () => {
     if (!form.billOfLadingId) {
       setFormError(t('create.errors.billRequired'));
+      return;
+    }
+    if (!form.portId) {
+      setFormError(t('create.errors.portRequired'));
       return;
     }
     if (!form.recipient.trim()) {
@@ -123,6 +143,7 @@ export default function DeliveryOrdersPage() {
     try {
       await api.post('/delivery-orders', {
         billOfLadingId: form.billOfLadingId,
+        portId: form.portId,
         recipient: form.recipient.trim(),
         ...(form.vehiclePlate ? { vehiclePlate: form.vehiclePlate } : {}),
         ...(form.notes ? { notes: form.notes } : {}),
@@ -359,6 +380,21 @@ export default function DeliveryOrdersPage() {
             </select>
           </div>
           <div className="space-y-1.5">
+            <Label>{t('fields.port')}</Label>
+            <select
+              className={SELECT_CLASS + ' w-full'}
+              value={form.portId}
+              onChange={(e) => setForm({ ...form, portId: e.target.value })}
+            >
+              <option value="">{t('create.selectPort')}</option>
+              {ports.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.code})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1.5">
             <Label>{t('fields.recipient')}</Label>
             <Input
               value={form.recipient}
@@ -402,6 +438,10 @@ export default function DeliveryOrdersPage() {
               <div>
                 <dt className="text-muted-foreground">{t('fields.vehiclePlate')}</dt>
                 <dd className="font-mono text-xs">{detail.vehiclePlate ?? '—'}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('fields.port')}</dt>
+                <dd>{detail.portName ?? '—'}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">{t('fields.issueDate')}</dt>

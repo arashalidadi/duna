@@ -296,7 +296,8 @@
       },
       "recipientPlaceholder": "من يستلم البضاعة؟",
       "selectBill": "اختر البوليصة",
-      "title": "إنشاء أمر تسليم"
+      "title": "إنشاء أمر تسليم",
+      "selectPort": "اختر الميناء"
     },
     "detail": {
       "headerTitle": "أمر تسليم"
@@ -309,7 +310,8 @@
       "notes": "ملاحظات",
       "recipient": "المستلم",
       "status": "الحالة",
-      "vehiclePlate": "لوحة المركبة"
+      "vehiclePlate": "لوحة المركبة",
+      "port": "الميناء"
     },
     "list": {
       "allStatuses": "كل الحالات",
@@ -328,6 +330,9 @@
     "status": {
       "CANCELLED": "ملغى",
       "ISSUED": "صادر"
+    },
+    "errors": {
+      "portRequired": "اختر الميناء."
     }
   },
   "discharge": {
@@ -1733,7 +1738,8 @@
       "overrideReasonPlaceholder": "لماذا الإفراج رغم الرصيد المستحق؟",
       "readyTitle": "جاهز للإفراج",
       "selectBill": "اختر البوليصة",
-      "title": "إنشاء أمر إفراج"
+      "title": "إنشاء أمر إفراج",
+      "selectPaymentState": "اختر حالة الدفع"
     },
     "detail": {
       "headerTitle": "أمر إفراج"
@@ -1750,7 +1756,8 @@
       "overrideReason": "سبب التجاوز",
       "releaseDate": "تاريخ الإفراج",
       "settled": "مسدد",
-      "status": "الحالة"
+      "status": "الحالة",
+      "paymentState": "حالة الدفع"
     },
     "list": {
       "allStatuses": "كل الحالات",
@@ -1769,6 +1776,14 @@
     "status": {
       "CANCELLED": "ملغى",
       "ISSUED": "صادر"
+    },
+    "paymentState": {
+      "PAID": "مدفوع بالكامل",
+      "PARTIAL": "دفعة جزئية",
+      "UNPAID": "غير مدفوع (آجل)"
+    },
+    "errors": {
+      "paymentStateRequired": "اختر حالة الدفع المسجلة عند الإفراج."
     }
   },
   "roles": {

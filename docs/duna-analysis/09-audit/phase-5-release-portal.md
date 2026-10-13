@@ -92,6 +92,32 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 
 ---
 
+## 5d. Slice 2 — release and delivery services and web forms (implemented 2026-10-13)
+
+**Changed (no existing row is written by a migration or a seed):**
+- `apps/api/src/modules/delivery-release/dto/delivery-release.dto.ts`: `CreateDeliveryOrderDto.portId` (required); `CreateReleaseOrderDto.paymentState` (required, one of `PAID`, `PARTIAL`, `UNPAID`).
+- `apps/api/src/modules/delivery-release/delivery-release.service.ts`: `createDelivery` looks up the port (`deletedAt: null`, `isActive: true`), returns 404 `port not found or inactive` before the B/L check, and stores `portId` and a `portName` snapshot. `createRelease` stores `paymentState`. Both serializers return the new fields (`null` on legacy rows). The port is not editable after issue, so `updateDelivery` is unchanged.
+- `packages/shared/src/delivery-release.ts` and `index.ts`: `ReleasePaymentState`; `portId`/`portName` on `DeliveryOrder`; `paymentState` on `ReleaseOrder` and `CreateReleaseOrderDto`; `portId` on `CreateDeliveryOrderDto`.
+- `apps/api/test/delivery-release.e2e-spec.ts`: existing create calls now send `portId` (9 delivery-order creates) and `paymentState` (6 release-order creates, `UNPAID` for the forced-override cases, `PAID` otherwise). No existing assertion was removed. Four Slice 2 tests were added: missing and unknown port; port name snapshot survives a rename; missing or invalid payment state; payment state serialized, and a legacy delivery order without a port reads back `null` (inserted through Prisma, cleaned up by the existing `afterAll`).
+- `apps/web/src/app/[locale]/(dashboard)/release-orders/page.tsx`: required payment-state select, with a validation message, and detail display (empty for legacy rows).
+- `apps/web/src/app/[locale]/(dashboard)/delivery-orders/page.tsx`: port select from `GET /ports?pageSize=100&isActive=true`, required, sent as `portId`; detail shows `portName` (empty for legacy rows).
+- `apps/web/messages/{en,ar,fa}.json`: additive keys under `releaseOrder` and `deliveryOrder` (`fields.paymentState`, `paymentState.{PAID,PARTIAL,UNPAID}`, `create.selectPaymentState`, `create.errors.paymentStateRequired`, `fields.port`, `create.selectPort`, `create.errors.portRequired`). The `ar` and `fa` strings have not been reviewed by a native speaker and need that review.
+
+**Verified here:**
+- `pnpm --filter @shipping/shared run build` passes. API `tsc --noEmit` passes (includes `test/**`, so the spec type-checks). Web `tsc --noEmit` passes.
+- ESLint on the web pages passes. ESLint on the API files shows the same `no-var-requires` and `no-explicit-any` findings as `HEAD`, plus one more `no-var-requires` at the new legacy-row test. That test follows the file's existing `require('@prisma/client')` pattern (five existing instances). No new rule was disabled.
+- Sandbox-only harness (not committed, stubbed Prisma client, real `DeliveryReleaseService`): unknown port returns 404 and the B/L is not read; inactive port returns 404; draft B/L with a valid port returns 409; a valid port is stored with `portId` and the `portName` snapshot.
+- Locale keys: every new key exists in `en`, `ar` and `fa`. The existing `ar` file has 19 keys that `en` lacks; this was already present at `HEAD` and is not changed here.
+
+**Not verified here:**
+- The Nest e2e suite (`delivery-release.e2e-spec.ts`). It needs PostgreSQL and a real Prisma engine, which the sandbox does not have. The owner runs it on the test database.
+- The migrations. No new migration in this slice. Slice 1's migration is unchanged.
+- Browser behaviour of the two forms.
+
+**Owner steps (not run here):** run `pnpm test:e2e -- delivery-release` against the test database only (it writes test records). Check the two forms in `en`, `ar` and `fa`.
+
+---
+
 ## 6. Next step
 
-Owner answers §4. Then Phase 5 implementation proceeds under the usual workflow: explicit-path commits, `tsc`/ESLint, a doc update, and a stop for approval after the phase.
+Slice 2 is implemented and verified as far as this sandbox allows. Stop for owner approval before Slice 3 (agent portal read API). Slice 3 has not started.
