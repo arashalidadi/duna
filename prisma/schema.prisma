@@ -246,6 +246,7 @@ model Port {
   bookingsAsOrigin      BookingRequest[] @relation("BookingOrigin")
   bookingsAsDestination BookingRequest[] @relation("BookingDestination")
   agentDestinations     AgentDestination[]
+  deliveryOrders        DeliveryOrder[]    @relation("DeliveryOrderPort") // delivery orders issued for this port (REQ-186)
 
   @@index([name])
   @@index([country])
@@ -1265,6 +1266,18 @@ enum BlStatus {
   CANCELLED
 }
 
+/// Display label per B/L lifecycle state (DEC-059/060/061). The label defaults to the code
+/// until the owner supplies official wording; the code itself is never rewritten.
+model BlLifecycleLabel {
+  code      BlStatus @id @map("code")
+  label     String   @map("label")
+  sortOrder Int      @default(0) @map("sortOrder")
+  createdAt DateTime @default(now()) @map("createdAt")
+  updatedAt DateTime @updatedAt @map("updatedAt")
+
+  @@map("bl_lifecycle_labels")
+}
+
 enum BlType {
   MASTER
   HOUSE
@@ -1936,6 +1949,13 @@ enum DeliveryOrderStatus {
   CANCELLED
 }
 
+/// Payment condition recorded by the user at release (REQ-182, EMP-685..689).
+enum ReleasePaymentState {
+  PAID
+  PARTIAL
+  UNPAID
+}
+
 model DeliveryOrder {
   id             String              @id @default(cuid())
   docNumber      String              @unique // DO-YYMM-#####
@@ -1946,6 +1966,10 @@ model DeliveryOrder {
   recipient      String
   recipientId    String?             @map("recipientId") // optional customer link
   vehiclePlate   String?             @map("vehiclePlate")
+  /// Port stated on the delivery order (REQ-186). Null on delivery orders created before Phase 5.
+  portId         String?             @map("portId")
+  /// Snapshot of the port name at issue, so a later rename does not rewrite an issued document.
+  portName       String?             @map("portName")
   notes          String?
   cancelReason   String?             @map("cancelReason")
   cancelledById  String?             @map("cancelledById")
@@ -1957,12 +1981,14 @@ model DeliveryOrder {
 
   billOfLading      BillOfLading @relation("DeliveryOrderBill", fields: [billOfLadingId], references: [id])
   recipientCustomer Customer?    @relation("DeliveryOrderRecipient", fields: [recipientId], references: [id])
+  port              Port?        @relation("DeliveryOrderPort", fields: [portId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdBy         User         @relation("DeliveryOrderCreatedBy", fields: [createdById], references: [id])
   cancelledBy       User?        @relation("DeliveryOrderCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([billOfLadingId])
   @@index([status])
   @@index([issueDate])
+  @@index([portId])
   @@map("delivery_orders")
 }
 
@@ -1975,6 +2001,8 @@ model ReleaseOrder {
   /// True when issued despite unpaid invoices — requires reason (audit).
   financialOverride Boolean             @default(false) @map("financialOverride")
   overrideReason    String?             @map("overrideReason")
+  /// Payment condition recorded at release (REQ-182). Null on releases created before Phase 5.
+  paymentState      ReleasePaymentState? @map("paymentState")
   notes             String?
   cancelReason      String?             @map("cancelReason")
   cancelledById     String?             @map("cancelledById")

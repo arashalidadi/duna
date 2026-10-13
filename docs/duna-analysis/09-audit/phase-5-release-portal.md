@@ -68,6 +68,30 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 4. **Portal web page:** B/L and release status for the agent.
 5. **Isolation tests:** `portal-agent-isolation.e2e-spec.ts` (agents D and E, no leakage, unauthenticated and denied access, release-state transitions). Not runnable in this sandbox; the owner runs it on the test database.
 
+## 5c. Slice 1 — data model and migration (implemented 2026-10-13)
+
+**Changed:**
+- `prisma/schema.prisma`: enum `ReleasePaymentState` (`PAID`, `PARTIAL`, `UNPAID`); `ReleaseOrder.paymentState` (nullable); `DeliveryOrder.portId` (nullable, FK to `Port`, `SetNull` on delete) and `DeliveryOrder.portName` (snapshot, nullable); index on `delivery_orders.portId`; `Port.deliveryOrders` back-relation; model `BlLifecycleLabel` (`bl_lifecycle_labels`, PK `code` = `BlStatus`, `label`, `sortOrder`).
+- `prisma/migrations/20261013150000_phase5_release_payment_port_labels/migration.sql`: additive and guarded. No existing column, row or status is changed.
+- `prisma/seed/core.ts`: label rows for `DRAFT, FINAL, APPROVED, RELEASED, ISSUED, CANCELLED`, written add-only (`update: {}`) with label = code.
+- `scripts/check-seed-safety.mjs`: `blLifecycleLabel` added to the core (configuration) model allow-list. The first run of the check flagged it. It is configuration, not a business record, so the check's purpose is unchanged.
+
+**Verified here:**
+- `prisma validate` passes. `prisma generate` passes (placeholder engine).
+- All 41 migrations in `prisma/migrations` apply in order to an empty PGlite database (PostgreSQL-compatible WASM). The Phase 5 migration also replays a second time without error.
+- The resulting columns, enum values, foreign key (`ON DELETE SET NULL ON UPDATE CASCADE`), index and primary key match the schema.
+- API `tsc` passes. Web `tsc` passes. `prisma/seed/core.ts` passes `tsc --strict`.
+- `check-seed-safety.mjs` passes ("SEED SAFETY OK").
+
+**Not verified here:**
+- Prisma's own drift check (`migrate diff`). The schema engine binary is not available in this sandbox, so Prisma's generated SQL could not be compared with the hand-written migration.
+- The migration on a real PostgreSQL server or the owner's test database.
+- `scripts/test-seed-safety.ts` needs a disposable seed database (`SEED_TEST_DATABASE_URL`). It was not run.
+
+**Owner steps for the test database (not run here):** `prisma migrate deploy` against the test database only, then `pnpm db:seed` (add-only). Then confirm the new columns and the six label rows. Do not run this against the live database until the test-database result is accepted.
+
+---
+
 ## 6. Next step
 
 Owner answers §4. Then Phase 5 implementation proceeds under the usual workflow: explicit-path commits, `tsc`/ESLint, a doc update, and a stop for approval after the phase.

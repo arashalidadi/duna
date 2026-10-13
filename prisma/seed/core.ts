@@ -413,6 +413,18 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   });
   console.log(`  Admin user seeded: ${adminEmail}`);
 
+  // Phase 5 (DEC-059/060/061): B/L lifecycle labels. Add-only. An existing row is never
+  // updated, so owner-supplied wording survives re-runs. The label defaults to the status code.
+  const blLifecycleCodes = ['DRAFT', 'FINAL', 'APPROVED', 'RELEASED', 'ISSUED', 'CANCELLED'] as const;
+  for (const [sortOrder, code] of blLifecycleCodes.entries()) {
+    await prisma.blLifecycleLabel.upsert({
+      where: { code },
+      update: {},
+      create: { code, label: code, sortOrder },
+    });
+  }
+  console.log(`  B/L lifecycle labels seeded (add-only): ${blLifecycleCodes.length}`);
+
   return {
     adminUser: { id: adminUser.id, email: adminUser.email },
     ports: {

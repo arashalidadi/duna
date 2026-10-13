@@ -25,6 +25,8 @@ const CORE_MODELS = new Set([
   'port',
   'yard',
   'companySettings',
+  // Phase 5 (DEC-059/060/061): configuration rows only (labels), written add-only.
+  'blLifecycleLabel',
   'user',
   'userRole',
 ]);
