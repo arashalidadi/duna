@@ -564,15 +564,17 @@ describe('Delivery & Release Orders (e2e)', () => {
     const detail = await S().get(`/api/v1/release-orders/${roSlice2Id}`).set(auth(adminToken)).expect(200);
     expect(detail.body.data.paymentState).toBe('PAID');
 
-    const { PrismaClient } = require('@prisma/client');
+    const { PrismaClient } = await import('@prisma/client');
     const fx = new PrismaClient();
     try {
       const ro = await fx.releaseOrder.findUnique({ where: { id: roSlice2Id } });
       expect(ro).not.toBeNull();
+      if (!ro) throw new Error('release order missing from database');
       expect(ro.paymentState).toBe('PAID');
 
       // A delivery order written before Phase 5 has no port. It must read back as null and unchanged.
       const adminRow = await fx.user.findFirst({ where: { email: admin.email } });
+      if (!adminRow) throw new Error('admin fixture missing from database');
       const legacy = await fx.deliveryOrder.create({
         data: {
           docNumber: `DO-LEG-${randomTag}`,
