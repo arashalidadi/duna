@@ -13,7 +13,7 @@ import type {
   ReleasePaymentState,
   BillOfLading,
 } from '@shipping/shared';
-import { Plus, Eye, XCircle, Trash2, ShieldAlert, BadgeCheck, FileCheck } from 'lucide-react';
+import { Plus, Eye, XCircle, ShieldAlert, BadgeCheck, FileCheck } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -23,7 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, ConfirmDialog } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -201,12 +201,10 @@ export default function ReleaseOrdersPage() {
     }
   };
 
-  // cancel / delete
+  // cancel
   const [cancelTarget, setCancelTarget] = useState<ReleaseOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<ReleaseOrder | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const submitCancel = async () => {
     if (!cancelTarget || !cancelReason.trim()) return;
@@ -221,21 +219,6 @@ export default function ReleaseOrdersPage() {
       setError(errMsg(e));
     } finally {
       setCancelling(false);
-    }
-  };
-
-  const submitDelete = async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      await api.del(`/release-orders/${deleteTarget.id}`);
-      setDeleteTarget(null);
-      setDetailOpen(false);
-      await load();
-    } catch (e: any) {
-      setError(errMsg(e));
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -366,16 +349,6 @@ export default function ReleaseOrdersPage() {
                                 }}
                               >
                                 <XCircle className="size-4" />
-                              </Button>
-                            )}
-                            {r.status === 'CANCELLED' && hasPermission('release:delete') && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setDeleteTarget(r)}
-                              >
-                                <Trash2 className="size-4" />
                               </Button>
                             )}
                           </div>
@@ -606,20 +579,6 @@ export default function ReleaseOrdersPage() {
           />
         </div>
       </Dialog>
-
-      {/* delete */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => {
-          if (!o) setDeleteTarget(null);
-        }}
-        title={t('confirm.delete.title')}
-        description={t('confirm.delete.description')}
-        confirmLabel={tc('actions.delete')}
-        destructive
-        loading={deleting}
-        onConfirm={() => void submitDelete()}
-      />
     </div>
   );
 }

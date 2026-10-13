@@ -12,7 +12,7 @@ import type {
   PaginatedResult,
   PortListItem,
 } from '@shipping/shared';
-import { Plus, Eye, XCircle, Trash2, Truck } from 'lucide-react';
+import { Plus, Eye, XCircle, Truck } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -69,7 +69,6 @@ export default function DeliveryOrdersPage() {
   const [cancelTarget, setCancelTarget] = useState<DeliveryOrder | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<DeliveryOrder | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -176,18 +175,6 @@ export default function DeliveryOrdersPage() {
       setCancelTarget(null);
       setCancelReason('');
       if (detailOpen) setDetailOpen(false);
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doDelete = async () => {
-    if (!deleteTarget) return;
-    setBusy(true);
-    try {
-      await api.del(`/delivery-orders/${deleteTarget.id}`);
-      setDeleteTarget(null);
       await load();
     } finally {
       setBusy(false);
@@ -315,16 +302,6 @@ export default function DeliveryOrdersPage() {
                                 }}
                               >
                                 <XCircle className="size-4" />
-                              </Button>
-                            )}
-                            {d.status === 'CANCELLED' && hasPermission('delivery:delete') && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setDeleteTarget(d)}
-                              >
-                                <Trash2 className="size-4" />
                               </Button>
                             )}
                           </div>
@@ -496,26 +473,6 @@ export default function DeliveryOrdersPage() {
           />
         </div>
       </Dialog>
-
-      {/* delete */}
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => {
-          if (!o) setDeleteTarget(null);
-        }}
-        title={t('confirm.delete.title')}
-        description={t('confirm.delete.description')}
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
-              {tc('actions.cancel')}
-            </Button>
-            <Button variant="destructive" disabled={busy} onClick={() => void doDelete()}>
-              {busy ? tc('list.loading') : tc('actions.delete')}
-            </Button>
-          </>
-        }
-      />
     </div>
   );
 }

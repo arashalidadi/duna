@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -139,6 +140,7 @@ export class CancelDocDto {
   @ApiProperty({ description: 'Cancellation reason' })
   @IsString()
   @IsNotEmpty()
+  @Matches(/\S/, { message: 'reason must contain a non-whitespace character' })
   @MaxLength(500)
   reason!: string;
 }

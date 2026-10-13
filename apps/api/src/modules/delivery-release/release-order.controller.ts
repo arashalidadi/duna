@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  MethodNotAllowedException,
   Param,
   Patch,
   Post,
@@ -88,13 +89,12 @@ export class ReleaseOrderController {
   @RequirePermissions('release:cancel')
   @HttpCode(HttpStatus.OK)
   cancel(@Param('id') id: string, @Body() dto: CancelDocDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.cancelRelease(id, dto, { userId: user.id });
+    return this.service.cancelRelease(id, dto, { userId: user.id, actorEmail: user.email });
   }
 
   @Delete(':id')
   @RequirePermissions('release:delete')
-  @HttpCode(HttpStatus.OK)
-  remove(@Param('id') id: string) {
-    return this.service.removeRelease(id);
+  remove(): never {
+    throw new MethodNotAllowedException('Permanent deletion of release orders is disabled; cancel the order instead');
   }
 }

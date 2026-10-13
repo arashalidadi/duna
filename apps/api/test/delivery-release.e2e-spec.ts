@@ -9,9 +9,9 @@ type Ref = { id: string };
 
 /**
  * Phase 13 — Delivery Orders (D/O) & Release Orders (R/O).
- * Covers: RBAC, B/L must be APPROVED (issued-equivalent, P4-U4), one-active-per-B/L, update/cancel/delete
- * lifecycle, release eligibility, money rule (outstanding blocks release),
- * authorized override (permission + reason), override audit trail.
+ * Covers: RBAC, B/L must be APPROVED (issued-equivalent, P4-U4), one-active-per-B/L,
+ * audited cancellation and permanent-delete rejection, release eligibility, money rule
+ * (outstanding blocks release), authorized override (permission + reason), override audit trail.
  */
 describe('Delivery & Release Orders (e2e)', () => {
   let app: INestApplication;
@@ -52,7 +52,9 @@ describe('Delivery & Release Orders (e2e)', () => {
   let draftBillId = ''; // DRAFT B/L (guard test)
   let invoiceId = ''; // ISSUED, unpaid USD invoice on billId
   let do1Id = '';
+  let cancelledDoId = ''; // original D/O retained after cancellation
   let ro1Id = '';
+  let settledRoId = ''; // second R/O retained after cancellation
   let roSlice2Id = ''; // R/O created by the Slice 2 read-back test (own fixture)
 
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
@@ -68,6 +70,41 @@ describe('Delivery & Release Orders (e2e)', () => {
       await prisma.loadList.update({ where: { id: loadListId }, data: { status: 'FINALIZED' } });
     } finally {
       await prisma.$disconnect();
+    }
+  }
+
+  async function expectCancellationAudit(
+    entityType: 'DeliveryOrder' | 'ReleaseOrder', id: string, docNumber: string,
+    reason: string, cancelledById: string, cancelledAt: string,
+  ) {
+    const { PrismaClient } = await import('@prisma/client');
+    const fx = new PrismaClient();
+    try {
+      const rows = await fx.auditLog.findMany({
+        where: { entityType, entityId: id, action: entityType === 'DeliveryOrder' ? 'delivery:cancel' : 'release:cancel' },
+      });
+      expect(rows).toHaveLength(1);
+      const row = rows[0];
+      expect(row.actorId).toBe(cancelledById);
+      expect(row.actorEmail).toBe(`dr-canc-${emailSuffix}@shipping.local`);
+      expect(row.timestamp).toBeInstanceOf(Date);
+      expect(row.beforeData).toMatchObject({ status: 'ISSUED' });
+      expect(row.afterData).toMatchObject({
+        status: 'CANCELLED', cancelReason: reason, cancelledById, cancelledAt,
+      });
+      expect(row.metadata).toMatchObject({ docNumber, billOfLadingId: billId, reason, cancelledAt });
+      // The document still exists in the database, even after a rejected DELETE.
+      const persisted = entityType === 'DeliveryOrder'
+        ? await fx.deliveryOrder.findUnique({ where: { id } })
+        : await fx.releaseOrder.findUnique({ where: { id } });
+      expect(persisted).not.toBeNull();
+      if (!persisted) throw new Error('cancelled order missing from database');
+      expect(persisted.status).toBe('CANCELLED');
+      expect(persisted.cancelReason).toBe(reason);
+      expect(persisted.cancelledById).toBe(cancelledById);
+      expect(persisted.cancelledAt?.toISOString()).toBe(cancelledAt);
+    } finally {
+      await fx.$disconnect();
     }
   }
 
@@ -222,10 +259,13 @@ describe('Delivery & Release Orders (e2e)', () => {
     try {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
-      // P4-U6: remove the audit rows this suite wrote for its own fixture RO
-      // (explicit id filter only; append-only binds the application, not test teardown)
+      // Fixture-only teardown on a designated disposable test DB; never run on live data.
+      // Explicit IDs prevent sweeping real audit rows. Append-only applies to the application.
       await prisma.auditLog.deleteMany({
-        where: { entityType: 'ReleaseOrder', entityId: { in: [ro1Id, roSlice2Id].filter(Boolean) } },
+        where: { OR: [
+          { entityType: 'ReleaseOrder', entityId: { in: [ro1Id, settledRoId, roSlice2Id].filter(Boolean) } },
+          { entityType: 'DeliveryOrder', entityId: { in: [cancelledDoId].filter(Boolean) } },
+        ] },
       });
       await prisma.deliveryOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.releaseOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
@@ -335,24 +375,54 @@ describe('Delivery & Release Orders (e2e)', () => {
       .send({ portId: drPortId, billOfLadingId: billId, recipient: 'Someone Else' }).expect(409);
   });
 
-  it('DO update: recipient/plate editable; cancel with reason freezes; delete gated', async () => {
+  it('DO cancellation rejects missing/blank reasons and enforces the existing cancel permission', async () => {
+    const url = `/api/v1/delivery-orders/${do1Id}/cancel`;
+    await S().post(url).send({ reason: 'unauthorized' }).expect(401);
+    await S().post(url).set(auth(readerToken)).send({ reason: 'no permission' }).expect(403);
+    await S().post(url).set(auth(cancellerToken)).send({}).expect(400);
+    await S().post(url).set(auth(cancellerToken)).send({ reason: '  \n \t ' }).expect(400);
+    const unchanged = await S().get(`/api/v1/delivery-orders/${do1Id}`).set(auth(readerToken)).expect(200);
+    expect(unchanged.body.data.status).toBe('ISSUED');
+    expect(unchanged.body.data.cancelReason).toBeNull();
+  });
+
+  it('DO update: cancellation is audited and retained; DELETE denied; a new active DO is allowed', async () => {
     await S().patch(`/api/v1/delivery-orders/${do1Id}`).set(auth(writerToken))
       .send({ vehiclePlate: 'IR99-99X-99' }).expect(200);
+    cancelledDoId = do1Id;
+    await S().delete(`/api/v1/delivery-orders/${cancelledDoId}`).expect(401);
+    await S().delete(`/api/v1/delivery-orders/${cancelledDoId}`).set(auth(writerToken)).expect(403);
+    await S().delete(`/api/v1/delivery-orders/${cancelledDoId}`).set(auth(cancellerToken)).expect(405);
 
-    await S().post(`/api/v1/delivery-orders/${do1Id}/cancel`).set(auth(cancellerToken))
-      .send({ reason: 'driver license invalid' }).expect(200);
+    const cancelled = await S().post(`/api/v1/delivery-orders/${cancelledDoId}/cancel`).set(auth(cancellerToken))
+      .send({ reason: '  driver license invalid  ' }).expect(200);
+    expect(cancelled.body.data.status).toBe('CANCELLED');
+    expect(cancelled.body.data.cancelReason).toBe('driver license invalid');
+    expect(cancelled.body.data.cancelledById).toBeTruthy();
+    expect(cancelled.body.data.cancelledAt).toBeTruthy();
 
-    // frozen after cancel
-    await S().patch(`/api/v1/delivery-orders/${do1Id}`).set(auth(writerToken))
+    await S().post(`/api/v1/delivery-orders/${cancelledDoId}/cancel`).set(auth(cancellerToken))
+      .send({ reason: 'second cancellation' }).expect(409);
+    await S().patch(`/api/v1/delivery-orders/${cancelledDoId}`).set(auth(writerToken))
       .send({ vehiclePlate: 'X' }).expect(409);
-    // delete only after cancel
-    await S().delete(`/api/v1/delivery-orders/${do1Id}`).set(auth(cancellerToken)).expect(200);
+    await S().delete(`/api/v1/delivery-orders/${cancelledDoId}`).set(auth(cancellerToken)).expect(405);
+    const retained = await S().get(`/api/v1/delivery-orders/${cancelledDoId}`).set(auth(readerToken)).expect(200);
+    expect(retained.body.data.cancelReason).toBe('driver license invalid');
+    await expectCancellationAudit(
+      'DeliveryOrder', cancelledDoId, retained.body.data.docNumber,
+      'driver license invalid', retained.body.data.cancelledById, retained.body.data.cancelledAt,
+    );
 
-    // now a new DO can be issued for the same bill
+    // A cancelled D/O remains on the bill; it no longer counts as active.
     const redo = await S().post('/api/v1/delivery-orders').set(auth(writerToken))
       .send({ portId: drPortId, billOfLadingId: billId, recipient: `Hossein ${randomTag}` }).expect(201);
     do1Id = redo.body.data.id;
     expect(redo.body.data.docNumber).toMatch(/^DO-/);
+    const byBill = await S().get(`/api/v1/delivery-orders?billOfLadingId=${billId}&pageSize=100`)
+      .set(auth(readerToken)).expect(200);
+    expect(byBill.body.data.data.filter((d: { status: string }) => d.status === 'ISSUED')).toHaveLength(1);
+    expect(byBill.body.data.data.some((d: { id: string; status: string }) =>
+      d.id === cancelledDoId && d.status === 'CANCELLED')).toBe(true);
   });
 
   // ── Release Order + money rule ─────────────────────────────────────────────
@@ -391,14 +461,39 @@ describe('Delivery & Release Orders (e2e)', () => {
       .send({ paymentState: 'UNPAID', billOfLadingId: billId, force: true, overrideReason: 'x' }).expect(409);
   });
 
-  it('RO settle then release without override; cancel + delete gated', async () => {
+  it('RO cancellation rejects missing/blank reasons and enforces the existing cancel permission', async () => {
+    const url = `/api/v1/release-orders/${ro1Id}/cancel`;
+    await S().post(url).send({ reason: 'unauthorized' }).expect(401);
+    await S().post(url).set(auth(readerToken)).send({ reason: 'no permission' }).expect(403);
+    await S().post(url).set(auth(cancellerToken)).send({}).expect(400);
+    await S().post(url).set(auth(cancellerToken)).send({ reason: '  \n \t ' }).expect(400);
+    const unchanged = await S().get(`/api/v1/release-orders/${ro1Id}`).set(auth(readerToken)).expect(200);
+    expect(unchanged.body.data.status).toBe('ISSUED');
+    expect(unchanged.body.data.cancelReason).toBeNull();
+  });
+
+  it('RO settles and reissues after an audited cancellation; DELETE cannot erase either order', async () => {
     // pay the invoice in full with a receipt
     await S().post('/api/v1/vouchers').set(auth(adminToken))
       .send({ type: 'RECEIPT', customerId, invoiceId, amount: 800, method: 'CASH' }).expect(201);
 
-    // still one-active RO — cancel it first
-    await S().post(`/api/v1/release-orders/${ro1Id}/cancel`).set(auth(cancellerToken))
+    // Still one active R/O; cancelling retains it but frees the active slot.
+    await S().delete(`/api/v1/release-orders/${ro1Id}`).expect(401);
+    await S().delete(`/api/v1/release-orders/${ro1Id}`).set(auth(plainCreatorToken)).expect(403);
+    await S().delete(`/api/v1/release-orders/${ro1Id}`).set(auth(cancellerToken)).expect(405);
+    const firstCancelled = await S().post(`/api/v1/release-orders/${ro1Id}/cancel`).set(auth(cancellerToken))
       .send({ reason: 're-issue after full settlement' }).expect(200);
+    expect(firstCancelled.body.data.status).toBe('CANCELLED');
+    await S().post(`/api/v1/release-orders/${ro1Id}/cancel`).set(auth(cancellerToken))
+      .send({ reason: 'second cancellation' }).expect(409);
+    await S().delete(`/api/v1/release-orders/${ro1Id}`).set(auth(cancellerToken)).expect(405);
+    const firstRetained = await S().get(`/api/v1/release-orders/${ro1Id}`).set(auth(readerToken)).expect(200);
+    expect(firstRetained.body.data.cancelReason).toBe('re-issue after full settlement');
+    expect(firstRetained.body.data.financialOverride).toBe(true);
+    await expectCancellationAudit(
+      'ReleaseOrder', ro1Id, firstRetained.body.data.docNumber,
+      're-issue after full settlement', firstRetained.body.data.cancelledById, firstRetained.body.data.cancelledAt,
+    );
 
     const elig = await S().get(`/api/v1/release-orders/eligibility?billOfLadingId=${billId}`).set(auth(readerToken)).expect(200);
     expect(elig.body.data.fullyPaid).toBe(true);
@@ -410,11 +505,23 @@ describe('Delivery & Release Orders (e2e)', () => {
     expect(ro2.financialOverride).toBe(false);
     expect(ro2.financials.fullyPaid).toBe(true);
 
-    // ISSUED cannot be deleted; cancel then delete
-    await S().delete(`/api/v1/release-orders/${ro2.id}`).set(auth(cancellerToken)).expect(409);
-    await S().post(`/api/v1/release-orders/${ro2.id}/cancel`).set(auth(cancellerToken))
+    // No permanent deletion even after cancellation; both releases remain readable.
+    settledRoId = ro2.id;
+    await S().delete(`/api/v1/release-orders/${settledRoId}`).set(auth(cancellerToken)).expect(405);
+    await S().post(`/api/v1/release-orders/${settledRoId}/cancel`).set(auth(cancellerToken))
       .send({ reason: 'demo cleanup' }).expect(200);
-    await S().delete(`/api/v1/release-orders/${ro2.id}`).set(auth(cancellerToken)).expect(200);
+    await S().delete(`/api/v1/release-orders/${settledRoId}`).set(auth(cancellerToken)).expect(405);
+    const retained = await S().get(`/api/v1/release-orders/${settledRoId}`).set(auth(readerToken)).expect(200);
+    expect(retained.body.data.status).toBe('CANCELLED');
+    expect(retained.body.data.cancelReason).toBe('demo cleanup');
+    await expectCancellationAudit(
+      'ReleaseOrder', settledRoId, retained.body.data.docNumber,
+      'demo cleanup', retained.body.data.cancelledById, retained.body.data.cancelledAt,
+    );
+    const byBill = await S().get(`/api/v1/release-orders?billOfLadingId=${billId}&pageSize=100`)
+      .set(auth(readerToken)).expect(200);
+    expect(byBill.body.data.data.filter((r: { status: string }) => r.status === 'ISSUED')).toHaveLength(0);
+    expect(byBill.body.data.data.filter((r: { status: string }) => r.status === 'CANCELLED')).toHaveLength(2);
   });
 
   it('list + search + status filters on both modules', async () => {
@@ -553,9 +660,8 @@ describe('Delivery & Release Orders (e2e)', () => {
   });
 
   it('Slice 2: a release reports its payment state; a legacy delivery order without a port reads back null', async () => {
-    // The 'settled release' R/O is hard-deleted by its own test (removeRelease uses releaseOrder.delete),
-    // so it cannot be read back here. This test creates its own R/O on the same bill: the invoice is paid
-    // by now and no active R/O remains (ro1 is cancelled, the settled one is deleted).
+    // Both earlier releases remain as CANCELLED on this bill, with no active R/O.
+    // This test creates its own active R/O to verify payment-state persistence and read-back.
     const created = await S().post('/api/v1/release-orders').set(auth(plainCreatorToken))
       .send({ paymentState: 'PAID', billOfLadingId: billId, notes: 'slice 2 payment state' }).expect(201);
     roSlice2Id = created.body.data.id;

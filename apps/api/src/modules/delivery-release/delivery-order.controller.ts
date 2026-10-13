@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  MethodNotAllowedException,
   Param,
   Patch,
   Post,
@@ -71,13 +72,12 @@ export class DeliveryOrderController {
   @RequirePermissions('delivery:cancel')
   @HttpCode(HttpStatus.OK)
   cancel(@Param('id') id: string, @Body() dto: CancelDocDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.cancelDelivery(id, dto, { userId: user.id });
+    return this.service.cancelDelivery(id, dto, { userId: user.id, actorEmail: user.email });
   }
 
   @Delete(':id')
   @RequirePermissions('delivery:delete')
-  @HttpCode(HttpStatus.OK)
-  remove(@Param('id') id: string) {
-    return this.service.removeDelivery(id);
+  remove(): never {
+    throw new MethodNotAllowedException('Permanent deletion of delivery orders is disabled; cancel the order instead');
   }
 }

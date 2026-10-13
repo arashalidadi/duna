@@ -141,6 +141,17 @@ export class DeliveryReleaseService {
     };
   }
 
+  /** Validation also runs in the DTO; keep this guard for non-HTTP callers. */
+  private cancellationReason(dto: { reason: string }, ctx: { userId: string; actorEmail: string }): string {
+    if (typeof dto.reason !== 'string' || !dto.reason.trim()) {
+      throw new BadRequestException('a non-blank cancellation reason is required');
+    }
+    if (!ctx.userId || !ctx.actorEmail) {
+      throw new ForbiddenException('authenticated actor required for cancellation');
+    }
+    return dto.reason.trim();
+  }
+
   // ── Delivery Order ────────────────────────────────────────────────────────
 
   private serializeDo(d: Prisma.DeliveryOrderGetPayload<{ include: { billOfLading: true; recipientCustomer: true } }>) {
@@ -261,25 +272,40 @@ export class DeliveryReleaseService {
     return this.detailDelivery(id);
   }
 
-  async cancelDelivery(id: string, dto: { reason: string }, ctx: ACTX) {
+  async cancelDelivery(id: string, dto: { reason: string }, ctx: { userId: string; actorEmail: string }) {
+    const reason = this.cancellationReason(dto, ctx);
     await this.prisma.$transaction(async (tx) => {
       const d = await tx.deliveryOrder.findFirst({ where: { id, deletedAt: null } });
       if (!d) throw new NotFoundException('delivery order not found');
       if (d.status === 'CANCELLED') throw new ConflictException('already cancelled');
-      await tx.deliveryOrder.update({
-        where: { id },
-        data: { status: 'CANCELLED', cancelReason: dto.reason, cancelledById: ctx.userId ?? null, cancelledAt: new Date() },
+      const cancelledAt = new Date();
+      // Conditional update prevents two concurrent requests from recording duplicate cancellations.
+      const result = await tx.deliveryOrder.updateMany({
+        where: { id, status: 'ISSUED', deletedAt: null },
+        data: { status: 'CANCELLED', cancelReason: reason, cancelledById: ctx.userId, cancelledAt },
+      });
+      if (result.count !== 1) throw new ConflictException('delivery order changed while cancelling; retry');
+      await this.audit.recordIn(tx, {
+        action: 'delivery:cancel',
+        entityType: 'DeliveryOrder',
+        entityId: d.id,
+        actorId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        beforeData: {
+          status: d.status, cancelReason: d.cancelReason, cancelledById: d.cancelledById,
+          cancelledAt: d.cancelledAt?.toISOString() ?? null,
+        },
+        afterData: {
+          status: 'CANCELLED', cancelReason: reason, cancelledById: ctx.userId,
+          cancelledAt: cancelledAt.toISOString(),
+        },
+        metadata: {
+          docNumber: d.docNumber, billOfLadingId: d.billOfLadingId,
+          reason, cancelledAt: cancelledAt.toISOString(),
+        },
       });
     });
     return this.detailDelivery(id);
-  }
-
-  async removeDelivery(id: string) {
-    const d = await this.prisma.deliveryOrder.findFirst({ where: { id, deletedAt: null } });
-    if (!d) throw new NotFoundException('delivery order not found');
-    if (d.status === 'ISSUED') throw new ConflictException('cancel the delivery order before deleting it');
-    await this.prisma.deliveryOrder.delete({ where: { id } });
-    return { id };
   }
 
   // ── Release Order ──────────────────────────────────────────────────────────
@@ -424,24 +450,38 @@ export class DeliveryReleaseService {
     return this.detailRelease(id);
   }
 
-  async cancelRelease(id: string, dto: { reason: string }, ctx: ACTX) {
+  async cancelRelease(id: string, dto: { reason: string }, ctx: { userId: string; actorEmail: string }) {
+    const reason = this.cancellationReason(dto, ctx);
     await this.prisma.$transaction(async (tx) => {
       const r = await tx.releaseOrder.findFirst({ where: { id, deletedAt: null } });
       if (!r) throw new NotFoundException('release order not found');
       if (r.status === 'CANCELLED') throw new ConflictException('already cancelled');
-      await tx.releaseOrder.update({
-        where: { id },
-        data: { status: 'CANCELLED', cancelReason: dto.reason, cancelledById: ctx.userId ?? null, cancelledAt: new Date() },
+      const cancelledAt = new Date();
+      const result = await tx.releaseOrder.updateMany({
+        where: { id, status: 'ISSUED', deletedAt: null },
+        data: { status: 'CANCELLED', cancelReason: reason, cancelledById: ctx.userId, cancelledAt },
+      });
+      if (result.count !== 1) throw new ConflictException('release order changed while cancelling; retry');
+      await this.audit.recordIn(tx, {
+        action: 'release:cancel',
+        entityType: 'ReleaseOrder',
+        entityId: r.id,
+        actorId: ctx.userId,
+        actorEmail: ctx.actorEmail,
+        beforeData: {
+          status: r.status, cancelReason: r.cancelReason, cancelledById: r.cancelledById,
+          cancelledAt: r.cancelledAt?.toISOString() ?? null,
+        },
+        afterData: {
+          status: 'CANCELLED', cancelReason: reason, cancelledById: ctx.userId,
+          cancelledAt: cancelledAt.toISOString(),
+        },
+        metadata: {
+          docNumber: r.docNumber, billOfLadingId: r.billOfLadingId,
+          reason, cancelledAt: cancelledAt.toISOString(),
+        },
       });
     });
     return this.detailRelease(id);
-  }
-
-  async removeRelease(id: string) {
-    const r = await this.prisma.releaseOrder.findFirst({ where: { id, deletedAt: null } });
-    if (!r) throw new NotFoundException('release order not found');
-    if (r.status === 'ISSUED') throw new ConflictException('cancel the release order before deleting it');
-    await this.prisma.releaseOrder.delete({ where: { id } });
-    return { id };
   }
 }
