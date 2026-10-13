@@ -138,8 +138,10 @@ The permission path is ADMIN role → `RolePermission` rows → `AuthService.res
 - **Approval (`invoice-correction.service.ts`).** The requester-cannot-approve rule is kept for non-owner users, including ADMIN-role users. The primary administrator is exempt, per DEC-116 ("require no approval from any other user … to approve operations"). This is a change from the first version (§4 item 1).
 - **Validation (`dto/invoice.dto.ts`).** `CorrectInvoiceDto.reason` and `RejectInvoiceCorrectionDto.reason` reject whitespace-only text at the validation layer (400). The service check remains as a backstop.
 - **Tests (`apps/api/test/invoice-phase3.e2e-spec.ts`).**
-  - New assertion: ADMIN's `/auth/me` permissions include both codes and exclude `release:override`.
-  - The approval test now covers the full path: ADMIN requests; ADMIN is refused self-approval; a second user with `invoice:approve_correction` (and no `invoice:correct`) approves and the correction applies; a separate correction is rejected by ADMIN.
+  - `/auth/me` for ADMIN asserts that both invoice correction codes are present.
+  - The approval gate uses a non-owner requester who holds both correction permissions. Self-approval is refused (403), a different user approves (200, applied), and ADMIN rejects a second request.
+  - A separate DEC-116 test asserts that the primary administrator can approve their own correction directly. It first checks that `admin@shipping.local` is the primary administrator.
+  - The `release:override` check is a separate test, described in §8.
   - The 403 for a user without `invoice:correct` and the 400 for a blank reason are unchanged.
   - The `finally` block no longer deletes the `CompanySettings` row. Only the approval flag is restored.
 - **Docs.** `docs/permissions.md` ADMIN row states the exception. This section and §4/§5 are updated.
@@ -164,3 +166,68 @@ The permission path is ADMIN role → `RolePermission` rows → `AuthService.res
 1. The primary administrator may approve their own correction (DEC-116). Non-owner users, including ADMIN-role users, cannot.
 2. ADMIN holds `invoice:correct` and `invoice:approve_correction`. It does not hold `release:override` (DEC-116).
 3. The correction approval setting (`invoiceCorrectionApprovalRequired`) stays off by default.
+
+## 8. Test-fix round: three failing assertions (2026-10-13)
+
+Three assertions failed in the reported run. Status of each:
+
+**(a) Money text, `1300` vs `1300.00`: resolved as a test-assertion mismatch.**
+- The round-trip test sets up 1000 at 5% and 250 at 0%. Subtotal 1250, VAT 50.00, total 1300.00. The calculation is correct.
+- The audit record stores `totalAmount` with `toFixed(2)`, giving `"1300.00"`. The API returns the Prisma `Decimal` JSON form, giving `"1300"` (verified with the `decimal.js` bundled in Prisma's runtime). Both are the same value.
+- Fix: the assertion compares `Number(...)`, as `invoice.e2e-spec.ts` already does. No financial code or data structure changed.
+
+**(b) `release:override` in ADMIN's effective permissions: origin identified; NOT changed. Owner authorization required.**
+- Origin, from git history on this branch:
+  - The original seed (`c997624`, `prisma/seed/core.ts` ~L252) granted ADMIN every catalogue permission, including `release:override`. That was the default before DEC-116.
+  - Commit `66628c3` (DEC-116) added `EXPLICIT_GRANT_ONLY`, so the seed no longer grants it. The seed only adds grants and never revokes. A grant made by the earlier seed therefore remains in any database seeded before `66628c3`.
+  - So the grant is most likely a **legacy seed default**, not an explicit assignment. This is an inference from the code history until the owner runs the query below.
+- Why not changed now: revoking it changes release-override authority for everyone holding the ADMIN role. The seed comment (`prisma/seed/core.ts`, the DEC-116 block) says revoking an inherited grant needs a separate, audited reconciliation (inspect, snapshot, classify, revoke). It is deliberately not automatic.
+- The assertion is kept as its own test, so the open item is reported separately. Its expectation is unchanged (DEC-116).
+
+Read-only classification, to run on the owner's database (no writes):
+
+```sql
+-- 1. Which roles hold release:override, and who holds those roles
+SELECT r.code AS role, u.email, u."isPrimaryAdmin"
+FROM "RolePermission" rp
+JOIN "Permission" p ON p.id = rp."permissionId" AND p.code = 'release:override'
+JOIN "Role" r ON r.id = rp."roleId"
+LEFT JOIN "UserRole" ur ON ur."roleId" = r.id
+LEFT JOIN "User" u ON u.id = ur."userId";
+
+-- 2. Was the ADMIN grant ever set explicitly through the role screen (audited)?
+SELECT "timestamp", "actorEmail", metadata
+FROM "AuditLog"
+WHERE action = 'role:permissions:set' AND metadata->>'releaseOverrideGranted' = 'true'
+ORDER BY "timestamp";
+```
+
+Classification:
+- If query 2 has no row for ADMIN, the grant is a **legacy seed default**. Reconcile it.
+- If query 2 has a row, it was an explicit grant made by the named actor. Check that the actor was the primary administrator (DEC-116). If so, keep the grant and report that DEC-116 is satisfied as recorded.
+
+Reconciliation, only after the owner authorizes it. Do it through the API so the change is audited. Do not run SQL directly:
+1. Snapshot: `GET /api/v1/roles/<ADMIN id>` and save the full permission list.
+2. Send `PATCH /api/v1/roles/<ADMIN id>/permissions` as the primary administrator, with the same list minus `release:override`. The server records `role:permissions:set` with `removed: ["release:override"]`. The PATCH replaces the whole set, so the list must be complete.
+3. Check: query 1 returns no ADMIN row, and the DEC-116 test passes.
+
+If the owner decides ADMIN should keep `release:override`, DEC-116 must be amended first, and the DEC-116 test removed. That decision belongs to the owner.
+
+**(c) Owner self-approval, `200` vs expected `403`: resolved by following DEC-116. The test was wrong for the owner account.**
+- DEC-116: the primary administrator "require[s] no approval from any other user … to approve operations" and may "approve release exceptions directly as owner". The test used `admin@shipping.local`, which is the primary administrator (the seed designates it when no owner exists, per the Phase 1 runbook §4). The `200` is therefore the documented behaviour.
+- The test now checks the owner case explicitly: the primary administrator approves directly (200, applied).
+- Non-owner self-approval is refused (403), tested with a requester who is not the owner and who holds both permissions.
+- **Not documented, still a design choice:** DEC-022 says approval is required where configured and that "who approves is configuration". It does not say the requester must differ from the approver. The non-owner refusal is my design from Phase 3 and is still unconfirmed. Keep it, or remove it so that approval depends only on the `invoice:approve_correction` grant? Owner to confirm.
+
+**Checks run for this round.**
+
+| Check | Result |
+|---|---|
+| API `tsc --noEmit` | Exit 0 |
+| E2E spec type check | Exit 0 |
+| ESLint, spec and correction service | Exit 0 |
+| Prisma Decimal JSON vs `toFixed(2)` (decimal.js) | `"1300"` vs `"1300.00"`, same value |
+| Tax and total arithmetic, 1000 at 5% + 250 at 0% | Tax 50.00, total 1300.00 |
+| **E2E `invoice-phase3.e2e-spec.ts`** | **Not run.** The sandbox cannot download Prisma's query engine (`binaries.prisma.sh` is not reachable), and there is no PostgreSQL. No pass is claimed. |
+
+**Expected results on the owner's test database, after the test fix:** every Phase 3 test passes except `DEC-116 reconciliation: ADMIN role should not hold release:override`. That one fails until the reconciliation in §8(b) is authorized and carried out.
