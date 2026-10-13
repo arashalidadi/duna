@@ -1,6 +1,8 @@
 // Agent portal types (Phase 20, ADR-040). These mirror the payloads returned
 // by PortalService: bookings submitted by the linked company, manifests where
 // the company is the booking agent, and the scoped ledger statement.
+import type { BillStatus, BillType } from './bill';
+import type { DeliveryReleaseStatus, ReleasePaymentState } from './delivery-release';
 
 export type BookingStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'CANCELLED';
 export const BOOKING_STATUSES: BookingStatus[] = ['PENDING', 'ACCEPTED', 'DECLINED', 'CANCELLED'];
@@ -87,6 +89,72 @@ export interface PortalShipment {
 export interface PortalShipmentListResult {
   data: PortalShipment[];
   meta: ListMeta;
+}
+
+/** A reason code, not a localized message; the portal UI translates it. */
+export type PortalReadEmptyReason =
+  | 'CUSTOMER_ONLY'
+  | 'NO_ACTIVE_DESTINATIONS'
+  | 'NO_DOCUMENTS'
+  | 'PAGE_OUT_OF_RANGE'
+  | 'NO_LABELS';
+
+export interface PortalReadListResult<T> {
+  data: T[];
+  meta: ListMeta;
+  emptyState: { reason: PortalReadEmptyReason } | null;
+}
+
+/** Agent-safe B/L fields, including the active release authorization if present. */
+export interface PortalBillOfLading {
+  id: string;
+  billNumber: string;
+  voyageId: string;
+  destinationPortId: string | null;
+  status: BillStatus;
+  billType: BillType;
+  vesselName: string;
+  dateOfIssue: string | null;
+  createdAt: string;
+  hasActiveRelease: boolean;
+  activeRelease: {
+    id: string;
+    docNumber: string;
+    releaseDate: string;
+    paymentState: ReleasePaymentState | null;
+  } | null;
+}
+
+/** Internal financial override reasons and unrelated B/L details are not exposed. */
+export interface PortalReleaseOrder {
+  id: string;
+  docNumber: string;
+  billOfLadingId: string;
+  releaseDate: string;
+  status: DeliveryReleaseStatus;
+  paymentState: ReleasePaymentState | null;
+  cancelledAt: string | null;
+  billOfLading: {
+    id: string;
+    billNumber: string;
+    destinationPortId: string | null;
+    status: BillStatus;
+  };
+}
+
+export type PortalBillOfLadingListResult = PortalReadListResult<PortalBillOfLading>;
+export type PortalReleaseOrderListResult = PortalReadListResult<PortalReleaseOrder>;
+export type PortalManifestListResult = PortalReadListResult<PortalShipment>;
+
+export interface PortalBlLabel {
+  code: BillStatus;
+  label: string;
+  sortOrder: number;
+}
+
+export interface PortalBlLabelListResult {
+  data: PortalBlLabel[];
+  emptyState: { reason: PortalReadEmptyReason } | null;
 }
 
 /** Create-booking form payload (agent portal) */

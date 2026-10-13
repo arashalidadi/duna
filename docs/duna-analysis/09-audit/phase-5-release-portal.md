@@ -1,6 +1,6 @@
 # Phase 5 — Documents: release/delivery, B/L lifecycle, agent portal
 
-**Status:** scoping only (2026-10-13). No Phase 5 code has been written. Implementation waits for the owner's answers in §4.
+**Status:** Slices 1–3 implemented (2026-10-13); Slice 4 and later work await separate owner approval. §§1–4 preserve the original scoping evidence and decisions; implementation/check results are recorded in §§5c–5g.
 
 Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063, DEC-073…077, AUD-010, AUD-019, AUD-022, REQ-105, REQ-181/182/183, REQ-186, REQ-187/188.
 
@@ -56,7 +56,7 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 
 - An agent's destinations are `AgentDestination` rows (`agentId`, `portId`, `isActive`, `deletedAt`).
 - A B/L carries `destinationPortId` (the denormalised destination).
-- Proposed rule: an agent sees B/Ls whose `destinationPortId` is in the agent's active destinations, and whose status is not `DRAFT`. Excluding `DRAFT` fails closed. The owner should confirm this rule.
+- **Confirmed by the owner for Slice 3:** an agent sees non-deleted B/Ls whose `destinationPortId` is in the agent's active, non-deleted destinations, and whose status is not `DRAFT`. Excluding `DRAFT` fails closed.
 - A release order is visible when its B/L is visible.
 - Manifests keep the existing `portalAgentId` scoping.
 
@@ -133,7 +133,7 @@ Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063,
 
 ## 5f. Approved cancellation integrity follow-up (2026-10-13; additive)
 
-The owner approved the R/O and D/O cancellation/deletion/audit fix, **not Slice 3**. The recommendation in §5e was acted on; its description of the previous state remains as recorded evidence.
+At the time of this follow-up, the owner approved the R/O and D/O cancellation/deletion/audit fix, **not yet Slice 3**. Slice 3 was approved separately afterward (§5g). The recommendation in §5e was acted on; its description of the previous state remains as recorded evidence.
 
 - **API:** `CancelDocDto` rejects missing or whitespace-only reasons. The service trims valid reasons and also guards direct non-HTTP calls. Both cancellation paths require the authenticated actor ID and email, conditionally change an `ISSUED` order to `CANCELLED` (so a simultaneous attempt cannot add a second cancellation), and call `AuditService.recordIn(tx, ...)` in the **same Prisma transaction**. The audit event contains actor ID/email, document ID/type/number and B/L ID, reason, the exact `cancelledAt` timestamp, and status before/after. A failed audit write aborts the status update. The cancelled order stays readable and keeps its reason/actor/time. The existing one-active-per-B/L query and the override audit path are unchanged.
 - **DELETE contract:** the service hard-delete methods have been removed. The existing `:delete` permission guards still run on the routes (unauthenticated 401, unauthorised 403); even an authorised DELETE is rejected with **405**, for issued and cancelled orders alike. Existing permissions and role grants were not removed or reinterpreted. The two web pages no longer render deletion controls or call DELETE. The cancellation forms remain.
@@ -142,6 +142,21 @@ The owner approved the R/O and D/O cancellation/deletion/audit fix, **not Slice 
 
 ---
 
+## 5g. Slice 3 — agent portal read API (approved and implemented 2026-10-13)
+
+Four **read-only** routes are registered under the existing `portal:access` permission: `GET /portal/bills-of-lading`, `/portal/release-orders`, `/portal/manifests`, `/portal/bl-labels`. Their service resolves the agent link from the authenticated user's **current** `portalAgentId`; it does not accept an agent or destination supplied by the caller. An unlinked or inactive user, or an inactive/deleted linked Agent, receives 403. A customer-only account receives `{ data: [], emptyState: { reason: 'CUSTOMER_ONLY' } }`, plus pagination metadata on the three paginated routes. No database migration, seed, write endpoint, or portal UI was introduced.
+
+- B/L list and count use the **same server-side Prisma predicate**: non-deleted B/L; status other than `DRAFT`; `destinationPortId` in the caller's active, non-deleted `AgentDestination.portId` rows. Missing/null destination never grants access. No active destinations yields `NO_ACTIVE_DESTINATIONS` without querying documents. The B/L row includes an `activeRelease` summary only for an issued, non-deleted R/O (or null), not office-only override details.
+- R/O list and count apply that **same B/L predicate through the B/L relation**, and exclude deleted R/Os. A cancelled R/O remains visible with its cancellation timestamp, payment state and status; it is not an active release authorization. Internal financial-override details are not returned.
+- Manifests use `agentId = portalAgentId` and `deletedAt = null`; destination filtering and the B/L `DRAFT` rule do **not** apply to manifests. The returned row shape matches the existing `/portal/shipments` manifest summary. The existing route was not changed.
+- B/L labels read the configurable `BlLifecycleLabel` rows, excluding the `DRAFT` label because draft B/Ls are hidden. Empty results use reason codes (`NO_DOCUMENTS`, `PAGE_OUT_OF_RANGE`, `NO_LABELS`); the later UI slice translates codes into en/ar/fa. Paginated routes accept only `page` and `pageSize` (defaults 1/25, max 100) and reject caller-supplied `agentId`/`destinationPortId`.
+
+**Checks (sandbox, no database operation):** shared `build` and `typecheck`, API `typecheck` and `build`, web `typecheck`, and targeted changed-file lint pass. Full API source lint exits 0 with 30 pre-existing warnings (0 errors). `pnpm --filter @shipping/api test -- --runInBand test/portal-documents-read.e2e-spec.ts` passes **11/11** DB-free HTTP tests for permission/identity checks, agent A vs B destination isolation, multiple active/inactive and soft-deleted destinations, DRAFT/null/deleted B/Ls, release-through-B/L filtering, manifest scoping, label visibility, customer-only empty state, and pagination. The test uses real Nest controllers, validation, permission guard and service with an **in-memory Prisma stand-in**; it opens no DB and performs no seed/cleanup. To rerun this single safe spec from the repository root, install the locked dependencies and build `@shipping/shared` first; it does not require a test DB, although Jest's environment setup reads the repo's `.env` if present. **Do not run the unrestricted API E2E suite on the owner's database.**
+
+**Not verified:** real PostgreSQL behavior of the nested Prisma relation filter, concurrent destination changes, and DB-backed cross-destination isolation; that remains the separately gated Slice 5 test on an expressly identified test database. The older cancellation/audit DB-backed E2E is also still outstanding: its teardown calls `deleteMany`, so it was not run against the owner's data. Any future DB-backed run requires an owner-designated isolated test environment and explicit authorization for test fixture creation and cleanup. Nothing here establishes production-DB readiness.
+
+---
+
 ## 6. Next step
 
-Slice 2 is implemented and verified as far as this sandbox allows. Stop for owner approval before Slice 3 (agent portal read API). Slice 3 has not started.
+Slice 3 is implemented and checked as far as this sandbox allows. Stop before Slice 4 (portal web) or Slice 5 (DB-backed isolation) pending separate owner approval. The cancellation/audit DB-E2E and real-DB portal isolation checks remain outstanding; do not reset, delete, seed, or run destructive tests on the owner's database.
