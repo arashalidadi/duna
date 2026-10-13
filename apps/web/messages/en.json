@@ -2775,5 +2775,72 @@
     "AGENT": "Agent",
     "APPROVED": "Approved",
     "REJECTED": "Rejected"
+  },
+  "identityAttachments": {
+    "title": "Identity documents",
+    "description": "Restricted to authorised users. Files are never public, and links expire after a few minutes.",
+    "empty": "No identity documents attached.",
+    "hint": "Accepted: PDF, JPEG or PNG, up to 10 MB.",
+    "categories": {
+      "ID_FRONT": "ID card (front)",
+      "ID_BACK": "ID card (back)",
+      "SIGNATURE": "Signature"
+    },
+    "fields": {
+      "category": "Document",
+      "file": "File"
+    },
+    "actions": {
+      "view": "Open",
+      "delete": "Delete",
+      "confirmDelete": "Confirm delete",
+      "uploading": "Uploading…"
+    },
+    "errors": {
+      "notPermitted": "You are not permitted to handle identity documents.",
+      "tooLarge": "The file is larger than 10 MB.",
+      "unsupportedType": "Only PDF, JPEG and PNG files are accepted.",
+      "notFound": "Document not found.",
+      "generic": "The request failed. Try again."
+    }
+  },
+  "companySettings": {
+    "page": {
+      "breadcrumb": "Company settings",
+      "title": "Company settings",
+      "description": "Company identity used on invoices, vouchers and salary slips."
+    },
+    "sections": {
+      "identity": "Company identity",
+      "identityHint": "The document layer reads the TRN and address from here.",
+      "currencies": "Currencies",
+      "currenciesHint": "Supported currencies and the default currency for new documents."
+    },
+    "fields": {
+      "companyName": "Company name",
+      "legalName": "Legal name",
+      "registrationNumber": "Registration number",
+      "taxNumber": "TRN",
+      "address": "Address",
+      "city": "City",
+      "country": "Country",
+      "phone": "Phone",
+      "email": "Email",
+      "website": "Website",
+      "supportedCurrencies": "Supported currencies",
+      "defaultCurrency": "Default currency"
+    },
+    "actions": {
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved"
+    },
+    "readOnly": "You can view these settings but not change them.",
+    "empty": "Company settings are not configured yet.",
+    "errors": {
+      "notPermitted": "You are not permitted to view company settings.",
+      "load": "Could not load company settings.",
+      "save": "Could not save company settings."
+    }
   }
 }

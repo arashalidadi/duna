@@ -8,6 +8,7 @@ import { PortsModule } from './modules/ports/ports.module';
 import { YardsModule } from './modules/yards/yards.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { CurrenciesModule } from './modules/currencies/currencies.module';
+import { CompanySettingsModule } from './modules/company-settings/company-settings.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -60,6 +61,7 @@ import { DocumentTemplateModule } from './common/infrastructure/templates/docume
     YardsModule,
     CustomersModule,
     CurrenciesModule,
+    CompanySettingsModule,
     UsersModule,
     RolesModule,
     PermissionsModule,

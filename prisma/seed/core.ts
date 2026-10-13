@@ -146,9 +146,18 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   { code: 'invoice:delete', module: 'invoice', action: 'delete' },
   { code: 'invoice:issue', module: 'invoice', action: 'issue' },
   { code: 'invoice:cancel', module: 'invoice', action: 'cancel' },
-  // Phase 3 (DEC-020/022): controlled correction and its approval. Explicit grant only.
+  // Phase 3 (DEC-020/022): controlled correction and its approval. ADMIN receives these
+  // (see the EXPLICIT_GRANT_ONLY note below); other roles need an explicit grant.
   { code: 'invoice:correct', module: 'invoice', action: 'correct' },
   { code: 'invoice:approve_correction', module: 'invoice', action: 'approve_correction' },
+  // Phase 4 (DEC-087..092): company settings and identity-document attachments.
+  { code: 'settings:read', module: 'settings', action: 'read' },
+  { code: 'settings:update', module: 'settings', action: 'update' },
+  { code: 'attachment:read', module: 'attachment', action: 'read' },
+  { code: 'attachment:create', module: 'attachment', action: 'create' },
+  { code: 'attachment:delete', module: 'attachment', action: 'delete' },
+  // Identity documents (DEC-092): required on top of the attachment codes above.
+  { code: 'attachment:identity', module: 'attachment', action: 'identity' },
   { code: 'voucher:read', module: 'voucher', action: 'read' },
   { code: 'voucher:create', module: 'voucher', action: 'create' },
   { code: 'voucher:update', module: 'voucher', action: 'update' },

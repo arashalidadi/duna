@@ -45,6 +45,8 @@ Permission codes follow `module:action`. A role is **active** when `deletedAt IS
 | yard       | `yard:read`, `yard:create`, `yard:update` |
 | customer   | `customer:read`, `customer:create`, `customer:update` |
 | currency   | `currency:read`                      |
+| settings   | `settings:read`, `settings:update` (company identity: TRN, address, currencies; Phase 4) |
+| attachment | `attachment:read`, `attachment:create`, `attachment:delete`, `attachment:identity` (identity documents, DEC-092; Phase 4) |
 | cargo      | `cargo:read`, `cargo:create`, `cargo:update`, `cargo:transition`, `cargo:delete` |
 | yard-inventory | `yard-inventory:read`, `yard-inventory:create`, `yard-inventory:update`, `yard-inventory:remove` |
 | inspection | `inspection:read`, `inspection:create`, `inspection:update`, `inspection:approve`, `inspection:reject` |

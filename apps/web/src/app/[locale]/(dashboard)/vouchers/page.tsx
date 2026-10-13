@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, ConfirmDialog } from '@/components/ui/dialog';
+import { IdentityAttachmentsPanel } from '@/components/attachments/identity-attachments-panel';
 import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -594,6 +595,7 @@ export default function VouchersPage() {
                 </Button>
               </div>
             )}
+            <IdentityAttachmentsPanel entityType="VOUCHER" entityId={detail.id} />
           </div>
         ) : (
           <PageLoader />

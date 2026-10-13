@@ -55,10 +55,12 @@ function bearerHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // FormData bodies (file uploads) must not carry a JSON Content-Type; the browser sets the boundary.
+  const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData;
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
       ...bearerHeaders(),
       ...(init?.headers ?? {}),
     },
@@ -88,6 +90,7 @@ export const api = {
     request<T>(path, { method: 'PATCH', body: body === undefined ? undefined : JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: body === undefined ? undefined : JSON.stringify(body) }),
+  postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   getHealth: () => request<HealthStatus>('/health'),
   /** Base URL used by the client — exported for debugging / diagnostics. */

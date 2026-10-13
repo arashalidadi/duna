@@ -100,9 +100,11 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       {
         labelKey: 'settings',
+        href: '/settings',
         icon: LockKeyhole,
-        status: 'planned',
-        description: 'Settings, templates & controls',
+        status: 'implemented',
+        description: 'Company identity, TRN and currencies',
+        requiredPermission: 'settings:read',
       },
     ],
   },

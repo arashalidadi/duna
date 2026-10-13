@@ -231,3 +231,18 @@ If the owner decides ADMIN should keep `release:override`, DEC-116 must be amend
 | **E2E `invoice-phase3.e2e-spec.ts`** | **Not run.** The sandbox cannot download Prisma's query engine (`binaries.prisma.sh` is not reachable), and there is no PostgreSQL. No pass is claimed. |
 
 **Expected results on the owner's test database, after the test fix:** every Phase 3 test passes except `DEC-116 reconciliation: ADMIN role should not hold release:override`. That one fails until the reconciliation in §8(b) is authorized and carried out.
+
+## 9. Owner report and Phase 3 close-out status (2026-10-13)
+
+**Owner-reported result (not run by the assistant).** The owner reports that `apps/api/test/invoice-phase3.e2e-spec.ts` passed **11/11** on the owner's server. The spec has 11 `it` blocks. This sandbox has no database, so no pass is claimed from here.
+
+**What the 11/11 implies, to be confirmed by the owner.**
+- One of the 11 is `DEC-116 reconciliation: ADMIN role should not hold release:override` (line ~315). A pass means the ADMIN role no longer holds `release:override` on the database used. That only happens if §8(b) was carried out. It is an inference from the count, not a recorded fact. The owner should confirm it with the §8(b) read-only queries, and the reconciliation should show an audited `role:permissions:set` entry with `removed: ["release:override"]`.
+- The owner has not yet said which database was used (name, and whether it is a disposable test database or the live one). The test creates its own customers, jobs and invoices and temporarily changes `CompanySettings.invoiceCorrectionApprovalRequired`, so the database used matters.
+- The owner has not yet said whether migration `20261013120000_invoice_tax_links_correction` and the seed were applied to that database. A seed run only adds grants. Migration status must be checked against `_prisma_migrations`, not inferred from a passing test.
+
+**Still open for Phase 3.**
+- The Phase 3 invoice screens have not been exercised in a browser. Only type checks and ESLint ran on the web code.
+- The owner-confirmable points in §4 are unchanged. None of them was decided by the 11/11 result.
+
+**Status.** Phase 3 is recorded as owner-verified on the owner's server, subject to the three confirmations above. No further Phase 3 code change is needed for the 11 tests. The Phase 3 close-out is complete once the owner confirms the database, the reconciliation status, and the migration status.
