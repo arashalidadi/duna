@@ -69,8 +69,8 @@ Branch `arena/be9b4e5b-duna`. Scope from `initial-roadmap.md` ~L142–160. Requi
 | Identity document attached to a voucher | `POST /attachments` with `entityType=VOUCHER` | Harness passes. Server e2e not run. |
 | Retrieved only by an authorised user | Permission checks on list, metadata and URL issue; token re-checks user at download | Harness passes for no-permission, revoked and inactive users. Server e2e not run. |
 | MIME and size rejection | 415, 400 (magic mismatch), 413 | Harness passes. Server e2e not run. |
-| Settings editable; attachments end to end; asset permissions enforced | API and UI present; permission checks server-side | Partially verified: API in harness; UI not run in a browser. |
-| Testing list: settings round-trip, upload/retrieve/delete, MIME and size rejection, identity permissions, URL expiry | `attachment-settings.e2e-spec.ts` covers all five | **Not run.** |
+| Settings editable; attachments end to end; asset permissions enforced | API and UI present; permission checks server-side | API verified by the owner's e2e run. UI not run in a browser. The owner has not confirmed that the identity panel appears on the live server. |
+| Testing list: settings round-trip, upload/retrieve/delete, MIME and size rejection, identity permissions, URL expiry | `attachment-settings.e2e-spec.ts` covers all five | **Passed on the owner's test database (owner report, 2026-10-13; pass count not supplied).** Not run in this sandbox (no PostgreSQL, no Prisma engine). |
 
 ---
 
@@ -151,6 +151,12 @@ Harness results come from code executed here with in-memory fakes. They are not 
 6. Confirm whether CANCELLED vouchers may still receive identity documents. The code does not block this.
 
 **Owner answers recorded 2026-10-13:** the §3 technical defaults are accepted as proposed. Identity capture stays off in production and is enabled only on the owner's test database for the e2e run. Items 1 and 5 above are therefore closed for the defaults. Items 2, 3, 4 and 6 remain open.
+
+**Close-out check (2026-10-13, sandbox):**
+- Repository at `3b7e4f3`. The Phase 4 commit `4f2f4e4` is an ancestor. No application file was deleted or changed after it.
+- `tsc` passes for the API and the web app. `next build` for the web app passes. It includes `/[locale]/settings` and the identity panel.
+- The identity panel appears only inside the voucher and salary-record detail dialogs. It is not on the Settings page. It is hidden unless the user has both `attachment:read` and `attachment:identity`.
+- Open item for the owner: confirm the panel on the live server after the seed has written the `attachment:*` and `settings:*` codes and granted them to ADMIN.
 
 **Residual risks:**
 - **Download token in the URL.** Tokens may appear in web-server access logs. The short TTL limits exposure. Logs should not be shared.
