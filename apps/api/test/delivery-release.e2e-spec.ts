@@ -53,6 +53,7 @@ describe('Delivery & Release Orders (e2e)', () => {
   let invoiceId = ''; // ISSUED, unpaid USD invoice on billId
   let do1Id = '';
   let ro1Id = '';
+  let roSlice2Id = ''; // R/O created by the Slice 2 read-back test (own fixture)
 
   const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
   const S = () => request(app.getHttpServer());
@@ -224,7 +225,7 @@ describe('Delivery & Release Orders (e2e)', () => {
       // P4-U6: remove the audit rows this suite wrote for its own fixture RO
       // (explicit id filter only; append-only binds the application, not test teardown)
       await prisma.auditLog.deleteMany({
-        where: { entityType: 'ReleaseOrder', entityId: { in: [ro1Id] } },
+        where: { entityType: 'ReleaseOrder', entityId: { in: [ro1Id, roSlice2Id].filter(Boolean) } },
       });
       await prisma.deliveryOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.releaseOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
@@ -552,14 +553,23 @@ describe('Delivery & Release Orders (e2e)', () => {
   });
 
   it('Slice 2: a release reports its payment state; a legacy delivery order without a port reads back null', async () => {
+    // The 'settled release' R/O is hard-deleted by its own test (removeRelease uses releaseOrder.delete),
+    // so it cannot be read back here. This test creates its own R/O on the same bill: the invoice is paid
+    // by now and no active R/O remains (ro1 is cancelled, the settled one is deleted).
+    const created = await S().post('/api/v1/release-orders').set(auth(plainCreatorToken))
+      .send({ paymentState: 'PAID', billOfLadingId: billId, notes: 'slice 2 payment state' }).expect(201);
+    roSlice2Id = created.body.data.id;
+    expect(created.body.data.paymentState).toBe('PAID');
+
+    const detail = await S().get(`/api/v1/release-orders/${roSlice2Id}`).set(auth(adminToken)).expect(200);
+    expect(detail.body.data.paymentState).toBe('PAID');
+
     const { PrismaClient } = require('@prisma/client');
     const fx = new PrismaClient();
     try {
-      const ro = await fx.releaseOrder.findFirst({ where: { billOfLadingId: billId, notes: 'settled release' } });
+      const ro = await fx.releaseOrder.findUnique({ where: { id: roSlice2Id } });
       expect(ro).not.toBeNull();
       expect(ro.paymentState).toBe('PAID');
-      const detail = await S().get(`/api/v1/release-orders/${ro.id}`).set(auth(adminToken)).expect(200);
-      expect(detail.body.data.paymentState).toBe('PAID');
 
       // A delivery order written before Phase 5 has no port. It must read back as null and unchanged.
       const adminRow = await fx.user.findFirst({ where: { email: admin.email } });

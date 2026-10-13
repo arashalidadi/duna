@@ -285,7 +285,8 @@
       "description": "The B/L must be ISSUED; one active D/O per B/L.",
       "errors": {
         "billRequired": "A B/L is required",
-        "recipientRequired": "Recipient is required"
+        "recipientRequired": "Recipient is required",
+        "portRequired": "Select the port."
       },
       "recipientPlaceholder": "Who receives the cargo?",
       "selectBill": "Select B/L",
@@ -323,9 +324,6 @@
     "status": {
       "CANCELLED": "Cancelled",
       "ISSUED": "Issued"
-    },
-    "errors": {
-      "portRequired": "Select the port."
     }
   },
   "discharge": {
@@ -1723,7 +1721,8 @@
       "eligibilityLine": "Invoiced {total} — paid {paid} — outstanding {outstanding}",
       "errors": {
         "billRequired": "A B/L is required",
-        "overrideReasonRequired": "An override reason is required"
+        "overrideReasonRequired": "An override reason is required",
+        "paymentStateRequired": "Select the payment state recorded at release."
       },
       "forceOverride": "Override the payment requirement (audited)",
       "overrideReasonPlaceholder": "Why release despite the outstanding balance?",
@@ -1772,9 +1771,6 @@
       "PAID": "Paid",
       "PARTIAL": "Partial payment",
       "UNPAID": "Unpaid (on credit)"
-    },
-    "errors": {
-      "paymentStateRequired": "Select the payment state recorded at release."
     }
   },
   "roles": {

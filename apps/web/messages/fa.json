@@ -285,7 +285,8 @@
       "description": "بارنامه باید صادرشده باشد؛ یک حواله فعال برای هر بارنامه.",
       "errors": {
         "billRequired": "انتخاب بارنامه الزامی است",
-        "recipientRequired": "تحویل‌گیرنده الزامی است"
+        "recipientRequired": "تحویل‌گیرنده الزامی است",
+        "portRequired": "بندر را انتخاب کنید."
       },
       "recipientPlaceholder": "چه کسی بار را تحویل می‌گیرد؟",
       "selectBill": "انتخاب بارنامه",
@@ -323,9 +324,6 @@
     "status": {
       "CANCELLED": "لغوشده",
       "ISSUED": "صادرشده"
-    },
-    "errors": {
-      "portRequired": "بندر را انتخاب کنید."
     }
   },
   "discharge": {
@@ -1723,7 +1721,8 @@
       "eligibilityLine": "فاکتورشده {total} — پرداخت‌شده {paid} — مانده {outstanding}",
       "errors": {
         "billRequired": "انتخاب بارنامه الزامی است",
-        "overrideReasonRequired": "دلیل تأیید ویژه الزامی است"
+        "overrideReasonRequired": "دلیل تأیید ویژه الزامی است",
+        "paymentStateRequired": "وضعیت پرداخت ثبت‌شده در زمان آزادسازی را انتخاب کنید."
       },
       "forceOverride": "عبور از الزام پرداخت (ثبت برای ممیزی)",
       "overrideReasonPlaceholder": "چرا با وجود مانده بدهی ترخیص شود؟",
@@ -1772,9 +1771,6 @@
       "PAID": "پرداخت کامل",
       "PARTIAL": "پرداخت بخشی",
       "UNPAID": "پرداخت نشده (نسیه)"
-    },
-    "errors": {
-      "paymentStateRequired": "وضعیت پرداخت ثبت‌شده در زمان آزادسازی را انتخاب کنید."
     }
   },
   "roles": {

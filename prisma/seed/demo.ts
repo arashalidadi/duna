@@ -55,6 +55,9 @@ export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promi
       data: {
         voyageId: voyage.id,
         destinationPortId: voyage.destinationPortId,
+        // Required since the leg-vessel scope migration (DEC-026): the vessel whose counter issued
+        // the leg number. The app sets this to the voyage's vessel on leg creation (voyages.service).
+        numberingVesselId: vessel.id,
         legNumber: 1,
         voyageNumber: voyage.voyageNumber,
       },

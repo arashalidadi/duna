@@ -292,7 +292,8 @@
       "description": "يجب أن تكون البوليصة صادرة؛ أمر واحد نشط لكل بوليصة.",
       "errors": {
         "billRequired": "اختيار البوليصة إلزامي",
-        "recipientRequired": "المستلم إلزامي"
+        "recipientRequired": "المستلم إلزامي",
+        "portRequired": "اختر الميناء."
       },
       "recipientPlaceholder": "من يستلم البضاعة؟",
       "selectBill": "اختر البوليصة",
@@ -330,9 +331,6 @@
     "status": {
       "CANCELLED": "ملغى",
       "ISSUED": "صادر"
-    },
-    "errors": {
-      "portRequired": "اختر الميناء."
     }
   },
   "discharge": {
@@ -1732,7 +1730,8 @@
       "eligibilityLine": "مُفوتر {total} — مدفوع {paid} — مستحق {outstanding}",
       "errors": {
         "billRequired": "اختيار البوليصة إلزامي",
-        "overrideReasonRequired": "سبب التجاوز إلزامي"
+        "overrideReasonRequired": "سبب التجاوز إلزامي",
+        "paymentStateRequired": "اختر حالة الدفع المسجلة عند الإفراج."
       },
       "forceOverride": "تجاوز شرط السداد (مُدقَّق)",
       "overrideReasonPlaceholder": "لماذا الإفراج رغم الرصيد المستحق؟",
@@ -1781,9 +1780,6 @@
       "PAID": "مدفوع بالكامل",
       "PARTIAL": "دفعة جزئية",
       "UNPAID": "غير مدفوع (آجل)"
-    },
-    "errors": {
-      "paymentStateRequired": "اختر حالة الدفع المسجلة عند الإفراج."
     }
   },
   "roles": {
