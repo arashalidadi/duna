@@ -42,7 +42,14 @@ const DEMO_ONLY_MODELS = new Set([
   'loadList',
   'loadListItem',
   'agent',
+  'agentDestination',
   'manifest',
+  'billOfLading',
+  'releaseOrder',
+  'deliveryOrder',
+  'bookingRequest',
+  'invoice',
+  'invoiceItem',
 ]);
 
 /** Business records that A3 says must not be created by a default seed run. */
@@ -52,7 +59,9 @@ const failures = [];
 
 function modelsUsedIn(source) {
   const found = new Set();
-  for (const m of source.matchAll(/\bprisma\.([A-Za-z_$][\w$]*)\b/g)) {
+  // The optional portal fixtures run inside an interactive transaction and
+  // therefore use `tx.model`; scan those delegates as well as `prisma.model`.
+  for (const m of source.matchAll(/\b(?:prisma|tx)\.([A-Za-z_$][\w$]*)\b/g)) {
     if (!m[1].startsWith('$')) found.add(m[1]);
   }
   return found;

@@ -104,6 +104,42 @@ pnpm dev:web                # http://localhost:3000
 
 `pnpm dev` runs both (foreground, requires open terminal).
 
+### Agent Portal development demo
+
+Use the normal development `DATABASE_URL` pointing at **`duna_seed_test`** (with the
+current migrations already applied); no separate confirmation variable is needed.
+From the repository root run `pnpm db:seed:demo`. It opt-in creates sample Agents,
+portal accounts, destinations, bookings, manifests, B/Ls, Release Orders,
+a Delivery Order with a Ports-master name snapshot, and a statement invoice.
+It does not call `scripts/seed-portal-demo.mjs`. That older API script is not a
+Phase 5 fixture source: it creates a Customer-linked login, not an Agent master
+or scoped Release Orders, and its manifest reassignment uses a Customer ID.
+Use `pnpm db:seed:demo` for the current portal setup.
+
+At `/{locale}/login`, sign in as:
+
+| Account | Demo password | Portal view |
+| --- | --- | --- |
+| `agent@portal.local` | `ChangeMe123!` | `AGT-001` at Khalfan Port; also bookings and statement via Customer `AGT-P20DEMO` |
+| `agent2@portal.local` | `ChangeMe123!` | `AGT-DEMO-E` at Jebel Ali; agent-only document view |
+
+`SEED_PORTAL_PASSWORD` optionally overrides **both** demo passwords. A portal-only
+user is directed to `/portal` after login; staff with `dashboard:read` still go
+to `/dashboard`. The **Agents** office list (`/agents`, requires `agent:read`)
+shows active, non-deleted `AGT-001` after the demo seed; portal accounts do not
+receive that office permission. `AGT-P20DEMO` is a *Customer* used by the legacy
+bookings/statement flow, not an Agent master row.
+
+This seed is add-only for demo document numbers and preserves edits on rerun;
+it does not delete or reset business records. For only the two exact demo user
+emails, it repairs missing links/role, reactivates/unlocks the account, and
+updates its password hash **if it differs** from the configured demo password.
+It refuses conflicting identities, inactive/deleted Agent destinations, or an
+external `PORTAL_AGENT` role with extra grants rather than silently taking over
+or revoking records. The document identifiers carry `DEMO` deliberately; these
+are read/UI fixtures, **not** evidence that issuance, financial approval or
+cancellation auditing ran. Only run the opt-in seed on a development database.
+
 ### Frontend ↔ API connectivity
 
 The original default was 3001; 3101 was introduced when that port was occupied. **3101 is now

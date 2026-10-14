@@ -14,6 +14,7 @@ import bcrypt from 'bcryptjs';
  */
 export interface SeedCoreResult {
   adminUser: { id: string; email: string };
+  portalRole: { id: string };
   ports: {
     jebelAli: { id: string; code: string };
     khalfan: { id: string; code: string };
@@ -277,7 +278,26 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     },
   });
 
-  console.log(`  Roles seeded: ${adminRole.code}, ${opsRole.code}`);
+  // Existing portal role from scripts/seed-portal-demo.mjs, now installed with
+  // the normal reference/configuration seed. It grants portal access and
+  // booking submission only — never office-desk or financial permissions.
+  const portalRole = await prisma.role.upsert({
+    where: { code: 'PORTAL_AGENT' },
+    update: {},
+    create: {
+      code: 'PORTAL_AGENT',
+      name: 'Portal Agent (external)',
+      description: 'Agent-portal reads and booking submission',
+    },
+  });
+  for (const code of ['portal:access', 'booking:create'] as const) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: portalRole.id, permissionId: createdPermissions[code] } },
+      update: {},
+      create: { roleId: portalRole.id, permissionId: createdPermissions[code] },
+    });
+  }
+  console.log(`  Roles seeded: ${adminRole.code}, ${opsRole.code}, ${portalRole.code}`);
 
   // ==========================================================================
   // DEC-116 / OQ-06 — release-exception authority is a BUSINESS delegation,
@@ -427,6 +447,7 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
 
   return {
     adminUser: { id: adminUser.id, email: adminUser.email },
+    portalRole: { id: portalRole.id },
     ports: {
       jebelAli: { id: jebelAli.id, code: jebelAli.code },
       khalfan: { id: khalfan.id, code: khalfan.code },

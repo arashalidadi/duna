@@ -2,22 +2,17 @@
 
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { postLoginRoute } from '@/lib/auth/post-login-route';
 import { useRouter } from '@/i18n/navigation';
 
-/**
- * Keeps the previous homepage behaviour: a signed-in user who lands on the
- * public page is taken straight to the dashboard.
- *
- * It renders nothing — the landing page itself is static markup, so it stays
- * readable and crawlable while the session is being resolved.
- */
+/** Send signed-in visitors to their permitted landing page. Public markup stays static. */
 export function AuthGate() {
-  const { status } = useAuth();
+  const { status, permissions } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/dashboard');
-  }, [status, router]);
+    if (status === 'authenticated') router.replace(postLoginRoute(permissions));
+  }, [status, router, permissions]);
 
   return null;
 }

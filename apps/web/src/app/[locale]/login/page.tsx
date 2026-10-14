@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { Ship, Eye, EyeOff, AlertCircle, ArrowRight, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/lib/auth/AuthProvider';
+import { postLoginRoute } from '@/lib/auth/post-login-route';
 import { Link, useRouter } from '@/i18n/navigation';
 import { ApiError } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import { LanguageSelector, ThemeSelector } from '@/components/preferences/prefer
 import { PageLoader } from '@/components/ui/loading';
 
 export default function LoginPage() {
-  const { status, login } = useAuth();
+  const { status, login, permissions } = useAuth();
   const router = useRouter();
   const t = useTranslations('login');
   const ui = useTranslations('workspaceUi');
@@ -24,8 +25,8 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
-    if (status === 'authenticated') router.replace('/dashboard');
-  }, [status, router]);
+    if (status === 'authenticated') router.replace(postLoginRoute(permissions));
+  }, [status, router, permissions]);
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
@@ -37,7 +38,8 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      router.replace('/dashboard');
+      // The authenticated-state effect routes from the freshly loaded permissions.
+      // Navigating here would race that update and send portal-only users to /dashboard.
     } catch (err) {
       setError(
         err instanceof ApiError && err.status === 401
