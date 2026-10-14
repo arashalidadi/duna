@@ -269,6 +269,8 @@ describe('Delivery & Release Orders (e2e)', () => {
       });
       await prisma.deliveryOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.releaseOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
+      await prisma.voucherAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
+      await prisma.customerPosting.deleteMany({ where: { customerId: { in: createdCustomers.map((c) => c.id) } } });
       await prisma.voucher.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
       await prisma.invoiceItem.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
       await prisma.invoice.deleteMany({ where: { id: { in: invoiceIds } } });

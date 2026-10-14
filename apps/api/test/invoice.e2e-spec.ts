@@ -113,6 +113,7 @@ describe('Invoice (e2e)', () => {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       // Reverse dependency order.
+      await prisma.customerPosting.deleteMany({ where: { customerId: { in: createdCustomers.map((c) => c.id) } } });
       await prisma.invoiceItem.deleteMany({ where: { invoice: { customerId: { in: createdCustomers.map((c) => c.id) } } } });
       await prisma.invoice.deleteMany({ where: { customerId: { in: createdCustomers.map((c) => c.id) } } });
       await prisma.customer.deleteMany({ where: { id: { in: createdCustomers.map((c) => c.id) } } });
@@ -327,9 +328,16 @@ describe('Invoice (e2e)', () => {
       .set(auth(issuerToken))
       .expect(400);
 
-    const iss = await request(app.getHttpServer())
+    // An issuer cannot invent a private FX override without the separate grant.
+    await request(app.getHttpServer())
       .post(`/api/v1/invoices/${invoice1Id}/issue`)
       .set(auth(issuerToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: 'not authorised' })
+      .expect(403);
+    const iss = await request(app.getHttpServer())
+      .post(`/api/v1/invoices/${invoice1Id}/issue`)
+      .set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated invoice E2E FX ${tag}` })
       .expect(200);
     const issued = iss.body.data;
     expect(issued.status).toBe('ISSUED');
@@ -459,7 +467,7 @@ describe('Invoice (e2e)', () => {
       .expect(201);
     await request(app.getHttpServer())
       .post(`/api/v1/invoices/${invoice3Id}/issue`)
-      .set(auth(adminToken))
+      .set(auth(issuerToken))
       .expect(200);
 
     const unpaid = await request(app.getHttpServer())

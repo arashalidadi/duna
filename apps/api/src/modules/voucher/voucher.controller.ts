@@ -9,13 +9,13 @@ import {
   Patch,
   Post,
   Query,
-  Req,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/auth/decorators/require-permissions.decorator';
+import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../common/auth/types';
 import { VoucherService } from './voucher.service';
-import { CreateVoucherDto, UpdateVoucherDto, CancelVoucherDto } from './dto/voucher.dto';
-import type { Request } from 'express';
+import { CreateVoucherDto, UpdateVoucherDto, CancelVoucherDto, AdjustVoucherDto, ReallocateVoucherDto } from './dto/voucher.dto';
 
 @ApiTags('vouchers')
 @Controller('vouchers')
@@ -63,23 +63,33 @@ export class VoucherController {
   @Post()
   @RequirePermissions('voucher:create')
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateVoucherDto, @Req() req: Request) {
-    const user = (req as any).user;
-    return this.service.create(dto, user ? { id: user.id ?? user.sub } : undefined);
+  create(@Body() dto: CreateVoucherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.create(dto, user);
   }
 
   @Patch(':id')
   @RequirePermissions('voucher:update')
-  update(@Param('id') id: string, @Body() dto: UpdateVoucherDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateVoucherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.update(id, dto, user);
+  }
+
+  @Post(':id/adjust')
+  @RequirePermissions('voucher:adjust')
+  adjust(@Param('id') id: string, @Body() dto: AdjustVoucherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.adjust(id, dto, user);
+  }
+
+  @Post(':id/allocations')
+  @RequirePermissions('voucher:allocate')
+  reallocate(@Param('id') id: string, @Body() dto: ReallocateVoucherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.reallocate(id, dto, user);
   }
 
   @Post(':id/cancel')
   @RequirePermissions('voucher:cancel')
   @HttpCode(HttpStatus.OK)
-  cancel(@Param('id') id: string, @Body() dto: CancelVoucherDto, @Req() req: Request) {
-    const user = (req as any).user;
-    return this.service.cancel(id, dto, user ? { id: user.id ?? user.sub } : undefined);
+  cancel(@Param('id') id: string, @Body() dto: CancelVoucherDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.cancel(id, dto, user);
   }
 
   @Delete(':id')

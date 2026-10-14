@@ -88,6 +88,7 @@ export class AuthService {
       email: user.email,
       fullName: user.fullName,
       isActive: user.isActive,
+      isPrimaryAdmin: user.isPrimaryAdmin,
       lastLoginAt: user.lastLoginAt ? user.lastLoginAt.toISOString() : null,
       passwordChangedAt: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
       roles: user.roles.map((r) => r.role),

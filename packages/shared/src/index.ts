@@ -204,3 +204,4 @@ export * from './job';
 export * from './discharge';
 
 export * from './portal';
+export * from './finance';

@@ -6,7 +6,7 @@ import { useLocale as useUiLocale } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useLocale } from 'next-intl';
-import { Plus, Eye, XCircle, Trash2, CreditCard } from 'lucide-react';
+import { Plus, Eye, XCircle, CreditCard } from 'lucide-react';
 import type {
   Voucher,
   VoucherListResult,
@@ -26,7 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, ConfirmDialog } from '@/components/ui/dialog';
+import { Dialog } from '@/components/ui/dialog';
 import { IdentityAttachmentsPanel } from '@/components/attachments/identity-attachments-panel';
 import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
@@ -40,6 +40,14 @@ const SELECT_CLASS =
 
 const TYPES: VoucherType[] = ['RECEIPT', 'PAYMENT'];
 const METHODS: VoucherMethod[] = ['CASH', 'BANK_TRANSFER', 'CHEQUE', 'OTHER'];
+
+// Validate exact cents without routing financial payloads through Number().
+function positiveCents(value: string): bigint | null {
+  if (!/^\d{1,16}(?:\.\d{1,2})?$/.test(value.trim())) return null;
+  const [whole, fraction = ''] = value.trim().split('.');
+  const cents = BigInt(whole) * BigInt(100) + BigInt((fraction + '00').slice(0, 2));
+  return cents > BigInt(0) ? cents : null;
+}
 
 function typeVariant(t: VoucherType): 'success' | 'warning' {
   return t === 'RECEIPT' ? 'success' : 'warning';
@@ -77,7 +85,7 @@ export default function VouchersPage() {
   const [form, setForm] = useState({
     type: 'RECEIPT' as VoucherType,
     customerId: '',
-    invoiceId: '',
+    allocationMode: 'MANUAL' as 'MANUAL' | 'AUTO' | 'NONE',
     amount: '',
     currencyCode: 'USD',
     method: 'BANK_TRANSFER' as VoucherMethod,
@@ -85,12 +93,17 @@ export default function VouchersPage() {
     description: '',
     note: '',
     voucherDate: '',
+    exchangeRate: '',
+    rateOverrideReason: '',
   });
+  const [draftAllocations, setDraftAllocations] = useState<{ invoiceId: string; amount: string }[]>([]);
+  const [reallocateTarget, setReallocateTarget] = useState<Voucher | null>(null);
+  const [reallocateRows, setReallocateRows] = useState<{ invoiceId: string; amount: string }[]>([]);
+  const [reallocateReason, setReallocateReason] = useState('');
 
   const [cancelTarget, setCancelTarget] = useState<Voucher | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Voucher | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,7 +128,7 @@ export default function VouchersPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!createOpen) return;
+    if (!createOpen && !detailOpen && !reallocateTarget) return;
     void (async () => {
       try {
         const [c, i] = await Promise.all([
@@ -128,13 +141,13 @@ export default function VouchersPage() {
         /* options load best-effort */
       }
     })();
-  }, [createOpen]);
+  }, [createOpen, detailOpen, reallocateTarget]);
 
   const openCreate = () => {
     setForm({
       type: 'RECEIPT',
       customerId: '',
-      invoiceId: '',
+      allocationMode: 'MANUAL',
       amount: '',
       currencyCode: 'USD',
       method: 'BANK_TRANSFER',
@@ -142,7 +155,10 @@ export default function VouchersPage() {
       description: '',
       note: '',
       voucherDate: '',
+      exchangeRate: '',
+      rateOverrideReason: '',
     });
+    setDraftAllocations([]);
     setFormError('');
     setCreateOpen(true);
   };
@@ -152,9 +168,18 @@ export default function VouchersPage() {
       setFormError(t('create.errors.customerRequired'));
       return;
     }
-    const amount = Number(form.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
+    const amount = positiveCents(form.amount);
+    if (amount === null) {
       setFormError(t('create.errors.amountRequired'));
+      return;
+    }
+    const lines = draftAllocations.filter((row) => row.invoiceId || row.amount.trim());
+    if (form.allocationMode === 'MANUAL' && lines.some((row) => !row.invoiceId || positiveCents(row.amount) === null)) {
+      setFormError(t('allocation.invalidLine'));
+      return;
+    }
+    if (form.allocationMode === 'MANUAL' && lines.reduce((sum, row) => sum + (positiveCents(row.amount) ?? BigInt(0)), BigInt(0)) > amount) {
+      setFormError(t('allocation.exceedsAmount'));
       return;
     }
     setCreating(true);
@@ -163,14 +188,16 @@ export default function VouchersPage() {
       await api.post('/vouchers', {
         type: form.type,
         customerId: form.customerId,
-        ...(form.invoiceId ? { invoiceId: form.invoiceId } : {}),
-        amount,
+        allocationMode: form.allocationMode,
+        ...(form.allocationMode === 'MANUAL' ? { allocations: lines.map((row) => ({ invoiceId: row.invoiceId, amount: row.amount.trim() })) } : {}),
+        amount: form.amount.trim(),
         ...(form.currencyCode ? { currencyCode: form.currencyCode } : {}),
         method: form.method,
         ...(form.reference ? { reference: form.reference } : {}),
         ...(form.description ? { description: form.description } : {}),
         ...(form.note ? { note: form.note } : {}),
         ...(form.voucherDate ? { voucherDate: new Date(form.voucherDate).toISOString() } : {}),
+        ...(form.exchangeRate ? { exchangeRate: form.exchangeRate.trim(), rateOverrideReason: form.rateOverrideReason } : {}),
       });
       setCreateOpen(false);
       setPage(1);
@@ -206,26 +233,46 @@ export default function VouchersPage() {
     }
   };
 
-  const doDelete = async () => {
-    if (!deleteTarget) return;
-    setBusy(true);
-    try {
-      await api.del(`/vouchers/${deleteTarget.id}`);
-      setDeleteTarget(null);
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const fmtMoney = (v: string | null | undefined, cur?: string) =>
     v == null
       ? '—'
       : `${Number(v).toLocaleString(locale, { maximumFractionDigits: 2 })}${cur ? ' ' + cur : ''}`;
 
   const invoiceOptions = invoices.filter(
-    (i) => !form.customerId || i.customerId === form.customerId
+    (i) => (!form.customerId || i.customerId === form.customerId) && i.currencyCode === form.currencyCode
   );
+
+  const beginReallocation = (voucher: Voucher) => {
+    setReallocateTarget(voucher);
+    setReallocateRows(voucher.allocations.filter((a) => !a.reversedAt && a.invoiceId)
+      .map((a) => ({ invoiceId: a.invoiceId!, amount: a.amount })));
+    setReallocateReason('');
+    setFormError('');
+  };
+
+  const submitReallocation = async () => {
+    if (!reallocateTarget || !reallocateReason.trim()) return;
+    const rows = reallocateRows.filter((r) => r.invoiceId || r.amount);
+    if (rows.some((r) => !r.invoiceId || positiveCents(r.amount) === null)) {
+      setFormError(t('allocation.invalidLine'));
+      return;
+    }
+    setBusy(true);
+    setFormError('');
+    try {
+      const updated = await api.post<Voucher>(`/vouchers/${reallocateTarget.id}/allocations`, {
+        reason: reallocateReason,
+        allocations: rows.map((r) => ({ invoiceId: r.invoiceId, amount: r.amount.trim() })),
+      });
+      setDetail(updated);
+      setReallocateTarget(null);
+      await load();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : tc('errors.generic'));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -379,16 +426,6 @@ export default function VouchersPage() {
                                 <XCircle className="size-4" />
                               </Button>
                             )}
-                            {v.status === 'CANCELLED' && hasPermission('voucher:delete') && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive"
-                                onClick={() => setDeleteTarget(v)}
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -461,7 +498,7 @@ export default function VouchersPage() {
             <select
               className={SELECT_CLASS + ' w-full'}
               value={form.customerId}
-              onChange={(e) => setForm({ ...form, customerId: e.target.value, invoiceId: '' })}
+              onChange={(e) => { setForm({ ...form, customerId: e.target.value }); setDraftAllocations([]); }}
             >
               <option value="">{t('create.selectCustomer')}</option>
               {customers.map((c) => (
@@ -472,28 +509,42 @@ export default function VouchersPage() {
             </select>
           </div>
           <div className="space-y-1.5">
-            <Label>{t('fields.invoice')}</Label>
-            <select
-              className={SELECT_CLASS + ' w-full'}
-              value={form.invoiceId}
-              onChange={(e) => setForm({ ...form, invoiceId: e.target.value })}
-            >
-              <option value="">{t('create.noInvoice')}</option>
-              {invoiceOptions.map((i) => (
-                <option key={i.id} value={i.id}>
-                  {i.invoiceNumber} — {Number(i.totalAmount).toLocaleString(uiLocale)}{' '}
-                  {i.currencyCode}
-                </option>
-              ))}
+            <Label>{t('allocation.mode')}</Label>
+            <select className={SELECT_CLASS + ' w-full'} value={form.allocationMode}
+              onChange={(e) => setForm({ ...form, allocationMode: e.target.value as 'MANUAL' | 'AUTO' | 'NONE' })}>
+              <option value="MANUAL">{t('allocation.manual')}</option>
+              <option value="AUTO">{t('allocation.automatic')}</option>
+              <option value="NONE">{t('allocation.unallocated')}</option>
             </select>
+            <p className="text-xs text-muted-foreground">{t('allocation.policyHint')}</p>
           </div>
+          {form.allocationMode === 'MANUAL' && (
+            <div className="space-y-2 rounded-md border p-3">
+              <Label>{t('allocation.references')}</Label>
+              {draftAllocations.map((row, index) => (
+                <div key={index} className="flex gap-2">
+                  <select className={SELECT_CLASS + ' min-w-0 flex-1'} value={row.invoiceId}
+                    onChange={(e) => setDraftAllocations(draftAllocations.map((r, i) => i === index ? { ...r, invoiceId: e.target.value } : r))}>
+                    <option value="">{t('create.noInvoice')}</option>
+                    {invoiceOptions.map((i) => (
+                      <option key={i.id} value={i.id}>{i.invoiceNumber} · {Number(i.totalAmount).toLocaleString(uiLocale)} {i.currencyCode}</option>
+                    ))}
+                  </select>
+                  <Input className="w-28" inputMode="decimal" aria-label={t('fields.amount')}
+                    value={row.amount} onChange={(e) => setDraftAllocations(draftAllocations.map((r, i) => i === index ? { ...r, amount: e.target.value } : r))} />
+                  <Button type="button" variant="outline" onClick={() => setDraftAllocations(draftAllocations.filter((_, i) => i !== index))}>−</Button>
+                </div>
+              ))}
+              <Button type="button" size="sm" variant="outline" onClick={() => setDraftAllocations([...draftAllocations, { invoiceId: '', amount: '' }])}>
+                <Plus className="size-4" />{t('allocation.addReference')}
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <Label>{t('fields.amount')}</Label>
               <Input
-                type="number"
-                min="0.01"
-                step="0.01"
+                inputMode="decimal"
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
               />
@@ -515,6 +566,16 @@ export default function VouchersPage() {
               />
             </div>
           </div>
+          {hasPermission('currency_rate:override') && (
+            <div className="grid gap-3 rounded-md border p-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label>{t('allocation.overrideRate')}</Label>
+                <Input inputMode="decimal" value={form.exchangeRate}
+                  onChange={(e) => setForm({ ...form, exchangeRate: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>{t('allocation.overrideReason')}</Label>
+                <Input value={form.rateOverrideReason}
+                  onChange={(e) => setForm({ ...form, rateOverrideReason: e.target.value })} /></div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>{t('fields.reference')}</Label>
             <Input
@@ -595,6 +656,31 @@ export default function VouchersPage() {
                 </Button>
               </div>
             )}
+            <div className="rounded-md border p-3 text-sm">
+              <p className="font-medium">{t('allocation.title')}</p>
+              <p>{t('allocation.allocated')}: {fmtMoney(detail.allocatedAmount, detail.currencyCode)}</p>
+              <p>{t('allocation.remaining')}: {fmtMoney(detail.unallocatedAmount, detail.currencyCode)}</p>
+              {detail.allocations.map((a) => (
+                <p key={a.id} className={a.reversedAt ? 'text-muted-foreground line-through' : ''}>
+                  {a.invoice?.invoiceNumber ?? a.billOfLading?.billNumber ?? a.invoiceId ?? a.billOfLadingId} · {fmtMoney(a.amount, detail.currencyCode)}
+                  {a.reversalReason && ` — ${a.reversalReason}`}
+                </p>
+              ))}
+              {detail.status === 'POSTED' && hasPermission('voucher:allocate') && (
+                <Button variant="outline" size="sm" className="mt-2" onClick={() => beginReallocation(detail)}>
+                  {t('allocation.reallocate')}
+                </Button>
+              )}
+            </div>
+            <div className="rounded-md border p-3 text-sm">
+              <p className="font-medium">{t('allocation.snapshot')}</p>
+              <p>{detail.baseAmount ? `${fmtMoney(detail.baseAmount, detail.baseCurrencyCode ?? '')} · 1 ${detail.currencyCode} = ${detail.exchangeRate} ${detail.baseCurrencyCode}` : t('allocation.legacyMissingRate')}</p>
+              {detail.rateSource && <p>{detail.rateSource} · {detail.rateEffectiveAt ? formatDateTime(detail.rateEffectiveAt, locale) : ''}</p>}
+              {detail.rateOverrideReason && <p>{t('allocation.overrideReason')}: {detail.rateOverrideReason}</p>}
+              {detail.adjustments.map((a) => (
+                <p key={a.id}>{fmtMoney(a.previousAmount, detail.currencyCode)} → {fmtMoney(a.newAmount, detail.currencyCode)} · {a.reason}</p>
+              ))}
+            </div>
             <IdentityAttachmentsPanel entityType="VOUCHER" entityId={detail.id} />
           </div>
         ) : (
@@ -635,20 +721,36 @@ export default function VouchersPage() {
         </div>
       </Dialog>
 
-      {/* delete dialog */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => {
-          if (!o) setDeleteTarget(null);
-        }}
-        title={t('confirm.delete.title')}
-        description={t('confirm.delete.description')}
-        confirmLabel={tc('actions.delete')}
-        destructive
-        loading={busy}
-        onConfirm={() => void doDelete()}
-        error={formError}
-      />
+      {/* Reallocation is an explicit, reasoned change; old references remain visible. */}
+      <Dialog open={!!reallocateTarget} onOpenChange={(open) => { if (!open) setReallocateTarget(null); }}
+        title={t('allocation.reallocate')} description={t('allocation.historyHint')}
+        footer={<>
+          <Button variant="outline" onClick={() => setReallocateTarget(null)}>{tc('actions.cancel')}</Button>
+          <Button disabled={busy || !reallocateReason.trim()} onClick={() => void submitReallocation()}>{t('actions.save')}</Button>
+        </>}>
+        <div className="space-y-3">
+          {reallocateRows.map((row, index) => (
+            <div key={index} className="flex gap-2">
+              <select className={SELECT_CLASS + ' min-w-0 flex-1'} value={row.invoiceId}
+                onChange={(e) => setReallocateRows(reallocateRows.map((r, i) => i === index ? { ...r, invoiceId: e.target.value } : r))}>
+                <option value="">{t('create.noInvoice')}</option>
+                {invoices.filter((i) => i.customerId === reallocateTarget?.customerId && i.currencyCode === reallocateTarget?.currencyCode)
+                  .map((i) => <option key={i.id} value={i.id}>{i.invoiceNumber}</option>)}
+              </select>
+              <Input className="w-28" inputMode="decimal" aria-label={t('fields.amount')}
+                value={row.amount} onChange={(e) => setReallocateRows(reallocateRows.map((r, i) => i === index ? { ...r, amount: e.target.value } : r))} />
+              <Button type="button" variant="outline" onClick={() => setReallocateRows(reallocateRows.filter((_, i) => i !== index))}>−</Button>
+            </div>
+          ))}
+          <Button type="button" variant="outline" size="sm" onClick={() => setReallocateRows([...reallocateRows, { invoiceId: '', amount: '' }])}>
+            <Plus className="size-4" />{t('allocation.addReference')}
+          </Button>
+          <p className="text-xs text-muted-foreground">{t('allocation.emptyAllowed')}</p>
+          <div className="space-y-1.5"><Label>{t('confirm.cancel.reason')}</Label>
+            <Input value={reallocateReason} onChange={(e) => setReallocateReason(e.target.value)} /></div>
+          {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+        </div>
+      </Dialog>
     </div>
   );
 }

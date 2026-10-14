@@ -1,4 +1,6 @@
 import { Transform } from 'class-transformer';
+import { AllocationPolicy } from '@prisma/client';
+import { IsEnum } from 'class-validator';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -90,4 +92,8 @@ export class UpdateCompanySettingsDto {
   @ArrayUnique()
   @Matches(CURRENCY_CODE, { each: true, message: 'Each currency must be an ISO 4217 code' })
   supportedCurrencies?: string[];
+
+  @IsOptional()
+  @IsEnum(AllocationPolicy)
+  allocationPolicy?: AllocationPolicy;
 }

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { AllocationPolicy } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../common/auth/types';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
@@ -18,6 +19,7 @@ export interface CompanySettingsView {
   website: string | null;
   defaultCurrency: string;
   supportedCurrencies: string[];
+  allocationPolicy: AllocationPolicy;
   updatedAt: Date;
 }
 
@@ -49,6 +51,7 @@ type SettingsRow = {
   website: string | null;
   defaultCurrency: string;
   supportedCurrenciesJson: string;
+  allocationPolicy: AllocationPolicy;
   updatedAt: Date;
 };
 
@@ -139,35 +142,35 @@ export class CompanySettingsService {
       ...(dto.companyName ? { companyName: dto.companyName } : {}),
       defaultCurrency,
       supportedCurrenciesJson: JSON.stringify(supported),
+      allocationPolicy: dto.allocationPolicy ?? current?.allocationPolicy ?? AllocationPolicy.MANUAL,
     };
 
     const saved = await this.prisma.$transaction(async (tx) => {
-      if (current) {
-        return tx.companySettings.update({
-          where: { id: current.id },
-          data: { ...data, updatedByUserId: user.id },
-        });
-      }
-      return tx.companySettings.create({
-        data: {
-          ...data,
-          companyName: data.companyName ?? '',
-          createdByUserId: user.id,
-          updatedByUserId: user.id,
-        },
+      const row = current
+        ? await tx.companySettings.update({
+            where: { id: current.id },
+            data: { ...data, updatedByUserId: user.id },
+          })
+        : await tx.companySettings.create({
+            data: {
+              ...data,
+              companyName: data.companyName ?? '',
+              createdByUserId: user.id,
+              updatedByUserId: user.id,
+            },
+          });
+      await this.audit.recordIn(tx, {
+        action: current ? 'company_settings.update' : 'company_settings.create',
+        entityType: 'CompanySettings',
+        entityId: row.id,
+        actorId: user.id,
+        actorEmail: user.email,
+        beforeData: current ? this.toView(current) : null,
+        afterData: this.toView(row),
+        ipAddress: context.ipAddress ?? null,
+        userAgent: context.userAgent ?? null,
       });
-    });
-
-    await this.audit.record({
-      action: current ? 'company_settings.update' : 'company_settings.create',
-      entityType: 'CompanySettings',
-      entityId: saved.id,
-      actorId: user.id,
-      actorEmail: user.email,
-      beforeData: current ? this.toView(current) : null,
-      afterData: this.toView(saved),
-      ipAddress: context.ipAddress ?? null,
-      userAgent: context.userAgent ?? null,
+      return row;
     });
 
     return this.toView(saved);
@@ -188,6 +191,7 @@ export class CompanySettingsService {
       website: row.website,
       defaultCurrency: row.defaultCurrency,
       supportedCurrencies: this.parseSupported(row.supportedCurrenciesJson),
+      allocationPolicy: row.allocationPolicy,
       updatedAt: row.updatedAt,
     };
   }

@@ -10,6 +10,9 @@ import { buildPaginated, parsePagination } from '../../common/utils/pagination.u
 import { AuthenticatedUser } from '../../common/auth/types';
 import { NumberingService } from '../../common/infrastructure/numbering';
 import { allocateInvoiceNumber } from './invoice-number';
+import { ExchangeRateService } from '../finance/exchange-rate.service';
+import { CustomerPostingService } from '../finance/customer-posting.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { recomputeInvoiceTax } from './invoice-tax';
 import {
   AddInvoiceItemDto,
@@ -56,6 +59,13 @@ const listSelect = {
   discountAmount: true,
   totalAmount: true,
   paidAmount: true,
+  baseCurrencyCode: true,
+  baseAmount: true,
+  exchangeRate: true,
+  rateEffectiveAt: true,
+  rateSource: true,
+  currencyRateId: true,
+  rateOverrideReason: true,
   billOfLadingId: true,
   manifestId: true,
   voyageId: true,
@@ -159,6 +169,9 @@ export class InvoiceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
+    private readonly fx: ExchangeRateService,
+    private readonly postings: CustomerPostingService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -508,64 +521,71 @@ export class InvoiceService {
   /**
    * DRAFT -> ISSUED. Requires >= 1 line. Freezes the document (edits become
    * 409); sets issueDate default now. Snapshots the TRN from company settings if the
-   * draft has none. Payments (paidAmount) are Phase 12.
+   * draft has none. New issued invoices snapshot an approved dated rate (or
+   * a permitted, reasoned override); historical invoices remain untouched.
    */
-  async issue(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.invoice.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        deletedAt: true,
-        issueDate: true,
-        trn: true,
-        _count: { select: { items: true } },
-      },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Invoice not found');
-    }
-    this.assertTransition(existing.status, 'ISSUED');
-    if (existing._count.items === 0) {
-      throw new BadRequestException('Cannot issue an invoice with no lines');
-    }
-
-    return this.prisma.invoice.update({
-      where: { id },
-      data: {
-        status: 'ISSUED',
-        issuedAt: new Date(),
-        issuedById: actor?.id,
-        issueDate: existing.issueDate ?? new Date(),
-        trn: existing.trn ?? (await this.companyTrn(this.prisma)),
-      },
-      select: detailSelect,
+  async issue(id: string, actor: AuthenticatedUser, rateOverride?: { rate: string; reason: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.invoice.findUnique({
+        where: { id },
+        select: { id: true, status: true, deletedAt: true, issueDate: true, trn: true,
+          currencyCode: true, totalAmount: true, _count: { select: { items: true } } },
+      });
+      if (!existing || existing.deletedAt) throw new NotFoundException('Invoice not found');
+      this.assertTransition(existing.status, 'ISSUED');
+      if (existing._count.items === 0) throw new BadRequestException('Cannot issue an invoice with no lines');
+      const now = new Date();
+      const issueDate = existing.issueDate ?? now;
+      // Do not invent a conversion for a new invoice: all new transactions
+      // require an approved effective-dated rate or a permitted override.
+      const rate = await this.fx.resolve(tx, existing.currencyCode, issueDate, actor, rateOverride);
+      const changed = await tx.invoice.updateMany({ where: { id, status: 'DRAFT', deletedAt: null }, data: {
+        status: 'ISSUED', issuedAt: now, issuedById: actor.id, issueDate,
+        trn: existing.trn ?? (await this.companyTrn(tx)),
+        baseCurrencyCode: rate.baseCurrencyCode, baseAmount: rate.baseAmount(existing.totalAmount),
+        exchangeRate: rate.exchangeRate, rateEffectiveAt: rate.rateEffectiveAt,
+        rateSource: rate.rateSource, currencyRateId: rate.currencyRateId,
+        rateOverrideReason: rate.rateOverrideReason,
+      } });
+      if (changed.count !== 1) throw new ConflictException('Invoice changed while being issued');
+      const issued = await tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.postings.append(tx, this.postings.invoiceSource(issued), issued.totalAmount, 'ISSUE');
+      await this.audit.recordIn(tx, {
+        action: 'invoice.issue', entityType: 'Invoice', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: { status: 'ISSUED', invoiceNumber: issued.invoiceNumber,
+          currencyCode: issued.currencyCode, totalAmount: issued.totalAmount.toFixed(2),
+          baseCurrencyCode: rate.baseCurrencyCode,
+          baseAmount: rate.baseAmount(existing.totalAmount).toFixed(2),
+          exchangeRate: rate.exchangeRate.toString(),
+          rateEffectiveAt: rate.rateEffectiveAt, rateSource: rate.rateSource,
+          rateOverrideReason: rate.rateOverrideReason },
+      });
+      return issued;
     });
   }
 
-  /** DRAFT|ISSUED -> CANCELLED. Reason required. Terminal. */
-  async cancel(id: string, dto: CancelInvoiceDto, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.invoice.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Invoice not found');
-    }
-    this.assertTransition(existing.status, 'CANCELLED');
-    if (!dto.cancelReason?.trim()) {
-      throw new BadRequestException('A cancellation reason is required');
-    }
-
-    return this.prisma.invoice.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason.trim(),
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
-      },
-      select: detailSelect,
+  /** DRAFT|ISSUED -> CANCELLED. The shadow posting reverses the issued amount. */
+  async cancel(id: string, dto: CancelInvoiceDto, actor: AuthenticatedUser) {
+    if (!dto.cancelReason?.trim()) throw new BadRequestException('A cancellation reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.invoice.findUnique({ where: { id } });
+      if (!existing || existing.deletedAt) throw new NotFoundException('Invoice not found');
+      this.assertTransition(existing.status, 'CANCELLED');
+      const now = new Date();
+      const changed = await tx.invoice.updateMany({ where: { id, status: existing.status, deletedAt: null }, data: {
+        status: 'CANCELLED', cancelReason: dto.cancelReason.trim(), cancelledAt: now, cancelledById: actor.id,
+      } });
+      if (changed.count !== 1) throw new ConflictException('Invoice changed while being cancelled');
+      if (existing.status === 'ISSUED') {
+        await this.postings.append(tx, this.postings.invoiceSource(existing), existing.totalAmount.negated(), 'CANCEL');
+      }
+      const cancelled = await tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.audit.recordIn(tx, {
+        action: 'invoice.cancel', entityType: 'Invoice', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing.status, totalAmount: existing.totalAmount.toFixed(2) },
+        afterData: { status: 'CANCELLED', reason: dto.cancelReason.trim(), cancelledAt: now },
+      });
+      return cancelled;
     });
   }
 

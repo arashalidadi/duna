@@ -108,6 +108,7 @@ describe('Proforma (e2e)', () => {
       const custIds = customers.map((c: { id: string }) => c.id);
       await prisma.proformaItem.deleteMany({ where: { proforma: { customerId: { in: custIds } } } });
       await prisma.proforma.deleteMany({ where: { customerId: { in: custIds } } });
+      await prisma.customerPosting.deleteMany({ where: { customerId: { in: custIds } } });
       await prisma.invoiceItem.deleteMany({ where: { invoice: { customerId: { in: custIds } } } });
       await prisma.invoice.deleteMany({ where: { customerId: { in: custIds } } });
       await prisma.customer.deleteMany({ where: { id: { in: custIds } } });

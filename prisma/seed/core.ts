@@ -28,15 +28,22 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   // ==========================================================================
   const usd = await prisma.currency.upsert({
     where: { code: 'USD' },
-    update: { name: 'US Dollar', symbol: '$', isActive: true, sortOrder: 1 },
+    update: {}, // never reactivate or overwrite administrator-managed currencies
     create: { code: 'USD', name: 'US Dollar', symbol: '$', isActive: true, sortOrder: 1 },
   });
   const aed = await prisma.currency.upsert({
     where: { code: 'AED' },
-    update: { name: 'UAE Dirham', symbol: 'د.إ', isActive: true, sortOrder: 2 },
+    update: {},
     create: { code: 'AED', name: 'UAE Dirham', symbol: 'د.إ', isActive: true, sortOrder: 2 },
   });
-  console.log(`  Currencies seeded: ${usd.code}, ${aed.code}`);
+  for (const currency of [
+    { code: 'AUD', name: 'Australian Dollar', symbol: 'A$', sortOrder: 3 },
+    { code: 'CNY', name: 'Chinese Yuan', symbol: '¥', sortOrder: 4 },
+    { code: 'IRR', name: 'Iranian Rial', symbol: '﷼', sortOrder: 5 },
+  ]) {
+    await prisma.currency.upsert({ where: { code: currency.code }, update: {}, create: currency });
+  }
+  console.log(`  Reference currencies available: ${usd.code}, ${aed.code}, AUD, CNY, IRR`);
 
   // ==========================================================================
   // Permissions (foundational RBAC vocabulary — Phase 2)
@@ -47,8 +54,22 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     { code: 'dashboard:read', module: 'dashboard', action: 'read' },
     // Auth & account access
     { code: 'auth:read', module: 'auth', action: 'read' },
-    // Currency reference (read-only)
+    // Phase 6 financial master data and independent posting/override authority.
     { code: 'currency:read', module: 'currency', action: 'read' },
+    { code: 'currency:manage', module: 'currency', action: 'manage' },
+    { code: 'currency_rate:read', module: 'currency_rate', action: 'read' },
+    { code: 'currency_rate:create', module: 'currency_rate', action: 'create' },
+    { code: 'currency_rate:update', module: 'currency_rate', action: 'update' },
+    { code: 'currency_rate:approve', module: 'currency_rate', action: 'approve' },
+    { code: 'currency_rate:override', module: 'currency_rate', action: 'override' },
+    { code: 'account:manage', module: 'account', action: 'manage' },
+    { code: 'journal:read', module: 'journal', action: 'read' },
+    { code: 'ledger:reconcile', module: 'ledger', action: 'reconcile' },
+    { code: 'journal:post', module: 'journal', action: 'post' },
+    { code: 'journal:reverse', module: 'journal', action: 'reverse' },
+    { code: 'expense:post', module: 'expense', action: 'post' },
+    { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
+    { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management
     { code: 'user:read', module: 'user', action: 'read' },
     { code: 'user:create', module: 'user', action: 'create' },

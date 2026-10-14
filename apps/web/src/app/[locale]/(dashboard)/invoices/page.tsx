@@ -107,6 +107,7 @@ interface ItemDraft {
 export default function InvoicesPage() {
   const ui = useUiTranslations('legacyUi');
   const t = useTranslations('invoice');
+  const finance = useTranslations('financeUi');
   const tNav = useTranslations('nav');
   const { hasPermission } = useAuth();
   const locale = useLocale();
@@ -157,6 +158,8 @@ export default function InvoicesPage() {
   const [addError, setAddError] = useState<string | null>(null);
 
   const [confirmIssue, setConfirmIssue] = useState(false);
+  const [issueRate, setIssueRate] = useState('');
+  const [issueRateReason, setIssueRateReason] = useState('');
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -430,8 +433,10 @@ export default function InvoicesPage() {
     if (!viewingId) return;
     setConfirmIssue(false);
     try {
-      const d = await api.post<InvoiceDetail>(`/invoices/${viewingId}/issue`, {});
+      const d = await api.post<InvoiceDetail>(`/invoices/${viewingId}/issue`, issueRate.trim()
+        ? { exchangeRate: issueRate.trim(), rateOverrideReason: issueRateReason.trim() } : {});
       setDetail(d);
+      setIssueRate(''); setIssueRateReason('');
     } catch (e) {
       setActionError(e instanceof ApiError ? e.message : ui('failedToIssue'));
     }
@@ -944,6 +949,13 @@ export default function InvoicesPage() {
                   <p className="text-base font-semibold">{fmtMoney(detail.paidAmount, locale)}</p>
                 </div>
               </div>
+              {detail.baseAmount != null && <p className="rounded-md border p-3 text-sm">
+                {finance('baseEquivalent')}: {fmtMoney(detail.baseAmount, locale)} {detail.baseCurrencyCode} ·
+                {finance('rate')}: {detail.exchangeRate} · {detail.rateSource}
+                {detail.rateEffectiveAt && ` · ${formatDateTime(detail.rateEffectiveAt, locale)}`}
+                {detail.rateOverrideReason && ` · ${finance('reason')}: ${detail.rateOverrideReason}`}
+              </p>}
+              {isIssued && detail.baseAmount == null && <p className="text-xs text-muted-foreground">{finance('legacyNoFx')}</p>}
               {isIssued && (
                 <div className="flex items-center justify-end">
                   {paid ? (
@@ -1280,14 +1292,23 @@ export default function InvoicesPage() {
       </Dialog>
 
       {/* Confirm dialogs */}
-      <ConfirmDialog
-        open={confirmIssue}
-        onOpenChange={setConfirmIssue}
-        title={t('confirm.issue.title')}
-        description={t('confirm.issue.description')}
-        confirmLabel={t('actions.issue')}
-        onConfirm={() => void issueInvoice()}
-      />
+      <Dialog open={confirmIssue} onOpenChange={setConfirmIssue}
+        title={t('confirm.issue.title')} description={t('confirm.issue.description')}
+        footer={<>
+          <Button variant="outline" onClick={() => setConfirmIssue(false)}>{t('actions.close')}</Button>
+          <Button onClick={() => void issueInvoice()} disabled={!!issueRate.trim() && !issueRateReason.trim()}>
+            {t('actions.issue')}</Button>
+        </>}>
+        <p className="text-sm text-muted-foreground">{finance('invoiceRateHint')}</p>
+        {hasPermission('currency_rate:override') && <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div><Label htmlFor="invoice-issue-rate">{finance('rateOverride')}</Label>
+            <Input id="invoice-issue-rate" inputMode="decimal" value={issueRate}
+              onChange={(e) => setIssueRate(e.target.value)} /></div>
+          <div><Label htmlFor="invoice-issue-reason">{finance('reason')}</Label>
+            <Input id="invoice-issue-reason" value={issueRateReason}
+              onChange={(e) => setIssueRateReason(e.target.value)} /></div>
+        </div>}
+      </Dialog>
       <Dialog
         open={confirmCancel}
         onOpenChange={setConfirmCancel}

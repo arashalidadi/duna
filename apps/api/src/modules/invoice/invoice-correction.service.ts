@@ -12,6 +12,7 @@ import { NumberingService } from '../../common/infrastructure/numbering';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { allocateInvoiceNumber } from './invoice-number';
 import { recomputeInvoiceTax } from './invoice-tax';
+import { CustomerPostingService } from '../finance/customer-posting.service';
 
 /**
  * Phase 3 — controlled invoice correction (DEC-019…023, DEC-102).
@@ -53,6 +54,7 @@ export class InvoiceCorrectionService {
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
+    private readonly postings: CustomerPostingService,
   ) {}
 
   /** Corrections where the invoice is the original or the replacement. */
@@ -251,6 +253,7 @@ export class InvoiceCorrectionService {
     if (cancelled.count !== 1) {
       throw new ConflictException('Invoice changed while the correction was applied; retry');
     }
+    await this.postings.append(tx, this.postings.invoiceSource(original), original.totalAmount.negated(), 'CANCEL');
 
     // 2) Replacement: a new DRAFT with the next INV number. Money is recomputed for the DRAFT
     //    only; the original keeps its stored figures.

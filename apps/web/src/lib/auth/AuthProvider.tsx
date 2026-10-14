@@ -184,13 +184,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, [applyUser]);
 
+  // The single company owner has implicit full authority on the API; the UI
+  // must not hide newly introduced finance screens while reference grants are
+  // being seeded. Ordinary administrators still need actual role permissions.
   const hasPermission = useCallback(
-    (permission: string) => permissions.includes(permission),
-    [permissions]
+    (permission: string) => user?.isPrimaryAdmin === true || permissions.includes(permission),
+    [permissions, user?.isPrimaryAdmin]
   );
   const hasAnyPermission = useCallback(
-    (perms: string[]) => perms.some((p) => permissions.includes(p)),
-    [permissions]
+    (perms: string[]) => user?.isPrimaryAdmin === true || perms.some((p) => permissions.includes(p)),
+    [permissions, user?.isPrimaryAdmin]
   );
 
   const value = useMemo<AuthContextValue>(

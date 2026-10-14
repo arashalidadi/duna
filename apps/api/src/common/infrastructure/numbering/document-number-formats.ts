@@ -30,6 +30,7 @@ export const PERIODIC_DOCUMENT_FORMATS = {
   INVOICE: { code: 'INV', documentType: 'INVOICE', sequenceFamily: 'invoice', clock: 'utc' },
   PROFORMA: { code: 'PRF', documentType: 'PROFORMA', sequenceFamily: 'proforma', clock: 'utc' },
   QUOTATION: { code: 'QT', documentType: 'QUOTATION', sequenceFamily: 'quotation', clock: 'utc' },
+  GENERAL_JOURNAL: { code: 'JRN', documentType: 'GENERAL_JOURNAL', sequenceFamily: 'journal', clock: 'utc' },
   VOUCHER_RECEIPT: {
     code: 'RCP',
     documentType: 'VOUCHER_RECEIPT',

@@ -14,6 +14,8 @@ export interface CurrentUser {
   email: string;
   fullName: string;
   isActive: boolean;
+  /** The single owner; server authority is still resolved independently. */
+  isPrimaryAdmin: boolean;
   lastLoginAt: string | null;
   passwordChangedAt: string | null;
   roles: AuthUserRole[];

@@ -106,6 +106,11 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'Company identity, TRN and currencies',
         requiredPermission: 'settings:read',
       },
+      {
+        labelKey: 'rateManagement', href: '/currency-rates', icon: Globe,
+        status: 'implemented', description: 'Currency rates and allocation policy',
+        requiredPermission: 'currency_rate:read',
+      },
     ],
   },
   {
@@ -268,8 +273,13 @@ export const NAV_SECTIONS: NavSection[] = [
         href: '/ledger',
         icon: BookOpen,
         status: 'implemented',
-        description: 'Customer statements / ledger',
+        description: 'Customer statements (derived)',
         requiredPermission: 'ledger:read',
+      },
+      {
+        labelKey: 'generalLedger', href: '/accounting', icon: ScrollText,
+        status: 'implemented', description: 'General journal and office expenses',
+        requiredPermission: 'journal:read',
       },
       {
         labelKey: 'delivery',

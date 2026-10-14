@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -19,6 +20,7 @@ import {
   AddInvoiceItemDto,
   CancelInvoiceDto,
   CreateInvoiceDto,
+  IssueInvoiceDto,
   ListInvoiceQueryDto,
   UpdateInvoiceDto,
   UpdateInvoiceItemDto,
@@ -80,8 +82,12 @@ export class InvoiceController {
   @Post(':id/issue')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('invoice:issue')
-  issue(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.issue(id, user);
+  issue(@Param('id') id: string, @Body() dto: IssueInvoiceDto, @CurrentUser() user: AuthenticatedUser) {
+    if (dto?.rateOverrideReason && dto.exchangeRate === undefined) {
+      throw new BadRequestException('Rate override reason requires an overridden rate');
+    }
+    return this.service.issue(id, user, dto?.exchangeRate !== undefined
+      ? { rate: dto.exchangeRate, reason: dto.rateOverrideReason ?? '' } : undefined);
   }
 
   @Post(':id/cancel')

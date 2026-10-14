@@ -22,8 +22,20 @@ export interface Voucher {
   /** Always positive; sign comes from type. Money Decimal(18,2) as string. */
   amount: string;
   currencyCode: string;
-  /** Rate at voucher date; 1 = no conversion. Decimal(10,4) as string. */
+  /** Base-currency units per 1 original unit. Decimal(24,12), immutable at posting. */
   exchangeRate: string;
+  /** Null on genuinely historical records lacking verifiable FX provenance. */
+  baseCurrencyCode: string | null;
+  baseAmount: string | null;
+  rateEffectiveAt: string | null;
+  rateSource: string | null;
+  currencyRateId: string | null;
+  rateOverrideReason: string | null;
+  billOfLadingId: string | null;
+  allocatedAmount: string;
+  unallocatedAmount: string;
+  allocations: VoucherAllocation[];
+  adjustments: VoucherAmountAdjustment[];
   method: VoucherMethod;
   /** Cheque / transfer trace number. */
   reference: string | null;
@@ -37,12 +49,37 @@ export interface Voucher {
   createdAt: string;
   updatedAt: string;
   customer?: { id: string; name: string } | null;
-  invoice?: { id: string; invoiceNumber: string; status: string; totalAmount: string } | null;
+  invoice?: { id: string; invoiceNumber: string; status: string; totalAmount: string; paidAmount?: string } | null;
   createdBy?: { id: string; fullName: string } | null;
   cancelledBy?: { id: string; fullName: string } | null;
 }
 
-/** Ledger/statement line — unified journal entry derived from invoices + vouchers. */
+export interface VoucherAllocation {
+  id: string;
+  invoiceId: string | null;
+  billOfLadingId: string | null;
+  amount: string;
+  createdAt: string;
+  createdById: string | null;
+  reversedAt: string | null;
+  reversedById: string | null;
+  reversalReason: string | null;
+  invoice?: { id: string; invoiceNumber: string } | null;
+  billOfLading?: { id: string; billNumber: string } | null;
+}
+
+export interface VoucherAmountAdjustment {
+  id: string;
+  previousAmount: string;
+  newAmount: string;
+  previousBaseAmount: string | null;
+  newBaseAmount: string | null;
+  reason: string;
+  createdById: string;
+  createdAt: string;
+}
+
+/** Legacy derived statement. Shadow postings are reconciled before any read-path change. */
 export interface LedgerEntry {
   /** Sortable ISO date for the entry. */
   date: string;
@@ -53,10 +90,11 @@ export interface LedgerEntry {
   description: string;
   /** Debit: customer owes more (invoice issued). 0 when credit side. */
   debit: string;
-  /** Credit: customer settled (RECEIPT posted). 0 when debit side. */
+  /** Legacy derived credit: any POSTED voucher, including PAYMENT. Kept unchanged pending reconciliation. */
   credit: string;
   /** Running balance in the requested currency (owes more = positive). */
   balance: string;
+  currencyCode?: string;
   invoiceId: string | null;
   voucherId: string | null;
 }
@@ -71,15 +109,23 @@ export interface LedgerSummary {
   totalCredit: string;
   closingBalance: string;
   currencyCode: string;
+  /** When MIXED, the numeric legacy aggregate must not be treated as money. */
+  currencyTotals?: Record<string, { openingBalance: string; totalDebit: string; totalCredit: string; closingBalance: string }>;
+  warning?: string;
 }
 
 export interface CreateVoucherDto {
   type: VoucherType;
   customerId: string;
   invoiceId?: string;
-  amount: number;
+  billOfLadingId?: string;
+  /** Prefer decimal strings; numeric JSON remains accepted for older clients. */
+  allocations?: { invoiceId?: string; billOfLadingId?: string; amount: string | number }[];
+  allocationMode?: 'MANUAL' | 'AUTO' | 'NONE';
+  amount: string | number;
   currencyCode?: string;
-  exchangeRate?: number;
+  exchangeRate?: string | number;
+  rateOverrideReason?: string;
   method?: VoucherMethod;
   reference?: string;
   description?: string;

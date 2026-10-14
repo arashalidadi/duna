@@ -229,7 +229,8 @@ describe('Invoice Phase 3 (e2e)', () => {
     const id = await newDraft({ taxRate: 5, trn: `TRN-${tag}` });
     await addLine(id, 'Freight', 1000);
     await addLine(id, 'Handling', 250, 0);
-    await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken)).expect(200);
+    await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated Phase 3 E2E FX ${tag}` }).expect(200);
 
     const before = await getInvoice(id);
     const snap = {
@@ -320,7 +321,8 @@ describe('Invoice Phase 3 (e2e)', () => {
   it('correction requires invoice:correct (403 without it) and a reason (400 when blank)', async () => {
     const id = await newDraft();
     await addLine(id, 'Item', 10);
-    await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken)).expect(200);
+    await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated Phase 3 E2E FX ${tag}` }).expect(200);
     await api()
       .post(`/api/v1/invoices/${id}/corrections`)
       .set(auth(noCorrectToken))
@@ -350,7 +352,8 @@ describe('Invoice Phase 3 (e2e)', () => {
       // Case 1: requested by a non-owner user, refused self-approval, approved by another user.
       const id = await newDraft();
       await addLine(id, 'Item', 75, 5);
-      await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken)).expect(200);
+      await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated Phase 3 E2E FX ${tag}` }).expect(200);
       const issued = await getInvoice(id);
 
       const req = await api()
@@ -382,7 +385,8 @@ describe('Invoice Phase 3 (e2e)', () => {
       // Case 2: requested by the non-owner user, rejected by ADMIN; the original stays ISSUED.
       const id2 = await newDraft();
       await addLine(id2, 'Item', 20);
-      await api().post(`/api/v1/invoices/${id2}/issue`).set(auth(adminToken)).expect(200);
+      await api().post(`/api/v1/invoices/${id2}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated Phase 3 E2E FX ${tag}` }).expect(200);
       const req2 = await api()
         .post(`/api/v1/invoices/${id2}/corrections`)
         .set(auth(requesterToken))
@@ -424,7 +428,8 @@ describe('Invoice Phase 3 (e2e)', () => {
     try {
       const id = await newDraft();
       await addLine(id, 'Item', 30);
-      await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken)).expect(200);
+      await api().post(`/api/v1/invoices/${id}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated Phase 3 E2E FX ${tag}` }).expect(200);
       const req = await api()
         .post(`/api/v1/invoices/${id}/corrections`)
         .set(auth(adminToken))

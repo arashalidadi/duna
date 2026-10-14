@@ -183,6 +183,13 @@ model UserRole {
 // Company & Money
 // ---------------------------------------------------------------------------
 
+// Company-wide default. NONE/MANUAL lets a receipt remain an unapplied advance.
+enum AllocationPolicy {
+  MANUAL
+  OLDEST_DUE
+  OLDEST_ISSUED
+}
+
 model CompanySettings {
   id                      String   @id @default(cuid())
   companyName             String
@@ -198,12 +205,39 @@ model CompanySettings {
   timezone                String   @default("Asia/Dubai")
   defaultCurrency         String   @default("USD")
   supportedCurrenciesJson String   @default("[\"USD\",\"AED\"]")
+  allocationPolicy        AllocationPolicy @default(MANUAL)
   // DEC-022 — manager approval for invoice corrections is configuration. Default off.
   invoiceCorrectionApprovalRequired Boolean @default(false)
   createdByUserId         String?
   updatedByUserId         String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
+}
+
+enum CurrencyRateStatus {
+  DRAFT
+  APPROVED
+}
+
+// 1 unit of currencyCode buys `rate` units of baseCurrencyCode. Effective at
+// the given UTC instant, inclusive. Approved rows are immutable.
+model CurrencyRate {
+  id               String             @id @default(cuid())
+  currencyCode     String
+  baseCurrencyCode String
+  rate             Decimal            @db.Decimal(24, 12)
+  effectiveAt      DateTime
+  source           String
+  status           CurrencyRateStatus @default(DRAFT)
+  createdById      String
+  approvedById     String?
+  approvedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@unique([currencyCode, baseCurrencyCode, effectiveAt])
+  @@index([currencyCode, baseCurrencyCode, status, effectiveAt])
+  @@map("currency_rates")
 }
 
 model Currency {
@@ -1372,6 +1406,8 @@ model BillOfLading {
   @@index([createdAt])
   @@index([createdById])
   invoiceLinks InvoiceBill[]
+  vouchers Voucher[] @relation("VoucherBill")
+  voucherAllocations VoucherAllocation[]
 
   @@map("bills_of_lading")
 }
@@ -1500,6 +1536,15 @@ model Invoice {
   correctionsAsOriginal   InvoiceCorrection[] @relation("CorrectionOriginal")
   correctionAsReplacement InvoiceCorrection?  @relation("CorrectionReplacement")
   vouchers          Voucher[]     @relation("VoucherInvoice")
+  allocations       VoucherAllocation[]
+  // Nullable on old invoices: historic FX cannot be reconstructed honestly.
+  baseCurrencyCode  String?
+  baseAmount        Decimal? @db.Decimal(24, 2)
+  exchangeRate      Decimal? @db.Decimal(24, 12)
+  rateEffectiveAt   DateTime?
+  rateSource        String?
+  currencyRateId    String?
+  rateOverrideReason String?
   createdBy         User?         @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   issuedBy          User?         @relation("InvoiceIssuedBy", fields: [issuedById], references: [id])
   cancelledBy       User?         @relation("InvoiceCancelledBy", fields: [cancelledById], references: [id])
@@ -1906,11 +1951,19 @@ model Voucher {
 
   amount       Decimal       @db.Decimal(18, 2) // always positive; sign comes from type
   currencyCode String        @default("USD") @map("currencyCode") // must match invoice currency when linked
-  exchangeRate Decimal       @default(1) @db.Decimal(10, 4)
+  exchangeRate Decimal       @default(1) @db.Decimal(24, 12)
   method       VoucherMethod @default(BANK_TRANSFER)
   reference    String? // cheque / transfer trace number
   description  String? // ledger line description
   note         String?
+  billOfLadingId String? // optional, historical document reference
+  // Snapshots are nullable only for vouchers created before Phase 6.
+  baseCurrencyCode String?
+  baseAmount       Decimal? @db.Decimal(24, 2)
+  rateEffectiveAt  DateTime?
+  rateSource       String?
+  currencyRateId   String?
+  rateOverrideReason String?
   voucherDate  DateTime      @map("voucherDate") // value date (legacy fromdate)
 
   cancelReason String? @map("cancelReason") // required on cancellation
@@ -1925,11 +1978,15 @@ model Voucher {
 
   customer    Customer? @relation("VoucherCustomer", fields: [customerId], references: [id])
   invoice     Invoice?  @relation("VoucherInvoice", fields: [invoiceId], references: [id])
+  billOfLading BillOfLading? @relation("VoucherBill", fields: [billOfLadingId], references: [id])
+  allocations VoucherAllocation[]
+  adjustments VoucherAmountAdjustment[]
   createdBy   User?     @relation("VoucherCreatedBy", fields: [createdById], references: [id])
   cancelledBy User?     @relation("VoucherCancelledBy", fields: [cancelledById], references: [id])
 
   @@index([customerId])
   @@index([invoiceId])
+  @@index([billOfLadingId])
   @@index([voyageId])
   @@index([type])
   @@index([status])
@@ -1937,6 +1994,143 @@ model Voucher {
   @@index([createdAt])
   @@index([createdById])
   @@map("vouchers")
+}
+
+// Per-reference original-currency allocations. Reallocation reverses the old rows
+// (reason + actor + timestamp) and appends replacements; amounts never change.
+model VoucherAllocation {
+  id              String   @id @default(cuid())
+  voucherId       String
+  invoiceId       String?
+  billOfLadingId  String?
+  amount          Decimal  @db.Decimal(18, 2)
+  createdById     String?
+  createdAt       DateTime @default(now())
+  reversedAt      DateTime?
+  reversedById    String?
+  reversalReason  String?
+
+  voucher       Voucher       @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  billOfLading  BillOfLading? @relation(fields: [billOfLadingId], references: [id], onDelete: Restrict)
+
+  @@index([voucherId, reversedAt])
+  @@index([invoiceId, reversedAt])
+  @@index([billOfLadingId, reversedAt])
+  @@map("voucher_allocations")
+}
+
+model VoucherAmountAdjustment {
+  id            String @id @default(cuid())
+  voucherId     String
+  previousAmount Decimal @db.Decimal(18, 2)
+  newAmount      Decimal @db.Decimal(18, 2)
+  previousBaseAmount Decimal? @db.Decimal(24, 2)
+  newBaseAmount Decimal? @db.Decimal(24, 2)
+  reason        String
+  createdById   String
+  createdAt     DateTime @default(now())
+  voucher       Voucher @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+
+  @@index([voucherId, createdAt])
+  @@map("voucher_amount_adjustments")
+}
+
+// Shadow customer subledger: immutable postings copied from the *existing*
+// derived statement. eventKey prevents a source from posting twice. Source IDs
+// are snapshots so test fixture cleanup or legacy direct deletion cannot cascade
+// away financial evidence. The live statement remains on invoices/vouchers.
+model CustomerPosting {
+  id            String   @id @default(cuid())
+  eventKey      String   @unique
+  sourceType    String
+  sourceId      String
+  customerId    String
+  currencyCode  String
+  effectiveAt   DateTime
+  debit         Decimal  @default(0) @db.Decimal(18, 2)
+  credit        Decimal  @default(0) @db.Decimal(18, 2)
+  createdAt     DateTime @default(now())
+
+  @@index([customerId, currencyCode, effectiveAt])
+  @@index([sourceType, sourceId])
+  @@map("customer_postings")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model Account {
+  id          String @id @default(cuid())
+  code        String @unique
+  name        String
+  type        AccountType
+  isActive    Boolean @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lines       JournalLine[]
+
+  @@index([type, isActive])
+  @@map("accounts")
+}
+
+enum JournalKind {
+  GENERAL
+  OFFICE_EXPENSE
+}
+
+model GeneralJournal {
+  id                 String @id @default(cuid())
+  journalNumber      String @unique
+  kind               JournalKind @default(GENERAL)
+  journalDate        DateTime
+  description        String
+  reference          String?
+  currencyCode       String
+  baseCurrencyCode   String
+  exchangeRate       Decimal @db.Decimal(24, 12)
+  rateEffectiveAt    DateTime
+  rateSource         String
+  currencyRateId     String?
+  rateOverrideReason String?
+  createdById        String
+  createdAt          DateTime @default(now())
+  reversalOfId       String? @unique
+  reversedAt         DateTime?
+  reversedById       String?
+  reversalReason     String?
+  lines              JournalLine[]
+  reversalOf         GeneralJournal? @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversal           GeneralJournal? @relation("JournalReversal")
+
+  @@index([journalDate])
+  @@index([kind])
+  @@map("general_journals")
+}
+
+model JournalLine {
+  id          String @id @default(cuid())
+  journalId   String
+  accountId   String
+  customerId  String?
+  debit       Decimal @default(0) @db.Decimal(18, 2)
+  credit      Decimal @default(0) @db.Decimal(18, 2)
+  baseDebit   Decimal @default(0) @db.Decimal(24, 2)
+  baseCredit  Decimal @default(0) @db.Decimal(24, 2)
+  memo        String?
+  journal     GeneralJournal @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  account     Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalId])
+  @@index([accountId])
+  @@index([customerId])
+  @@map("journal_lines")
 }
 
 // ─── Phase 13: Delivery Order (D/O) & Release Order (R/O) ────────────────────

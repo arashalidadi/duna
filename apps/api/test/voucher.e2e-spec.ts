@@ -119,7 +119,8 @@ describe('Vouchers & Ledger (e2e)', () => {
     draftInvoiceId = await mkInvoice(300);
     await request(app.getHttpServer()).post(`/api/v1/invoices/${invoiceId}/issue`).set(auth(adminToken)).send({}).expect(200);
     await request(app.getHttpServer()).post(`/api/v1/invoices/${invoice2Id}/issue`).set(auth(adminToken)).send({}).expect(200);
-    await request(app.getHttpServer()).post(`/api/v1/invoices/${aedInvoiceId}/issue`).set(auth(adminToken)).send({}).expect(200);
+    await request(app.getHttpServer()).post(`/api/v1/invoices/${aedInvoiceId}/issue`).set(auth(adminToken))
+      .send({ exchangeRate: '0.27', rateOverrideReason: `Isolated voucher E2E FX ${tag}` }).expect(200);
   }, 120000);
 
   afterAll(async () => {
@@ -127,6 +128,10 @@ describe('Vouchers & Ledger (e2e)', () => {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       const custIds = createdCustomers.map((c) => c.id);
+      // Remove ONLY this suite's own financial fixtures before their source rows.
+      await prisma.voucherAmountAdjustment.deleteMany({ where: { voucher: { customerId: { in: custIds } } } });
+      await prisma.voucherAllocation.deleteMany({ where: { voucher: { customerId: { in: custIds } } } });
+      await prisma.customerPosting.deleteMany({ where: { customerId: { in: custIds } } });
       await prisma.voucher.deleteMany({ where: { customerId: { in: custIds } } });
       await prisma.invoiceItem.deleteMany({ where: { invoice: { customerId: { in: custIds } } } });
       await prisma.invoice.deleteMany({ where: { customerId: { in: custIds } } });
@@ -254,6 +259,43 @@ describe('Vouchers & Ledger (e2e)', () => {
     expect(res.body.data.invoiceId).toBeNull();
   });
 
+  it('allocates one receipt to two invoices, keeps partial/unallocated credit, and audits reallocation', async () => {
+    const makeIsolatedInvoice = async (amount: number) => {
+      const res = await request(app.getHttpServer()).post('/api/v1/invoices').set(auth(adminToken))
+        .send({ customerId: customer2Id, currencyCode: 'USD', taxRate: 0 }).expect(201);
+      createdInvoices.push({ id: res.body.data.id });
+      await request(app.getHttpServer()).post(`/api/v1/invoices/${res.body.data.id}/items`)
+        .set(auth(adminToken)).send({ description: 'fixture', unitPrice: amount, quantity: 1 }).expect(201);
+      await request(app.getHttpServer()).post(`/api/v1/invoices/${res.body.data.id}/issue`)
+        .set(auth(adminToken)).send({}).expect(200);
+      return res.body.data.id as string;
+    };
+    const first = await makeIsolatedInvoice(40);
+    const second = await makeIsolatedInvoice(60);
+    const posted = await request(app.getHttpServer()).post('/api/v1/vouchers').set(auth(adminToken))
+      .send({ type: 'RECEIPT', customerId: customer2Id, amount: 100, currencyCode: 'USD',
+        allocationMode: 'MANUAL', allocations: [
+          { invoiceId: first, amount: 25 }, { invoiceId: second, amount: 30 },
+        ] }).expect(201);
+    expect(posted.body.data.allocatedAmount).toBe('55.00');
+    expect(posted.body.data.unallocatedAmount).toBe('45.00');
+    expect((await request(app.getHttpServer()).get(`/api/v1/invoices/${first}`)
+      .set(auth(adminToken)).expect(200)).body.data.paidAmount).toBe('25.00');
+    const reallocated = await request(app.getHttpServer())
+      .post(`/api/v1/vouchers/${posted.body.data.id}/allocations`).set(auth(adminToken))
+      .send({ reason: 'Correct fixture split', allocations: [
+        { invoiceId: first, amount: 20 }, { invoiceId: second, amount: 35 },
+      ] }).expect(201);
+    expect(reallocated.body.data.allocations.filter((a: { reversedAt: string | null }) => a.reversedAt)).toHaveLength(2);
+    expect(reallocated.body.data.unallocatedAmount).toBe('45.00');
+    expect((await request(app.getHttpServer()).get(`/api/v1/invoices/${second}`)
+      .set(auth(adminToken)).expect(200)).body.data.paidAmount).toBe('35.00');
+    const unallocated = await request(app.getHttpServer()).post('/api/v1/vouchers').set(auth(adminToken))
+      .send({ type: 'RECEIPT', customerId: customer2Id, amount: 15, currencyCode: 'USD', allocationMode: 'NONE' })
+      .expect(201);
+    expect(unallocated.body.data.unallocatedAmount).toBe('15.00');
+  });
+
   it('creates a PAYMENT (refund) decreasing paidAmount; PMT numbering', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/vouchers')
@@ -284,20 +326,32 @@ describe('Vouchers & Ledger (e2e)', () => {
     expect(one.body.data.amount).toBe('400.00');
   });
 
-  it('update requires voucher:update; amount edit recomputes paidAmount; CANCELLED frozen', async () => {
+  it('freezes posted financial fields; explicit adjustment and reallocation leave audited history', async () => {
     await request(app.getHttpServer())
       .patch(`/api/v1/vouchers/${rcp1Id}`)
       .set(auth(readerToken))
       .send({ reference: 'nope' })
       .expect(403);
-
     await request(app.getHttpServer())
       .patch(`/api/v1/vouchers/${rcp1Id}`)
       .set(auth(adminToken))
-      .send({ amount: 500, reference: `TRX-${tag}-A` })
-      .expect(200);
+      .send({ amount: 500 }).expect(409);
+    await request(app.getHttpServer())
+      .post(`/api/v1/vouchers/${rcp1Id}/adjust`)
+      .set(auth(adminToken))
+      .send({ amount: 500, reason: 'Correct bank amount' }).expect(201);
+    const credit = await request(app.getHttpServer()).get(`/api/v1/vouchers/${rcp1Id}`).set(auth(adminToken)).expect(200);
+    expect(credit.body.data.adjustments).toHaveLength(1);
+    expect(credit.body.data.unallocatedAmount).toBe('100.00');
+    await request(app.getHttpServer())
+      .post(`/api/v1/vouchers/${rcp1Id}/allocations`)
+      .set(auth(adminToken))
+      .send({ allocations: [{ invoiceId, amount: 500 }], reason: 'Allocate corrected difference' }).expect(201);
+    const after = await request(app.getHttpServer()).get(`/api/v1/vouchers/${rcp1Id}`).set(auth(adminToken)).expect(200);
+    expect(after.body.data.allocations.filter((a: { reversedAt: string | null }) => !!a.reversedAt)).toHaveLength(1);
+    expect(after.body.data.unallocatedAmount).toBe('0.00');
     const inv = await request(app.getHttpServer()).get(`/api/v1/invoices/${invoiceId}`).set(auth(adminToken)).expect(200);
-    expect(Number(inv.body.data.paidAmount)).toBe(400); // 500 - 100 refund
+    expect(Number(inv.body.data.paidAmount)).toBe(400); // 500 receipt - 100 refund
   });
 
   it('cancels with reason (voucher:cancel); paidAmount recomputed; second cancel 409', async () => {
@@ -325,9 +379,9 @@ describe('Vouchers & Ledger (e2e)', () => {
       .expect(409);
   });
 
-  it('delete: POSTED forbidden (409), CANCELLED allowed (200)', async () => {
+  it('delete: neither POSTED nor CANCELLED financial history may be erased', async () => {
     await request(app.getHttpServer()).delete(`/api/v1/vouchers/${rcp1Id}`).set(auth(adminToken)).expect(409);
-    await request(app.getHttpServer()).delete(`/api/v1/vouchers/${pmt1Id}`).set(auth(adminToken)).expect(200);
+    await request(app.getHttpServer()).delete(`/api/v1/vouchers/${pmt1Id}`).set(auth(adminToken)).expect(409);
     const inv = await request(app.getHttpServer()).get(`/api/v1/invoices/${invoiceId}`).set(auth(adminToken)).expect(200);
     expect(Number(inv.body.data.paidAmount)).toBe(500);
   });
@@ -342,6 +396,9 @@ describe('Vouchers & Ledger (e2e)', () => {
     expect(summary.totalDebit).toBe('2200.00'); // 1000 + 500 + 700
     expect(summary.totalCredit).toBe('550.00'); // 500 receipt + 50 deposit
     expect(summary.closingBalance).toBe('1650.00');
+    expect(summary.currencyCode).toBe('MIXED');
+    expect(summary.currencyTotals.USD.closingBalance).toBe('950.00');
+    expect(summary.currencyTotals.AED.closingBalance).toBe('700.00');
 
     const invEntries = entries.filter((e: { kind: string }) => e.kind === 'invoice');
     expect(invEntries.length).toBe(3);

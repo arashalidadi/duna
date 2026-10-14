@@ -48,6 +48,14 @@ export interface Invoice {
   /** Updated by Phase 12 (Fin/payment vouchers). Zero until payments exist. */
   paidAmount: string;
   currencyCode: string;
+  /** Historical invoices can lack FX provenance; new issued invoices snapshot it. */
+  baseCurrencyCode?: string | null;
+  baseAmount?: string | null;
+  exchangeRate?: string | null;
+  rateEffectiveAt?: string | null;
+  rateSource?: string | null;
+  currencyRateId?: string | null;
+  rateOverrideReason?: string | null;
   issueDate: string | null;
   dueDate: string | null;
   /** Legacy invoices.bl_id — optional link to the B/L this bills for. */

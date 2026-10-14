@@ -1,4 +1,6 @@
 import {
+  IsArray,
+  ValidateNested,
   IsDateString,
   IsEnum,
   IsIn,
@@ -6,12 +8,19 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { VoucherMethod, VoucherType } from '@prisma/client';
+
+// Preserve decimal strings end-to-end; legacy numeric JSON clients are still
+// accepted, but new clients must not round money through IEEE-754 floats.
+const ToDecimalString = () => Transform(({ value }) => typeof value === 'number' ? String(value) : value);
+const MONEY_PATTERN = /^\d{1,16}(?:\.\d{1,2})?$/;
+const RATE_PATTERN = /^\d{1,12}(?:\.\d{1,12})?$/;
 
 const ToNumber = () =>
   Transform(({ value }) => {
@@ -19,6 +28,24 @@ const ToNumber = () =>
     const n = Number(value);
     return Number.isFinite(n) ? n : value;
   });
+
+export class AllocationLineDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  invoiceId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  billOfLadingId?: string;
+
+  @ApiProperty({ description: 'Original voucher currency; exact decimal string per reference' })
+  @ToDecimalString()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  amount!: string;
+}
 
 export class CreateVoucherDto {
   @ApiProperty({ enum: VoucherType, description: 'RECEIPT (money in) | PAYMENT (money out)' })
@@ -35,11 +62,28 @@ export class CreateVoucherDto {
   @IsString()
   invoiceId?: string;
 
-  @ApiProperty({ description: 'Amount (always positive)', example: 1500 })
-  @Transform(({ value }) => Number(value))
-  @IsNumber()
-  @Min(0.01)
-  amount!: number;
+  @ApiPropertyOptional({ description: 'Optional B/L reference; cannot be combined with invoiceId unless it belongs to the same customer' })
+  @IsOptional()
+  @IsString()
+  billOfLadingId?: string;
+
+  @ApiPropertyOptional({ type: [AllocationLineDto], description: 'Per-reference amounts; omit for configured default allocation' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AllocationLineDto)
+  allocations?: AllocationLineDto[];
+
+  @ApiPropertyOptional({ enum: ['MANUAL', 'AUTO', 'NONE'] })
+  @IsOptional()
+  @IsIn(['MANUAL', 'AUTO', 'NONE'])
+  allocationMode?: 'MANUAL' | 'AUTO' | 'NONE';
+
+  @ApiProperty({ description: 'Positive original-currency amount as a decimal string', example: '1500.00' })
+  @ToDecimalString()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  amount!: string;
 
   @ApiPropertyOptional({ default: 'USD' })
   @IsOptional()
@@ -47,11 +91,18 @@ export class CreateVoucherDto {
   @MaxLength(3)
   currencyCode?: string;
 
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ description: 'Rate override as an exact decimal string' })
   @IsOptional()
-  @Transform(({ value }) => Number(value))
-  @IsNumber()
-  exchangeRate?: number;
+  @ToDecimalString()
+  @IsString()
+  @Matches(RATE_PATTERN)
+  exchangeRate?: string;
+
+  @ApiPropertyOptional({ description: 'Required when exchangeRate overrides the central rate' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  rateOverrideReason?: string;
 
   @ApiPropertyOptional({ enum: VoucherMethod, default: 'BANK_TRANSFER' })
   @IsOptional()
@@ -123,6 +174,34 @@ export class UpdateVoucherDto {
   @ToNumber()
   @IsNumber()
   exchangeRate?: number;
+}
+
+export class ReallocateVoucherDto {
+  @ApiProperty({ type: [AllocationLineDto], description: 'New complete allocation set. Empty leaves all as credit.' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AllocationLineDto)
+  allocations!: AllocationLineDto[];
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
+}
+
+export class AdjustVoucherDto {
+  @ApiProperty({ description: 'New total as an exact decimal string; correction history is retained.' })
+  @ToDecimalString()
+  @IsString()
+  @Matches(MONEY_PATTERN)
+  amount!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  reason!: string;
 }
 
 export class CancelVoucherDto {

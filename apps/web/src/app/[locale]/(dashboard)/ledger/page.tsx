@@ -28,7 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const CURRENCIES = ['', 'USD', 'AED', 'IRR', 'EUR', 'TRY', 'CNY'];
+const REFERENCE_CURRENCIES = ['USD', 'AED', 'AUD', 'CNY', 'IRR'];
 
 function money(v: string, displayLocale: string): string {
   return Number(v).toLocaleString(displayLocale, {
@@ -51,6 +51,7 @@ export default function LedgerPage() {
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [currency, setCurrency] = useState('');
+  const [currencyOptions, setCurrencyOptions] = useState<string[]>(REFERENCE_CURRENCIES);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
@@ -60,6 +61,9 @@ export default function LedgerPage() {
   const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
+    api.get<{ code: string }[]>('/currencies')
+      .then((list) => setCurrencyOptions(list.map((c) => c.code)))
+      .catch(() => {}); // ledger:read alone must not require currency:read
     api
       .get<PaginatedResult<CustomerListItem>>('/customers?pageSize=100')
       .then((res) => setCustomers(res.data))
@@ -139,17 +143,11 @@ export default function LedgerPage() {
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.currency')}</Label>
-              <select
-                className={SELECT_CLASS + ' w-full'}
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-              >
-                {CURRENCIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c === '' ? t('allCurrencies') : c}
-                  </option>
-                ))}
-              </select>
+              <Input list="ledger-currency-options" maxLength={3} placeholder={t('allCurrencies')}
+                value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />
+              <datalist id="ledger-currency-options">
+                {currencyOptions.map((code) => <option key={code} value={code} />)}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label>{t('fields.fromDate')}</Label>
@@ -185,32 +183,39 @@ export default function LedgerPage() {
             <CardDescription>{t('statement.subtitle', { count: entries.length })}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <div className="text-xs text-muted-foreground">{t('statement.opening')}</div>
-                <div className="mt-1 text-lg font-semibold tabular-nums">
-                  {money(summary.openingBalance, uiLocale)}
+            {summary.currencyCode === 'MIXED' ? <>
+              <p role="alert" className="rounded-md border border-warning/40 bg-warning/5 p-3 text-sm">{t('statement.mixedWarning')}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {Object.entries(summary.currencyTotals ?? {}).map(([code, total]) => (
+                  <div key={code} className="rounded-lg border bg-muted/40 p-3 text-sm">
+                    <p className="font-semibold">{code}</p>
+                    <p>{t('statement.opening')}: {money(total.openingBalance, uiLocale)} {code}</p>
+                    <p>{t('statement.period')}: −{money(total.totalDebit, uiLocale)} / +{money(total.totalCredit, uiLocale)} {code}</p>
+                    <p>{t('statement.closing')}: {money(total.closingBalance, uiLocale)} {code}</p>
+                  </div>
+                ))}
+              </div>
+            </> : (
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">{t('statement.opening')}</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums">{money(summary.openingBalance, uiLocale)} {summary.currencyCode}</div>
+                </div>
+                <div className="rounded-lg border bg-muted/40 p-3">
+                  <div className="text-xs text-muted-foreground">{t('statement.period')}</div>
+                  <div className="mt-1 flex gap-4 text-sm tabular-nums">
+                    <span className="text-danger">−{money(summary.totalDebit, uiLocale)}</span>
+                    <span className="text-success">+{money(summary.totalCredit, uiLocale)} {summary.currencyCode}</span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <div className="text-xs text-muted-foreground">{t('statement.closing')}</div>
+                  <div className={'mt-1 text-lg font-semibold tabular-nums ' + (Number(summary.closingBalance) > 0 ? 'text-danger' : 'text-success')}>
+                    {money(summary.closingBalance, uiLocale)} {summary.currencyCode}
+                  </div>
                 </div>
               </div>
-              <div className="rounded-lg border bg-muted/40 p-3">
-                <div className="text-xs text-muted-foreground">{t('statement.period')}</div>
-                <div className="mt-1 flex gap-4 text-sm tabular-nums">
-                  <span className="text-danger">−{money(summary.totalDebit, uiLocale)}</span>
-                  <span className="text-success">+{money(summary.totalCredit, uiLocale)}</span>
-                </div>
-              </div>
-              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
-                <div className="text-xs text-muted-foreground">{t('statement.closing')}</div>
-                <div
-                  className={
-                    'mt-1 text-lg font-semibold tabular-nums ' +
-                    (Number(summary.closingBalance) > 0 ? 'text-danger' : 'text-success')
-                  }
-                >
-                  {money(summary.closingBalance, uiLocale)}
-                </div>
-              </div>
-            </div>
+            )}
 
             {entries.length === 0 ? (
               <EmptyState title={t('list.empty.title')} description={t('list.empty.description')} />
@@ -250,13 +255,13 @@ export default function LedgerPage() {
                           {e.description ?? '—'}
                         </td>
                         <td className="p-3 text-end tabular-nums">
-                          {Number(e.debit) > 0 ? money(e.debit, uiLocale) : '—'}
+                          {Number(e.debit) > 0 ? `${money(e.debit, uiLocale)} ${e.currencyCode ?? summary.currencyCode}` : '—'}
                         </td>
                         <td className="p-3 text-end tabular-nums">
-                          {Number(e.credit) > 0 ? money(e.credit, uiLocale) : '—'}
+                          {Number(e.credit) > 0 ? `${money(e.credit, uiLocale)} ${e.currencyCode ?? summary.currencyCode}` : '—'}
                         </td>
                         <td className="p-3 text-end font-medium tabular-nums">
-                          {money(e.balance, uiLocale)}
+                          {summary.currencyCode === 'MIXED' ? '—' : `${money(e.balance, uiLocale)} ${summary.currencyCode}`}
                         </td>
                       </tr>
                     ))}

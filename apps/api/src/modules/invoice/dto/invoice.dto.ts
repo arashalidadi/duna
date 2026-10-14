@@ -279,6 +279,19 @@ export class UpdateInvoiceItemDto {
   notes?: string | null;
 }
 
+export class IssueInvoiceDto {
+  @ApiPropertyOptional({ description: 'Transaction-specific rate. Requires currency_rate:override and reason.' })
+  @IsOptional()
+  @IsString()
+  exchangeRate?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  rateOverrideReason?: string;
+}
+
 export class CancelInvoiceDto {
   @ApiProperty({ description: 'Reason for cancellation' })
   @IsNotEmpty()
