@@ -1,6 +1,6 @@
 # Phase 5 — Documents: release/delivery, B/L lifecycle, agent portal
 
-**Status:** Slices 1–3 implemented (2026-10-13); Slice 4 and later work await separate owner approval. §§1–4 preserve the original scoping evidence and decisions; implementation/check results are recorded in §§5c–5g.
+**Status:** Slices 1–4 implemented (Slice 4 approved 2026-10-14); Slice 5 and later work await separate owner approval. §§1–4 preserve the original scoping evidence and decisions; implementation/check results are recorded in §§5c–5h.
 
 Source: `initial-roadmap.md` Phase 5 (~L161–179). Requirements: DEC-059…063, DEC-073…077, AUD-010, AUD-019, AUD-022, REQ-105, REQ-181/182/183, REQ-186, REQ-187/188.
 
@@ -157,6 +157,18 @@ Four **read-only** routes are registered under the existing `portal:access` perm
 
 ---
 
+## 5h. Slice 4 — portal B/L and release views (approved and implemented 2026-10-14)
+
+**Web only:** the existing `/{locale}/portal` page now includes read-only **Bills of Lading** and **Release Orders** tabs, using only the Slice 3 `GET /portal/bills-of-lading`, `/portal/release-orders`, and `/portal/bl-labels` routes. The B/L table separates the configurable lifecycle label from the **active issued R/O** summary (no R/O is shown as active after cancellation). The R/O table shows issued *and retained cancelled* orders, their B/L number, recorded payment condition, and cancellation date. A legacy null payment condition says “Not recorded”, never “Unpaid”; the page explains that payment condition is recorded rather than proof of settlement. There are no office-API links, detail/download routes, agent/destination query parameters, write actions, or new permissions.
+
+The existing customer-linked bookings/statement flow remains the default for accounts with a Customer link. `/portal/me` requires that link; a 403 for an agent-only account no longer blocks document viewing. Such accounts start on B/Ls and can still use the agent-scoped shipments tab; Customer-only accounts can open document tabs and see the API's explicit `CUSTOMER_ONLY` reason. Other API empty reasons (`NO_ACTIVE_DESTINATIONS`, `NO_DOCUMENTS`, `PAGE_OUT_OF_RANGE`), loading, 403/unavailable, retry, and pagination are rendered explicitly. The configured B/L label is displayed as stored; if labels cannot load, neutral status codes are shown instead of inventing official wording. New UI messages are provided in **en/ar/fa**; Ports Master names are not translated or changed. The documents are scoped in the API, never by client-side filtering.
+
+**Files:** `apps/web/src/app/[locale]/(dashboard)/portal/{page.tsx,portal-documents-tabs.tsx}`, `apps/web/messages/{en,ar,fa}.json`, and a mocked-browser UI spec at `apps/web/tests/ui/portal-documents.spec.ts`. No API, schema, migration, seed, or database change.
+
+**Checks without database access:** `pnpm --filter @shipping/shared build`, `pnpm --filter @shipping/web typecheck`, the web static test script (contract/navigation/page-size/i18n), targeted Next lint, and `NEXT_TELEMETRY_DISABLED=1 pnpm --filter @shipping/web build` all pass (111 static pages generated). Playwright discovers four new **network-mocked UI** cases (agent-only, customer-only in fa/ar, and destination refresh), but they were **not executed**: this sandbox has no Playwright Chromium executable. These fixtures do not connect to a real API or database; discovery/typechecking is not browser verification. Browser acceptance and real-DB isolation remain to be verified separately. After pulling, build `@shipping/shared` before compiling API/web, because its generated `dist` declarations are ignored by Git; this build step does not access the database.
+
+---
+
 ## 6. Next step
 
-Slice 3 is implemented and checked as far as this sandbox allows. Stop before Slice 4 (portal web) or Slice 5 (DB-backed isolation) pending separate owner approval. The cancellation/audit DB-E2E and real-DB portal isolation checks remain outstanding; do not reset, delete, seed, or run destructive tests on the owner's database.
+Slice 4 is implemented and statically checked. Stop before Slice 5 (real-DB agent isolation E2E) or any later phase pending separate owner approval. The cancellation/audit DB-E2E remains outstanding as well; no DB operation, reset, seed, deletion, or destructive test was run here. Any future DB-backed suite requires a designated isolated test database and separate authorization for fixture creation and cleanup.

@@ -40,6 +40,7 @@ import { PageLoader } from '@/components/ui/loading';
 import { ErrorState } from '@/components/ui/error-state';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
+import { PortalBillsTab, PortalReleasesTab } from './portal-documents-tabs';
 
 const PAGE_SIZE = 20;
 
@@ -69,7 +70,7 @@ const MANIFEST_STATUS_META: Record<string, { variant: 'neutral' | 'info' | 'succ
 const fmtAmount = (n: number, displayLocale: string) =>
   n.toLocaleString(displayLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-type Tab = 'bookings' | 'shipments' | 'statement';
+type Tab = 'bookings' | 'shipments' | 'statement' | 'bills' | 'releases';
 
 interface PortOption {
   id: string;
@@ -128,8 +129,13 @@ export default function PortalPage() {
       setMe(res);
       setLoadError(null);
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : tc('errors.generic');
-      setLoadError(msg);
+      setMe(null);
+      // /portal/me requires a Customer link; an agent-only account can still use
+      // the destination-scoped document reads without a Customer profile.
+      setTab((current) => current === 'bookings' || current === 'statement' ? 'bills' : current);
+      setLoadError(e instanceof ApiError && e.status === 403
+        ? null
+        : e instanceof ApiError ? e.message : tc('errors.generic'));
     } finally {
       setPageLoading(false);
     }
@@ -193,9 +199,10 @@ export default function PortalPage() {
   }, [loadMe]);
 
   useEffect(() => {
+    // Manifests are agent-scoped even for accounts without a Customer link.
+    if (tab === 'shipments') void loadShipments(sPage);
     if (!me) return;
     if (tab === 'bookings') void loadBookings(bPage, bStatus);
-    if (tab === 'shipments') void loadShipments(sPage);
     if (tab === 'statement' && entries.length === 0 && !summary) void loadStatement();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me, tab, bPage, bStatus, sPage]);
@@ -260,11 +267,19 @@ export default function PortalPage() {
 
   const customer = me?.customer ?? null;
 
-  const TABS: { key: Tab; label: string; icon: typeof Ship }[] = [
-    { key: 'bookings', label: t('tabs.bookings'), icon: FileText },
-    { key: 'shipments', label: t('tabs.shipments'), icon: Ship },
-    { key: 'statement', label: t('tabs.statement'), icon: ReceiptText },
-  ];
+  const TABS: { key: Tab; label: string; icon: typeof Ship }[] = [];
+  if (customer) {
+    TABS.push(
+      { key: 'bookings', label: t('tabs.bookings'), icon: FileText },
+      { key: 'shipments', label: t('tabs.shipments'), icon: Ship },
+      { key: 'statement', label: t('tabs.statement'), icon: ReceiptText },
+    );
+  }
+  TABS.push(
+    { key: 'bills', label: t('tabs.bills'), icon: FileText },
+    { key: 'releases', label: t('tabs.releases'), icon: ReceiptText },
+  );
+  if (!customer) TABS.push({ key: 'shipments', label: t('tabs.shipments'), icon: Ship });
 
   return (
     <div className="space-y-6">
@@ -274,13 +289,11 @@ export default function PortalPage() {
             <Globe className="h-6 w-6 text-primary" />
             {t('title')}
           </h1>
-          {customer ? (
+          {customer && (
             <p className="mt-1 text-sm text-muted-foreground">
               {customer.name}
               {customer.code ? ` · ${customer.code}` : ''}
             </p>
-          ) : (
-            <p className="mt-1 text-sm text-destructive">{t('notLinked')}</p>
           )}
         </div>
         {canCreate && customer && (
@@ -328,12 +341,14 @@ export default function PortalPage() {
         </div>
       )}
 
-      <div className="flex gap-1 rounded-lg border bg-muted/40 p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
+            type="button"
+            aria-pressed={tab === key}
             onClick={() => setTab(key)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex min-w-max flex-1 items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
               tab === key
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
@@ -378,6 +393,9 @@ export default function PortalPage() {
       {tab === 'statement' && (
         <StatementTab entries={entries} summary={summary} loading={stLoading} />
       )}
+
+      {tab === 'bills' && <PortalBillsTab />}
+      {tab === 'releases' && <PortalReleasesTab />}
 
       <Dialog
         open={showCreate}

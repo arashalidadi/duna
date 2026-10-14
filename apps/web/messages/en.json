@@ -1398,6 +1398,44 @@
   },
   "portal": {
     "cancelBooking": "Cancel booking",
+    "documents": {
+      "bills": {
+        "title": "Bills of Lading",
+        "number": "B/L No.",
+        "status": "B/L status",
+        "vessel": "Vessel",
+        "issueDate": "Issue date",
+        "activeRelease": "Active Release Order",
+        "noActiveRelease": "No active Release Order"
+      },
+      "empty": {
+        "customerOnly": "Agent documents unavailable",
+        "customerOnlyHint": "This customer-only account is not linked to an agent.",
+        "noActiveDestinations": "No active destinations",
+        "noActiveDestinationsHint": "This agent has no active destinations assigned.",
+        "pageOutOfRange": "No documents on this page",
+        "pageOutOfRangeHint": "Choose an earlier page to view your documents.",
+        "noBills": "No Bills of Lading for your active destinations",
+        "noReleases": "No Release Orders for your active destinations"
+      },
+      "errors": {
+        "forbidden": "This account is not authorized to view agent documents.",
+        "unavailable": "Could not load your documents. Try again.",
+        "labelsUnavailable": "B/L status labels are unavailable; status codes are shown."
+      },
+      "refresh": "Refresh",
+      "releases": {
+        "title": "Release Orders",
+        "number": "R/O No.",
+        "bill": "B/L No.",
+        "status": "Status",
+        "payment": "Recorded payment condition",
+        "releaseDate": "Release date",
+        "cancelledAt": "Cancelled at",
+        "paymentNote": "The payment condition was recorded when the Release Order was issued; it does not confirm settlement.",
+        "notRecorded": "Not recorded"
+      }
+    },
     "create": {
       "hint": "Your request goes to the booking desk and will be answered shortly.",
       "submit": "Submit request",
@@ -1476,6 +1514,8 @@
     },
     "tabs": {
       "bookings": "Bookings",
+      "bills": "Bills of Lading",
+      "releases": "Release Orders",
       "shipments": "Shipments",
       "statement": "Statement"
     },
