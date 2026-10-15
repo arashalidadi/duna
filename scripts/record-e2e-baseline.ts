@@ -1,45 +1,31 @@
 /**
- * Phase 0 / Phase 1 — record a dated, real e2e test figure.
+ * Record a dated E2E measurement on the owner's development/test database.
  *
- * P0's acceptance requires "a **dated, real** pass/fail figure … replacing the
- * unverified `403/403`" (`initial-roadmap.md:74`), and P1's acceptance requires
- * "test status unchanged from the P0 baseline". Neither figure could be produced
- * in the build environment — the Prisma query engine cannot be downloaded there,
- * so 0 of the 22 suites have ever executed. [Update 2026-10-12: all 22 were executed in a sandbox through a sandbox-only WASM engine, 403/403 — see docs/duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md. The owner's server figure is still required.] This script produces the figure on a
- * machine that has a working database.
+ * Run: pnpm test:e2e-baseline
  *
- * Run:  pnpm test:e2e-baseline
+ * Prerequisites: dependencies built, DATABASE_URL and auth env configured, and
+ * the schema and required reference seed already present. Inspect the database
+ * before any separate migration/seed command; this script never migrates or
+ * resets it. Suites write fixtures and attempt their own cleanup, which is
+ * best-effort after a failed run. Do not use this against production data.
  *
- * ---------------------------------------------------------------------------
- * PREREQUISITES — read before running
- * ---------------------------------------------------------------------------
- *  • Postgres reachable at DATABASE_URL, with the schema applied:
- *        npx prisma migrate deploy && npx prisma generate
- *  • A repository-root `.env` (copy `.env.example`) providing DATABASE_URL,
- *    AUTH_JWT_SECRET and the other required variables. Without it every suite
- *    aborts at load with `ConfigError: Missing required environment variable`.
- *  • The required seed applied — the suites log in as the administrator:
- *        pnpm db:seed        # or: SEED_ADMIN_EMAIL=… SEED_ADMIN_PASSWORD=… pnpm db:seed
- *  • Node dependencies installed (`pnpm install`).
- *
- * DATA: the suites create rows through the HTTP API and delete them again in
- * their own `afterAll` hooks. They do NOT drop the schema, but a crash mid-suite
- * can leave rows behind. Treat this as **development/test-database only**.
- *
- * The script writes a dated report to
- * `docs/duna-analysis/09-audit/e2e-baseline-<date>.md` and prints the figure.
+ * The report includes Jest's structured result for EVERY suite, EVERY failed
+ * test's full error messages, suite-level errors, and the complete captured
+ * stdout/stderr. Review the report for unexpected sensitive output before
+ * committing it. No report is written when zero tests execute.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseJestRun, redactOutput, renderJestDetails, runTotals, type JestRun } from './e2e-baseline-report.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const reportDir = path.join(root, 'docs/duna-analysis/09-audit');
-
 const date = new Date().toISOString().slice(0, 10);
 const reportPath = path.join(reportDir, `e2e-baseline-${date}.md`);
-const command = 'pnpm --filter @shipping/api test';
+const command = 'pnpm --filter @shipping/api run test --json --outputFile=<temporary Jest results file>';
 
 function describeTarget(): string {
   const url = process.env.DATABASE_URL;
@@ -52,78 +38,74 @@ function describeTarget(): string {
   }
 }
 
-/** Parse Jest's own summary lines out of the combined output. */
-function parseJest(output: string) {
-  const suites = /Suites:\s*(.*)/.exec(output);
-  const tests = /Tests:\s*(.*)/.exec(output);
-  const time = /Time:\s*(.*)/.exec(output);
-  const failed = [...output.matchAll(/^\s*(?:FAIL|✕)\s+(.*)$/gm)].map((m) => m[1].trim());
-  const passedSuites = [...output.matchAll(/^\s*PASS\s+(.*)$/gm)].map((m) => m[1].trim());
-  return {
-    suites: suites?.[1]?.trim() ?? 'not reported',
-    tests: tests?.[1]?.trim() ?? 'not reported',
-    time: time?.[1]?.trim() ?? 'not reported',
-    failed,
-    passedSuites,
-  };
-}
-
 console.log('e2e baseline runner');
 console.log(`  database : ${describeTarget()}`);
 console.log(`  command  : ${command}`);
-console.log('  (the suites write to this database and clean up after themselves)\n');
+console.log('  (the suites write to this database; cleanup on failure is best-effort)\n');
 
 if (!process.env.DATABASE_URL) {
-  console.error(
-    'DATABASE_URL is not set. Copy .env.example to .env at the repository root and fill it in,\n' +
-      'then apply the schema (`npx prisma migrate deploy`) and the required seed (`pnpm db:seed`).'
-  );
+  console.error('DATABASE_URL is not set. Configure the development/test database before running the baseline. No report was written.');
   process.exit(2);
 }
 
+// The JSON result is kept only in a private temporary directory. Jest's
+// human-readable output is captured separately for the complete report.
+const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'duna-e2e-'));
+const resultsFile = path.join(temporary, 'jest-results.json');
 const started = Date.now();
-const result = spawnSync('pnpm', ['--filter', '@shipping/api', 'test'], {
-  cwd: root,
-  env: process.env,
-  encoding: 'utf8',
-  maxBuffer: 64 * 1024 * 1024,
-  shell: false,
-});
-const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+let result: SpawnSyncReturns<string>;
+let json: string | undefined;
+try {
+  result = spawnSync('pnpm', ['--filter', '@shipping/api', 'run', 'test', '--json', `--outputFile=${resultsFile}`], {
+    cwd: root,
+    env: process.env,
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+    shell: false,
+  });
+  if (fs.existsSync(resultsFile)) json = fs.readFileSync(resultsFile, 'utf8');
+} finally {
+  fs.rmSync(temporary, { recursive: true, force: true });
+}
+const stdout = result.stdout ?? '';
+const stderr = result.stderr ?? '';
+const output = `${stdout}\n${stderr}`;
 const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+const redact = (text: string) => redactOutput(text, process.env);
+console.log(redact(output).trim().split('\n').slice(-40).join('\n'));
 
-console.log(output.trim().split('\n').slice(-40).join('\n'));
-
-const summary = parseJest(output);
-const exitCode = result.status ?? -1;
-
-// A baseline is a measurement of tests that actually ran. If Jest executed zero tests
-// (suites failed at load — unbuilt workspace packages, missing env, unreachable DB),
-// there is nothing to measure: write nothing and fail, rather than record "22 failed"
-// as if it were a result.
-const testsExecuted = Number(/(\d+)\s+total/.exec(summary.tests)?.[1] ?? 0);
-if (testsExecuted === 0) {
-  console.error(
-    `\nNO BASELINE RECORDED — no test was executed (Jest: suites "${summary.suites}", tests "${summary.tests}").\n` +
-      'Read the errors above. The usual causes are: workspace packages not built (run `pnpm build`),\n' +
-      'a missing environment variable, or an unreachable DATABASE_URL. Nothing was written to docs/.'
-  );
+if (result.error || result.status === null) {
+  console.error(`\nNO BASELINE RECORDED — Jest did not finish: ${result.error?.message ?? result.signal}.`);
   process.exit(3);
 }
 
-const verdict =
-  exitCode === 0
-    ? '**All suites passed.**'
-    : summary.tests === 'not reported' && summary.suites === 'not reported'
-      ? '**No figure produced** — Jest did not report a summary. The suites most likely failed at config load (missing `.env` variables) or could not reach the database. See the output below.'
-      : `**Failures present** (exit code ${exitCode}).`;
+let run: JestRun;
+try {
+  if (!json) throw new Error('Jest did not write its --json --outputFile results');
+  run = parseJestRun(json);
+} catch (error) {
+  console.error(`\nNO BASELINE RECORDED — invalid or incomplete Jest results: ${String(error)}.`);
+  console.error('The existing dated report was not overwritten. Inspect the output above.');
+  process.exit(3);
+}
 
+// A suite-load/config failure is not a measured baseline. Keep the existing
+// report untouched rather than recording failed suites with zero executed tests.
+if (run.numTotalTests === 0) {
+  console.error(`\nNO BASELINE RECORDED — no tests executed (Jest: ${runTotals(run).suites}).`);
+  console.error('Check workspace builds, environment configuration, and database reachability. No report was written.');
+  process.exit(3);
+}
+
+const summary = runTotals(run);
+const time = /^\s*Time:\s*(.*)$/m.exec(output)?.[1]?.trim() ?? 'not reported';
+const exitCode = result.status;
+const verdict = exitCode === 0 ? '**All suites passed.**' : `**Failures present** (exit code ${exitCode}).`;
 const report = `# e2e baseline — ${date}
 
 **Recorded ${new Date().toISOString()}** by \`pnpm test:e2e-baseline\`.
 
-This replaces the unverified \`403/403\` figure that \`initial-roadmap.md:74\` records
-as UNVERIFIED. It is a real measurement from a real run.
+A real E2E measurement (the historical \`403/403\` figure in \`initial-roadmap.md:74\` was unverified).
 
 | Field | Value |
 | --- | --- |
@@ -132,7 +114,7 @@ as UNVERIFIED. It is a real measurement from a real run.
 | Database | \`${describeTarget()}\` |
 | Suites | ${summary.suites} |
 | Tests | ${summary.tests} |
-| Time | ${summary.time} |
+| Time | ${time} |
 | Wall clock | ${elapsed}s |
 | Exit code | ${exitCode} |
 
@@ -140,37 +122,23 @@ as UNVERIFIED. It is a real measurement from a real run.
 
 ${verdict}
 
-## Failing suites
-
-${summary.failed.length ? summary.failed.map((f) => `- ${f}`).join('\n') : '_None reported._'}
-
-## Passing suites
-
-${summary.passedSuites.length ? summary.passedSuites.map((s) => `- ${s}`).join('\n') : '_None reported._'}
-
 ## Data
 
-The suites create rows through the HTTP API and delete them in their own
-\`afterAll\` hooks. They do not drop the schema. This run targeted
+Suites write test fixtures to the configured database. Cleanup is best-effort;
+no schema reset or migration is performed by this command. This run targeted
 \`${describeTarget()}\`.
 
-## Raw tail of the run
-
-\`\`\`
-${output.trim().split('\n').slice(-60).join('\n')}
-\`\`\`
+${renderJestDetails(run, root, redact, stdout, stderr)}
 `;
 
 fs.mkdirSync(reportDir, { recursive: true });
 fs.writeFileSync(reportPath, report, 'utf8');
-
 console.log('\n--- figure ---');
 console.log(`  suites : ${summary.suites}`);
 console.log(`  tests  : ${summary.tests}`);
 console.log(`  report : ${path.relative(root, reportPath)}`);
-
 if (exitCode !== 0) {
   console.error(`\nThe run reported failures (exit ${exitCode}). The report was still written.`);
-  process.exit(exitCode === -1 ? 1 : exitCode);
+  process.exit(exitCode);
 }
 console.log('\nE2E BASELINE RECORDED.');

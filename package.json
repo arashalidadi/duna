@@ -37,6 +37,7 @@
     "test:pagination": "tsx apps/web/scripts/test-pagination.ts",
     "test:seed-safety": "tsx scripts/test-seed-safety.ts",
     "test:e2e-baseline": "tsx scripts/record-e2e-baseline.ts",
+    "test:e2e-baseline:unit": "tsx --test scripts/e2e-baseline-report.test.ts",
     "test:reports:unit": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase7-reports.ts && TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase7-services.ts",
     "test:finance:unit": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase6-finance.ts",
     "db:seed:phase7": "tsx apps/api/scripts/seed-phase7-reference.ts",
