@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 
@@ -150,6 +152,19 @@ describe('Vessel (e2e)', () => {
     vesselType: 'CONTAINER',
   });
 
+  async function unusedTestImo(): Promise<string> {
+    const prisma = app.get(PrismaService);
+    // IMO is globally unique even for soft-deleted vessels. Do not reuse a
+    // hard-coded value from a previous run or collide with existing registry data.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const candidate = String(randomInt(1_000_000, 10_000_000));
+      if (!(await prisma.vessel.findUnique({ where: { imo: candidate }, select: { id: true } }))) {
+        return candidate;
+      }
+    }
+    throw new Error('Could not find an unused seven-digit IMO for this test');
+  }
+
   it('401 without a token', async () => {
     await request(app.getHttpServer()).get('/api/v1/vessels').expect(401);
   });
@@ -211,18 +226,21 @@ describe('Vessel (e2e)', () => {
       .send({ ...vesselBase(), code: `VES2-${tag}`, imo: '9876543210' }) // 10 digits
       .expect(400);
 
+    const imo = await unusedTestImo();
     const first = await request(app.getHttpServer())
       .post('/api/v1/vessels')
       .set(auth(adminToken))
-      .send({ ...vesselBase(), code: `VES2-${tag}`, imo: '1234567' })
+      .send({ ...vesselBase(), code: `VES2-${tag}`, imo })
       .expect(201);
     createdVessels.push({ id: first.body.data.id });
+    expect(first.body.data.imo).toBe(imo);
 
-    await request(app.getHttpServer())
+    const duplicate = await request(app.getHttpServer())
       .post('/api/v1/vessels')
       .set(auth(adminToken))
-      .send({ ...vesselBase(), code: `VES3-${tag}`, imo: '1234567' })
+      .send({ ...vesselBase(), code: `VES3-${tag}`, imo })
       .expect(409);
+    expect(duplicate.body.error?.message ?? duplicate.body.message).toContain('IMO number');
   });
 
   it('rejects empty name / invalid vesselType (400)', async () => {

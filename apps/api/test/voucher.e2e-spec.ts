@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -162,6 +163,14 @@ describe('Vouchers & Ledger (e2e)', () => {
     return { Authorization: `Bearer ${token}` };
   }
 
+  function expectInvoicePaidAmount(actual: unknown, expected: string) {
+    // Invoice GET returns Prisma Decimal JSON as a string (e.g. "25", not
+    // necessarily "25.00"). Check the exact amount and at most two decimals.
+    expect(typeof actual).toBe('string');
+    expect(actual).toMatch(/^\d+(?:\.\d{1,2})?$/);
+    expect(new Prisma.Decimal(actual as string).equals(expected)).toBe(true);
+  }
+
   async function createRoleToken(roleCode: string, permissionCodes: string[], email: string): Promise<string> {
     const perms = await request(app.getHttpServer())
       .get('/api/v1/permissions/all')
@@ -252,11 +261,16 @@ describe('Vouchers & Ledger (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/vouchers')
       .set(auth(adminToken))
-      .send({ type: 'RECEIPT', customerId, amount: 50, description: 'standalone deposit' })
+      // A deposit must stay unapplied even when company policy is automatic.
+      .send({ type: 'RECEIPT', customerId, amount: 50, allocationMode: 'NONE', description: 'standalone deposit' })
       .expect(201);
     standaloneId = res.body.data.id;
     expect(res.body.data.voucherNumber).toMatch(/^RCP-\d{4}-\d{5}$/);
     expect(res.body.data.invoiceId).toBeNull();
+    expect(res.body.data.allocatedAmount).toBe('0.00');
+    expect(res.body.data.unallocatedAmount).toBe('50.00');
+    const inv = await request(app.getHttpServer()).get(`/api/v1/invoices/${invoiceId}`).set(auth(adminToken)).expect(200);
+    expectInvoicePaidAmount(inv.body.data.paidAmount, '400.00');
   });
 
   it('allocates one receipt to two invoices, keeps partial/unallocated credit, and audits reallocation', async () => {
@@ -279,8 +293,8 @@ describe('Vouchers & Ledger (e2e)', () => {
         ] }).expect(201);
     expect(posted.body.data.allocatedAmount).toBe('55.00');
     expect(posted.body.data.unallocatedAmount).toBe('45.00');
-    expect((await request(app.getHttpServer()).get(`/api/v1/invoices/${first}`)
-      .set(auth(adminToken)).expect(200)).body.data.paidAmount).toBe('25.00');
+    expectInvoicePaidAmount((await request(app.getHttpServer()).get(`/api/v1/invoices/${first}`)
+      .set(auth(adminToken)).expect(200)).body.data.paidAmount, '25.00');
     const reallocated = await request(app.getHttpServer())
       .post(`/api/v1/vouchers/${posted.body.data.id}/allocations`).set(auth(adminToken))
       .send({ reason: 'Correct fixture split', allocations: [
@@ -288,8 +302,8 @@ describe('Vouchers & Ledger (e2e)', () => {
       ] }).expect(201);
     expect(reallocated.body.data.allocations.filter((a: { reversedAt: string | null }) => a.reversedAt)).toHaveLength(2);
     expect(reallocated.body.data.unallocatedAmount).toBe('45.00');
-    expect((await request(app.getHttpServer()).get(`/api/v1/invoices/${second}`)
-      .set(auth(adminToken)).expect(200)).body.data.paidAmount).toBe('35.00');
+    expectInvoicePaidAmount((await request(app.getHttpServer()).get(`/api/v1/invoices/${second}`)
+      .set(auth(adminToken)).expect(200)).body.data.paidAmount, '35.00');
     const unallocated = await request(app.getHttpServer()).post('/api/v1/vouchers').set(auth(adminToken))
       .send({ type: 'RECEIPT', customerId: customer2Id, amount: 15, currencyCode: 'USD', allocationMode: 'NONE' })
       .expect(201);

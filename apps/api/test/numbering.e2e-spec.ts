@@ -28,6 +28,13 @@ import type { AllocateNumberRequest } from '../src/common/infrastructure/numberi
  */
 
 const KEYS = Object.keys(PERIODIC_DOCUMENT_FORMATS) as PeriodicDocumentKey[];
+// The catalogue includes salary records as well as the original twelve families.
+// Keep the required set explicit so removing (or silently adding) a family fails.
+const REQUIRED_KEYS: PeriodicDocumentKey[] = [
+  'INVOICE', 'PROFORMA', 'QUOTATION', 'GENERAL_JOURNAL',
+  'VOUCHER_RECEIPT', 'VOUCHER_PAYMENT', 'CARGO', 'INSPECTION',
+  'LOAD_LIST', 'ACTUAL_LOADING', 'DISCHARGE', 'BOOKING_REQUEST', 'SALARY_RECORD',
+];
 const OCT_NOON_UTC = new Date(Date.UTC(2026, 9, 15, 12, 0, 0));
 const NOV_NOON_UTC = new Date(Date.UTC(2026, 10, 15, 12, 0, 0));
 
@@ -60,7 +67,7 @@ describe('Document numbering (e2e)', () => {
   it('catalogue: every periodic document type has a unique sequence family', () => {
     const families = KEYS.map((key) => PERIODIC_DOCUMENT_FORMATS[key].sequenceFamily);
     expect(new Set(families).size).toBe(KEYS.length);
-    expect(KEYS).toHaveLength(12);
+    expect([...KEYS].sort()).toEqual([...REQUIRED_KEYS].sort());
   });
 
   it.each(KEYS)('%s: request uses the printed code, period YYYYMM and five-digit padding', (key) => {

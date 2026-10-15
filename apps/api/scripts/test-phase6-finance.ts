@@ -91,6 +91,10 @@ async function allocations() {
   policy = 'OLDEST_DUE';
   const auto = await service.forCreate(tx, { ...voucher });
   assert.deepEqual(auto, [{ invoiceId: 'i1', amount: '60.00' }, { invoiceId: 'i2', amount: '50.00' }]);
+  const unappliedDeposit = await service.forCreate(tx, { ...voucher, amount: D('50.00'), allocationMode: 'NONE' });
+  assert.deepEqual(unappliedDeposit, [], 'explicit NONE keeps a deposit unapplied under an automatic company policy');
+  await assert.rejects(() => service.forCreate(tx, { ...voucher, invoiceId: 'i1', allocationMode: 'NONE' }),
+    BadRequestException);
   assert.equal(voucher.amount.minus(auto.reduce((s, l) => s.plus(l.amount), D('0'))).toFixed(2), '10.00');
   await service.validate(tx, voucher, auto);
   await assert.rejects(() => service.validate(tx, voucher,
@@ -213,7 +217,7 @@ async function main() {
   await journalChecks();
   await successfulPostingAndPermissions();
   await reconciliation();
-  console.log('Phase 6 unit checks: money/FX snapshot + override, manual/auto allocations, loan/adjustment/expense journals, permissions, all-customer reconciliation passed');
+  console.log('Phase 6 unit checks: money/FX snapshot + override, manual/auto/NONE allocations, loan/adjustment/expense journals, permissions, all-customer reconciliation passed');
 }
 
 main().catch((error: unknown) => { console.error(error); process.exitCode = 1; });
