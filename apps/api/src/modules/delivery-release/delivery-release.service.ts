@@ -14,6 +14,9 @@ type Tx = Prisma.TransactionClient;
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { RELEASE_ORDER_ELIGIBILITY_POLICY as RELEASE_POLICY } from './release-order.policy';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
+import { WorkflowConfigService } from '../configuration/workflow-config.service';
+import { FieldConfigService } from '../configuration/field-config.service';
+import type { AuthenticatedUser } from '../../common/auth/types';
 
 /**
  * DEC-116 — `canOverride` is the capability layer (the `release:override`
@@ -30,6 +33,7 @@ type ACTX = {
   userId?: string;
   actorEmail?: string;
   authorizationBasis?: 'primary-administrator' | 'explicit-grant';
+  actor?: AuthenticatedUser;
 };
 
 @Injectable()
@@ -37,6 +41,8 @@ export class DeliveryReleaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly workflows: WorkflowConfigService,
+    private readonly fields: FieldConfigService,
   ) {}
 
   // ── helpers ────────────────────────────────────────────────────────────────
@@ -381,6 +387,7 @@ export class DeliveryReleaseService {
 
   async createRelease(dto: {
     billOfLadingId: string; paymentState: 'PAID' | 'PARTIAL' | 'UNPAID'; releaseDate?: string; notes?: string; force?: boolean; overrideReason?: string;
+    customValues?: Record<string, unknown>;
   }, ctx: ACTX) {
     const created = await this.prisma.$transaction(async (tx) => {
       await this.requireIssuedBill(tx, dto.billOfLadingId);
@@ -399,6 +406,11 @@ export class DeliveryReleaseService {
         financialOverride = true;
         overrideReason = dto.overrideReason;
       }
+      // Optional P9 approval is EXTRA for delegates. The primary administrator
+      // stays on the direct DEC-116 path; core financial checks above, the
+      // explicit grant, reason, and the transactional override audit stay intact.
+      const approvalId = financialOverride ? await this.workflows.consumeRelease(tx,
+        dto.billOfLadingId, dto.paymentState, overrideReason!, fin.outstanding, ctx.actor ?? null) : null;
       const ro = await tx.releaseOrder.create({
         data: {
           docNumber: await this.nextNumber(tx, 'RO'),
@@ -411,6 +423,10 @@ export class DeliveryReleaseService {
           createdById: ctx.userId!,
         },
       });
+      if (dto.customValues !== undefined) {
+        if (!ctx.actor) throw new ForbiddenException('Authenticated actor required for release custom values');
+        await this.fields.writeNewReleaseIn(tx, ro.id, dto.customValues, ctx.actor);
+      } else await this.fields.assertRequiredAtIssue(tx, 'ReleaseOrder', ro.id);
       // ADR-046 ruling 3: overrides are permitted ONLY through the AUDITED override
       // path — every financial override writes an ADR-010 AuditLog row in the same
       // transaction (action mirrors the `release:override` permission gate).
@@ -427,6 +443,7 @@ export class DeliveryReleaseService {
             invoicesTotal: fin.invoicesTotal,
             invoicesPaid: fin.invoicesPaid,
             outstanding: fin.outstanding,
+            workflowApprovalId: approvalId,
             // DEC-116: who approved, and on what authority.
             approverId: ctx.userId,
             approverEmail: ctx.actorEmail,

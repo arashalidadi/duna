@@ -12,6 +12,7 @@ import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
+import { FieldConfigService } from '../configuration/field-config.service';
 import {
   AddBillItemDto,
   CancelBillDto,
@@ -195,6 +196,7 @@ export class BillService {
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
+    private readonly fields: FieldConfigService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -1088,10 +1090,14 @@ export class BillService {
       throw new NotFoundException('Bill of Lading not found');
     }
     this.assertTransition(existing.status, 'FINAL');
-    return this.prisma.billOfLading.update({
-      where: { id },
-      data: { status: 'FINAL' },
-      select: detailSelect,
+    return this.prisma.$transaction(async (tx) => {
+      // FINAL freezes draft edits. Required custom fields must be present BEFORE
+      // this edge as well as at approval/issuance.
+      await this.fields.assertRequiredAtIssue(tx, 'BillOfLading', id);
+      const changed = await tx.billOfLading.updateMany({ where: { id, status: 'DRAFT', deletedAt: null },
+        data: { status: 'FINAL' } });
+      if (changed.count !== 1) throw new ConflictException('Bill changed during finalization');
+      return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
@@ -1132,6 +1138,7 @@ export class BillService {
   ) {
     const id = existing.id;
     return this.prisma.$transaction(async (tx) => {
+      await this.fields.assertRequiredAtIssue(tx, 'BillOfLading', id);
       // Re-check nothing claimed our lines meanwhile (paranoia under tx).
       const items = await tx.billOfLadingItem.findMany({
         where: { billOfLadingId: id },

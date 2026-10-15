@@ -18,6 +18,6 @@ import { DocumentTemplateController } from './document-template.controller';
   providers: [DocumentAssetsService, DocumentDataService, DocumentRendererService,
     DocumentTemplateService, DocumentOutputService],
   controllers: [DocumentTemplateController, DocumentAssetsController, DocumentOutputController],
-  exports: [DocumentTemplateService, DocumentOutputService],
+  exports: [DocumentTemplateService, DocumentOutputService, DocumentAssetsService],
 })
 export class DocumentTemplateModule {}

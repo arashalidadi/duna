@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsIn,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -119,6 +120,11 @@ export class CreateReleaseOrderDto {
   @IsString()
   @MaxLength(500)
   overrideReason?: string;
+
+  @ApiPropertyOptional({ description: 'Additive custom field values written only at release creation; never part of financial policy' })
+  @IsOptional()
+  @IsObject()
+  customValues?: Record<string, unknown>;
 }
 
 export class UpdateReleaseOrderDto {

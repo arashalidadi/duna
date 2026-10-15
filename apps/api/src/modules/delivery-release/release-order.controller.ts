@@ -69,6 +69,7 @@ export class ReleaseOrderController {
     return this.service.createRelease(dto, {
       userId: user.id,
       actorEmail: user.email, // P4-U6: actor email for the audited override row
+      actor: user, // P9 optional pinned approval; never trust a body-supplied actor
       // DEC-116 — two layers. The permission is the capability; the primary
       // administrator also qualifies by implicit full authority, so they can
       // approve a release exception directly without holding the grant.

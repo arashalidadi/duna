@@ -33,6 +33,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
+import { RecordCustomFields } from '@/components/configuration/record-custom-fields';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -169,6 +170,17 @@ export default function BillsOfLadingPage() {
   const tNav = useTranslations('nav');
   const locale = useLocale();
   const { hasPermission } = useAuth();
+  const [approvedLabels, setApprovedLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!hasPermission('bill:read')) return;
+    let current = true;
+    void api.get<{ code: BillStatus; label: string; technicalFallback: boolean }[]>('/configuration/core/bill-labels')
+      .then((rows) => { if (current) setApprovedLabels(Object.fromEntries(rows
+        .filter((row) => !row.technicalFallback).map((row) => [row.code, row.label]))); })
+      .catch(() => { /* translations remain the safe display fallback */ });
+    return () => { current = false; };
+  }, [hasPermission]);
+  const statusLabel = (status: BillStatus) => approvedLabels[status] ?? t(`status.${status}`);
 
   const [data, setData] = useState<PaginatedResult<BillOfLading> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -663,7 +675,7 @@ export default function BillsOfLadingPage() {
                 <option value="">{t('list.allStatuses')}</option>
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {t(`status.${s}`)}
+                    {statusLabel(s)}
                   </option>
                 ))}
               </select>
@@ -707,7 +719,7 @@ export default function BillsOfLadingPage() {
                         {b.billNumber}
                       </td>
                       <td className="px-3 py-2">
-                        <Badge variant={statusVariant(b.status)}>{t(`status.${b.status}`)}</Badge>
+                        <Badge variant={statusVariant(b.status)}>{statusLabel(b.status)}</Badge>
                       </td>
                       <td className="px-3 py-2">{t(`billType.${b.billType}`)}</td>
                       <td className="px-3 py-2 font-mono text-xs">
@@ -955,8 +967,8 @@ export default function BillsOfLadingPage() {
         description={
           detail
             ? detail.manifest
-              ? `${t(`status.${detail.status}`)} — ${detail.manifest.manifestNumber} (${detail.manifest.polPort?.code ?? '?'} → ${detail.manifest.podPort?.code ?? '?'})`
-              : `${t(`status.${detail.status}`)} — ${t('create.voyage')} ${detail.voyage?.voyageNumber ?? ''}`
+              ? `${statusLabel(detail.status)} — ${detail.manifest.manifestNumber} (${detail.manifest.polPort?.code ?? '?'} → ${detail.manifest.podPort?.code ?? '?'})`
+              : `${statusLabel(detail.status)} — ${t('create.voyage')} ${detail.voyage?.voyageNumber ?? ''}`
             : undefined
         }
       >
@@ -965,6 +977,7 @@ export default function BillsOfLadingPage() {
         ) : (
           <div className="relative space-y-6">
             <DocumentOutputActions type="bill" id={detail.id} />
+            <RecordCustomFields scope="BillOfLading" recordId={detail.id} />
             {/* P4-U7: DRAFT watermark (blueprint §5.1) — cosmetic only, no state logic.
                 pointer-events-none keeps the form fully usable underneath. */}
             {detail.status === 'DRAFT' && (
@@ -1479,7 +1492,7 @@ export default function BillsOfLadingPage() {
               </p>
               <p>
                 <span className="text-muted-foreground">{t('fields.status')}:</span>{' '}
-                {t(`status.${docData.document.status as BillStatus}`)}
+                {statusLabel(docData.document.status as BillStatus)}
                 {docData.watermark ? ` (${docData.watermark})` : ''}
               </p>
               <p>

@@ -15,6 +15,8 @@ import type {
 } from '@shipping/shared';
 import { Plus, Eye, XCircle, ShieldAlert, BadgeCheck, FileCheck } from 'lucide-react';
 import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
+import { RecordCustomFields } from '@/components/configuration/record-custom-fields';
+import { ConfigFieldControl, type ConfigFieldInput } from '@/components/configuration/config-field-input';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -53,8 +55,9 @@ export default function ReleaseOrdersPage() {
   const uiLocale = useUiLocale();
   const t = useTranslations('releaseOrder');
   const tc = useTranslations('common');
+  const t9 = useTranslations('phase9');
   const locale = useLocale();
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
 
   // list
   const [rows, setRows] = useState<ReleaseOrder[]>([]);
@@ -118,6 +121,10 @@ export default function ReleaseOrdersPage() {
   const [fNotes, setFNotes] = useState('');
   const [force, setForce] = useState(false);
   const [overrideReason, setOverrideReason] = useState('');
+  const [releasePolicy, setReleasePolicy] = useState<{ extraApprovalRequiredForDelegates: boolean } | null>(null);
+  const [releaseFields, setReleaseFields] = useState<(ConfigFieldInput & { editable: boolean })[]>([]);
+  const [releaseValues, setReleaseValues] = useState<Record<string, unknown>>({});
+  const [requestedApprovalId, setRequestedApprovalId] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -130,12 +137,18 @@ export default function ReleaseOrdersPage() {
     setFNotes('');
     setForce(false);
     setOverrideReason('');
+    setRequestedApprovalId('');
+    setReleasePolicy(null);
+    setReleaseValues({}); setReleaseFields([]);
     setBillsLoading(true);
     try {
-      const res = await api.get<PaginatedResult<BillOfLading>>(
-        '/bills?status=APPROVED&pageSize=100'
-      );
+      const [res, policy, fields] = await Promise.all([
+        api.get<PaginatedResult<BillOfLading>>('/bills?status=APPROVED&pageSize=100'),
+        api.get<{ extraApprovalRequiredForDelegates: boolean }>('/configuration/release-exceptions/policy'),
+        api.get<(ConfigFieldInput & { editable: boolean })[]>('/configuration/records/ReleaseOrder/create-fields'),
+      ]);
       setBills(res.data);
+      setReleasePolicy(policy); setReleaseFields(fields);
     } catch (e: any) {
       setCreateError(errMsg(e));
     } finally {
@@ -166,6 +179,20 @@ export default function ReleaseOrdersPage() {
     };
   }, [createOpen, fBill]);
 
+  const requestReleaseApproval = async () => {
+    if (!fBill || !fPayment || !overrideReason.trim()) {
+      setCreateError(t('create.errors.overrideReasonRequired')); return;
+    }
+    setCreating(true); setCreateError('');
+    try {
+      const result = await api.post<{ id: string }>('/configuration/release-exceptions', {
+        billOfLadingId: fBill, paymentState: fPayment, reason: overrideReason.trim(),
+      });
+      setRequestedApprovalId(result.id);
+    } catch (e) { setCreateError(errMsg(e)); }
+    finally { setCreating(false); }
+  };
+
   const submitCreate = async () => {
     if (!fBill) {
       setCreateError(t('create.errors.billRequired'));
@@ -191,6 +218,8 @@ export default function ReleaseOrdersPage() {
         paymentState: fPayment,
         ...(fNotes.trim() ? { notes: fNotes.trim() } : {}),
         ...(force ? { force: true, overrideReason: overrideReason.trim() } : {}),
+        ...(Object.keys(releaseValues).length ? { customValues: Object.fromEntries(Object.entries(releaseValues)
+          .filter(([, value]) => value !== null && value !== undefined && value !== '')) } : {}),
       });
       setCreateOpen(false);
       setPage(1);
@@ -396,7 +425,7 @@ export default function ReleaseOrdersPage() {
             <select
               className={SELECT_CLASS + ' w-full'}
               value={fBill}
-              onChange={(e) => setFBill(e.target.value)}
+              onChange={(e) => { setFBill(e.target.value); setRequestedApprovalId(''); }}
               disabled={billsLoading}
             >
               <option value="">{billsLoading ? tc('list.loading') : t('create.selectBill')}</option>
@@ -413,7 +442,7 @@ export default function ReleaseOrdersPage() {
             <select
               className={SELECT_CLASS + ' w-full'}
               value={fPayment}
-              onChange={(e) => setFPayment(e.target.value as ReleasePaymentState | '')}
+              onChange={(e) => { setFPayment(e.target.value as ReleasePaymentState | ''); setRequestedApprovalId(''); }}
             >
               <option value="">{t('create.selectPaymentState')}</option>
               {PAYMENT_STATES.map((s) => (
@@ -466,15 +495,34 @@ export default function ReleaseOrdersPage() {
                   <Label>{t('fields.overrideReason')}</Label>
                   <Input
                     value={overrideReason}
-                    onChange={(e) => setOverrideReason(e.target.value)}
+                    onChange={(e) => { setOverrideReason(e.target.value); setRequestedApprovalId(''); }}
                     placeholder={t('create.overrideReasonPlaceholder')}
                     maxLength={500}
                   />
+                  {releasePolicy?.extraApprovalRequiredForDelegates && user?.isPrimaryAdmin !== true &&
+                    hasPermission('release:override') && <div className="space-y-2 pt-2">
+                      <p className="text-xs text-muted-foreground">{t9('releaseApprovalNeeded')}</p>
+                      <Button size="sm" variant="outline" disabled={creating || !fPayment || !overrideReason.trim()}
+                        onClick={() => void requestReleaseApproval()}>{t9('requestReleaseApproval')}</Button>
+                      {requestedApprovalId && <p role="status" className="text-xs text-muted-foreground">
+                        {t9('releaseApprovalRequested')} · {requestedApprovalId}</p>}
+                    </div>}
+                  {user?.isPrimaryAdmin === true && <p className="text-xs text-muted-foreground">
+                    {t9('releaseDirectOwner')}</p>}
                 </div>
               )}
             </div>
           )}
 
+          {!!releaseFields.length && <section className="space-y-3 rounded-md border p-3">
+            <h3 className="text-sm font-semibold">{t9('customFields')}</h3>
+            {releaseFields.map((field) => <div key={field.key} className="space-y-1">
+              <Label htmlFor={`config-${field.key}`}>{field.label}{field.required ? ' *' : ''}</Label>
+              <ConfigFieldControl field={field} value={releaseValues[field.key] ?? null}
+                disabled={!field.editable || creating}
+                onChange={(value) => setReleaseValues((current) => ({ ...current, [field.key]: value }))} />
+            </div>)}
+          </section>}
           <div className="space-y-1.5">
             <Label>{t('fields.notes')}</Label>
             <Input value={fNotes} onChange={(e) => setFNotes(e.target.value)} />
@@ -496,6 +544,7 @@ export default function ReleaseOrdersPage() {
         ) : (
           <div className="space-y-4">
             <DocumentOutputActions type="release-order" id={detail.id} />
+            <RecordCustomFields scope="ReleaseOrder" recordId={detail.id} />
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={detail.status === 'ISSUED' ? 'success' : 'danger'}>
                 {t(`status.${detail.status}`)}

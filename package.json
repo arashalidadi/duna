@@ -41,6 +41,7 @@
     "test:reports:unit": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase7-reports.ts && TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase7-services.ts",
     "test:finance:unit": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/test-phase6-finance.ts",
     "db:seed:phase7": "tsx apps/api/scripts/seed-phase7-reference.ts",
+    "db:seed:phase9": "tsx apps/api/scripts/seed-phase9-permissions.ts",
     "db:seed:phase6": "tsx apps/api/scripts/seed-phase6-reference.ts",
     "db:reconcile:phase6": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/reconcile-phase6-ledger.ts",
     "db:studio": "prisma studio",

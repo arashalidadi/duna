@@ -7,6 +7,7 @@ import {
   Building2,
   CalendarCheck,
   ClipboardList,
+  SlidersHorizontal,
   Container,
   CreditCard,
   FileCheck,
@@ -116,11 +117,21 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented', description: 'Versioned document layouts and company artwork',
         requiredPermission: 'document:manage',
       },
+      {
+        labelKey: 'configuration', href: '/configuration', icon: SlidersHorizontal,
+        status: 'implemented', description: 'Managed fields, document types and workflows',
+        requiredPermission: 'configuration:manage',
+      },
     ],
   },
   {
     titleKey: 'operations',
     items: [
+      {
+        labelKey: 'configuredDocuments', href: '/configured-documents', icon: FileText,
+        status: 'implemented', description: 'Additional versioned office documents',
+        requiredPermission: 'config_document:read',
+      },
       {
         labelKey: 'jobs',
         href: '/jobs',

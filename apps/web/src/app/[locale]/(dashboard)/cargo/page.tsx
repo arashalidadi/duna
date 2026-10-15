@@ -23,6 +23,7 @@ import type {
 } from '@shipping/shared';
 import { Plus, Eye, Ban, Trash2, ArrowUpDown, MapPin } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { RecordCustomFields } from '@/components/configuration/record-custom-fields';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
@@ -970,6 +971,7 @@ export default function CargoPage() {
                 {detail.comments || '—'}
               </p>
             </div>
+            <RecordCustomFields scope="Cargo" recordId={detail.id} />
           </div>
         ) : (
           <PageLoader label={ui('loadingCargoDetails')} />

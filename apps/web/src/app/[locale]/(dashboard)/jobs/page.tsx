@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import type { Job, JobListResult, JobStatus, JobItemKind, JobCostItem } from '@shipping/shared';
 import { api, ApiError } from '@/lib/api/client';
+import { RecordCustomFields } from '@/components/configuration/record-custom-fields';
 import { formatDateTime, formatDateShort } from '@/lib/date';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -632,6 +633,7 @@ export default function JobsPage() {
               </span>
             </div>
             {detail.description && <p className="text-sm">{detail.description}</p>}
+            <RecordCustomFields scope="Job" recordId={detail.id} />
 
             {/* items table */}
             <div className="rounded-md border">

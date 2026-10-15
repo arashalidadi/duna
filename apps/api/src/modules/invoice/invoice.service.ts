@@ -15,6 +15,7 @@ import { CustomerPostingService } from '../finance/customer-posting.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { recomputeInvoiceTax } from './invoice-tax';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
+import { FieldConfigService } from '../configuration/field-config.service';
 import {
   AddInvoiceItemDto,
   CancelInvoiceDto,
@@ -173,6 +174,7 @@ export class InvoiceService {
     private readonly audit: AuditService,
     private readonly fx: ExchangeRateService,
     private readonly postings: CustomerPostingService,
+    private readonly fields: FieldConfigService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -535,6 +537,7 @@ export class InvoiceService {
       if (!existing || existing.deletedAt) throw new NotFoundException('Invoice not found');
       this.assertTransition(existing.status, 'ISSUED');
       if (existing._count.items === 0) throw new BadRequestException('Cannot issue an invoice with no lines');
+      await this.fields.assertRequiredAtIssue(tx, 'Invoice', id);
       const now = new Date();
       const issueDate = existing.issueDate ?? now;
       // Do not invent a conversion for a new invoice: all new transactions

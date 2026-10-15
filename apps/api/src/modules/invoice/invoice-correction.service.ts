@@ -13,6 +13,7 @@ import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { allocateInvoiceNumber } from './invoice-number';
 import { recomputeInvoiceTax } from './invoice-tax';
 import { CustomerPostingService } from '../finance/customer-posting.service';
+import { WorkflowConfigService } from '../configuration/workflow-config.service';
 
 /**
  * Phase 3 — controlled invoice correction (DEC-019…023, DEC-102).
@@ -55,6 +56,7 @@ export class InvoiceCorrectionService {
     private readonly numbering: NumberingService,
     private readonly audit: AuditService,
     private readonly postings: CustomerPostingService,
+    private readonly workflows: WorkflowConfigService,
   ) {}
 
   /** Corrections where the invoice is the original or the replacement. */
@@ -120,7 +122,10 @@ export class InvoiceCorrectionService {
         select: { id: true },
       });
 
-      if (approvalRequired) {
+      // Phase 9 adds a version-pinned approval when configured. It can only
+      // ADD a gate to the original CompanySettings rule, never switch it off.
+      const configuredApproval = await this.workflows.requestCorrectionIn(tx, correction.id, trimmed, actor);
+      if (approvalRequired || configuredApproval) {
         await this.audit.recordIn(tx, {
           action: 'invoice.correction.requested',
           entityType: 'Invoice',
@@ -161,6 +166,7 @@ export class InvoiceCorrectionService {
       }
 
       await this.lockInvoice(tx, correction.originalInvoiceId);
+      await this.workflows.decideCorrectionIn(tx, correction.id, true, '', actor);
       await this.apply(tx, correction.id, actor, actor);
       return this.findCorrection(tx, correction.id);
     });
@@ -185,6 +191,7 @@ export class InvoiceCorrectionService {
         throw new ConflictException(`Correction is ${correction.status}; only pending corrections can be rejected`);
       }
 
+      await this.workflows.decideCorrectionIn(tx, correctionId, false, trimmed, actor);
       await tx.invoiceCorrection.update({
         where: { id: correctionId },
         data: {

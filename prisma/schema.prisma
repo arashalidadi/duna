@@ -2656,3 +2656,239 @@ model CustomerStatementIssue {
   @@index([customerId, currencyCode, createdAt])
   @@map("customer_statement_issues")
 }
+
+// Phase 9 configuration is additive. No configured definition replaces the
+// operational models, financial rules, office permissions or portal scoping.
+// Stable option IDs/codes and value snapshots preserve the meaning of history.
+model ConfigOptionList {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  label       String
+  isActive    Boolean  @default(true)
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  options     ConfigOption[]
+  fields      ConfigField[]
+}
+
+model ConfigOption {
+  id        String   @id @default(cuid())
+  listId    String
+  code      String
+  label     String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  list      ConfigOptionList @relation(fields: [listId], references: [id], onDelete: Restrict)
+
+  @@unique([listId, code])
+  @@index([listId, isActive])
+}
+
+// Scope is a fixed business-record key or CUSTOM:<config-document-code>.
+// A definition can be revised or deactivated; the saved values are never
+// rewritten by those changes. Permission codes only add restrictions.
+model ConfigField {
+  id              String   @id @default(cuid())
+  scope           String
+  key             String
+  label           String
+  kind            String
+  required        Boolean  @default(false)
+  rules           Json     @default("{}")
+  optionListId    String?
+  displayLocation String   @default("detail")
+  sortOrder       Int      @default(0)
+  visibility      Json     @default("{}")
+  viewPermission  String?
+  editPermission  String?
+  searchable      Boolean  @default(false)
+  filterable      Boolean  @default(false)
+  reportable      Boolean  @default(false)
+  exportable      Boolean  @default(false)
+  effectiveFrom   DateTime @default(now())
+  effectiveUntil  DateTime?
+  isActive        Boolean  @default(true)
+  version         Int      @default(1)
+  createdById     String
+  updatedById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  optionList      ConfigOptionList? @relation(fields: [optionListId], references: [id], onDelete: Restrict)
+  values          ConfigFieldValue[]
+  revisions       ConfigFieldRevision[]
+
+  @@unique([scope, key])
+  @@index([scope, isActive, sortOrder])
+  @@index([optionListId])
+}
+
+// Immutable versions of field metadata; individual values also retain the
+// exact field and option labels in use when they were written.
+model ConfigFieldRevision {
+  id          String   @id @default(cuid())
+  fieldId     String
+  version     Int
+  definition  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  field       ConfigField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+
+  @@unique([fieldId, version])
+}
+
+model ConfigFieldValue {
+  id            String   @id @default(cuid())
+  fieldId       String
+  scope         String
+  recordId      String
+  value         Json
+  searchText    String?
+  fieldSnapshot Json
+  updatedById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  field         ConfigField @relation(fields: [fieldId], references: [id], onDelete: Restrict)
+  history       ConfigFieldValueRevision[]
+
+  @@unique([fieldId, recordId])
+  @@index([scope, recordId])
+  @@index([fieldId, searchText])
+}
+
+// Every write preserves an immutable copy, including edits and explicit clears.
+model ConfigFieldValueRevision {
+  id          String   @id @default(cuid())
+  valueId     String
+  value       Json
+  snapshot    Json
+  actorId     String
+  createdAt   DateTime @default(now())
+  fieldValue  ConfigFieldValue @relation(fields: [valueId], references: [id], onDelete: Restrict)
+
+  @@index([valueId, createdAt])
+}
+
+// Core document types remain subject to their original services; CUSTOM-* are
+// extra, non-financial office documents. Every revision is immutable and records
+// its own field/workflow/relationship/numbering/output policy snapshot.
+model ConfigDocumentType {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  isCore           Boolean  @default(false)
+  isActive         Boolean  @default(false)
+  currentVersionId String?
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  versions         ConfigDocumentVersion[]
+  records          ConfigDocument[]
+
+  @@index([isActive])
+}
+
+model ConfigDocumentVersion {
+  id          String   @id @default(cuid())
+  typeId      String
+  version     Int
+  definition  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  type        ConfigDocumentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  records     ConfigDocument[]
+
+  @@unique([typeId, version])
+}
+
+// An issued configurable document has a frozen source/identity/layout snapshot.
+// Approved bytes are archived through the same immutable Phase-8 output table.
+model ConfigDocument {
+  id                String    @id @default(cuid())
+  typeId            String
+  versionId         String
+  workflowVersionId String
+  number            String
+  status            String
+  values            Json      @default("{}")
+  links             Json      @default("{}")
+  revision          Int       @default(1)
+  issuedAt          DateTime?
+  issueSnapshot     Json?
+  createdById       String
+  updatedById       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  type              ConfigDocumentType @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  definition        ConfigDocumentVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  workflowVersion   ConfigWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+  events            ConfigDocumentEvent[]
+
+  @@unique([typeId, number])
+  @@index([typeId, status])
+}
+
+model ConfigDocumentEvent {
+  id          String   @id @default(cuid())
+  documentId  String
+  actorId     String
+  kind        String
+  beforeData  Json?
+  afterData   Json?
+  reason      String?
+  approvalId  String?
+  createdAt   DateTime @default(now())
+  document    ConfigDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@index([documentId, createdAt])
+}
+
+model ConfigWorkflow {
+  id               String   @id @default(cuid())
+  scope            String   @unique
+  isActive         Boolean  @default(false)
+  currentVersionId String?
+  createdById      String
+  updatedById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  versions         ConfigWorkflowVersion[]
+}
+
+model ConfigWorkflowVersion {
+  id          String   @id @default(cuid())
+  workflowId  String
+  version     Int
+  definition  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  workflow    ConfigWorkflow @relation(fields: [workflowId], references: [id], onDelete: Restrict)
+  records     ConfigDocument[]
+  approvals   ConfigApproval[]
+
+  @@unique([workflowId, version])
+}
+
+model ConfigApproval {
+  id                String    @id @default(cuid())
+  workflowVersionId String
+  scope             String
+  recordId          String
+  fromStatus        String
+  toStatus          String
+  context           Json      @default("{}")
+  status            String    @default("PENDING")
+  requestedById     String
+  requestedAt       DateTime  @default(now())
+  decidedById       String?
+  decidedAt         DateTime?
+  decisionNote      String?
+  consumedAt        DateTime?
+  workflowVersion   ConfigWorkflowVersion @relation(fields: [workflowVersionId], references: [id], onDelete: Restrict)
+
+  @@index([scope, recordId, status])
+  @@index([requestedById, status])
+}

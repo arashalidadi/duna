@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { phase9Permissions } from './phase9-permissions';
 
 /**
  * Phase 1 (A3) — REQUIRED seed data.
@@ -79,6 +80,9 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     { code: 'document:render', module: 'document', action: 'render' },
     { code: 'document:manage', module: 'document', action: 'manage' },
     { code: 'document:approve', module: 'document', action: 'approve' },
+    // Phase 9: configuration never grants access to source records by itself.
+    // Sidecar values also require the underlying entity read/edit permission.
+    ...phase9Permissions,
     { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
     { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management

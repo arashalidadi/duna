@@ -12,6 +12,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { DeliveryOrderController } from '../src/modules/delivery-release/delivery-order.controller';
 import { ReleaseOrderController } from '../src/modules/delivery-release/release-order.controller';
 import { DeliveryReleaseService } from '../src/modules/delivery-release/delivery-release.service';
+import { WorkflowConfigService } from '../src/modules/configuration/workflow-config.service';
+import { FieldConfigService } from '../src/modules/configuration/field-config.service';
 
 /** HTTP contract and transaction tests with a rollback-capable in-memory Prisma stub.
  * No database is opened or changed; the real PostgreSQL E2E remains in delivery-release.e2e-spec.ts.
@@ -172,6 +174,8 @@ describe('Delivery/Release cancellation integrity (HTTP, no database)', () => {
       controllers: [DeliveryOrderController, ReleaseOrderController],
       providers: [
         DeliveryReleaseService,
+        { provide: WorkflowConfigService, useValue: { consumeRelease: jest.fn() } },
+        { provide: FieldConfigService, useValue: { assertRequiredAtIssue: jest.fn(), writeNewReleaseIn: jest.fn() } },
         AuditService,
         { provide: PrismaService, useValue: prisma },
         { provide: STORAGE_ADAPTER_TOKEN, useValue: {} },

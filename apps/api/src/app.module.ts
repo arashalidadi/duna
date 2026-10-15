@@ -49,6 +49,7 @@ import { AuditModule } from './common/infrastructure/audit/audit.module';
 import { NumberingModule } from './common/infrastructure/numbering/numbering.module';
 import { AttachmentModule } from './common/infrastructure/attachment/attachment.module';
 import { DocumentTemplateModule } from './common/infrastructure/templates/document-template.module';
+import { ConfigurationModule } from './modules/configuration/configuration.module';
 
 @Module({
   imports: [
@@ -98,6 +99,7 @@ import { DocumentTemplateModule } from './common/infrastructure/templates/docume
     NumberingModule,
     AttachmentModule,
     DocumentTemplateModule,
+    ConfigurationModule,
   ],
   controllers: [AppController, AuditController],
   providers: [

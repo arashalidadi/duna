@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { PaginatedResult, CustomerListItem } from '@shipping/shared';
 import { Plus, Power } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { RecordCustomFields } from '@/components/configuration/record-custom-fields';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
@@ -540,6 +541,7 @@ export default function CustomersPage() {
             />
           </div>
         </div>
+        {editing && <div className="mt-4"><RecordCustomFields scope="Customer" recordId={editing.id} /></div>}
         {formError && (
           <p className="mt-3 text-xs text-destructive" role="alert">
             {formError}
