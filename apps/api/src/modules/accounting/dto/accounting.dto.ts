@@ -148,6 +148,38 @@ export class PostExpenseDto {
   @IsString()
   @MaxLength(500)
   rateOverrideReason?: string;
+
+  @ApiPropertyOptional({ description: 'VAT portion of gross amount (original currency). Omit when no input VAT was recorded.' })
+  @IsOptional()
+  @IsString()
+  inputVatAmount?: string;
+
+  @ApiPropertyOptional({ description: 'Active ASSET account debited for input VAT, required with inputVatAmount.' })
+  @IsOptional()
+  @IsString()
+  vatAccountId?: string;
+
+  @ApiPropertyOptional({ description: 'Date input VAT was paid, explicitly recorded by operator.' })
+  @IsOptional()
+  @IsDateString()
+  taxPaidAt?: string;
+}
+
+export class PostVoyageCostDto extends PostExpenseDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  voyageId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  manifestId?: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  categoryId!: string;
 }
 
 export class ReverseJournalDto {

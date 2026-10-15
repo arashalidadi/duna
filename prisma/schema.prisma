@@ -47,6 +47,8 @@ model User {
   updatedAt               DateTime         @updatedAt
   deletedAt               DateTime?
   roles                   UserRole[]
+  savedReports            SavedReport[]
+  statementsIssued        CustomerStatementIssue[]
   refreshTokens           RefreshToken[]
   inspectionsCreated      Inspection[]     @relation("InspectorCreated")
   inspectionsApproved     Inspection[]     @relation("InspectorApproved")
@@ -331,6 +333,7 @@ model Customer {
   deletedAt              DateTime?
   cargos                 Cargo[] // all cargo consigned to this customer
   invoicesIssuedTo       Invoice[]        @relation("InvoiceCustomer")
+  statementIssues        CustomerStatementIssue[]
   proformasIssuedTo      Proforma[]       @relation("ProformaCustomer")
   quotationsIssuedTo     Quotation[]      @relation("QuotationCustomer")
   letters                Letter[]         @relation("LetterCustomer")
@@ -728,6 +731,7 @@ model Voyage {
   billsOfLading   BillOfLading[] @relation("BillOfLadingVoyage")
   invoices        Invoice[]      @relation("InvoiceVoyage")
   jobs            Job[]          @relation("JobVoyage")
+  reportCosts     VoyageCost[]
 
   @@index([voyageNumber])
   @@index([vesselId])
@@ -1211,6 +1215,7 @@ model Manifest {
   items         ManifestItem[]
   billsOfLading BillOfLading[] @relation("BillOfLadingManifest")
   invoices      Invoice[]      @relation("InvoiceManifest")
+  reportCosts   VoyageCost[]
   createdBy     User?          @relation("ManifestCreatedBy", fields: [createdById], references: [id])
   submittedBy   User?          @relation("ManifestSubmittedBy", fields: [submittedById], references: [id])
   approvedBy    User?          @relation("ManifestApprovedBy", fields: [approvedById], references: [id])
@@ -2075,6 +2080,7 @@ model Account {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   lines       JournalLine[]
+  inputTaxRecords ExpenseInputTax[]
 
   @@index([type, isActive])
   @@map("accounts")
@@ -2083,6 +2089,7 @@ model Account {
 enum JournalKind {
   GENERAL
   OFFICE_EXPENSE
+  VOYAGE_COST
 }
 
 model GeneralJournal {
@@ -2106,6 +2113,8 @@ model GeneralJournal {
   reversedById       String?
   reversalReason     String?
   lines              JournalLine[]
+  reportCost         VoyageCost?
+  inputTax           ExpenseInputTax?
   reversalOf         GeneralJournal? @relation("JournalReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
   reversal           GeneralJournal? @relation("JournalReversal")
 
@@ -2469,4 +2478,95 @@ model DocumentTemplateVersion {
   @@unique([templateId, version])
   @@index([templateId])
   @@map("DocumentTemplateVersion")
+}
+
+// Phase 7 reporting. Category IDs are stable; names on a posted cost are
+// snapshots, so a later rename/deactivation does not rewrite history.
+model VoyageCostCategory {
+  id          String @id @default(cuid())
+  code        String @unique
+  name        String
+  isActive    Boolean @default(true)
+  createdById String
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costs       VoyageCost[]
+
+  @@map("voyage_cost_categories")
+}
+
+// Only journal-backed costs enter P&L. The journal's rate, source, entries and
+// reversal status are authoritative; the net original/base cost is frozen here.
+model VoyageCost {
+  id                   String @id @default(cuid())
+  voyageId             String
+  manifestId           String?
+  categoryId           String
+  categoryCodeSnapshot String
+  categoryNameSnapshot String
+  journalId            String @unique
+  netAmount            Decimal @db.Decimal(18, 2)
+  baseNetAmount        Decimal @db.Decimal(24, 2)
+  createdAt            DateTime @default(now())
+  voyage               Voyage @relation(fields: [voyageId], references: [id], onDelete: Restrict)
+  manifest             Manifest? @relation(fields: [manifestId], references: [id], onDelete: Restrict)
+  category             VoyageCostCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  journal              GeneralJournal @relation(fields: [journalId], references: [id], onDelete: Restrict)
+
+  @@index([voyageId])
+  @@index([manifestId])
+  @@index([categoryId])
+  @@map("voyage_costs")
+}
+
+// Input VAT is only reported as paid when an operator supplies its paid date
+// with a journal-backed expense. Absent historical tax is UNKNOWN, not zero.
+model ExpenseInputTax {
+  id              String @id @default(cuid())
+  journalId       String @unique
+  taxAccountId    String?
+  amount          Decimal @db.Decimal(18, 2)
+  baseAmount      Decimal @db.Decimal(24, 2)
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  journal         GeneralJournal @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  taxAccount      Account? @relation(fields: [taxAccountId], references: [id], onDelete: Restrict)
+
+  @@index([paidAt])
+  @@map("expense_input_taxes")
+}
+
+// Saved specifications contain only allowlisted field identifiers, never SQL.
+// Private per author except the single primary owner; all runs re-check CURRENT permissions.
+model SavedReport {
+  id          String @id @default(cuid())
+  name        String
+  definition  Json
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([createdById])
+  @@map("saved_reports")
+}
+
+// An explicitly ISSUED derived customer statement, preserving exactly what
+// was shown at issue time. A new issue corrects an earlier one; neither can
+// mutate historical content. This is not a journal or ledger posting.
+model CustomerStatementIssue {
+  id           String @id @default(cuid())
+  customerId   String
+  currencyCode String
+  periodFrom   DateTime
+  periodTo     DateTime
+  snapshot     Json
+  createdById  String
+  createdAt    DateTime @default(now())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdBy    User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([customerId, currencyCode, createdAt])
+  @@map("customer_statement_issues")
 }

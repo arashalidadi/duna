@@ -9,10 +9,14 @@ import { NumberingService, nextSequenceAfter, periodicSequenceRequest } from '..
 import { ExchangeRateService } from '../finance/exchange-rate.service';
 import { exactMoney, toBase, transactionDate } from '../finance/financial-money';
 import type {
-  CreateAccountDto, JournalLineDto, PostExpenseDto, PostJournalDto, UpdateAccountDto,
+  CreateAccountDto, JournalLineDto, PostExpenseDto, PostJournalDto, PostVoyageCostDto, UpdateAccountDto,
 } from './dto/accounting.dto';
 
 const ZERO = new Prisma.Decimal(0);
+type ExpenseMeta = {
+  tax?: { amount: Prisma.Decimal; paidAt: Date | null; vatAccountId: string | null };
+  cost?: { voyageId: string; manifestId?: string; categoryId: string };
+};
 
 function side(value: string | undefined): Prisma.Decimal {
   if (value === undefined || value === '') return ZERO;
@@ -83,6 +87,7 @@ export class AccountingService {
   async journal(id: string) {
     const row = await this.prisma.generalJournal.findUnique({ where: { id }, include: {
       lines: { include: { account: { select: { code: true, name: true, type: true } } } },
+      inputTax: true, reportCost: true,
     } });
     if (!row) throw new NotFoundException('Journal not found');
     return row;
@@ -109,7 +114,7 @@ export class AccountingService {
     })) };
   }
 
-  async post(dto: PostJournalDto, actor: AuthenticatedUser, kind: JournalKind = JournalKind.GENERAL) {
+  async post(dto: PostJournalDto, actor: AuthenticatedUser, kind: JournalKind = JournalKind.GENERAL, meta?: ExpenseMeta) {
     if (!dto.description?.trim()) throw new BadRequestException('Description is required');
     if (!dto.lines || dto.lines.length < 2) throw new BadRequestException('At least two journal lines required');
     const date = transactionDate(dto.journalDate);
@@ -134,9 +139,31 @@ export class AccountingService {
         if (accounts.length !== new Set(parsed.map((l) => l.accountId)).size) {
           throw new ConflictException('All journal accounts must exist and be active');
         }
-        if (kind === JournalKind.OFFICE_EXPENSE) {
+        if (kind !== JournalKind.GENERAL) {
           const expense = accounts.find((a) => a.id === parsed[0].accountId);
           if (expense?.type !== AccountType.EXPENSE) throw new ConflictException('Choose an active EXPENSE category account');
+          if (meta?.tax?.amount.greaterThan(0)) {
+            const vatAccount = accounts.find((a) => a.id === meta.tax?.vatAccountId);
+            const creditAccount = accounts.find((a) => a.id === parsed[parsed.length - 1].accountId);
+            if (vatAccount?.type !== AccountType.ASSET || creditAccount?.type !== AccountType.ASSET ||
+                vatAccount.id === expense.id || vatAccount.id === creditAccount.id) {
+              throw new ConflictException('Paid input VAT needs a separate active ASSET VAT account and ASSET payment account');
+            }
+          }
+        }
+        let category: { id: string; code: string; name: string } | null = null;
+        if (meta?.cost) {
+          const voyage = await tx.voyage.findUnique({ where: { id: meta.cost.voyageId }, select: { id: true } });
+          if (!voyage) throw new NotFoundException('Voyage not found');
+          if (meta.cost.manifestId) {
+            const manifest = await tx.manifest.findFirst({ where: { id: meta.cost.manifestId,
+              voyageId: voyage.id, deletedAt: null, status: { not: 'CANCELLED' } }, select: { id: true } });
+            if (!manifest) throw new ConflictException('Manifest must belong to the voyage and be live');
+          }
+          category = await tx.voyageCostCategory.findFirst({
+            where: { id: meta.cost.categoryId, isActive: true }, select: { id: true, code: true, name: true },
+          });
+          if (!category) throw new ConflictException('Cost category must be active');
         }
         const customers = [...new Set(parsed.map((l) => l.customerId).filter((id): id is string => id !== null))];
         if (customers.length) {
@@ -146,6 +173,16 @@ export class AccountingService {
         const data = parsed.map((l) => ({ ...l,
           baseDebit: toBase(l.debit, rate.exchangeRate), baseCredit: toBase(l.credit, rate.exchangeRate),
         }));
+        // Split gross base amount once; put the at-most-one-cent rounding residual
+        // on net expense, keeping the posted journal balanced and VAT traceable.
+        if (meta?.tax?.amount.greaterThan(0)) {
+          const residualNet = data[data.length - 1].baseCredit.minus(data[1].baseDebit);
+          if (residualNet.lessThan(0) ||
+              residualNet.minus(data[0].baseDebit).abs().greaterThan('0.01')) {
+            throw new BadRequestException('Tax split cannot be reconciled in base currency');
+          }
+          data[0].baseDebit = residualNet;
+        }
         const baseDebit = data.reduce((sum, l) => sum.plus(l.baseDebit), ZERO);
         const baseCredit = data.reduce((sum, l) => sum.plus(l.baseCredit), ZERO);
         if (!baseDebit.equals(baseCredit)) {
@@ -165,13 +202,25 @@ export class AccountingService {
           currencyRateId: rate.currencyRateId, rateOverrideReason: rate.rateOverrideReason,
           createdById: actor.id, lines: { create: data },
         } });
+        if (meta?.tax) await tx.expenseInputTax.create({ data: {
+          journalId: journal.id, taxAccountId: meta.tax.vatAccountId,
+          amount: meta.tax.amount, baseAmount: meta.tax.amount.greaterThan(0) ? data[1].baseDebit : ZERO, paidAt: meta.tax.paidAt,
+        } });
+        if (meta?.cost && category) await tx.voyageCost.create({ data: {
+          journalId: journal.id, voyageId: meta.cost.voyageId,
+          manifestId: meta.cost.manifestId ?? null, categoryId: category.id,
+          categoryCodeSnapshot: category.code, categoryNameSnapshot: category.name,
+          netAmount: data[0].debit, baseNetAmount: data[0].baseDebit,
+        } });
         await this.audit.recordIn(tx, {
-          action: kind === JournalKind.OFFICE_EXPENSE ? 'expense.post' : 'journal.post',
+          action: kind === JournalKind.GENERAL ? 'journal.post' : kind === JournalKind.VOYAGE_COST ? 'voyage.cost.post' : 'expense.post',
           entityType: 'GeneralJournal', entityId: journal.id, actorId: actor.id, actorEmail: actor.email,
           afterData: { journalNumber, kind, currencyCode: dto.currencyCode,
             baseCurrencyCode: rate.baseCurrencyCode, rate: rate.exchangeRate.toString(),
             effectiveAt: rate.rateEffectiveAt, rateSource: rate.rateSource,
-            overrideReason: rate.rateOverrideReason, lines: data.map((l) => ({
+            overrideReason: rate.rateOverrideReason, cost: meta?.cost ?? null,
+            inputVat: meta?.tax ? { amount: meta.tax.amount.toFixed(2), paidAt: meta.tax.paidAt, taxAccountId: meta.tax.vatAccountId } : null,
+            lines: data.map((l) => ({
               accountId: l.accountId, customerId: l.customerId, debit: l.debit.toFixed(2),
               credit: l.credit.toFixed(2), baseDebit: l.baseDebit.toFixed(2), baseCredit: l.baseCredit.toFixed(2),
             })) },
@@ -188,16 +237,50 @@ export class AccountingService {
   }
 
   async expense(dto: PostExpenseDto, actor: AuthenticatedUser) {
-    const amount = exactMoney(dto.amount);
+    return this.postExpense(dto, actor, JournalKind.OFFICE_EXPENSE);
+  }
+
+  async voyageCost(dto: PostVoyageCostDto, actor: AuthenticatedUser) {
+    if (dto.inputVatAmount === undefined) throw new BadRequestException(
+      'Voyage costs need explicit input VAT: 0 when none, or a positive paid amount with VAT asset account and date');
+    return this.postExpense(dto, actor, JournalKind.VOYAGE_COST,
+      { voyageId: dto.voyageId, manifestId: dto.manifestId, categoryId: dto.categoryId });
+  }
+
+  private async postExpense(dto: PostExpenseDto, actor: AuthenticatedUser, kind: JournalKind,
+    cost?: ExpenseMeta['cost']) {
+    const gross = exactMoney(dto.amount);
+    // Omitted means UNKNOWN for historical compatibility; explicit "0" means
+    // the operator confirmed there was no input VAT on this expense.
+    let tax: Prisma.Decimal | null = null;
+    if (dto.inputVatAmount !== undefined) {
+      try { tax = new Prisma.Decimal(dto.inputVatAmount); }
+      catch { throw new BadRequestException('inputVatAmount must be a nonnegative monetary amount'); }
+      if (!tax.isFinite() || tax.isNegative() || tax.decimalPlaces() > 2) {
+        throw new BadRequestException('inputVatAmount must be a nonnegative monetary amount');
+      }
+    }
+    const positive = tax !== null && tax.greaterThan(0);
+    if ((positive && (!dto.vatAccountId || !dto.taxPaidAt)) ||
+        (!positive && (dto.vatAccountId || dto.taxPaidAt))) {
+      throw new BadRequestException('Positive input VAT needs a VAT asset account and paid date');
+    }
+    const net = gross.minus(tax ?? ZERO);
+    if (net.lessThanOrEqualTo(0)) throw new BadRequestException('Input VAT must be less than gross expense');
+    const meta: ExpenseMeta = { cost, ...(tax !== null ? { tax: {
+      amount: tax, paidAt: positive ? transactionDate(dto.taxPaidAt) : null,
+      vatAccountId: positive ? dto.vatAccountId! : null,
+    } } : {}) };
     return this.post({
       description: dto.description, reference: dto.reference, journalDate: dto.journalDate,
       currencyCode: dto.currencyCode, exchangeRate: dto.exchangeRate,
       rateOverrideReason: dto.rateOverrideReason,
       lines: [
-        { accountId: dto.expenseAccountId, debit: amount.toFixed(2) },
-        { accountId: dto.creditAccountId, credit: amount.toFixed(2) },
+        { accountId: dto.expenseAccountId, debit: net.toFixed(2) },
+        ...(positive ? [{ accountId: dto.vatAccountId!, debit: tax!.toFixed(2) }] : []),
+        { accountId: dto.creditAccountId, credit: gross.toFixed(2) },
       ],
-    }, actor, JournalKind.OFFICE_EXPENSE);
+    }, actor, kind, meta);
   }
 
   async reverse(id: string, reason: string, actor: AuthenticatedUser) {

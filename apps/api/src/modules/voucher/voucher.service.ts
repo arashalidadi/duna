@@ -338,8 +338,9 @@ export class VoucherService {
    * POSTED vouchers (credit), sorted by date with a running balance. Entries
    * before fromDate collapse into openingBalance; toDate caps the window.
    */
-  async ledger(params: { customerId: string; fromDate?: string; toDate?: string; currencyCode?: string; kind?: string }): Promise<{ summary: LedgerSummary; entries: LedgerEntry[] }> {
-    const customer = await this.prisma.customer.findFirst({ where: { id: params.customerId, deletedAt: null } });
+  async ledger(params: { customerId: string; fromDate?: string; toDate?: string; currencyCode?: string; kind?: string },
+    client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<{ summary: LedgerSummary; entries: LedgerEntry[] }> {
+    const customer = await client.customer.findFirst({ where: { id: params.customerId, deletedAt: null } });
     if (!customer) throw new NotFoundException('customer not found');
 
     const invoiceWhere: Prisma.InvoiceWhereInput = {
@@ -356,11 +357,11 @@ export class VoucherService {
     };
 
     const [invoices, vouchers] = await Promise.all([
-      this.prisma.invoice.findMany({
+      client.invoice.findMany({
         where: invoiceWhere,
         select: { id: true, invoiceNumber: true, issueDate: true, createdAt: true, title: true, totalAmount: true, currencyCode: true, voyageId: true },
       }),
-      this.prisma.voucher.findMany({
+      client.voucher.findMany({
         where: voucherWhere,
         select: { id: true, voucherNumber: true, type: true, voucherDate: true, amount: true, currencyCode: true, description: true },
       }),

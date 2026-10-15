@@ -8,5 +8,6 @@ import { AccountingService } from './accounting.service';
   imports: [FinanceCoreModule, NumberingModule],
   controllers: [AccountingController],
   providers: [AccountingService],
+  exports: [AccountingService],
 })
 export class AccountingModule {}

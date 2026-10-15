@@ -68,6 +68,12 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     { code: 'journal:post', module: 'journal', action: 'post' },
     { code: 'journal:reverse', module: 'journal', action: 'reverse' },
     { code: 'expense:post', module: 'expense', action: 'post' },
+    { code: 'expense:read', module: 'expense', action: 'read' },
+    { code: 'report:read', module: 'report', action: 'read' },
+    { code: 'report:design', module: 'report', action: 'design' },
+    { code: 'report:export', module: 'report', action: 'export' },
+    { code: 'report:cost_manage', module: 'report', action: 'cost_manage' },
+    { code: 'report:statement_issue', module: 'report', action: 'statement_issue' },
     { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
     { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management
@@ -465,6 +471,21 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     });
   }
   console.log(`  B/L lifecycle labels seeded (add-only): ${blLifecycleCodes.length}`);
+
+  // Confirmed Phase 7 categories. Add-only: never rename/reactivate an owner's
+  // changes or modify costs. Historical postings snapshot the label at posting.
+  for (const category of [
+    { code: 'VESSEL_HIRE', name: 'Vessel Hire' },
+    { code: 'PORT_USE', name: 'Port Use' },
+    { code: 'PORT_HANDLING', name: 'Port Handling' },
+    { code: 'LASHING', name: 'Lashing' },
+    { code: 'OTHER', name: 'Other voyage-related costs' },
+  ]) {
+    await prisma.voyageCostCategory.upsert({
+      where: { code: category.code }, update: {},
+      create: { ...category, createdById: adminUser.id },
+    });
+  }
 
   return {
     adminUser: { id: adminUser.id, email: adminUser.email },

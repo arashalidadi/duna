@@ -27,6 +27,7 @@ import { BillModule } from './modules/bill/bill.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
 import { VoucherModule } from './modules/voucher/voucher.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { DeliveryReleaseModule } from './modules/delivery-release/delivery-release.module';
 import { ProformaModule } from './modules/proforma/proforma.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
@@ -80,6 +81,7 @@ import { DocumentTemplateModule } from './common/infrastructure/templates/docume
     InvoiceModule,
     VoucherModule,
     AccountingModule,
+    ReportsModule,
     DeliveryReleaseModule,
     ProformaModule,
     QuotationModule,

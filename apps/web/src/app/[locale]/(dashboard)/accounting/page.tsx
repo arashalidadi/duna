@@ -21,6 +21,7 @@ const blankLine = (): DraftLine => ({ accountId: '', customerId: '', debit: '', 
 
 export default function AccountingPage() {
   const t = useTranslations('financeUi');
+  const tr = useTranslations('reportsUi');
   const { hasPermission } = useAuth();
   const [accounts, setAccounts] = useState<AccountingAccount[]>([]);
   const [journals, setJournals] = useState<GeneralJournal[]>([]);
@@ -30,7 +31,8 @@ export default function AccountingPage() {
   const [accountForm, setAccountForm] = useState({ code: '', name: '', type: 'ASSET' as AccountType });
   const [journalForm, setJournalForm] = useState({ description: '', currencyCode: 'USD', journalDate: '', reference: '', exchangeRate: '', rateOverrideReason: '' });
   const [lines, setLines] = useState<DraftLine[]>([blankLine(), blankLine()]);
-  const [expenseForm, setExpenseForm] = useState({ expenseAccountId: '', creditAccountId: '', description: '', amount: '', currencyCode: 'USD', journalDate: '', exchangeRate: '', rateOverrideReason: '' });
+  const [expenseForm, setExpenseForm] = useState({ expenseAccountId: '', creditAccountId: '', description: '', amount: '', currencyCode: 'USD', journalDate: '', exchangeRate: '', rateOverrideReason: '', inputVatAmount: '', vatAccountId: '', taxPaidAt: '' });
+  const hasPositiveExpenseVat = Number(expenseForm.inputVatAmount) > 0;
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<AccountEntries | null>(null);
@@ -206,7 +208,18 @@ export default function AccountingPage() {
           onChange={(e) => setExpenseForm({ ...expenseForm, journalDate: e.target.value })} /></div>
         <div><Label>{t('description')}</Label><Input value={expenseForm.description}
           onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })} /></div>
+        <div><Label>{tr('vatAmountZero')}</Label><Input inputMode="decimal" value={expenseForm.inputVatAmount}
+          onChange={(e) => setExpenseForm({ ...expenseForm, inputVatAmount: e.target.value })} /></div>
+        <div><Label>{tr('vatAssetAccount')}</Label><select className={selectClass} value={expenseForm.vatAccountId}
+          disabled={!hasPositiveExpenseVat}
+          onChange={(e) => setExpenseForm({ ...expenseForm, vatAccountId: e.target.value })}>
+          <option value="">{t('chooseAccount')}</option>{accounts.filter((a) => a.isActive && a.type === 'ASSET')
+            .map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
+        </select></div>
+        <div><Label>{tr('taxPaidAt')}</Label><Input type="date" value={expenseForm.taxPaidAt}
+          onChange={(e) => setExpenseForm({ ...expenseForm, taxPaidAt: e.target.value })} /></div>
       </div>
+      <p className="text-sm text-muted-foreground">{tr('vatCostHint')}</p>
       {hasPermission('currency_rate:override') && <div className="grid gap-3 sm:grid-cols-2">
         <div><Label>{t('rateOverride')}</Label><Input inputMode="decimal" value={expenseForm.exchangeRate}
           onChange={(e) => setExpenseForm({ ...expenseForm, exchangeRate: e.target.value })} /></div>
@@ -216,9 +229,13 @@ export default function AccountingPage() {
       <Button disabled={busy || !expenseForm.expenseAccountId || !expenseForm.creditAccountId || !expenseForm.amount || !expenseForm.description}
         onClick={() => void run(async () => {
           await api.post('/ledger/expenses', { ...expenseForm,
+            inputVatAmount: expenseForm.inputVatAmount || undefined,
+            vatAccountId: hasPositiveExpenseVat ? expenseForm.vatAccountId || undefined : undefined,
+            taxPaidAt: hasPositiveExpenseVat && expenseForm.taxPaidAt
+              ? `${expenseForm.taxPaidAt}T00:00:00.000Z` : undefined,
             ...(expenseForm.exchangeRate ? {} : { exchangeRate: undefined, rateOverrideReason: undefined }),
             ...(expenseForm.journalDate ? { journalDate: new Date(expenseForm.journalDate).toISOString() } : { journalDate: undefined }) });
-          setExpenseForm({ ...expenseForm, amount: '', description: '', exchangeRate: '', rateOverrideReason: '' });
+          setExpenseForm({ ...expenseForm, amount: '', description: '', exchangeRate: '', rateOverrideReason: '', inputVatAmount: '', vatAccountId: '', taxPaidAt: '' });
         })}>{t('postExpense')}</Button>
     </CardContent></Card>}
 
@@ -239,7 +256,7 @@ export default function AccountingPage() {
         {journals.map((j) => <div key={j.id} className="rounded-md border p-3 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-medium">{j.journalNumber} · {j.description}</p>
             <span>{j.currencyCode} → {j.baseCurrencyCode} · {j.rateSource}</span></div>
-          <p>{j.kind === 'OFFICE_EXPENSE' ? t('expense') : t('postJournal')}{j.reversedAt ? ` · ${t('reversed')}` : ''}</p>
+          <p>{j.kind === 'OFFICE_EXPENSE' ? t('expense') : j.kind === 'VOYAGE_COST' ? tr('postCost') : t('postJournal')}{j.reversedAt ? ` · ${t('reversed')}` : ''}</p>
           {j.lines.map((line) => <p key={line.id} className="text-muted-foreground">{line.account.code} · {line.account.name} ·
             {t('debit')} {line.debit} / {t('credit')} {line.credit} {j.currencyCode}
             {line.customerId && ` · ${t('customer')}: ${customers.find((c) => c.id === line.customerId)?.name ?? line.customerId}`}</p>)}

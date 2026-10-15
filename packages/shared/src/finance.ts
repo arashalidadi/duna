@@ -25,7 +25,7 @@ export interface GeneralJournal {
   id: string;
   journalNumber: string;
   journalDate: string;
-  kind: 'GENERAL' | 'OFFICE_EXPENSE';
+  kind: 'GENERAL' | 'OFFICE_EXPENSE' | 'VOYAGE_COST';
   description: string;
   currencyCode: string;
   baseCurrencyCode: string;

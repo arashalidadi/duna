@@ -410,7 +410,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     titleKey: 'insightControl',
     items: [
-      { labelKey: 'reports', icon: BarChart3, status: 'planned', description: 'Reporting & P&L' },
+      { labelKey: 'reports', href: '/reports', icon: BarChart3, status: 'implemented',
+        description: 'Permission-aware reports, P&L and report builder', requiredPermission: 'report:read' },
     ],
   },
 ];
