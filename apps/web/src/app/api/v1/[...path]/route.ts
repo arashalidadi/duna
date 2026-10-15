@@ -28,7 +28,7 @@ async function forward(
       redirect: 'manual',
       // Report reads run in bounded repeatable-read snapshots; PDF/Excel
       // rendering can also exceed the normal JSON timeout. Remain binary-safe.
-      signal: AbortSignal.timeout(ctx.params.path[0] === 'reports' ? 60_000 : 15_000),
+      signal: AbortSignal.timeout(['reports', 'documents'].includes(ctx.params.path[0]) ? 60_000 : 15_000),
     });
     // Do not forward transport headers after fetch decompression, or expose upstream cookies.
     // Authentication uses the existing bearer/refresh-token response contract, not cookies.

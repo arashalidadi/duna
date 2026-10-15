@@ -8,6 +8,7 @@ import { CargoStatus, LoadListStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import {
   NumberingService,
   nextSequenceAfter,
@@ -790,15 +791,19 @@ export class LoadPlanningService {
       }
     }
 
-    return this.prisma.loadList.update({
-      where: { id },
-      data: {
-        status: 'FINALIZED',
-        finalizedAt: new Date(),
-        finalizedById: actor?.id,
-      },
-      select: detailSelect,
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const finalized = await tx.loadList.update({
+        where: { id },
+        data: {
+          status: 'FINALIZED',
+          finalizedAt: new Date(),
+          finalizedById: actor?.id,
+        },
+        select: detailSelect,
+      });
+      await captureIssuedDocument(tx, 'loading-list', id, actor?.id);
+      return finalized;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   /**

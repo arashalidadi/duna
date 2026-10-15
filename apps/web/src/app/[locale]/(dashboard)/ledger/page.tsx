@@ -13,6 +13,7 @@ import type {
   PaginatedResult,
 } from '@shipping/shared';
 import { Printer } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { formatDateShort } from '@/lib/date';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -111,12 +112,17 @@ export default function LedgerPage() {
           <h1 className="text-2xl font-bold">{t('page.title')}</h1>
           <p className="text-muted-foreground">{t('page.description')}</p>
         </div>
-        {report && (
+        {report && <div className="flex flex-wrap items-center gap-2">
+          <DocumentOutputActions type="ledger" id={customerId} filters={{
+            currencyCode: currency || undefined,
+            fromDate: fromDate ? new Date(fromDate).toISOString() : undefined,
+            toDate: toDate ? new Date(toDate + 'T23:59:59').toISOString() : undefined,
+          }} />
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="size-4" />
             {t('actions.print')}
           </Button>
-        )}
+        </div>}
       </div>
 
       <Card>

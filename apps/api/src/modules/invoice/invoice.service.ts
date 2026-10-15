@@ -14,6 +14,7 @@ import { ExchangeRateService } from '../finance/exchange-rate.service';
 import { CustomerPostingService } from '../finance/customer-posting.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { recomputeInvoiceTax } from './invoice-tax';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import {
   AddInvoiceItemDto,
   CancelInvoiceDto,
@@ -560,6 +561,7 @@ export class InvoiceService {
           rateEffectiveAt: rate.rateEffectiveAt, rateSource: rate.rateSource,
           rateOverrideReason: rate.rateOverrideReason },
       });
+      await captureIssuedDocument(tx, 'invoice', id, actor.id);
       return issued;
     });
   }

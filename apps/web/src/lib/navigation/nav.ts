@@ -111,6 +111,11 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented', description: 'Currency rates and allocation policy',
         requiredPermission: 'currency_rate:read',
       },
+      {
+        labelKey: 'templates', href: '/templates', icon: FileText,
+        status: 'implemented', description: 'Versioned document layouts and company artwork',
+        requiredPermission: 'document:manage',
+      },
     ],
   },
   {

@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import {
   AddManifestItemDto,
   CancelManifestDto,
@@ -839,13 +840,16 @@ export class ManifestService {
     }
     this.assertTransition(existing.status, 'APPROVED');
 
-    return this.withPartySummary(
-      await this.prisma.manifest.update({
+    const approved = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.manifest.update({
         where: { id },
         data: { status: 'APPROVED', approvedAt: new Date(), approvedById: actor?.id },
         select: detailSelect,
-      }),
-    );
+      });
+      await captureIssuedDocument(tx, 'manifest', id, actor?.id);
+      return row;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    return this.withPartySummary(approved);
   }
 
   /** DRAFT|SUBMITTED -> CANCELLED. Reason required. Terminal. */

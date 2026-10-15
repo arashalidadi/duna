@@ -10,7 +10,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config test/jest-e2e.cjs",
     "test:watch": "jest --watch",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:documents:unit": "TSX_TSCONFIG_PATH=./tsconfig.json tsx scripts/test-phase8-documents.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",

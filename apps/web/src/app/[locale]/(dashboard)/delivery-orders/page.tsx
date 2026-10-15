@@ -13,6 +13,7 @@ import type {
   PortListItem,
 } from '@shipping/shared';
 import { Plus, Eye, XCircle, Truck } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -401,6 +402,7 @@ export default function DeliveryOrdersPage() {
       <Dialog open={detailOpen} onOpenChange={setDetailOpen} title={detail ? detail.docNumber : ''}>
         {detail ? (
           <div className="space-y-4">
+            <DocumentOutputActions type="delivery-order" id={detail.id} />
             <div className="flex items-center gap-2">
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>
               <span className="font-mono text-xs text-muted-foreground">

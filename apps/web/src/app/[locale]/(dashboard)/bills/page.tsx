@@ -32,6 +32,7 @@ import {
   Send,
   FileText,
 } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -963,6 +964,7 @@ export default function BillsOfLadingPage() {
           <PageLoader />
         ) : (
           <div className="relative space-y-6">
+            <DocumentOutputActions type="bill" id={detail.id} />
             {/* P4-U7: DRAFT watermark (blueprint §5.1) — cosmetic only, no state logic.
                 pointer-events-none keeps the form fully usable underneath. */}
             {detail.status === 'DRAFT' && (

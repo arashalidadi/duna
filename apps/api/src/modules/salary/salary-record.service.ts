@@ -8,6 +8,7 @@ import { Prisma, SalaryStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import {
   NumberingService,
   nextSequenceAfter,
@@ -270,11 +271,15 @@ export class SalaryRecordService {
   async approve(id: string, actor?: AuthenticatedUser) {
     const existing = await this.assertExists(id);
     this.assertTransition(existing.status, 'APPROVED');
-    return this.prisma.salaryRecord.update({
-      where: { id },
-      data: { status: 'APPROVED', approvedById: actor?.id, approvedAt: new Date() },
-      select: listSelect,
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const approved = await tx.salaryRecord.update({
+        where: { id },
+        data: { status: 'APPROVED', approvedById: actor?.id, approvedAt: new Date() },
+        select: listSelect,
+      });
+      await captureIssuedDocument(tx, 'salary-slip', id, actor?.id);
+      return approved;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   /** APPROVED -> PAID. Records the payment fact (method + trace) on the row. */

@@ -15,6 +15,7 @@ import { exactMoney, toBase, transactionDate } from '../finance/financial-money'
 import type { LedgerEntry, LedgerSummary, Voucher } from '@shipping/shared';
 import type { AdjustVoucherDto, CreateVoucherDto, ReallocateVoucherDto, UpdateVoucherDto } from './dto/voucher.dto';
 import { VoucherAllocationService } from './voucher-allocation.service';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 
 const PAGE_SIZE_MAX = 100;
 const ZERO = new Prisma.Decimal(0);
@@ -211,6 +212,10 @@ export class VoucherService {
           rate: rate.exchangeRate.toString(), rateEffectiveAt: rate.rateEffectiveAt,
           rateSource: rate.rateSource, rateOverrideReason: rate.rateOverrideReason,
           allocations: lines, unallocatedAmount: amount.minus(allocation.allocatedAmount).toFixed(2) } });
+      // Separate catalog outputs for the generic Voucher and its payment/receipt
+      // subtype are frozen together, after the allocation rows are committed.
+      await captureIssuedDocument(tx, 'voucher', voucher.id, actor.id);
+      await captureIssuedDocument(tx, dto.type === VoucherType.PAYMENT ? 'payment' : 'receipt', voucher.id, actor.id);
       return voucher;
     });
     return this.detail(created.id);

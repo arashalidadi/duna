@@ -74,6 +74,11 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     { code: 'report:export', module: 'report', action: 'export' },
     { code: 'report:cost_manage', module: 'report', action: 'cost_manage' },
     { code: 'report:statement_issue', module: 'report', action: 'statement_issue' },
+    // Phase 8: output requires BOTH document:render and the source read permission.
+    // Template and asset editing is separate from assignment/approval.
+    { code: 'document:render', module: 'document', action: 'render' },
+    { code: 'document:manage', module: 'document', action: 'manage' },
+    { code: 'document:approve', module: 'document', action: 'approve' },
     { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
     { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management

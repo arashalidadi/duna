@@ -11,6 +11,7 @@ import { CreateRevisionDto } from './dto/bill.dto';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import {
   AddBillItemDto,
   CancelBillDto,
@@ -1148,7 +1149,7 @@ export class BillService {
         });
       }
 
-      return tx.billOfLading.update({
+      const approved = await tx.billOfLading.update({
         where: { id },
         data: {
           // issued-equivalent state per ADR-046 ruling 1 (alias lands DRAFT|FINAL -> APPROVED)
@@ -1159,7 +1160,9 @@ export class BillService {
         },
         select: detailSelect,
       });
-    });
+      await captureIssuedDocument(tx, 'bill', id, actor?.id);
+      return approved;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   /** DRAFT|FINAL -> CANCELLED (ADR-046 ruling 1). Reason required. Releases the manifest lines. */

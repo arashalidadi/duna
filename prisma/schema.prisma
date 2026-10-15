@@ -2453,6 +2453,7 @@ model DocumentTemplate {
   deletedAt       DateTime? @map("deletedAt")
 
   versions DocumentTemplateVersion[] @relation("TemplateVersions")
+  assignments DocumentTemplateAssignment[]
 
   @@index([documentType])
   @@index([documentType, isActive])
@@ -2470,14 +2471,99 @@ model DocumentTemplateVersion {
   mimeType        String   @map("mimeType")
   size            BigInt   @default(0) @map("size")
   isActive        Boolean  @default(false) @map("isActive")
+  /// SHA-256 of immutable JSON layout bytes; null on pre-Phase-8 versions.
+  contentHash     String?  @map("contentHash")
   createdAt       DateTime @default(now()) @map("createdAt")
   updatedAt       DateTime @updatedAt @map("updatedAt")
 
   template DocumentTemplate @relation("TemplateVersions", fields: [templateId], references: [id], onDelete: Cascade)
+  assignments DocumentTemplateAssignment[]
+  renderedOutputs DocumentRenderedOutput[]
+  issuedSnapshots DocumentIssuedSnapshot[]
 
   @@unique([templateId, version])
   @@index([templateId])
   @@map("DocumentTemplateVersion")
+}
+
+// Phase 8 document output. Additive: no changes to issued operational rows.
+// Assignment history is append-only; new issuance snapshots capture the version
+// selected at issuance rather than relying on today's active assignment.
+model DocumentTemplateAssignment {
+  id          String   @id @default(cuid())
+  documentType String
+  templateId   String?
+  versionId    String?
+  assignedAt   DateTime @default(now())
+  assignedById String
+  template     DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  version      DocumentTemplateVersion? @relation(fields: [versionId], references: [id], onDelete: Restrict)
+
+  @@index([documentType, assignedAt])
+  @@map("DocumentTemplateAssignment")
+}
+
+// Approved company artwork only (logo, letterhead, stamp, signature). NOT the
+// recipient/employee identity attachments controlled by the Phase-4 policy.
+// Replacement is a new row. Old bytes remain for archived output verification.
+model DocumentAsset {
+  id            String   @id @default(cuid())
+  kind          String
+  name          String
+  mimeType      String
+  storageKey    String   @unique
+  size          Int
+  sha256        String
+  isApproved    Boolean  @default(false)
+  approvedAt    DateTime?
+  deactivatedAt DateTime?
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  @@index([kind, isApproved])
+  @@map("DocumentAsset")
+}
+
+// Transactionally captured alongside issuance/approval/posting. This freezes
+// source projection, company identity and the version assignment BEFORE the
+// first output request. Legacy issued rows predate this table and are labelled
+// reconstructed on first render rather than claimed to be issuance-time copies.
+model DocumentIssuedSnapshot {
+  id                String   @id @default(cuid())
+  documentType      String
+  recordId          String
+  data              Json
+  identity          Json
+  fallbackLayout    Json
+  templateVersionId String?
+  templateVersion   DocumentTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  createdById       String?
+  createdAt         DateTime @default(now())
+
+  @@unique([documentType, recordId])
+  @@index([templateVersionId])
+  @@map("DocumentIssuedSnapshot")
+}
+
+// Issued renders are immutable: one render per format/issuance, never an UPDATE.
+// Bytes, input projection and identity are stored together and hashed.
+model DocumentRenderedOutput {
+  id                String   @id @default(cuid())
+  documentType      String
+  recordId          String
+  format            String
+  revisionKey       String
+  templateVersionId String?
+  templateVersion   DocumentTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: Restrict)
+  content           Bytes
+  sha256            String
+  snapshot          Json
+  createdById       String
+  createdAt         DateTime @default(now())
+
+  @@unique([documentType, recordId, format, revisionKey])
+  @@index([templateVersionId])
+  @@map("DocumentRenderedOutput")
 }
 
 // Phase 7 reporting. Category IDs are stable; names on a posted cost are

@@ -17,6 +17,7 @@ import type {
   PaginatedResult,
 } from '@shipping/shared';
 import { Plus, Eye, CheckCircle2, XCircle, Stamp, Save, Trash2 } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -811,6 +812,7 @@ export default function InvoicesPage() {
           <PageLoader />
         ) : (
           <div className="space-y-6">
+            <DocumentOutputActions type="invoice" id={detail.id} />
             {actionError && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {actionError}

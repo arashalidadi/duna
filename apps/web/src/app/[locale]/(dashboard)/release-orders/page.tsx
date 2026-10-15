@@ -14,6 +14,7 @@ import type {
   BillOfLading,
 } from '@shipping/shared';
 import { Plus, Eye, XCircle, ShieldAlert, BadgeCheck, FileCheck } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -494,6 +495,7 @@ export default function ReleaseOrdersPage() {
           <PageLoader />
         ) : (
           <div className="space-y-4">
+            <DocumentOutputActions type="release-order" id={detail.id} />
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={detail.status === 'ISSUED' ? 'success' : 'danger'}>
                 {t(`status.${detail.status}`)}

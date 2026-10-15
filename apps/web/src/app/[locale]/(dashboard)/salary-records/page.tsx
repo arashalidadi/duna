@@ -13,6 +13,7 @@ import type {
   EmployeeListResult,
 } from '@shipping/shared';
 import { Plus, Eye, CheckCircle2, Banknote, XCircle, Trash2, Wallet } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateTime } from '@/lib/date';
@@ -698,6 +699,7 @@ export default function SalaryRecordsPage() {
           <PageLoader />
         ) : (
           <div className="space-y-4">
+            <DocumentOutputActions type="salary-slip" id={detail.id} />
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>
               <span className="text-sm text-muted-foreground">

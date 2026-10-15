@@ -76,6 +76,8 @@ export class JwtAuthGuard implements CanActivate {
       email: user.email,
       roles: [], // hydrated below
       permissions: [],
+      portalAgentId: user.portalAgentId,
+      portalCustomerId: user.portalCustomerId,
       isPrimaryAdmin: false, // hydrated below
     };
     const resolved = await this.authService.resolvePermissions(user.id);

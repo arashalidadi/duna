@@ -1,18 +1,23 @@
-export type DocumentTemplateFormat = 'PDF' | 'EXCEL' | 'PDF_EXCEL';
+import { IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { DOCUMENT_TYPES, type DocumentLayout, type DocumentType } from '../../../modules/document-output/document-layout';
 
-export interface CreateTemplateDto {
-  documentType: string;
-  name: string;
-  description?: string | null;
-  createdById?: string | null;
+export class CreateTemplateDto {
+  @IsIn(DOCUMENT_TYPES)
+  documentType!: DocumentType;
+  @IsString() @IsNotEmpty() @MaxLength(100)
+  name!: string;
+  @IsOptional() @IsString() @MaxLength(500)
+  description?: string;
 }
 
-export interface CreateTemplateVersionDto {
-  templateId: string;
-  label?: string | null;
-  storageKey: string;
-  mimeType: string;
-  size?: number | bigint;
+export class CreateTemplateVersionDto {
+  /** Accepted only for the legacy /version route; all content is still uploaded as validated JSON. */
+  @IsOptional() @IsString() @MaxLength(70)
+  templateId?: string;
+  @IsOptional() @IsString() @MaxLength(100)
+  label?: string;
+  @IsObject()
+  layout!: DocumentLayout;
 }
 
 export interface TemplateVersionRecord {
@@ -20,13 +25,11 @@ export interface TemplateVersionRecord {
   templateId: string;
   version: number;
   label: string | null;
-  storageKey: string;
-  storageAdapter: string;
   mimeType: string;
-  size: bigint | number;
+  size: number;
+  contentHash: string | null;
   isActive: boolean;
   createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface TemplateRecord {
@@ -34,25 +37,8 @@ export interface TemplateRecord {
   documentType: string;
   name: string;
   description: string | null;
-  format: string;
-  storageAdapter: string;
   isActive: boolean;
   currentVersionId: string | null;
-  createdById: string | null;
   createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date | null;
   versions: TemplateVersionRecord[];
-}
-
-export interface TemplateListOptions {
-  documentType?: string;
-  activeOnly?: boolean;
-  limit?: number;
-  offset?: number;
-}
-
-export interface TemplateListResult {
-  items: TemplateRecord[];
-  total: number;
 }

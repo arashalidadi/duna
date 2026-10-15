@@ -27,6 +27,7 @@ import {
   ClipboardList,
   ArrowUpDown,
 } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { Breadcrumbs } from '@/components/ui/breadcrumbs';
@@ -663,6 +664,9 @@ export default function LoadListsPage() {
         )}
       </Card>
 
+      {viewing && <Card><CardHeader><CardTitle>{viewing.loadListNumber}</CardTitle></CardHeader>
+        <CardContent><DocumentOutputActions type="loading-list" id={viewing.id} /></CardContent>
+      </Card>}
       {renderCreateDialog()}
       <ConfirmDialog
         open={!!confirmingFinalize}

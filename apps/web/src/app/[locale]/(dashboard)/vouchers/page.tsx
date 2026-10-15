@@ -17,6 +17,7 @@ import type {
   PaginatedResult,
   Invoice,
 } from '@shipping/shared';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateTime, formatDateShort } from '@/lib/date';
@@ -602,6 +603,8 @@ export default function VouchersPage() {
       >
         {detail ? (
           <div className="space-y-4">
+            <DocumentOutputActions type="voucher" id={detail.id} />
+            <DocumentOutputActions type={detail.type === 'PAYMENT' ? 'payment' : 'receipt'} id={detail.id} />
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={typeVariant(detail.type)}>{t(`type.${detail.type}`)}</Badge>
               <Badge variant={statusVariant(detail.status)}>{t(`status.${detail.status}`)}</Badge>

@@ -13,6 +13,7 @@ const PAGE_SIZE_MAX = 100;
 type Tx = Prisma.TransactionClient;
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { RELEASE_ORDER_ELIGIBILITY_POLICY as RELEASE_POLICY } from './release-order.policy';
+import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 
 /**
  * DEC-116 — `canOverride` is the capability layer (the `release:override`
@@ -232,7 +233,7 @@ export class DeliveryReleaseService {
         const c = await tx.customer.findFirst({ where: { id: dto.recipientId, deletedAt: null } });
         if (!c) throw new NotFoundException('recipient customer not found');
       }
-      return tx.deliveryOrder.create({
+      const order = await tx.deliveryOrder.create({
         data: {
           docNumber: await this.nextNumber(tx, 'DO'),
           billOfLadingId: dto.billOfLadingId,
@@ -246,6 +247,8 @@ export class DeliveryReleaseService {
           createdById: ctx.userId!,
         },
       });
+      await captureIssuedDocument(tx, 'delivery-order', order.id, ctx.userId);
+      return order;
     });
     return this.detailDelivery(created.id);
   }
@@ -432,6 +435,7 @@ export class DeliveryReleaseService {
           },
         });
       }
+      await captureIssuedDocument(tx, 'release-order', ro.id, ctx.userId);
       return ro;
     });
     return this.detailRelease(created.id);

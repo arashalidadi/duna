@@ -19,6 +19,7 @@ import type {
   VoyageListItem,
 } from '@shipping/shared';
 import { Plus, Eye, CheckCircle2, XCircle, Send, Stamp, Save, Trash2 } from 'lucide-react';
+import { DocumentOutputActions } from '@/components/document-output/document-output-actions';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
 import { formatDateShort, formatDateTime } from '@/lib/date';
@@ -895,6 +896,7 @@ export default function ManifestPage() {
         }
       >
         <div className="space-y-3">
+          {detail && <DocumentOutputActions type="manifest" id={detail.id} />}
           {detail && (
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">

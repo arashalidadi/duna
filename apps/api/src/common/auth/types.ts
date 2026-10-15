@@ -7,6 +7,9 @@ export interface AuthenticatedUser {
   email: string;
   roles: { id: string; code: string }[];
   permissions: string[];
+  /** Portal links are carried from the freshly loaded user row for office-output isolation. */
+  portalAgentId?: string | null;
+  portalCustomerId?: string | null;
   /**
    * DEC-116 — true for the single primary administrator (the company owner).
    *
