@@ -28,7 +28,9 @@ async function forward(
       redirect: 'manual',
       // Report reads run in bounded repeatable-read snapshots; PDF/Excel
       // rendering can also exceed the normal JSON timeout. Remain binary-safe.
-      signal: AbortSignal.timeout(['reports', 'documents'].includes(ctx.params.path[0]) ? 60_000 : 15_000),
+      signal: AbortSignal.timeout(
+        ['reports', 'documents'].includes(ctx.params.path[0]) ? 60_000 : 15_000
+      ),
     });
     // Do not forward transport headers after fetch decompression, or expose upstream cookies.
     // Authentication uses the existing bearer/refresh-token response contract, not cookies.
@@ -36,6 +38,14 @@ async function forward(
     for (const name of ['content-type', 'content-disposition', 'retry-after']) {
       const value = upstream.headers.get(name);
       if (value) responseHeaders.set(name, value);
+    }
+    // Audit CSV is deliberately paged. Preserve its bounded next-page contract
+    // so the UI never mistakes a 500-row page for the full history.
+    if (request.method === 'GET' && ctx.params.path.join('/') === 'audit/export') {
+      for (const name of ['x-audit-export-has-more', 'x-audit-export-next-offset']) {
+        const value = upstream.headers.get(name);
+        if (value) responseHeaders.set(name, value);
+      }
     }
     return new NextResponse(
       upstream.status === 204 || upstream.status === 304 ? null : await upstream.arrayBuffer(),

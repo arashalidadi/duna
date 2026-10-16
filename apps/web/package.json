@@ -8,7 +8,7 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/check-contract.mjs && node scripts/check-navigation.mjs && node scripts/check-page-size.mjs && node scripts/check-i18n.mjs && tsx scripts/test-portal-login.ts",
+    "test": "node scripts/check-contract.mjs && node scripts/check-navigation.mjs && node scripts/check-page-size.mjs && node scripts/check-i18n.mjs && tsx scripts/test-portal-login.ts && tsx --test scripts/test-phase11-audit.ts scripts/test-phase11-audit-proxy.ts",
     "test:ui": "playwright test"
   },
   "dependencies": {

@@ -434,6 +434,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { labelKey: 'reports', href: '/reports', icon: BarChart3, status: 'implemented',
         description: 'Permission-aware reports, P&L and report builder', requiredPermission: 'report:read' },
+      { labelKey: 'auditTrail', href: '/audit', icon: ScrollText, status: 'implemented',
+        description: 'Read-only audit trail; export requires a separate permission',
+        requiredPermission: 'audit:read' },
     ],
   },
 ];

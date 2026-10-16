@@ -58,7 +58,10 @@
     "db:phase11:roles:grant": "tsx apps/api/scripts/phase11-audit-roles.ts --grant",
     "db:phase11:roles:verify": "tsx apps/api/scripts/phase11-audit-roles.ts --verify",
     "db:phase11:server": "node apps/api/scripts/phase11-server-workflow.cjs",
-    "test:phase11:server:unit": "node --test apps/api/scripts/phase11-server-workflow.test.cjs"
+    "test:phase11:server:unit": "node --test apps/api/scripts/phase11-server-workflow.test.cjs",
+    "check:phase11:audit:routes": "node scripts/check-phase11-audit-routes.mjs",
+    "check:phase11:process-db": "node scripts/check-phase11-process-db-identity.mjs",
+    "test:phase11:audit:unit": "node --test scripts/check-phase11-audit-routes.test.mjs scripts/check-phase11-process-db-identity.test.mjs && TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx --test apps/api/scripts/test-phase11-audit-guard.ts"
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",

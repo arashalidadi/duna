@@ -43,6 +43,7 @@ async function session(page: Page) {
         database: { status: 'up' },
         app: { version: 'test', environment: 'test', uptimeSeconds: 3600 },
       };
+    else if (endpoint === '/audit') data = { items: [], total: 0 };
     else if (endpoint === '/portal/me')
       data = {
         customer: null,
