@@ -379,10 +379,10 @@ describe('Cargo & Yard Inventory (e2e)', () => {
         pol: 'POL-PHASE3A',
         pod: 'POD-PHASE3A',
         description: 'Phase 3A full field test',
-        chassis: 'CH-3A',
-        serial: 'SER-3A',
-        units: 10,
-        comment: 'Phase 3A comment',
+        chassisNumber: 'CH-3A',
+        serialNumber: 'SER-3A',
+        quantity: 10,
+        comments: 'Phase 3A comment',
         shipperId: createdShippers[0].id,
         consigneeId: createdConsignees[0].id,
         jobId: 'JOB-3A-001',
@@ -395,19 +395,29 @@ describe('Cargo & Yard Inventory (e2e)', () => {
         .send(cargo)
         .expect(201);
       const d = res.body.data;
+      // Track the row before assertions: even a failed round-trip check must not
+      // strand a cargo and block teardown of its customer/port/party fixtures.
+      createdCargos.push({ id: d.id });
       expect(d.pol).toBe('POL-PHASE3A');
       expect(d.pod).toBe('POD-PHASE3A');
       expect(d.description).toBe('Phase 3A full field test');
-      expect(d.chassis).toBe('CH-3A');
-      expect(d.serial).toBe('SER-3A');
-      expect(d.units).toBe(10);
-      expect(d.comment).toBe('Phase 3A comment');
+      expect(d.chassisNumber).toBe('CH-3A');
+      expect(d.serialNumber).toBe('SER-3A');
+      expect(d.quantity).toBe(10);
+      expect(d.comments).toBe('Phase 3A comment');
       expect(d.shipperId).toBe(createdShippers[0].id);
       expect(d.consigneeId).toBe(createdConsignees[0].id);
       expect(d.jobId).toBe('JOB-3A-001');
       expect(d.cargoValue).toBe('9999.99');
       expect(d.cargoValueCurrency).toBe('EUR');
-      createdCargos.push({ id: d.id });
+      const stored = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${d.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(stored.body.data).toMatchObject({
+        chassisNumber: 'CH-3A', serialNumber: 'SER-3A', quantity: 10,
+        comments: 'Phase 3A comment', legacyAttributes: null,
+      });
     });
 
     it('returns null for omitted Phase 3A party/financial fields', async () => {
@@ -424,7 +434,7 @@ describe('Cargo & Yard Inventory (e2e)', () => {
       expect(res.body.data.cargoValueCurrency).toBeNull();
     });
 
-    it('updates Phase 3A pol/pod/description/chassis/serial/units/comment fields', async () => {
+    it('updates Phase 3A pol/pod/description/chassisNumber/serialNumber/quantity/comments fields', async () => {
       const target = createdCargos[0];
       const res = await request(app.getHttpServer())
         .patch(`/api/v1/cargo/${target.id}`)
@@ -433,19 +443,28 @@ describe('Cargo & Yard Inventory (e2e)', () => {
           pol: 'POL-UPDATED',
           pod: 'POD-UPDATED',
           description: 'Updated description',
-          chassis: 'CH-UPDATED',
-          serial: 'SER-UPDATED',
-          units: 99,
-          comment: 'Updated comment',
+          chassisNumber: 'CH-UPDATED',
+          serialNumber: 'SER-UPDATED',
+          quantity: 99,
+          comments: 'Updated comment',
         })
         .expect(200);
       expect(res.body.data.pol).toBe('POL-UPDATED');
       expect(res.body.data.pod).toBe('POD-UPDATED');
       expect(res.body.data.description).toBe('Updated description');
-      expect(res.body.data.chassis).toBe('CH-UPDATED');
-      expect(res.body.data.serial).toBe('SER-UPDATED');
-      expect(res.body.data.units).toBe(99);
-      expect(res.body.data.comment).toBe('Updated comment');
+      expect(res.body.data.chassisNumber).toBe('CH-UPDATED');
+      expect(res.body.data.serialNumber).toBe('SER-UPDATED');
+      expect(res.body.data.quantity).toBe(99);
+      expect(res.body.data.comments).toBe('Updated comment');
+      const stored = await request(app.getHttpServer())
+        .get(`/api/v1/cargo/${target.id}`)
+        .set(auth(adminToken))
+        .expect(200);
+      expect(stored.body.data).toMatchObject({
+        pol: 'POL-UPDATED', pod: 'POD-UPDATED', description: 'Updated description',
+        chassisNumber: 'CH-UPDATED', serialNumber: 'SER-UPDATED', quantity: 99,
+        comments: 'Updated comment',
+      });
     });
 
     it('canonical comments round-trip: create shows it, PATCH without the field leaves it, PATCH "" clears (ADR-044)', async () => {
@@ -457,14 +476,15 @@ describe('Cargo & Yard Inventory (e2e)', () => {
           portId: createdPorts[0].id,
           yardId: createdYards[0].id,
           cargoType: 'GENERAL',
-          units: 3,
+          quantity: 3,
           comments: 'Unit 6 canonical comment',
         })
         .expect(201);
-      // visibility: the canonical field round-trips on create (ADR-044 decision 1)
-      expect(created.body.data.comments).toBe('Unit 6 canonical comment');
       const id = created.body.data.id as string;
       createdCargos.push({ id });
+      // visibility: the canonical fields round-trip on create (ADR-044 decision 1)
+      expect(created.body.data.quantity).toBe(3);
+      expect(created.body.data.comments).toBe('Unit 6 canonical comment');
 
       const got = await request(app.getHttpServer())
         .get(`/api/v1/cargo/${id}`)

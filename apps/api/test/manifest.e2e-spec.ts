@@ -1497,8 +1497,7 @@ describe('Manifest (e2e)', () => {
   // ---------------------------------------------------------------------------
 
   it('numbering: legacy path issues MAN-{DEST}-YYMM-##### using the port abbreviation (Test 4 / Acceptance 3)', async () => {
-    // destPortId has no abbreviation -> created below with one to test the
-    // abbreviation path explicitly.
+    // Use a separate destination to check the abbreviation path explicitly.
     const abbrPort = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
@@ -1513,7 +1512,8 @@ describe('Manifest (e2e)', () => {
     const destWithAbbr = abbrPort.body.data.id as string;
     extraPortIds.push(destWithAbbr);
     createdPorts.push({ id: destWithAbbr });
-    expect(abbrPort.body.data.abbreviation).toBe(`MAB${randomTag}`);
+    // POST /ports normalizes abbreviations to uppercase (both response and numbering).
+    expect(abbrPort.body.data.abbreviation).toBe(`MAB${tag}`);
 
     const voy = await request(app.getHttpServer())
       .post('/api/v1/voyages')
@@ -1528,15 +1528,38 @@ describe('Manifest (e2e)', () => {
       .send({ voyageId: voy.body.data.id })
       .expect(201);
     const num = res.body.data.manifestNumber as string;
-    expect(num).toMatch(new RegExp(`^MAN-MAB${randomTag}-\\d{4}-\\d{5}$`));
+    expect(num).toMatch(new RegExp(`^MAN-MAB${tag}-\\d{4}-\\d{5}$`));
     trackManifestSeq(num, destWithAbbr);
   });
 
   it('numbering: port without abbreviation falls back to code for {DEST}', async () => {
+    // Phase 10 requires an abbreviation on NEW API-created ports, but retained
+    // historical rows may still have NULL. Isolate that case from destPortId,
+    // which is shared by the other tests and now has an abbreviation.
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    let legacyDestId: string;
+    try {
+      const legacyDest = await prisma.port.create({
+        data: { code: `MFFB-${tag}`, name: `MF Legacy Dest ${randomTag}`,
+          country: 'IN', city: 'Fixture region', abbreviation: null },
+      });
+      legacyDestId = legacyDest.id;
+      createdPorts.push({ id: legacyDestId });
+    } finally {
+      await prisma.$disconnect();
+    }
+    const destPort = await request(app.getHttpServer())
+      .get(`/api/v1/ports/${legacyDestId}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(destPort.body.data.abbreviation).toBeNull();
+    expect(destPort.body.data.code).toBe(`MFFB-${tag}`);
+
     const voy = await request(app.getHttpServer())
       .post('/api/v1/voyages')
       .set(auth(adminToken))
-      .send({ vesselId, originPortId, destinationPortId: destPortId })
+      .send({ vesselId, originPortId, destinationPortId: legacyDestId })
       .expect(201);
     createdVoyages.push({ id: voy.body.data.id });
 
@@ -1546,14 +1569,8 @@ describe('Manifest (e2e)', () => {
       .send({ voyageId: voy.body.data.id })
       .expect(201);
     const num = res.body.data.manifestNumber as string;
-    // destPortId fixture has code MFP2-... and no abbreviation -> code used.
-    const destPort = await request(app.getHttpServer())
-      .get(`/api/v1/ports/${destPortId}`)
-      .set(auth(adminToken))
-      .expect(200);
-    expect(destPort.body.data.abbreviation).toBeNull();
     expect(num.startsWith(`MAN-${destPort.body.data.code}-`)).toBe(true);
-    trackManifestSeq(num, destPortId);
+    trackManifestSeq(num, legacyDestId);
   });
 
   it('numbering: per-destination independence — two different destinations each start at 00001; same destination increments (Test 4 core)', async () => {
@@ -1647,7 +1664,10 @@ describe('Manifest (e2e)', () => {
       .expect(201);
     const destRetryId = destPort.body.data.id as string;
     createdPorts.push({ id: destRetryId });
-    const segment = destPort.body.data.code as string; // no abbreviation -> code
+    // The blocker must use the allocator's ACTUAL normalized segment; otherwise
+    // there is no collision and this test never exercises the retry path.
+    const segment = destPort.body.data.abbreviation as string;
+    expect(segment).toBe(`T06${tag}`);
 
     const voyHolder = await request(app.getHttpServer())
       .post('/api/v1/voyages')
@@ -1708,7 +1728,8 @@ describe('Manifest (e2e)', () => {
       .expect(201);
     const destGapId = destPort.body.data.id as string;
     createdPorts.push({ id: destGapId });
-    const segment = destPort.body.data.code as string;
+    const segment = destPort.body.data.abbreviation as string;
+    expect(segment).toBe(`T07${tag}`);
 
     const voyFail = await request(app.getHttpServer())
       .post('/api/v1/voyages')

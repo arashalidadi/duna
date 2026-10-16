@@ -38,7 +38,7 @@ describe('Agent Portal (e2e)', () => {
   let customerCId = '';
   let agentAId = ''; // fixture Agent master linked to user A (portalAgentId)
   let agentBId = ''; // fixture Agent master linked to user B (portalAgentId)
-  let portId = '';
+  let portId = ''; // suite-owned master fixture — removed in afterAll
   let voyageId = '';
   let fixtureVesselId = ''; // Phase 1 fixture — removed in afterAll
   let manifestAId = '';
@@ -103,12 +103,13 @@ describe('Agent Portal (e2e)', () => {
     // Cutover DONE: manifests.agentId FKs the Agent master, so fixtures carry the
     // fixture AGENT ids; scoping assertions below pass through portalAgentId —
     // the legacy portalCustomerId leg has been removed (post-cutover follow-up).
-    // Own fixtures (Phase 1): this suite creates its own vessel and voyage, and removes
-    // them in afterAll. It must not depend on whatever voyage the demonstration seed
-    // happened to leave in the database — a required-seed-only database has none.
-    const port = await prisma.port.findFirst({ select: { id: true } });
-    expect(port).not.toBeNull();
-    portId = port!.id;
+    // Own fixtures: the core seed creates NO ports, vessels or voyages. Never
+    // pick a shared port from another suite or depend on optional demo data.
+    const port = await prisma.port.create({
+      data: { code: `PFP-${tag}`, name: `Portal Fixture Port ${randomTag}`,
+        country: 'AE', city: 'Fixture region', abbreviation: `PFP${tag}` },
+    });
+    portId = port.id;
     const fxVessel = await prisma.vessel.create({
       data: { code: `PFV-${tag}`, name: `Portal Fixture Vessel ${randomTag}`, flag: 'AE', vesselType: 'CONTAINER' },
     });
@@ -167,6 +168,7 @@ describe('Agent Portal (e2e)', () => {
       await prisma.agent.deleteMany({ where: { id: { in: [agentAId, agentBId].filter(Boolean) } } });
       await prisma.voyage.deleteMany({ where: { id: { in: [voyageId].filter(Boolean) } } });
       await prisma.vessel.deleteMany({ where: { id: { in: [fixtureVesselId].filter(Boolean) } } });
+      await prisma.port.deleteMany({ where: { id: { in: [portId].filter(Boolean) } } });
       const users = await prisma.user.findMany({
         where: { email: { contains: `-${randomTag}@shipping.local` } },
         select: { id: true },
