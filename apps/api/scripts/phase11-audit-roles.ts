@@ -4,7 +4,8 @@ import { PrismaClient, type Prisma } from '@prisma/client';
  * Database-role handoff for P11. Run with the operator's existing migrator DB
  * connection, NEVER with an application role; do not print credentials or URLs.
  * --preflight is read-only; --grant is explicit/idempotent; --verify is read-only.
- * Role creation and other application-table grants remain a DBA decision.
+ * Role creation/password remain a DBA decision; reviewed operational-table
+ * provisioning lives in phase11-server-workflow.cjs. Prefer its three stages.
  */
 const mode = process.argv[2];
 if (!['--preflight', '--grant', '--verify'].includes(mode)) {
@@ -100,34 +101,53 @@ function verify({ state, roles }: { state: State; roles: Role[] }) {
 async function main() {
   try {
     if (mode === '--grant') {
-      await db.$transaction(async (tx) => {
+      const changed = await db.$transaction(async (tx) => {
         const before = await snapshot(tx);
         if (before.state.login !== before.state.tableOwner || before.state.triggers !== 2) {
           throw new Error('Use the table-owner migrator only, after deploying the Phase 11 migration');
         }
-        // Identifier strings were restricted above; all other SQL uses parameters.
-        await tx.$executeRawUnsafe(`GRANT SELECT, INSERT ON TABLE public."AuditLog" TO ${quote(runtime)}`);
-        await tx.$executeRawUnsafe(`REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public."AuditLog" FROM ${quote(runtime)}`);
-        await tx.$executeRawUnsafe(`GRANT SELECT ON TABLE public."AuditLog" TO ${quote(exporter)}`);
-        await tx.$executeRawUnsafe(`REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public."AuditLog" FROM ${quote(exporter)}`);
+        // Successful grants are a no-op, including the audit event: rerunning
+        // the legacy command must never duplicate a deployment event.
+        try { verify(before); return false; } catch { /* inspect exact missing grants below */ }
+        const app = before.roles.find((r) => r.name === runtime)!;
+        const audit = before.roles.find((r) => r.name === exporter)!;
+        if (app.canUpdate || app.canDelete || app.canTruncate || app.canReference || app.canTrigger ||
+            audit.canInsert || audit.canUpdate || audit.canDelete || audit.canTruncate ||
+            audit.canReference || audit.canTrigger) {
+          throw new Error('Unexpected AuditLog privileges; inspect and review, never revoke blindly');
+        }
+        // Identifiers were restricted above; only missing rights are granted.
+        if (!app.canSelect) await tx.$executeRawUnsafe(`GRANT SELECT ON TABLE public."AuditLog" TO ${quote(runtime)}`);
+        if (!app.canInsert) await tx.$executeRawUnsafe(`GRANT INSERT ON TABLE public."AuditLog" TO ${quote(runtime)}`);
+        if (!audit.canSelect) await tx.$executeRawUnsafe(`GRANT SELECT ON TABLE public."AuditLog" TO ${quote(exporter)}`);
         const after = await snapshot(tx);
         verify(after);
         await tx.auditLog.create({ data: { actorId: 'system:phase11-deploy',
           actorEmail: 'system:phase11-deploy', action: 'security.audit_db_roles.configure',
           entityType: 'AuditLog', entityId: 'database-roles',
           metadata: { runtimeRole: runtime, exportRole: exporter, database: after.state.db } } });
+        return true;
       });
+      console.log(changed ? 'Phase 11 missing audit role grants committed and logged; effective privileges verified.' :
+        'Phase 11 audit role grants already verified; no SQL changes or duplicate audit event.');
     } else {
       const result = await snapshot(db);
       if (mode === '--verify') verify(result);
       console.log(`Phase 11 audit roles ${mode.slice(2)}: database=${result.state.db}; table owner=${result.state.tableOwner}; login=${result.state.login}; always-enabled triggers=${result.state.triggers}`);
       if (mode === '--preflight' && result.state.triggers < 2) console.log('Append-only migration is pending; deploy it before --grant.');
     }
-    if (mode === '--grant') console.log('Phase 11 audit role grants/revocations committed and logged; effective privileges verified.');
   } finally { await db.$disconnect(); }
 }
 main().catch((error: unknown) => {
-  console.error('Phase 11 audit role check stopped:', error instanceof Error &&
-    !error.message.includes('postgresql://') ? error.message : 'database/permission error (details omitted)');
+  // Never print a driver/Prisma error: it could contain a URL or password.
+  const safe = [
+    'Database identity, AuditLog table, or requested role(s) do not match the explicit preflight target',
+    'Runtime/export DB roles have unsafe ownership, inherited/granted access, schema creation, or login flags',
+    'Append-only triggers or effective runtime/export privileges do not meet Phase 11 policy',
+    'Use the table-owner migrator only, after deploying the Phase 11 migration',
+    'Unexpected AuditLog privileges; inspect and review, never revoke blindly',
+  ];
+  console.error('Phase 11 audit role check stopped:', error instanceof Error && safe.includes(error.message)
+    ? error.message : 'database/permission error (details omitted)');
   process.exitCode = 1;
 });
