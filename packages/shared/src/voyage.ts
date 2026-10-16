@@ -21,7 +21,7 @@
  */
 
 import type { CargoPortRef } from './cargo';
-import type { VesselRef, VesselType } from './vessel';
+import type { VesselRef, VesselType, VesselOwnership } from './vessel';
 
 /** Voyage lifecycle status (matches the VoyageStatus DB enum). */
 export type VoyageStatus =
@@ -76,6 +76,7 @@ export interface VoyageListItem {
   id: string;
   voyageNumber: string;
   status: VoyageStatus;
+  vesselUse: VesselOwnership | null;
   plannedDepartureAt: string | null;
   plannedArrivalAt: string | null;
   createdAt: string;

@@ -55,8 +55,8 @@ export class QuotationController {
 
   @Delete(':id')
   @RequirePermissions('quotation:delete')
-  remove(@Param('id') id: string) {
-    return this.quotations.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.quotations.remove(id, user);
   }
 
   // ─── lifecycle ────────────────────────────────────────────────────────────

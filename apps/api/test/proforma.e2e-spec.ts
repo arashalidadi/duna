@@ -74,10 +74,10 @@ describe('Proforma (e2e)', () => {
     );
 
     const cust = await S().post('/api/v1/customers').set(auth(adminToken))
-      .send({ code: `PRFCUS-${tag}`, name: `PRF Co ${randomTag}`, type: 'SHIPPER' }).expect(201);
+      .send({ code: `PRFCUS-${tag}`, name: `PRF Co ${randomTag}`, personKind: 'LEGAL' }).expect(201);
     customerId = cust.body.data.id;
     const cust2 = await S().post('/api/v1/customers').set(auth(adminToken))
-      .send({ code: `PRFC2-${tag}`, name: `PRF Co2 ${randomTag}`, type: 'SHIPPER' }).expect(201);
+      .send({ code: `PRFC2-${tag}`, name: `PRF Co2 ${randomTag}`, personKind: 'LEGAL' }).expect(201);
     customerId2 = cust2.body.data.id;
 
     async function createRoleToken(roleCode: string, permissionCodes: string[], email: string): Promise<string> {

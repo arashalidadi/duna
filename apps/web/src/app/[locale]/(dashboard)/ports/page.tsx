@@ -40,6 +40,8 @@ interface FormValues {
   country: string;
   city: string;
   abbreviation: string;
+  displayName: string;
+  aliases: string;
 }
 
 const EMPTY_FORM: FormValues = {
@@ -48,6 +50,8 @@ const EMPTY_FORM: FormValues = {
   country: '',
   city: '',
   abbreviation: '',
+  displayName: '',
+  aliases: '',
 };
 
 function toForm(p: PortListItem): FormValues {
@@ -57,6 +61,8 @@ function toForm(p: PortListItem): FormValues {
     country: p.country,
     city: p.city ?? '',
     abbreviation: p.abbreviation ?? '',
+    displayName: p.displayName ?? '',
+    aliases: p.aliases.map((a) => a.label).join('\n'),
   };
 }
 
@@ -64,6 +70,7 @@ export default function PortsPage() {
   const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('ports');
+  const phase10 = useUiTranslations('phase10');
   const [data, setData] = useState<PaginatedResult<PortListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,8 +148,9 @@ export default function PortsPage() {
 
   async function submit() {
     setFormError(null);
-    if (!form.code.trim() || !form.name.trim() || !form.country.trim()) {
-      setFormError(ui('codeNameAndCountryAreRequired'));
+    if (!form.code.trim() || !form.name.trim() || !form.country.trim() ||
+        (!editing && (!form.city.trim() || !form.abbreviation.trim()))) {
+      setFormError(phase10('portFieldsRequired'));
       return;
     }
     if (form.abbreviation.trim().length > 10) {
@@ -152,7 +160,9 @@ export default function PortsPage() {
     setSaving(true);
     try {
       if (editing) {
-        await api.patch<PortListItem>(`/ports/${editing.id}`, savePayload(form));
+        const payload = savePayload(form);
+        if (!form.abbreviation.trim() && !editing.abbreviation) delete payload.abbreviation;
+        await api.patch<PortListItem>(`/ports/${editing.id}`, payload);
         setEditing(null);
       } else {
         await api.post<PortListItem>('/ports', savePayload(form));
@@ -191,7 +201,7 @@ export default function PortsPage() {
           <Breadcrumbs items={[{ label: ui('ports') }]} />
           <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('ports')}</h1>
           <p className="text-sm text-muted-foreground">
-            {ui('portsAndTheirYardsAPortWithActiveYardsCannotBe')}
+            {phase10('portNote')}
           </p>
         </div>
         {canCreate && (
@@ -285,9 +295,10 @@ export default function PortsPage() {
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[13px] font-medium text-foreground">
-                          {p.name}
+                          {p.displayLabel ?? p.name}
                         </span>
                         <span className="text-[11px] text-muted-foreground">{p.code}</span>
+                        {p.needsReview && <span className="text-xs text-amber-700">{phase10('needsReview')}</span>}
                       </div>
                     </td>
                     <td className="px-3 py-2">
@@ -436,7 +447,7 @@ export default function PortsPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="port-city" className="block">
-              {ui('city')}
+              {phase10('cityRegion')}
             </Label>
             <Input
               id="port-city"
@@ -447,7 +458,7 @@ export default function PortsPage() {
           </div>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="port-abbreviation" className="block">
-              {t('abbreviation.label')}
+              {phase10('abbreviation')}
             </Label>
             <Input
               id="port-abbreviation"
@@ -461,6 +472,17 @@ export default function PortsPage() {
               {t('abbreviation.hint')}
             </p>
           </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="port-display" className="block">{phase10('displayName')}</Label>
+            <Input id="port-display" value={form.displayName}
+              onChange={(e) => updateField('displayName', e.target.value)} />
+          </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="port-aliases" className="block">{phase10('aliases')}</Label>
+            <textarea id="port-aliases" className="min-h-20 w-full rounded-md border border-input bg-card p-2 text-sm"
+              value={form.aliases} onChange={(e) => updateField('aliases', e.target.value)}
+              placeholder={phase10('aliasesHint')} />
+          </div>
         </div>
         {formError && (
           <p className="mt-3 text-xs text-destructive" role="alert">
@@ -473,7 +495,7 @@ export default function PortsPage() {
       <Dialog
         open={!!viewing}
         onOpenChange={(open) => !open && setViewing(null)}
-        title={viewing ? viewing.name : ui('port_m1qx5adi')}
+        title={viewing ? viewing.displayLabel ?? viewing.name : ui('port_m1qx5adi')}
         description={viewing ? `${viewing.code} · ${viewing.country}` : undefined}
         footer={
           <Button variant="outline" size="sm" onClick={() => setViewing(null)}>
@@ -502,6 +524,11 @@ export default function PortsPage() {
                   )}
                 </div>
               </div>
+            </div>
+            <div className="text-sm">
+              <span className="font-medium">{phase10('aliases')}: </span>
+              {detail.aliases.map((a) => a.label).join(', ') || '—'}
+              {detail.needsReview && <p className="text-amber-700">{phase10('needsReview')}</p>}
             </div>
             <div>
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -563,18 +590,20 @@ export default function PortsPage() {
 }
 
 /** Strip empty strings so optional fields are omitted from the request. */
-function formInput(f: FormValues): Record<string, string> {
+function formInput(f: Omit<FormValues, 'aliases'>): Record<string, string> {
   return Object.fromEntries(Object.entries(f).filter(([, v]) => v.trim() !== '')) as Record<
     string,
     string
   >;
 }
 
-/**
- * Payload for create/edit. `abbreviation` is always present (even when empty)
- * so clearing the field on edit actually clears it server-side instead of
- * being dropped as an "empty optional" by formInput.
- */
-function savePayload(f: FormValues): Record<string, string> {
-  return { ...formInput(f), abbreviation: f.abbreviation.trim() };
+/** Send an explicit alias list to replace when editing. Unverified historical
+ * abbreviations are omitted (not cleared) until the operator fills them. */
+function savePayload(f: FormValues): Record<string, string | string[]> {
+  const { aliases, ...fields } = f;
+  // Clearing aliases is deliberate; changing an alias never rewrites existing
+  // documents or foreign keys.
+  return { ...formInput(fields), abbreviation: f.abbreviation.trim(),
+    displayName: f.displayName.trim(),
+    aliases: aliases.split('\n').map((a) => a.trim()).filter(Boolean) };
 }

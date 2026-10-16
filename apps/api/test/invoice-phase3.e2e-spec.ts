@@ -57,7 +57,7 @@ describe('Invoice Phase 3 (e2e)', () => {
     const customer = await api()
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `P3-${tag.toUpperCase()}`, name: `Phase 3 test ${tag}`, type: 'SHIPPER' })
+      .send({ code: `P3-${tag.toUpperCase()}`, name: `Phase 3 test ${tag}`, personKind: 'LEGAL' })
       .expect(201);
     customerId = customer.body.data.id as string;
 

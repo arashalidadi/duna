@@ -90,14 +90,14 @@ describe('Party cutover: Manifest/B-L -> master refs (e2e)', () => {
     const portA = await S()
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PCTA-${tag}`, name: `Cutover Port A ${randomTag}`, country: 'AE' })
+      .send({ code: `PCTA-${tag}`, name: `Cutover Port A ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: portA.body.data.id });
     originPortId = portA.body.data.id;
     const portB = await S()
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PCTB-${tag}`, name: `Cutover Port B ${randomTag}`, country: 'IN' })
+      .send({ code: `PCTB-${tag}`, name: `Cutover Port B ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     destPortId = portB.body.data.id;

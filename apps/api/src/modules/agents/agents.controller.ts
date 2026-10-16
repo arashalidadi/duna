@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
+import { AuthenticatedUser } from '../../common/auth/types';
+import { requireOffice } from '../configuration/configuration.policy';
 import { RequirePermissions } from '../../common/auth/decorators/require-permissions.decorator';
 import { AgentsService } from './agents.service';
 import {
@@ -19,46 +22,51 @@ export class AgentsController {
 
   @Get()
   @RequirePermissions('agent:read')
-  list(@Query() query: ListAgentQueryDto) {
+  list(@Query() query: ListAgentQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    requireOffice(user, 'agent:read');
     return this.agentsService.list(query);
   }
 
   @Get(':id')
   @RequirePermissions('agent:read')
-  get(@Param('id') id: string) {
+  get(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    requireOffice(user, 'agent:read');
     return this.agentsService.findById(id);
   }
 
   @Post()
   @RequirePermissions('agent:create')
-  create(@Body() dto: CreateAgentDto) {
+  create(@Body() dto: CreateAgentDto, @CurrentUser() user: AuthenticatedUser) {
+    requireOffice(user, 'agent:create');
     return this.agentsService.create(dto);
   }
 
   @Patch(':id')
   @RequirePermissions('agent:update')
-  update(@Param('id') id: string, @Body() dto: UpdateAgentDto) {
-    return this.agentsService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateAgentDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.agentsService.update(id, dto, user);
   }
 
   @Patch(':id/active')
   @RequirePermissions('agent:update')
-  setActive(@Param('id') id: string, @Body() dto: SetAgentActiveDto) {
-    return this.agentsService.setActive(id, dto.isActive);
+  setActive(@Param('id') id: string, @Body() dto: SetAgentActiveDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.agentsService.setActive(id, dto.isActive, user);
   }
 
   @Delete(':id')
   @RequirePermissions('agent:delete')
-  remove(@Param('id') id: string) {
-    return this.agentsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.agentsService.remove(id, user);
   }
 
   @Get(':id/destinations')
   @RequirePermissions('agent:read')
   listDestinations(
     @Param('id') id: string,
-    @Query() query: ListAgentDestinationQueryDto
+    @Query() query: ListAgentDestinationQueryDto,
+    @CurrentUser() user: AuthenticatedUser
   ) {
+    requireOffice(user, 'agent:read');
     return this.agentsService.listDestinations(id, query);
   }
 
@@ -66,8 +74,10 @@ export class AgentsController {
   @RequirePermissions('agent:update')
   createDestination(
     @Param('id') id: string,
-    @Body() dto: CreateAgentDestinationDto
+    @Body() dto: CreateAgentDestinationDto,
+    @CurrentUser() user: AuthenticatedUser
   ) {
+    requireOffice(user, 'agent:update');
     return this.agentsService.createDestination(id, dto);
   }
 
@@ -76,17 +86,19 @@ export class AgentsController {
   updateDestination(
     @Param('id') id: string,
     @Param('destinationId') destinationId: string,
-    @Body() dto: UpdateAgentDestinationDto
+    @Body() dto: UpdateAgentDestinationDto,
+    @CurrentUser() user: AuthenticatedUser
   ) {
-    return this.agentsService.updateDestination(id, destinationId, dto);
+    return this.agentsService.updateDestination(id, destinationId, dto, user);
   }
 
   @Delete(':id/destinations/:destinationId')
   @RequirePermissions('agent:update')
   removeDestination(
     @Param('id') id: string,
-    @Param('destinationId') destinationId: string
+    @Param('destinationId') destinationId: string,
+    @CurrentUser() user: AuthenticatedUser
   ) {
-    return this.agentsService.removeDestination(id, destinationId);
+    return this.agentsService.removeDestination(id, destinationId, user);
   }
 }

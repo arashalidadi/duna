@@ -111,7 +111,7 @@ const cargoSelect = {
   serialNumber: true,
   chassisNumber: true,
   vin: true,
-  customer: { select: { id: true, code: true, name: true, shortName: true } },
+  customer: { select: { id: true, code: true, name: true } },
   port: { select: { id: true, code: true, name: true } },
   destinationPort: { select: { id: true, code: true, name: true } },
 } satisfies Prisma.CargoSelect;
@@ -543,13 +543,13 @@ export class ManifestService {
   async update(id: string, dto: UpdateManifestDto) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
-      select: { id: true, status: true, deletedAt: true },
+      select: { id: true, status: true, deletedAt: true, shipperId: true, consigneeId: true, agentId: true },
     });
     await this.assertEditable(existing, 'edited');
     await this.validatePartyRefs({
-      shipperId: dto.shipperId || undefined,
-      consigneeId: dto.consigneeId || undefined,
-      agentId: dto.agentId || undefined,
+      shipperId: dto.shipperId && dto.shipperId !== existing?.shipperId ? dto.shipperId : undefined,
+      consigneeId: dto.consigneeId && dto.consigneeId !== existing?.consigneeId ? dto.consigneeId : undefined,
+      agentId: dto.agentId && dto.agentId !== existing?.agentId ? dto.agentId : undefined,
     });
 
     try {
@@ -929,35 +929,38 @@ export class ManifestService {
     if (refs.shipperId) {
       const row = await this.prisma.shipper.findUnique({
         where: { id: refs.shipperId },
-        select: { deletedAt: true },
+        select: { deletedAt: true, isActive: true },
       });
       if (!row || row.deletedAt) {
         throw new BadRequestException(
           `Unknown shipperId: no live Shipper with id ${refs.shipperId}`,
         );
       }
+      if (!row.isActive) throw new BadRequestException(`Inactive shipper cannot be selected`);
     }
     if (refs.consigneeId) {
       const row = await this.prisma.consignee.findUnique({
         where: { id: refs.consigneeId },
-        select: { deletedAt: true },
+        select: { deletedAt: true, isActive: true },
       });
       if (!row || row.deletedAt) {
         throw new BadRequestException(
           `Unknown consigneeId: no live Consignee with id ${refs.consigneeId}`,
         );
       }
+      if (!row.isActive) throw new BadRequestException(`Inactive consignee cannot be selected`);
     }
     if (refs.agentId) {
       const row = await this.prisma.agent.findUnique({
         where: { id: refs.agentId },
-        select: { deletedAt: true },
+        select: { deletedAt: true, isActive: true },
       });
       if (!row || row.deletedAt) {
         throw new BadRequestException(
           `Unknown agentId: no live Agent with id ${refs.agentId}`,
         );
       }
+      if (!row.isActive) throw new BadRequestException(`Inactive agent cannot be selected`);
     }
   }
 

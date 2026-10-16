@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { NotificationWorkerService } from '../notifications/notification-worker.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { CreateJobDto, JobItemInputDto, ListJobQueryDto, UpdateJobDto, UpdateJobItemDto } from './dto/job.dto';
@@ -117,7 +118,8 @@ function flattenDetail(j: Record<string, unknown>) {
 
 @Injectable()
 export class JobService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,
+    private readonly notifications: NotificationWorkerService) {}
 
   // -------------------------------------------------------------------------
   // Queries
@@ -278,36 +280,37 @@ export class JobService {
     return flattenDetail(job);
   }
 
-  /** DRAFT -> OPEN. */
+  /** Status and durable notification event are committed atomically. A row lock
+   * prevents concurrent transitions from claiming the same previous status. */
+  private async transition(id: string, to: JobStatus, actor?: AuthenticatedUser,
+    extra?: Prisma.JobUpdateInput) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "jobs" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.job.findFirst({ where: { id, deletedAt: null },
+        select: { status: true } });
+      if (!before) throw new NotFoundException('Job not found');
+      this.assertTransition(before.status, to);
+      const at = new Date();
+      const after = await tx.job.update({ where: { id }, data: { status: to, ...extra },
+        select: detailSelect });
+      await this.notifications.jobTransitionIn(tx, id, before.status, to, at);
+      return flattenDetail(after);
+    });
+  }
+
   async start(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'OPEN');
-    const job = await this.prisma.job.update({ where: { id }, data: { status: 'OPEN' }, select: detailSelect });
-    return flattenDetail(job);
+    return this.transition(id, 'OPEN', actor);
   }
 
-  /** OPEN -> COMPLETED. Stamps actor + time. */
   async complete(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'COMPLETED');
-    const job = await this.prisma.job.update({
-      where: { id },
-      data: { status: 'COMPLETED', completedById: actor?.id, completedAt: new Date() },
-      select: detailSelect,
-    });
-    return flattenDetail(job);
+    return this.transition(id, 'COMPLETED', actor,
+      { completedBy: actor ? { connect: { id: actor.id } } : undefined, completedAt: new Date() });
   }
 
-  /** DRAFT|OPEN -> CANCELLED (reason required). */
   async cancel(id: string, dto: { cancelReason: string }, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'CANCELLED');
-    const job = await this.prisma.job.update({
-      where: { id },
-      data: { status: 'CANCELLED', cancelledById: actor?.id, cancelledAt: new Date(), cancelReason: dto.cancelReason },
-      select: detailSelect,
-    });
-    return flattenDetail(job);
+    return this.transition(id, 'CANCELLED', actor,
+      { cancelledBy: actor ? { connect: { id: actor.id } } : undefined,
+        cancelledAt: new Date(), cancelReason: dto.cancelReason });
   }
 
   async remove(id: string) {

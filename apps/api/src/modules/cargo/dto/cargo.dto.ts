@@ -1,5 +1,10 @@
+import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsArray,
+  ArrayMaxSize,
+  IsNotEmpty,
+  ValidateNested,
   IsDateString,
   IsEnum,
   IsIn,
@@ -10,7 +15,22 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { CargoStatus, CargoType, InspectionStatus, LoadingStatus, WeightUnit } from '@prisma/client';
+import { CargoStatus, CargoType, CargoDocumentStatus, InspectionStatus, LoadingStatus, WeightUnit } from '@prisma/client';
+
+const intakeNames = ['Export Paper', 'Import Paper', 'Export Certificate', 'R.D.A.'] as const;
+
+export class IntakeDocumentDto {
+  @IsString()
+  @IsNotEmpty()
+  @IsIn(intakeNames)
+  @MaxLength(80)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  reference?: string;
+}
 
 export class CreateCargoDto {
   @IsString()
@@ -43,6 +63,18 @@ export class CreateCargoDto {
 
   @IsEnum(CargoType)
   cargoType: CargoType;
+
+  @IsOptional()
+  @IsEnum(CargoDocumentStatus)
+  documentStatus?: CargoDocumentStatus;
+
+  /** Append-only named paperwork; no guessed validity or document versions. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => IntakeDocumentDto)
+  intakeDocuments?: IntakeDocumentDto[];
 
   @IsOptional()
   @IsString()
@@ -92,22 +124,6 @@ export class CreateCargoDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(64)
-  chassis?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(64)
-  serial?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100000000)
-  units?: number;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(100)
   packageType?: string;
 
@@ -129,11 +145,6 @@ export class CreateCargoDto {
   @IsString()
   @MaxLength(4000)
   comments?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(4000)
-  comment?: string;
 
   // Phase 3A: party and financial fields
   @IsOptional()
@@ -198,6 +209,17 @@ export class UpdateCargoDto {
   cargoType?: CargoType;
 
   @IsOptional()
+  @IsEnum(CargoDocumentStatus)
+  documentStatus?: CargoDocumentStatus | null;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => IntakeDocumentDto)
+  intakeDocuments?: IntakeDocumentDto[];
+
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
   specification?: string;
@@ -245,22 +267,6 @@ export class UpdateCargoDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(64)
-  chassis?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(64)
-  serial?: string;
-
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(100000000)
-  units?: number;
-
-  @IsOptional()
-  @IsString()
   @MaxLength(100)
   packageType?: string;
 
@@ -282,11 +288,6 @@ export class UpdateCargoDto {
   @IsString()
   @MaxLength(4000)
   comments?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(4000)
-  comment?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -404,4 +405,14 @@ export class ListCargoQueryDto {
   @IsString()
   @IsIn(['true', 'false'])
   inYard?: string;
+}
+/** REQ-064: store the spoken document name verbatim, without inventing a legal interpretation. */
+export class AddCargoIntakeDocumentDto {
+  @IsIn(intakeNames)
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  reference?: string;
 }

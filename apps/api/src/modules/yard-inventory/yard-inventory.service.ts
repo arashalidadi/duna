@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -24,7 +25,7 @@ const select = {
       cargoType: true,
       status: true,
       inspectionStatus: true,
-      customer: { select: { id: true, code: true, name: true, shortName: true } },
+      customer: { select: { id: true, code: true, name: true } },
     },
   },
   yard: { select: { id: true, code: true, name: true } },
@@ -33,7 +34,7 @@ const select = {
 
 @Injectable()
 export class YardInventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async list(query: ListInventoryQueryDto) {
     const pagination = parsePagination(query);
@@ -214,36 +215,31 @@ export class YardInventoryService {
     });
   }
 
-  /**
-   * Remove cargo from a yard. Deletes the current inventory record and reverts
-   * cargo status from AT_YARD to REGISTERED (transactionally), so a cargo that
-   * is not loaded returns to a registrable/not-in-yard state. Cargo in READY or
-   * terminal states is left untouched (it moves back to REGISTERED only when
-   * it was in AT_YARD as a direct consequence of placement).
-   */
-  async remove(id: string, _actor?: AuthenticatedUser) {
-    const existing = await this.prisma.yardInventory.findUnique({
-      where: { id },
-      select: { id: true, cargoId: true },
-    });
-    if (!existing) {
-      throw new NotFoundException('Yard inventory record not found');
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.yardInventory.delete({ where: { id: existing.id } });
-
-      const cargo = await tx.cargo.findUnique({
-        where: { id: existing.cargoId },
-        select: { status: true },
-      });
-      if (cargo && cargo.status === 'AT_YARD') {
-        await tx.cargo.update({
-          where: { id: existing.cargoId },
-          data: { status: 'REGISTERED' },
-        });
+  /** Remove only an unused, unreserved current placement. A shipment with
+   * inspection/planning/billing history remains addressable; handle it by its
+   * normal workflow, never by erasing its yard record. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "YardInventory" WHERE "id" = ${id} FOR UPDATE`;
+      const row = await tx.yardInventory.findUnique({ where: { id },
+        select: { id: true, cargoId: true, yardId: true, portId: true,
+          status: true, enteredAt: true, locationLabel: true, notes: true } });
+      if (!row) throw new NotFoundException('Yard inventory record not found');
+      const cargo = await tx.cargo.findUnique({ where: { id: row.cargoId },
+        select: { status: true, jobId: true, _count: { select: {
+          inspections: true, loadListItems: true, actualLoadingItems: true,
+          manifestItems: true, billsOfLadingItems: true, dischargeItems: true,
+        } } } });
+      if (!cargo || cargo.status !== 'AT_YARD' || cargo.jobId ||
+          row.status !== 'IN_YARD' || Object.values(cargo._count).some((n) => n > 0)) {
+        throw new ConflictException('Yard placement is used or reserved; use the operational workflow instead');
       }
+      await tx.yardInventory.delete({ where: { id } });
+      await tx.cargo.update({ where: { id: row.cargoId }, data: { status: 'REGISTERED' } });
+      await this.audit.recordIn(tx, { action: 'yard_inventory.remove_unused',
+        entityType: 'YardInventory', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: row, afterData: { removed: true, cargoStatus: 'REGISTERED' } });
+      return { id, removed: true, cargoId: row.cargoId };
     });
-    return { id: existing.id, removed: true, cargoId: existing.cargoId };
   }
 }

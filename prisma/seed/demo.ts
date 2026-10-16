@@ -11,8 +11,15 @@ import type { SeedCoreResult } from './core';
  * be indistinguishable from real business records once created.
  */
 export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promise<void> {
-  const { adminUser, ports } = ctx;
-  const { jebelAli, khalfan } = ports;
+  const { adminUser } = ctx;
+  // Only the explicit demo opt-in creates the legacy Khalifa fixture. Existing
+  // administrator-edited rows are NEVER overwritten/reactivated by the seed.
+  const jebelAli = await prisma.port.upsert({ where: { code: 'JEBALI' }, update: {},
+    create: { code: 'JEBALI', name: 'Jebel Ali', country: 'UAE', city: 'Dubai' } });
+  const khalfan = await prisma.port.upsert({ where: { code: 'KHALIFA' }, update: {},
+    create: { code: 'KHALIFA', name: 'Khalifa Port (DEMO)', country: 'UAE', city: 'Abu Dhabi', isActive: true } });
+  const demoCtx = { ...ctx, ports: { jebelAli: { id: jebelAli.id, code: jebelAli.code },
+    khalfan: { id: khalfan.id, code: khalfan.code } } };
   // ==========================================================================
   // Phase 7: Load Planning Sample Data
   // ==========================================================================
@@ -63,13 +70,13 @@ export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promi
   const customer1 = await prisma.customer.upsert({
     where: { code: 'CUS-GLOBAL' },
     update: {},
-    create: { code: 'CUS-GLOBAL', name: 'Global Shipping Co', shortName: 'GSC', type: 'SHIPPER', email: 'ops@globalship.example', isActive: true },
+    create: { code: 'CUS-GLOBAL', name: 'Global Shipping Co', personKind: 'LEGAL', email: 'ops@globalship.example', isActive: true },
   });
 
   const customer2 = await prisma.customer.upsert({
     where: { code: 'CUS-AUTO' },
     update: {},
-    create: { code: 'CUS-AUTO', name: 'Auto Logistics Ltd', shortName: 'ALL', type: 'SHIPPER', email: 'ops@autolog.example', isActive: true },
+    create: { code: 'CUS-AUTO', name: 'Auto Logistics Ltd', personKind: 'LEGAL', email: 'ops@autolog.example', isActive: true },
   });
 
   // Create sample cargo with different inspection statuses
@@ -185,14 +192,14 @@ export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promi
   // Phase 5 / Agent Portal demo records are opt-in along with the other
   // fabricated business data. Portal setup is atomic and does not depend on
   // the separate, older API-driven scripts/seed-portal-demo.mjs script.
-  await seedPortalDemo(prisma, ctx);
+  await seedPortalDemo(prisma, demoCtx);
 }
 
 const PORTAL_ROLE_PERMISSIONS = new Set(['portal:access', 'booking:create']);
 const portalDate = new Date('2026-10-14T09:00:00Z');
 
 /** Demo-only Agent masters, portal accounts, and read fixtures for Phase 5. */
-export async function seedPortalDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promise<void> {
+export async function seedPortalDemo(prisma: PrismaClient, ctx: SeedCoreResult & { ports: { jebelAli: { id: string }; khalfan: { id: string } } }): Promise<void> {
   const password = process.env.SEED_PORTAL_PASSWORD ?? 'ChangeMe123!';
   if (password.length < 8 || password.length > 200) {
     throw new Error('SEED_PORTAL_PASSWORD must be 8–200 characters (login DTO limit)');
@@ -257,7 +264,7 @@ export async function seedPortalDemo(prisma: PrismaClient, ctx: SeedCoreResult):
         create: {
           code: 'AGT-P20DEMO',
           name: 'Meridian Freight Co. (Portal Demo)',
-          type: 'AGENT', // legacy Customer link for bookings/statement only
+          personKind: 'LEGAL', // company Customer link for bookings/statement only
           email: 'ops@meridian-freight.example',
         },
       });

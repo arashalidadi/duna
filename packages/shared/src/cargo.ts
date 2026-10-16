@@ -45,7 +45,6 @@ export interface CargoCustomerRef {
   id: string;
   code: string;
   name: string;
-  shortName: string | null;
 }
 
 /** Compact reference to a port master record. */
@@ -69,6 +68,7 @@ export interface CargoListItem {
   reference: string;
   cargoType: CargoType;
   specification: string | null;
+  documentStatus: 'EXID' | 'BCC' | 'LOCAL_TRANSFER' | null;
   serialNumber: string | null;
   chassisNumber: string | null;
   vin: string | null;
@@ -97,6 +97,9 @@ export interface CargoDetail extends CargoListItem {
   comments: string | null;
   deletedAt: string | null;
   inventory: CargoInventoryRef | null;
+  intakeDocuments: Array<{ id: string; name: string; reference: string | null; createdAt: string }>;
+  legacyAttributes: { chassis: string | null; serial: string | null; comment: string | null;
+    units: number | null; archivedAt: string } | null;
 }
 
 /** Compact reference to the current inventory record for a cargo. */

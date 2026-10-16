@@ -54,13 +54,17 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const STATUSES: LoadListStatus[] = ['DRAFT', 'FINALIZED', 'CANCELLED'];
+const STATUSES: LoadListStatus[] = ['DRAFT', 'FINALIZED', 'CANCELLED', 'IN_PROGRESS', 'PARTIALLY_LOADED', 'COMPLETED'];
+const HISTORICAL_STATUSES = new Set<LoadListStatus>(['IN_PROGRESS', 'PARTIALLY_LOADED', 'COMPLETED']);
 
 const STATUS_META: Record<
   LoadListStatus,
   { label: string; variant: 'neutral' | 'success' | 'warning' | 'danger' }
 > = {
   DRAFT: { label: 'Draft', variant: 'neutral' },
+  IN_PROGRESS: { label: 'IN_PROGRESS', variant: 'warning' },
+  PARTIALLY_LOADED: { label: 'PARTIALLY_LOADED', variant: 'warning' },
+  COMPLETED: { label: 'COMPLETED', variant: 'warning' },
   FINALIZED: { label: 'Finalized', variant: 'success' },
   CANCELLED: { label: 'Cancelled', variant: 'danger' },
 };
@@ -101,6 +105,7 @@ function fmtShortDate(iso: string | null | undefined, displayLocale: string): st
 export default function LoadListsPage() {
   const uiLocale = useUiLocale();
   const ui = useUiTranslations('legacyUi');
+  const phase10 = useUiTranslations('phase10');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -487,9 +492,9 @@ export default function LoadListsPage() {
               aria-label={ui('filterByStatus')}
             >
               <option value="">{ui('allStatuses')}</option>
-              {(['DRAFT', 'FINALIZED', 'CANCELLED'] as LoadListStatus[]).map((s) => (
+              {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  <DomainLabel value={STATUS_META[s].label} />
+                  {HISTORICAL_STATUSES.has(s) ? phase10('historicalLoadListStatus', { status: s }) : <DomainLabel value={STATUS_META[s].label} />}
                 </option>
               ))}
             </select>
@@ -576,7 +581,7 @@ export default function LoadListsPage() {
                     </td>
                     <td className="px-3 py-2">
                       <Badge variant={STATUS_META[row.status as LoadListStatus].variant} dot>
-                        <DomainLabel value={STATUS_META[row.status as LoadListStatus].label} />
+                        {HISTORICAL_STATUSES.has(row.status) ? phase10('historicalLoadListStatus', { status: row.status }) : <DomainLabel value={STATUS_META[row.status as LoadListStatus].label} />}
                       </Badge>
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -627,7 +632,7 @@ export default function LoadListsPage() {
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         )}
-                        {canCancel && (row.status === 'DRAFT' || row.status === 'FINALIZED') && (
+                        {canCancel && row.status === 'DRAFT' && (
                           <Button
                             variant="ghost"
                             size="icon"

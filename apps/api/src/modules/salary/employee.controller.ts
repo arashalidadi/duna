@@ -35,13 +35,14 @@ export class EmployeeController {
 
   @Patch(':id')
   @RequirePermissions('employee:update')
-  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.employees.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.employees.update(id, dto, user);
   }
 
   @Delete(':id')
   @RequirePermissions('employee:delete')
-  remove(@Param('id') id: string) {
-    return this.employees.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employees.remove(id, user);
   }
 }

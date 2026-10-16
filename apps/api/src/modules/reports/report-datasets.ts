@@ -95,9 +95,8 @@ export class ReportDatasets {
       case 'customers': {
         const rows = bounded(await tx.customer.findMany({ where: { deletedAt: null,
           ...(dates ? { createdAt: dates } : {}) }, select: { id: true, code: true, name: true,
-            type: true, currency: true, isActive: true, createdAt: true }, take }), 'Customer dataset');
-        return rows.map((r) => ({ id: r.id, code: r.code, name: r.name, type: r.type,
-          currencyCode: r.currency, active: String(r.isActive), createdAt: iso(r.createdAt) }));
+            personKind: true, isActive: true, createdAt: true }, take }), 'Customer dataset');
+        return rows.map((r) => ({ id: r.id, code: r.code, name: r.name, personKind: r.personKind, active: String(r.isActive), createdAt: iso(r.createdAt) }));
       }
       case 'jobs': {
         const rows = bounded(await tx.job.findMany({ where: { deletedAt: null,

@@ -9,15 +9,12 @@ export interface CustomerListItem {
   id: string;
   code: string;
   name: string;
-  shortName: string | null;
-  type: string | null;
+  personKind: 'NATURAL' | 'LEGAL' | null;
   contactName: string | null;
   phone: string | null;
   email: string | null;
   address: string | null;
   country: string | null;
-  taxId: string | null;
-  currency: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -29,6 +26,10 @@ export interface PortListItem {
   id: string;
   code: string;
   name: string;
+  displayName: string | null;
+  displayLabel: string | null;
+  aliases: Array<{ id: string; label: string }>;
+  needsReview: boolean;
   country: string;
   city: string | null;
   abbreviation: string | null;

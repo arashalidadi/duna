@@ -1,7 +1,9 @@
+import { VesselOwnership } from '@prisma/client';
 import {
   ArrayMaxSize,
   IsArray,
   IsIn,
+  IsEnum,
   IsInt,
   IsISO8601,
   IsOptional,
@@ -30,6 +32,10 @@ export const VOYAGE_SORT_FIELDS = [
 export class CreateVoyageDto {
   @IsString()
   vesselId: string;
+
+  @IsOptional()
+  @IsEnum(VesselOwnership)
+  vesselUse?: VesselOwnership;
 
   @IsOptional()
   @IsString()
@@ -67,6 +73,10 @@ export class UpdateVoyageDto {
   @IsOptional()
   @IsString()
   vesselId?: string;
+
+  @IsOptional()
+  @IsEnum(VesselOwnership)
+  vesselUse?: VesselOwnership | null;
 
   /** Optional pairing. Send null or '' to detach the tug from this voyage. */
   @IsOptional()

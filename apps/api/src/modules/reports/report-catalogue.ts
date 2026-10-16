@@ -29,7 +29,7 @@ export const CATALOGUE = {
       rateOverrideReason: { kind: 'text', permission: 'currency_rate:read' },
       allocated: m, invoiceAllocated: m, unallocated: m, allocationIds: t } },
   customers: { permission: 'customer:read', date: 'createdAt', basis: 'Customer master, not receivables or the accounting ledger.',
-    fields: { id: t, code: t, name: t, type: t, currencyCode: t, active: t, createdAt: d } },
+    fields: { id: t, code: t, name: t, personKind: t, active: t, createdAt: d } },
   customer_history: { permission: 'customer:read', extra: ['invoice:read', 'voucher:read', 'job:read'], date: 'date',
     basis: 'Operational customer history: issued invoices, posted vouchers and nondeleted jobs. Mixed money types are not combined into a balance.',
     fields: { id: t, customerId: t, customerName: name, kind: t, documentNumber: t, date: d,

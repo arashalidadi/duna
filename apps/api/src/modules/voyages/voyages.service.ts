@@ -32,6 +32,7 @@ const listSelect = {
   id: true,
   voyageNumber: true,
   status: true,
+  vesselUse: true,
   plannedDepartureAt: true,
   plannedArrivalAt: true,
   createdAt: true,
@@ -474,6 +475,7 @@ export class VoyagesService {
           data: {
             voyageNumber,
             vesselId: dto.vesselId,
+            vesselUse: dto.vesselUse,
             tugVesselId: dto.tugVesselId,
             bargeVesselId: dto.bargeVesselId,
             originPortId: dto.originPortId,
@@ -516,6 +518,7 @@ export class VoyagesService {
       if (existing.status === 'SCHEDULED') {
         if (
           dto.vesselId !== undefined ||
+          dto.vesselUse !== undefined ||
           dto.originPortId !== undefined ||
           dto.destinationPortId !== undefined ||
           dto.tugVesselId !== undefined ||
@@ -603,6 +606,7 @@ export class VoyagesService {
 
     const updateData = {
       vesselId: dto.vesselId,
+      vesselUse: dto.vesselUse,
       // '' / null detach the pairing; absent key leaves it untouched.
       tugVesselId:
         dto.tugVesselId !== undefined

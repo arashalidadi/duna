@@ -32,6 +32,8 @@ export type VesselType =
   | 'BARGE'
   | 'LANDING_CRAFT';
 
+export type VesselOwnership = 'OWNED' | 'VOYAGE_CHARTER' | 'TIME_CHARTER' | 'OTHER';
+
 /** Vessel list row. */
 export interface VesselListItem {
   id: string;
@@ -40,6 +42,7 @@ export interface VesselListItem {
   imo: string | null;
   flag: string;
   vesselType: VesselType;
+  ownership: VesselOwnership | null;
   capacityTeu: number | null;
   isActive: boolean;
   createdAt: string;

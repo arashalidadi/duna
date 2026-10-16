@@ -154,7 +154,7 @@ describe('Manifest (e2e)', () => {
     const portA = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFP1-${tag}`, name: `MF Origin ${randomTag}`, country: 'AE' })
+      .send({ code: `MFP1-${tag}`, name: `MF Origin ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: portA.body.data.id });
     originPortId = portA.body.data.id;
@@ -162,7 +162,7 @@ describe('Manifest (e2e)', () => {
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFP2-${tag}`, name: `MF Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `MFP2-${tag}`, name: `MF Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     destPortId = portB.body.data.id;
@@ -191,7 +191,7 @@ describe('Manifest (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `MFCUS-${tag}`, name: `MF Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `MFCUS-${tag}`, name: `MF Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
@@ -1507,6 +1507,7 @@ describe('Manifest (e2e)', () => {
         name: `MF Abbr Dest ${randomTag}`,
         country: 'IN',
         abbreviation: `MAB${randomTag}`,
+        city: 'Fixture region',
       })
       .expect(201);
     const destWithAbbr = abbrPort.body.data.id as string;
@@ -1559,7 +1560,7 @@ describe('Manifest (e2e)', () => {
     const destC = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFPC-${tag}`, name: `MF Dest C ${randomTag}`, country: 'IN' })
+      .send({ code: `MFPC-${tag}`, name: `MF Dest C ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T04${tag}` })
       .expect(201);
     const destCId = destC.body.data.id as string;
     extraPortIds.push(destCId);
@@ -1568,7 +1569,7 @@ describe('Manifest (e2e)', () => {
     const destD = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFPD-${tag}`, name: `MF Dest D ${randomTag}`, country: 'IN' })
+      .send({ code: `MFPD-${tag}`, name: `MF Dest D ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T05${tag}` })
       .expect(201);
     const destDId = destD.body.data.id as string;
     extraPortIds.push(destDId);
@@ -1642,7 +1643,7 @@ describe('Manifest (e2e)', () => {
     const destPort = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFRETRY-${tag}`, name: `MF Retry Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `MFRETRY-${tag}`, name: `MF Retry Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T06${tag}` })
       .expect(201);
     const destRetryId = destPort.body.data.id as string;
     createdPorts.push({ id: destRetryId });
@@ -1703,7 +1704,7 @@ describe('Manifest (e2e)', () => {
     const destPort = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `MFGAP-${tag}`, name: `MF Gap Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `MFGAP-${tag}`, name: `MF Gap Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T07${tag}` })
       .expect(201);
     const destGapId = destPort.body.data.id as string;
     createdPorts.push({ id: destGapId });

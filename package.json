@@ -46,7 +46,12 @@
     "db:reconcile:phase6": "TSX_TSCONFIG_PATH=apps/api/tsconfig.json tsx apps/api/scripts/reconcile-phase6-ledger.ts",
     "db:studio": "prisma studio",
     "docker:db": "docker compose -f docker/docker-compose.dev.yml up -d",
-    "docker:db:down": "docker compose -f docker/docker-compose.dev.yml down"
+    "docker:db:down": "docker compose -f docker/docker-compose.dev.yml down",
+    "db:phase10:preflight": "tsx apps/api/scripts/preflight-phase10.ts",
+    "db:phase10:postflight": "tsx apps/api/scripts/preflight-phase10.ts --after",
+    "db:seed:phase10:permissions": "tsx apps/api/scripts/seed-phase10-permissions.ts",
+    "db:seed:phase10:ports": "tsx apps/api/scripts/seed-phase10-ports.ts",
+    "test:phase10:migration": "node apps/api/scripts/test-phase10-migration.cjs"
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",

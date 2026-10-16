@@ -23,14 +23,8 @@ export class CreateCustomerDto {
   name: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  shortName?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  type?: string;
+  @IsIn(['NATURAL', 'LEGAL'])
+  personKind?: 'NATURAL' | 'LEGAL';
 
   @IsOptional()
   @IsString()
@@ -57,15 +51,6 @@ export class CreateCustomerDto {
   @MaxLength(100)
   country?: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  taxId?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(3)
-  currency?: string;
 }
 
 export class UpdateCustomerDto {
@@ -83,14 +68,8 @@ export class UpdateCustomerDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  shortName?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  type?: string;
+  @IsIn(['NATURAL', 'LEGAL'])
+  personKind?: 'NATURAL' | 'LEGAL';
 
   @IsOptional()
   @IsString()
@@ -117,15 +96,6 @@ export class UpdateCustomerDto {
   @MaxLength(100)
   country?: string;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  taxId?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(3)
-  currency?: string;
 
   @IsOptional()
   @IsBoolean()
@@ -151,8 +121,8 @@ export class ListCustomersQueryDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(50)
-  type?: string;
+  @IsIn(['NATURAL', 'LEGAL'])
+  personKind?: 'NATURAL' | 'LEGAL';
 
   @IsOptional()
   @IsString()

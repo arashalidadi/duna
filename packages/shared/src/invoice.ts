@@ -74,7 +74,7 @@ export interface Invoice {
   issuedAt: string | null;
   cancelledAt: string | null;
   deletedAt: string | null;
-  customer?: { id: string; code: string; name: string; shortName: string | null };
+  customer?: { id: string; code: string; name: string };
   billOfLading?: { id: string; billNumber: string } | null;
   manifest?: { id: string; manifestNumber: string } | null;
   items?: InvoiceItem[];

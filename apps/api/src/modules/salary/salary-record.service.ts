@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, SalaryStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
@@ -77,6 +78,7 @@ export class SalaryRecordService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -254,14 +256,23 @@ export class SalaryRecordService {
     }
   }
 
-  /** Hard delete — DRAFT only (approved/paid rows keep the audit trail). */
-  async remove(id: string) {
-    const existing = await this.assertExists(id);
-    if (existing.status !== 'DRAFT') {
-      throw new ConflictException('Only DRAFT payslips can be deleted — cancel instead');
-    }
-    await this.prisma.salaryRecord.delete({ where: { id: existing.id } });
-    return { deleted: true, id };
+  /** Archive only DRAFT payslips. Keep the employee/month slot and financial
+   * values in place; approved/paid/cancelled payslips remain visible. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "salary_records" WHERE "id" = ${id} FOR UPDATE`;
+      const row = await tx.salaryRecord.findFirst({ where: { id, deletedAt: null },
+        select: { id: true, recordNumber: true, status: true, employeeId: true, year: true, month: true } });
+      if (!row) throw new NotFoundException('Salary record not found');
+      if (row.status !== 'DRAFT') {
+        throw new ConflictException('Only DRAFT payslips can be archived — cancel instead');
+      }
+      await tx.salaryRecord.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'salary_record.archive', entityType: 'SalaryRecord',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: row, afterData: { archived: true } });
+      return { deleted: true, archived: true, id };
+    });
   }
 
   // -------------------------------------------------------------------------

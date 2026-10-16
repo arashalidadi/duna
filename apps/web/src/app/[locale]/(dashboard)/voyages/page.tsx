@@ -15,6 +15,7 @@ import type {
   VoyageDetail,
   VoyageStatus,
   VesselListItem,
+  VesselOwnership,
   PortListItem,
 } from '@shipping/shared';
 import { Plus, Eye, CalendarClock, Play, CheckCircle2, Ban } from 'lucide-react';
@@ -40,6 +41,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
 
 const PAGE_SIZE = 25;
+const OWNERSHIP: VesselOwnership[] = ['OWNED', 'VOYAGE_CHARTER', 'TIME_CHARTER', 'OTHER'];
 
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
@@ -59,6 +61,7 @@ const STATUS_META: Record<
 
 interface VoyageForm {
   vesselId: string;
+  vesselUse: string;
   tugVesselId: string;
   bargeVesselId: string;
   originPortId: string;
@@ -70,6 +73,7 @@ interface VoyageForm {
 
 const EMPTY_FORM: VoyageForm = {
   vesselId: '',
+  vesselUse: '',
   tugVesselId: '',
   bargeVesselId: '',
   originPortId: '',
@@ -94,6 +98,7 @@ export default function VoyagesPage() {
   const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('voyages');
+  const phase10 = useTranslations('phase10');
   const [data, setData] = useState<PaginatedResult<VoyageListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -277,6 +282,7 @@ export default function VoyagesPage() {
         destinationPortId: form.destinationPortId,
       };
       if (extraDestinations.length > 0) payload.destinations = extraDestinations;
+      if (form.vesselUse) payload.vesselUse = form.vesselUse;
       // Optional tug/barge pairing (Phase 2): only sent when selected, so a
       // plain self-propelled voyage payload is unchanged from before.
       if (form.tugVesselId) payload.tugVesselId = form.tugVesselId;
@@ -618,6 +624,14 @@ export default function VoyagesPage() {
               ))}
             </select>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="voy-use">{phase10('vesselUse')}</Label>
+            <select id="voy-use" className={SELECT_CLASS + ' w-full'} value={form.vesselUse}
+              onChange={(e) => updateField('vesselUse', e.target.value)}>
+              <option value="">{phase10('ownershipUnknown')}</option>
+              {OWNERSHIP.map((v) => <option key={v} value={v}>{phase10(v)}</option>)}
+            </select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="voy-tug" className="block">
@@ -789,6 +803,8 @@ export default function VoyagesPage() {
                   {detail.vessel.name} ({detail.vessel.code})
                 </div>
               </div>
+              <div><div className="text-xs text-muted-foreground">{phase10('vesselUse')}</div>
+                <div>{detail.vesselUse ? phase10(detail.vesselUse) : phase10('ownershipUnknown')}</div></div>
               <div>
                 <div className="text-xs text-muted-foreground">{t('pairing.tug')}</div>
                 <div>

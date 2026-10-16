@@ -1,13 +1,15 @@
 import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { phase9Permissions } from './phase9-permissions';
+import { phase10Permissions } from './phase10-permissions';
 
 /**
  * Phase 1 (A3) — REQUIRED seed data.
  *
  * Everything in this module is reference/configuration data the application
- * cannot run without: currencies, the permission registry, roles, ports and
- * yards, company settings, and the administrator account.
+ * cannot run without: currencies, the permission registry, roles,
+ * company settings, and the administrator account. Operator-managed ports
+ * and yards are NOT fabricated by the structural seed (DEC-064/065).
  *
  * It contains NO fabricated business records. Sample cargo, customers, vessels,
  * voyages and load lists live in ./demo.ts and are only written when the
@@ -16,10 +18,6 @@ import { phase9Permissions } from './phase9-permissions';
 export interface SeedCoreResult {
   adminUser: { id: string; email: string };
   portalRole: { id: string };
-  ports: {
-    jebelAli: { id: string; code: string };
-    khalfan: { id: string; code: string };
-  };
 }
 
 export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
@@ -83,6 +81,7 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     // Phase 9: configuration never grants access to source records by itself.
     // Sidecar values also require the underlying entity read/edit permission.
     ...phase9Permissions,
+    ...phase10Permissions,
     { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
     { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management
@@ -374,41 +373,8 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     });
   }
 
-  // ==========================================================================
-  // Ports & Yards
-  // ==========================================================================
-  const jebelAli = await prisma.port.upsert({
-    where: { code: 'JEBALI' },
-    update: { name: 'Jebel Ali', country: 'UAE', city: 'Dubai', isActive: true },
-    create: { code: 'JEBALI', name: 'Jebel Ali', country: 'UAE', city: 'Dubai', isActive: true },
-  });
-
-  const khalfan = await prisma.port.upsert({
-    where: { code: 'KHALIFA' },
-    update: { name: 'Khalifa Port', country: 'UAE', city: 'Abu Dhabi', isActive: true },
-    create: {
-      code: 'KHALIFA',
-      name: 'Khalifa Port',
-      country: 'UAE',
-      city: 'Abu Dhabi',
-      isActive: true,
-    },
-  });
-
-  await prisma.yard.upsert({
-    where: { code: 'JEBALI-Y1' },
-    update: { name: 'Jebel Ali Yard 1', portId: jebelAli.id, isActive: true },
-    create: { code: 'JEBALI-Y1', name: 'Jebel Ali Yard 1', portId: jebelAli.id, isActive: true },
-  });
-
-  await prisma.yard.upsert({
-    where: { code: 'KHALIFA-Y1' },
-    update: { name: 'Khalifa Yard 1', portId: khalfan.id, isActive: true },
-    create: { code: 'KHALIFA-Y1', name: 'Khalifa Yard 1', portId: khalfan.id, isActive: true },
-  });
-
-  console.log(`  Ports seeded: ${jebelAli.code}, ${khalfan.code}`);
-  console.log('  Yards seeded: JEBALI-Y1, KHALIFA-Y1');
+  // No port/yard writes: reference port data is seeded separately, with
+  // verified names/codes only, by the explicit Phase 10 ports command.
 
   // ==========================================================================
   // Company settings
@@ -499,9 +465,5 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   return {
     adminUser: { id: adminUser.id, email: adminUser.email },
     portalRole: { id: portalRole.id },
-    ports: {
-      jebelAli: { id: jebelAli.id, code: jebelAli.code },
-      khalfan: { id: khalfan.id, code: khalfan.code },
-    },
   };
 }

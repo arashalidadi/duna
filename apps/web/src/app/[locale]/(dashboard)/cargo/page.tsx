@@ -66,6 +66,9 @@ const STATUSES: CargoStatus[] = [
   'CANCELLED',
 ];
 const WEIGHT_UNITS: WeightUnit[] = ['KG', 'MT'];
+// Preserve the evidenced intake-document vocabulary; free text would create
+// unsupported document names and be rejected by the API.
+const INTAKE_DOC_NAMES = ['Export Paper', 'Import Paper', 'Export Certificate', 'R.D.A.'] as const;
 
 interface FormValues {
   customerId: string;
@@ -85,6 +88,8 @@ interface FormValues {
   arrivalDate: string;
   arrivalReference: string;
   comments: string;
+  documentStatus: string;
+  intakeDocuments: string[];
 }
 
 const EMPTY_FORM: FormValues = {
@@ -105,6 +110,8 @@ const EMPTY_FORM: FormValues = {
   arrivalDate: '',
   arrivalReference: '',
   comments: '',
+  documentStatus: '',
+  intakeDocuments: [],
 };
 
 function toForm(c: CargoDetail): FormValues {
@@ -126,6 +133,8 @@ function toForm(c: CargoDetail): FormValues {
     arrivalDate: c.arrivalDate ? c.arrivalDate.slice(0, 10) : '',
     arrivalReference: c.arrivalReference ?? '',
     comments: c.comments ?? '',
+    documentStatus: c.documentStatus ?? '',
+    intakeDocuments: [], // Existing documents are append-only and shown in detail.
   };
 }
 
@@ -163,6 +172,7 @@ const LOADING_META: Record<LoadingStatus, string> = {
 export default function CargoPage() {
   const uiLocale = useUiLocale();
   const ui = useUiTranslations('legacyUi');
+  const phase10 = useUiTranslations('phase10');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<CargoListItem> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -472,7 +482,7 @@ export default function CargoPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {c.customer.shortName ?? c.customer.code}
+                      {c.customer.code}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       <DomainLabel value={c.cargoType.replace(/_/g, ' ')} />
@@ -494,6 +504,7 @@ export default function CargoPage() {
                       <Badge variant={statusMeta(c.status).variant}>
                         <DomainLabel value={statusMeta(c.status).label} />
                       </Badge>
+                      {c.inspectionStatus === 'PENDING' && <Badge variant="warning" className="ms-1">{phase10('pendingInspection')}</Badge>}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center justify-end gap-1">
@@ -795,6 +806,7 @@ export default function CargoPage() {
                   value={form.packages}
                   onChange={(e) => updateField('packages', e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">{phase10('loosePiecesHint')}</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="cargo-package-type" className="block">
@@ -818,6 +830,26 @@ export default function CargoPage() {
               </div>
             </div>
           </div>
+          <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="cargo-document-status">{phase10('cargoDocumentStatus')}</Label>
+            <select id="cargo-document-status" className={SELECT_CLASS + ' w-full'}
+              value={form.documentStatus} onChange={(e) => updateField('documentStatus', e.target.value)}>
+              <option value="">{phase10('cargoDocumentUnknown')}</option>
+              <option value="EXID">EXID</option><option value="BCC">BCC</option>
+              <option value="LOCAL_TRANSFER">{phase10('localTransfer')}</option>
+            </select>
+          </div>
+          <fieldset className="col-span-2 space-y-1.5">
+            <legend className="text-sm font-medium">{phase10('cargoIntakeDocs')}</legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">{INTAKE_DOC_NAMES.map((name) =>
+              <label key={name} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.intakeDocuments.includes(name)}
+                  onChange={() => updateField('intakeDocuments', form.intakeDocuments.includes(name)
+                    ? form.intakeDocuments.filter((v) => v !== name) : [...form.intakeDocuments, name])} />
+                {name}
+              </label>)}</div>
+            <p className="text-xs text-muted-foreground">{phase10('cargoIntakeHint')}</p>
+          </fieldset>
           <div className="col-span-2 space-y-1.5">
             <Label htmlFor="cargo-comments" className="block">
               {editing ? ui('comments') : ui('commentsRequired')}
@@ -919,6 +951,29 @@ export default function CargoPage() {
                 <div>{new Date(detail.createdAt).toLocaleDateString(uiLocale)}</div>
               </div>
             </div>
+            <div className="rounded-lg border p-3">
+              <div className="text-xs font-medium">{phase10('cargoDocumentStatus')}</div>
+              <p>{detail.documentStatus === 'LOCAL_TRANSFER' ? phase10('localTransfer')
+                : detail.documentStatus ?? phase10('cargoDocumentUnknown')}</p>
+              {detail.intakeDocuments.length > 0 && <div className="mt-2">
+                <div className="text-xs text-muted-foreground">{phase10('cargoIntakeDocs')}</div>
+                <ul className="list-inside list-disc">{detail.intakeDocuments.map((d) => <li key={d.id}>{d.name}{d.reference ? ` · ${d.reference}` : ''}</li>)}</ul>
+              </div>}
+            </div>
+            {detail.legacyAttributes && <div className="rounded-lg border border-warning/40 p-3 text-xs">
+              <p className="font-medium">{phase10('cargoLegacy')}</p>
+              {((detail.legacyAttributes.chassis?.trim() && detail.legacyAttributes.chassis.trim() !== detail.chassisNumber?.trim()) ||
+                (detail.legacyAttributes.serial?.trim() && detail.legacyAttributes.serial.trim() !== detail.serialNumber?.trim()) ||
+                (detail.legacyAttributes.comment?.trim() && detail.legacyAttributes.comment.trim() !== detail.comments?.trim()) ||
+                (detail.legacyAttributes.units != null && detail.legacyAttributes.units !== detail.quantity)) &&
+                <p className="text-warning">{phase10('cargoLegacyConflict')}</p>}
+              <dl className="mt-2 grid grid-cols-2 gap-2">
+                <div><dt>{phase10('chassisOriginal')}</dt><dd>{detail.legacyAttributes.chassis ?? '—'}</dd></div>
+                <div><dt>{phase10('serialOriginal')}</dt><dd>{detail.legacyAttributes.serial ?? '—'}</dd></div>
+                <div><dt>{phase10('commentOriginal')}</dt><dd className="whitespace-pre-wrap">{detail.legacyAttributes.comment ?? '—'}</dd></div>
+                <div><dt>{phase10('unitsOriginal')}</dt><dd>{detail.legacyAttributes.units ?? '—'}</dd></div>
+              </dl>
+            </div>}
             <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {ui('identifiers')}
             </div>
@@ -1041,5 +1096,9 @@ function buildPayload(f: FormValues): Record<string, unknown> {
   if (f.arrivalDate) payload.arrivalDate = f.arrivalDate;
   if (f.arrivalReference.trim()) payload.arrivalReference = f.arrivalReference.trim();
   payload.comments = f.comments.trim();
+  payload.documentStatus = f.documentStatus || null;
+  if (f.intakeDocuments.length) {
+    payload.intakeDocuments = f.intakeDocuments.map((name) => ({ name }));
+  }
   return payload;
 }

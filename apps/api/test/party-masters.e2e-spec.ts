@@ -15,7 +15,7 @@ import { PrismaClient } from '@prisma/client';
  *    read paths (200/404/soft-deleted 404), PATCH echo + code-property rejection 400,
  *    active flip + filter + restore, delete + 404 + absent-from-list, Prisma cross-check.
  *  B1–B7 agent destinations — create/list echo, duplicate 409, nonexistent portId status recorded,
- *    lifecycle (PATCH/DELETE/post-404s), IDOR 404, unknown agent 404 ×4 verbs, RBAC (agent:read
+ *    lifecycle (PATCH/DELETE deactivate + reactivate), IDOR 404, unknown agent 404 ×4 verbs, RBAC (agent:read
  *    vs agent:update).
  *  C isolation — unique random tag everywhere; hard-delete in afterAll; TAG-SCOPED fixture counts
  *    asserted back to 0 (global counts logged as context only — they race parallel suites).
@@ -159,14 +159,14 @@ describe('Party masters: Party CRUD + agent destinations (e2e)', () => {
     const portA = await S()
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PMPA${tag}`, name: `PM Port Alpha ${tag}`, country: 'AE' })
+      .send({ code: `PMPA${tag}`, name: `PM Port Alpha ${tag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     portAId = portA.body.data.id;
     portACode = portA.body.data.code;
     const portB = await S()
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PMPB${tag}`, name: `PM Port Beta ${tag}`, country: 'IN' })
+      .send({ code: `PMPB${tag}`, name: `PM Port Beta ${tag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     portBId = portB.body.data.id;
 
@@ -575,7 +575,7 @@ describe('Party masters: Party CRUD + agent destinations (e2e)', () => {
           expect(row!.code).toBe(mainCode);
           expect(row!.name).toBe(updatedName); // A7's write persisted
           expect(row!.taxId).toBe(`TAX2-${tag}`);
-          expect(row!.isActive).toBe(true); // A8 restored before A9's soft delete
+          expect(row!.isActive).toBe(false); // A9 archives and deactivates under DEC-050/052
           expect(row!.deletedAt).not.toBeNull(); // A9 soft-deleted
         },
         30000,
@@ -632,13 +632,13 @@ describe('Party masters: Party CRUD + agent destinations (e2e)', () => {
     );
 
     it(
-      'B3 nonexistent portId -> actual status recorded (service has no existence check; FK-only)',
+      'B3 nonexistent portId -> 404 before destination creation',
       async () => {
         const res = await S()
           .post(`/api/v1/agents/${destAgentId}/destinations`)
           .set(auth(adminToken))
           .send({ portId: `PX${tag}NOPORT` })
-          .expect(400); // HttpExceptionFilter maps Prisma P2003 -> 400 (http-exception.filter.ts:76-85)
+          .expect(404); // Phase 10 validates the master before attempting the FK insert
         console.log(`[B3] nonexistent portId response: ${res.status} ${JSON.stringify(res.body)}`);
       },
       30000,
@@ -690,7 +690,7 @@ describe('Party masters: Party CRUD + agent destinations (e2e)', () => {
     );
 
     it(
-      'B4 lifecycle: PATCH isActive:false 200 + filter; DELETE 200; GET/PATCH/DELETE on the deleted destination -> 404',
+      'B4 lifecycle: DELETE deactivates without erasing the destination; PATCH reactivates',
       async () => {
         const off = await S()
           .patch(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
@@ -710,30 +710,23 @@ describe('Party masters: Party CRUD + agent destinations (e2e)', () => {
           .expect(200);
         expect(active.body.data.data.map((d: { id: string }) => d.id)).not.toContain(destId);
 
+        // The former assertion that DELETE physically removed a configuration
+        // row conflicts with the Phase 10 preservation/deactivation policy.
         await S()
           .delete(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
           .set(auth(adminToken))
           .expect(200);
+        expect((await prisma.agentDestination.findUnique({ where: { id: destId } }))?.isActive).toBe(false);
 
-        // absent from the list now
-        const list = await S()
-          .get(`/api/v1/agents/${destAgentId}/destinations`)
-          .set(auth(adminToken))
-          .expect(200);
-        expect(list.body.data.data.map((d: { id: string }) => d.id)).not.toContain(destId);
-
-        // GET (no GET-one route exists -> route-level 404), PATCH and DELETE -> service-level 404
-        await S()
-          .get(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
-          .set(auth(adminToken))
-          .expect(404);
-        await S()
+        const restored = await S()
           .patch(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
           .set(auth(adminToken))
           .send({ isActive: true })
-          .expect(404);
+          .expect(200);
+        expect(restored.body.data.isActive).toBe(true);
+        // No GET-one route exists, independent of link lifecycle.
         await S()
-          .delete(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
+          .get(`/api/v1/agents/${destAgentId}/destinations/${destId}`)
           .set(auth(adminToken))
           .expect(404);
       },

@@ -6,7 +6,7 @@ import { useTranslations as useUiTranslations } from 'next-intl';
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import type { PaginatedResult, VesselListItem, VesselDetail, VesselType } from '@shipping/shared';
+import type { PaginatedResult, VesselListItem, VesselDetail, VesselType, VesselOwnership } from '@shipping/shared';
 import { Plus, Power, Eye } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/AuthProvider';
@@ -30,6 +30,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Pagination } from '@/components/ui/pagination';
 
 const PAGE_SIZE = 25;
+const OWNERSHIP: VesselOwnership[] = ['OWNED', 'VOYAGE_CHARTER', 'TIME_CHARTER', 'OTHER'];
 
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
@@ -51,6 +52,7 @@ interface FormValues {
   code: string;
   name: string;
   imo: string;
+  ownership: string;
   flag: string;
   vesselType: VesselType;
   capacityTeu: string;
@@ -61,6 +63,7 @@ const EMPTY_FORM: FormValues = {
   code: '',
   name: '',
   imo: '',
+  ownership: '',
   flag: '',
   vesselType: 'CONTAINER',
   capacityTeu: '',
@@ -72,6 +75,7 @@ function toForm(v: VesselListItem): FormValues {
     code: v.code,
     name: v.name,
     imo: v.imo ?? '',
+    ownership: v.ownership ?? '',
     flag: v.flag,
     vesselType: v.vesselType,
     capacityTeu: v.capacityTeu ? String(v.capacityTeu) : '',
@@ -83,6 +87,7 @@ export default function VesselsPage() {
   const ui = useUiTranslations('legacyUi');
   const { hasPermission } = useAuth();
   const t = useTranslations('vessels');
+  const phase10 = useTranslations('phase10');
   const [data, setData] = useState<PaginatedResult<VesselListItem> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -456,6 +461,14 @@ export default function VesselsPage() {
             </select>
           </div>
           <div className="col-span-2 space-y-1.5">
+            <Label htmlFor="vessel-ownership">{phase10('vesselOwnership')}</Label>
+            <select id="vessel-ownership" className={SELECT_CLASS + ' w-full'} value={form.ownership}
+              onChange={(e) => updateField('ownership', e.target.value)}>
+              <option value="">{phase10('ownershipUnknown')}</option>
+              {OWNERSHIP.map((v) => <option key={v} value={v}>{phase10(v)}</option>)}
+            </select>
+          </div>
+          <div className="col-span-2 space-y-1.5">
             <Label htmlFor="vessel-name" className="block">
               {ui('nameRequired')}
             </Label>
@@ -541,6 +554,8 @@ export default function VesselsPage() {
                 <div className="text-xs text-muted-foreground">IMO</div>
                 <div>{detail.imo ?? '—'}</div>
               </div>
+              <div><div className="text-xs text-muted-foreground">{phase10('vesselOwnership')}</div>
+                <div>{detail.ownership ? phase10(detail.ownership) : phase10('ownershipUnknown')}</div></div>
               <div>
                 <div className="text-xs text-muted-foreground">{t('detail.type')}</div>
                 <div>{t(`type.${detail.vesselType}`)}</div>
@@ -600,6 +615,7 @@ function formInput(f: FormValues): Record<string, string | number> {
   if (f.code.trim()) out.code = f.code.trim();
   if (f.name.trim()) out.name = f.name.trim();
   if (f.imo.trim()) out.imo = f.imo.trim();
+  if (f.ownership) out.ownership = f.ownership;
   if (f.flag.trim()) out.flag = f.flag.trim();
   out.vesselType = f.vesselType;
   if (f.capacityTeu.trim()) out.capacityTeu = Number(f.capacityTeu);
@@ -614,6 +630,7 @@ function editInput(f: FormValues): Record<string, string | number | null> {
   return {
     ...input,
     imo: f.imo.trim() ? f.imo.trim() : null,
+    ownership: f.ownership || null,
     notes: f.notes.trim() ? f.notes.trim() : null,
   };
 }

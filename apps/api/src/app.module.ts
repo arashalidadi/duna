@@ -50,6 +50,7 @@ import { NumberingModule } from './common/infrastructure/numbering/numbering.mod
 import { AttachmentModule } from './common/infrastructure/attachment/attachment.module';
 import { DocumentTemplateModule } from './common/infrastructure/templates/document-template.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -100,6 +101,7 @@ import { ConfigurationModule } from './modules/configuration/configuration.modul
     AttachmentModule,
     DocumentTemplateModule,
     ConfigurationModule,
+    NotificationsModule,
   ],
   controllers: [AppController, AuditController],
   providers: [

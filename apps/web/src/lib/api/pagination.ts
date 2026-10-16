@@ -35,7 +35,7 @@ export const MAX_FETCH_PAGES = 50;
  * Every request stays within the documented limit.
  *
  * @param path     endpoint path, with or without its own query string,
- *                 e.g. `/customers` or `/customers?type=SHIPPER`
+ *                 e.g. `/customers` or `/customers?personKind=LEGAL`
  * @param options  `pageSize` (defaults to, and is capped at, the API maximum)
  *                 and `maxPages` (defaults to {@link MAX_FETCH_PAGES})
  */

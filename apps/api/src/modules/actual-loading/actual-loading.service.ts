@@ -7,6 +7,7 @@ import {
 import { Prisma, ActualLoadingStatus } from '@prisma/client';
 type ActualLoadingStatusFilter = { equals: ActualLoadingStatus } | { in: ActualLoadingStatus[] } | { not: ActualLoadingStatus };
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -115,7 +116,7 @@ const detailSelect = {
           serialNumber: true,
           chassisNumber: true,
           vin: true,
-          customer: { select: { id: true, code: true, name: true, shortName: true } },
+          customer: { select: { id: true, code: true, name: true } },
           port: { select: { id: true, code: true, name: true } },
           destinationPort: { select: { id: true, code: true, name: true } },
           yard: { select: { id: true, code: true, name: true } },
@@ -153,7 +154,7 @@ const itemSelect = {
       serialNumber: true,
       chassisNumber: true,
       vin: true,
-      customer: { select: { id: true, code: true, name: true, shortName: true } },
+      customer: { select: { id: true, code: true, name: true } },
       port: { select: { id: true, code: true, name: true } },
       destinationPort: { select: { id: true, code: true, name: true } },
       yard: { select: { id: true, code: true, name: true } },
@@ -167,6 +168,7 @@ export class ActualLoadingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -747,7 +749,16 @@ export class ActualLoadingService {
           where: { id: item.cargoId },
           data: { loadingStatus: 'LOADED' },
         });
-        await tx.yardInventory.deleteMany({ where: { cargoId: item.cargoId } });
+        const placement = await tx.yardInventory.findUnique({ where: { cargoId: item.cargoId },
+          select: { id: true, cargoId: true, yardId: true, portId: true,
+            status: true, enteredAt: true, locationLabel: true, notes: true } });
+        if (placement) {
+          await tx.yardInventory.delete({ where: { id: placement.id } });
+          await this.audit.recordIn(tx, { action: 'yard_inventory.loaded_exit',
+            entityType: 'YardInventory', entityId: placement.id,
+            actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+            beforeData: placement, afterData: { removed: true, actualLoadingId: id } });
+        }
       }
 
       return updated;

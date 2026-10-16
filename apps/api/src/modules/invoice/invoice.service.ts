@@ -82,7 +82,7 @@ const listSelect = {
   issuedAt: true,
   cancelledAt: true,
   deletedAt: true,
-  customer: { select: { id: true, code: true, name: true, shortName: true } },
+  customer: { select: { id: true, code: true, name: true } },
   billOfLading: { select: { id: true, billNumber: true } },
   manifest: { select: { id: true, manifestNumber: true } },
   createdBy: { select: { id: true, email: true, fullName: true } },

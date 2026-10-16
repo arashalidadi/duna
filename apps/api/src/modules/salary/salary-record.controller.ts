@@ -53,8 +53,8 @@ export class SalaryRecordController {
 
   @Delete(':id')
   @RequirePermissions('salary:delete')
-  remove(@Param('id') id: string) {
-    return this.salaryRecords.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.salaryRecords.remove(id, user);
   }
 
   // ─── lifecycle ────────────────────────────────────────────────────────────

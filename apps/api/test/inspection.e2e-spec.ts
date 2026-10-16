@@ -95,14 +95,14 @@ describe('Inspection (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `ICUS-${tag}`, name: `Insp Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `ICUS-${tag}`, name: `Insp Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
 
     const port = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `IPT-${tag}`, name: `Insp Port ${randomTag}`, country: 'AE' })
+      .send({ code: `IPT-${tag}`, name: `Insp Port ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: port.body.data.id });
 
@@ -120,7 +120,7 @@ describe('Inspection (e2e)', () => {
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `IPT2-${tag}`, name: `Insp Port 2 ${randomTag}`, country: 'AE' })
+      .send({ code: `IPT2-${tag}`, name: `Insp Port 2 ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     const ves = await request(app.getHttpServer())

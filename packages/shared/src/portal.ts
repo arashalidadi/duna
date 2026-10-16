@@ -49,7 +49,7 @@ export interface PortalCustomer {
   code: string;
   email: string | null;
   phone: string | null;
-  type: string | null;
+  personKind: 'NATURAL' | 'LEGAL' | null;
 }
 
 export interface PortalSummary {

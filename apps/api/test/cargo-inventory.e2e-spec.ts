@@ -77,7 +77,7 @@ describe('Cargo & Yard Inventory (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `CUS-${tag}`, name: `Cargo Test Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `CUS-${tag}`, name: `Cargo Test Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
 
@@ -104,14 +104,14 @@ describe('Cargo & Yard Inventory (e2e)', () => {
     const port1 = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PT-${tag}`, name: `Cargo Port ${randomTag}`, country: 'AE' })
+      .send({ code: `PT-${tag}`, name: `Cargo Port ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: port1.body.data.id });
 
     const port2 = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `PT2-${tag}`, name: `Cargo Port Two ${randomTag}`, country: 'AE' })
+      .send({ code: `PT2-${tag}`, name: `Cargo Port Two ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: port2.body.data.id });
 
@@ -651,7 +651,18 @@ describe('Cargo & Yard Inventory (e2e)', () => {
         .expect(404);
     });
 
-    it('removes cargo from the yard; cargo reverts to REGISTERED', async () => {
+    it('refuses reserved placement removal, then removes unused IN_YARD cargo and restores REGISTERED', async () => {
+      // The old expectation deleted a RESERVED placement despite an active
+      // operational reservation; DEC-049/052 makes that unsafe.
+      await request(app.getHttpServer())
+        .delete(`/api/v1/yard-inventory/${inventoryId}`)
+        .set(auth(adminToken))
+        .expect(409);
+      await request(app.getHttpServer())
+        .patch(`/api/v1/yard-inventory/${inventoryId}`)
+        .set(auth(adminToken))
+        .send({ status: 'IN_YARD' })
+        .expect(200);
       const del = await request(app.getHttpServer())
         .delete(`/api/v1/yard-inventory/${inventoryId}`)
         .set(auth(adminToken))

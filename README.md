@@ -90,7 +90,9 @@ pnpm docker:db
 # 4. Generate Prisma, then apply migrations and seed ONLY an approved development DB
 pnpm db:generate
 pnpm db:migrate               # prisma migrate dev
-pnpm db:seed                  # seed reference data + admin user (no demonstration data)
+pnpm db:seed                  # structural reference data + admin (NO operator ports/yards)
+# Phase 10 ports require a separately reviewed, explicit reference seed after
+# preflight/migration; do not run that seed blindly against a populated DB.
 # Demonstration data is opt-in (Phase 1, 2026-10-12). Development database ONLY:
 # pnpm db:seed:demo           # SEED_DEMO_DATA=true — writes fabricated sample records
 

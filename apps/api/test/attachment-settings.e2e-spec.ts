@@ -90,7 +90,7 @@ describe('Attachments and company settings Phase 4 (e2e)', () => {
     const customer = await api()
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `P4-${tag.toUpperCase()}`, name: `Phase 4 test ${tag}`, type: 'SHIPPER' })
+      .send({ code: `P4-${tag.toUpperCase()}`, name: `Phase 4 test ${tag}`, personKind: 'LEGAL' })
       .expect(201);
     customerId = customer.body.data.id as string;
 

@@ -163,11 +163,11 @@ describe('Delivery & Release Orders (e2e)', () => {
 
     // ── full ops chain → approved manifest → APPROVED bill (issue alias) ──
     const portA = await S().post('/api/v1/ports').set(auth(adminToken))
-      .send({ code: `DRP1-${tag}`, name: `DR Origin ${randomTag}`, country: 'AE' }).expect(201);
+      .send({ code: `DRP1-${tag}`, name: `DR Origin ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` }).expect(201);
     createdPorts.push({ id: portA.body.data.id });
     drPortId = portA.body.data.id;
     const portB = await S().post('/api/v1/ports').set(auth(adminToken))
-      .send({ code: `DRP2-${tag}`, name: `DR Dest ${randomTag}`, country: 'IN' }).expect(201);
+      .send({ code: `DRP2-${tag}`, name: `DR Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` }).expect(201);
     createdPorts.push({ id: portB.body.data.id });
 
     const ves = await S().post('/api/v1/vessels').set(auth(adminToken))
@@ -180,7 +180,7 @@ describe('Delivery & Release Orders (e2e)', () => {
     const voyageId = voy.body.data.id;
 
     const cust = await S().post('/api/v1/customers').set(auth(adminToken))
-      .send({ code: `DRCUS-${tag}`, name: `DR Co ${randomTag}`, type: 'SHIPPER' }).expect(201);
+      .send({ code: `DRCUS-${tag}`, name: `DR Co ${randomTag}`, personKind: 'LEGAL' }).expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
 

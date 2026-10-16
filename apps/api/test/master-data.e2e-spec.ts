@@ -138,11 +138,10 @@ describe('Master Data (e2e)', () => {
         .send({
           code: `CUS-${tag}`,
           name: `Test Shipper ${randomTag}`,
-          type: 'SHIPPER',
+          personKind: 'LEGAL',
           phone: '+971-5-000-' + randomTag,
           email: `cust-${emailSuffix}@example.com`,
           country: 'AE',
-          currency: 'AED',
         })
         .expect(201);
       const d = res.body.data;
@@ -241,7 +240,7 @@ describe('Master Data (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/ports')
         .set(auth(adminToken))
-        .send({ code: `PT-${tag}`, name: `Test Port ${randomTag}`, country: 'OM', city: 'Sohar' })
+        .send({ code: `PT-${tag}`, name: `Test Port ${randomTag}`, country: 'OM', city: 'Sohar', abbreviation: `T01${tag}` })
         .expect(201);
 
       const searchRes = await request(app.getHttpServer())
@@ -265,7 +264,7 @@ describe('Master Data (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/ports')
         .set(auth(adminToken))
-        .send({ code: `PT-${tag}`, name: 'Dup', country: 'AE' })
+        .send({ code: `PT-${tag}`, name: 'Dup', country: 'AE', city: 'Fixture region', abbreviation: `T02${tag}` })
         .expect(409);
     });
 
@@ -294,6 +293,7 @@ describe('Master Data (e2e)', () => {
           name: 'Dup abbreviation',
           country: 'AE',
           abbreviation: `AB${tag}`,
+          city: 'Fixture region',
         })
         .expect(409);
       expect(JSON.stringify(res.body)).toContain('abbreviation');
@@ -332,14 +332,13 @@ describe('Master Data (e2e)', () => {
       expect(detailRes.body.data.abbreviation).toBe(`UP${tag}`);
     });
 
-    it('accepts a port without an abbreviation (nullable field)', async () => {
+    it('rejects a new port without city and abbreviation (REQ-031)', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/v1/ports')
         .set(auth(adminToken))
         .send({ code: `NOA-${tag}`, name: `No Abbr ${randomTag}`, country: 'OM' })
-        .expect(201);
-      expect(res.body.data.abbreviation).toBeNull();
-      createdPorts.push({ id: res.body.data.id, code: res.body.data.code });
+        .expect(400);
+      expect(res.body.success).toBe(false);
     });
 
     const portId = () => createdPorts[0].id;
@@ -430,7 +429,7 @@ describe('Master Data (e2e)', () => {
       const p2 = await request(app.getHttpServer())
         .post('/api/v1/ports')
         .set(auth(adminToken))
-        .send({ code: `PT2-${tag}`, name: `Test Port Two ${randomTag}`, country: 'AE' })
+        .send({ code: `PT2-${tag}`, name: `Test Port Two ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T06${tag}` })
         .expect(201);
       createdPorts.push({ id: p2.body.data.id, code: p2.body.data.code });
 

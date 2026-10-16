@@ -56,7 +56,7 @@ const listSelect = {
       serialNumber: true,
       chassisNumber: true,
       vin: true,
-      customer: { select: { id: true, code: true, name: true, shortName: true } },
+      customer: { select: { id: true, code: true, name: true } },
       port: { select: { id: true, code: true, name: true, country: true, city: true } },
       destinationPort: {
         select: { id: true, code: true, name: true, country: true, city: true },

@@ -102,7 +102,7 @@ describe('Actual Loading (e2e)', () => {
     const portA = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `ALP5-${tag}`, name: `AL Origin ${randomTag}`, country: 'AE' })
+      .send({ code: `ALP5-${tag}`, name: `AL Origin ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: portA.body.data.id });
     originPortId = portA.body.data.id;
@@ -111,7 +111,7 @@ describe('Actual Loading (e2e)', () => {
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `ALP6-${tag}`, name: `AL Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `ALP6-${tag}`, name: `AL Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     destPortId = portB.body.data.id;
@@ -137,7 +137,7 @@ describe('Actual Loading (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `ALCUS-${tag}`, name: `AL Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `ALCUS-${tag}`, name: `AL Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
@@ -516,7 +516,7 @@ describe('Actual Loading (e2e)', () => {
     const portC = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `ALP7-${tag}`, name: `AL Port C ${randomTag}`, country: 'AE' })
+      .send({ code: `ALP7-${tag}`, name: `AL Port C ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T03${tag}` })
       .expect(201);
     createdPorts.push({ id: portC.body.data.id });
     const voy2 = await request(app.getHttpServer())

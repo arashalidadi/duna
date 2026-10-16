@@ -156,7 +156,7 @@ export class PortalService {
     const customerId = await this.portalCustomerIdOf(actor);
     const customer = await this.prisma.customer.findFirst({
       where: { id: customerId, deletedAt: null },
-      select: { id: true, name: true, code: true, email: true, phone: true, type: true },
+      select: { id: true, name: true, code: true, email: true, phone: true, personKind: true },
     });
     if (!customer) throw new NotFoundException('Portal company not found');
 

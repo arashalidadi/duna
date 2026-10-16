@@ -35,60 +35,44 @@ const PAGE_SIZE = 25;
 const SELECT_CLASS =
   'h-9 rounded-md border border-input bg-card px-3 text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-ring';
 
-const CUSTOMER_TYPES = [
-  { value: 'SHIPPER', label: 'Shipper' },
-  { value: 'CONSIGNEE', label: 'Consignee' },
-  { value: 'FORWARDER', label: 'Forwarder' },
-  { value: 'TRANSPORT', label: 'Transport / Trucking' },
-  { value: 'AGENT', label: 'Agent' },
-];
-
 interface FormValues {
   code: string;
   name: string;
-  shortName: string;
-  type: string;
+  personKind: string;
   contactName: string;
   phone: string;
   email: string;
   address: string;
   country: string;
-  taxId: string;
-  currency: string;
 }
 
 const EMPTY_FORM: FormValues = {
   code: '',
   name: '',
-  shortName: '',
-  type: '',
+  personKind: '',
   contactName: '',
   phone: '',
   email: '',
   address: '',
   country: '',
-  taxId: '',
-  currency: '',
 };
 
 function toForm(c: CustomerListItem): FormValues {
   return {
     code: c.code,
     name: c.name,
-    shortName: c.shortName ?? '',
-    type: c.type ?? '',
+    personKind: c.personKind ?? '',
     contactName: c.contactName ?? '',
     phone: c.phone ?? '',
     email: c.email ?? '',
     address: c.address ?? '',
     country: c.country ?? '',
-    taxId: c.taxId ?? '',
-    currency: c.currency ?? '',
   };
 }
 
 export default function CustomersPage() {
   const ui = useUiTranslations('legacyUi');
+  const phase10 = useUiTranslations('phase10');
   const { hasPermission } = useAuth();
   const [data, setData] = useState<PaginatedResult<CustomerListItem> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +80,7 @@ export default function CustomersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search);
-  const [typeFilter, setTypeFilter] = useState('');
+  const [personFilter, setPersonFilter] = useState('');
   const [activeFilter, setActiveFilter] = useState('');
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -107,12 +91,12 @@ export default function CustomersPage() {
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
 
   const load = useCallback(
-    async (p: number, q: string, type: string, active: string) => {
+    async (p: number, q: string, personKind: string, active: string) => {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams({ page: String(p), pageSize: String(PAGE_SIZE) });
       if (q) params.set('search', q);
-      if (type) params.set('type', type);
+      if (personKind) params.set('personKind', personKind);
       if (active) params.set('isActive', active);
       try {
         setData(
@@ -128,8 +112,8 @@ export default function CustomersPage() {
   );
 
   useEffect(() => {
-    load(page, debouncedSearch, typeFilter, activeFilter);
-  }, [load, page, debouncedSearch, typeFilter, activeFilter]);
+    load(page, debouncedSearch, personFilter, activeFilter);
+  }, [load, page, debouncedSearch, personFilter, activeFilter]);
 
   const canCreate = hasPermission('customer:create');
   const canUpdate = hasPermission('customer:update');
@@ -170,7 +154,7 @@ export default function CustomersPage() {
         setCreateOpen(false);
         setPage(1);
       }
-      await load(page, search, typeFilter, activeFilter);
+      await load(page, search, personFilter, activeFilter);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : ui('failedToSaveCustomer'));
     } finally {
@@ -187,7 +171,7 @@ export default function CustomersPage() {
         isActive: !toggling.isActive,
       });
       setToggling(null);
-      await load(page, search, typeFilter, activeFilter);
+      await load(page, search, personFilter, activeFilter);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : ui('failedToUpdateCustomer'));
     } finally {
@@ -202,7 +186,7 @@ export default function CustomersPage() {
           <Breadcrumbs items={[{ label: ui('customers') }]} />
           <h1 className="mt-2 text-lg font-semibold tracking-tight">{ui('customers')}</h1>
           <p className="text-sm text-muted-foreground">
-            {ui('companiesThatShipReceiveOrArrangeCargoThroughOurPorts')}
+            {phase10('customerNote')}
           </p>
         </div>
         {canCreate && (
@@ -238,19 +222,16 @@ export default function CustomersPage() {
             />
             <select
               className={SELECT_CLASS}
-              value={typeFilter}
+              value={personFilter}
               onChange={(e) => {
-                setTypeFilter(e.target.value);
+                setPersonFilter(e.target.value);
                 applyFilters();
               }}
-              aria-label={ui('filterByType')}
+              aria-label={phase10('personKind')}
             >
-              <option value="">{ui('allTypes')}</option>
-              {CUSTOMER_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  <DomainLabel value={t.label} />
-                </option>
-              ))}
+              <option value="">{phase10('allPeople')}</option>
+              <option value="NATURAL">{phase10('naturalPerson')}</option>
+              <option value="LEGAL">{phase10('legalPerson')}</option>
             </select>
             <select
               className={SELECT_CLASS}
@@ -276,7 +257,7 @@ export default function CustomersPage() {
           <CardContent>
             <ErrorState
               message={error}
-              onRetry={() => load(page, search, typeFilter, activeFilter)}
+              onRetry={() => load(page, search, personFilter, activeFilter)}
             />
           </CardContent>
         ) : data && data.data.length === 0 ? (
@@ -292,7 +273,7 @@ export default function CustomersPage() {
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground">
                   <th className="px-3 py-2 font-medium">{ui('customer')}</th>
-                  <th className="px-3 py-2 font-medium">{ui('type')}</th>
+                  <th className="px-3 py-2 font-medium">{phase10('personKind')}</th>
                   <th className="px-3 py-2 font-medium">{ui('contact')}</th>
                   <th className="px-3 py-2 font-medium">{ui('country')}</th>
                   <th className="px-3 py-2 font-medium">{ui('status')}</th>
@@ -317,7 +298,7 @@ export default function CustomersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{c.type ?? '—'}</td>
+                    <td className="px-3 py-2 text-[12px] text-muted-foreground">{c.personKind ? phase10(c.personKind === 'LEGAL' ? 'legalPerson' : 'naturalPerson') : '—'}</td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       <div>{c.contactName ?? '—'}</div>
                       {c.phone && <div className="tabular-nums">{c.phone}</div>}
@@ -427,21 +408,18 @@ export default function CustomersPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="cust-type" className="block">
-              {ui('type')}
+            <Label htmlFor="cust-person-kind" className="block">
+              {phase10('personKind')}
             </Label>
             <select
-              id="cust-type"
+              id="cust-person-kind"
               className={`${SELECT_CLASS} w-full`}
-              value={form.type}
-              onChange={(e) => updateField('type', e.target.value)}
+              value={form.personKind}
+              onChange={(e) => updateField('personKind', e.target.value)}
             >
-              <option value="">{ui('selectType')}</option>
-              {CUSTOMER_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  <DomainLabel value={t.label} />
-                </option>
-              ))}
+              <option value="">{phase10('unclassified')}</option>
+              <option value="NATURAL">{phase10('naturalPerson')}</option>
+              <option value="LEGAL">{phase10('legalPerson')}</option>
             </select>
           </div>
           <div className="col-span-2 space-y-1.5">
@@ -453,28 +431,6 @@ export default function CustomersPage() {
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
               placeholder={ui('companyLegalName')}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cust-shortname" className="block">
-              {ui('shortName')}
-            </Label>
-            <Input
-              id="cust-shortname"
-              value={form.shortName}
-              onChange={(e) => updateField('shortName', e.target.value)}
-              placeholder={ui('eGACME')}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cust-taxid" className="block">
-              {ui('taxTRN')}
-            </Label>
-            <Input
-              id="cust-taxid"
-              value={form.taxId}
-              onChange={(e) => updateField('taxId', e.target.value)}
-              placeholder={ui('eG100123456700003')}
             />
           </div>
           <div className="space-y-1.5">
@@ -506,18 +462,6 @@ export default function CustomersPage() {
               type="email"
               value={form.email}
               onChange={(e) => updateField('email', e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="cust-currency" className="block">
-              {ui('currency')}
-            </Label>
-            <Input
-              id="cust-currency"
-              value={form.currency}
-              onChange={(e) => updateField('currency', e.target.value.toUpperCase())}
-              placeholder="AED"
-              maxLength={3}
             />
           </div>
           <div className="space-y-1.5">

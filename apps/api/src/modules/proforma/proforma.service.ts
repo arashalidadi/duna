@@ -66,7 +66,7 @@ const listSelect = {
   issuedAt: true,
   cancelledAt: true,
   deletedAt: true,
-  customer: { select: { id: true, code: true, name: true, shortName: true } },
+  customer: { select: { id: true, code: true, name: true } },
   invoice: { select: { id: true, invoiceNumber: true, status: true } },
   createdBy: { select: { id: true, email: true, fullName: true } },
   issuedBy: { select: { id: true, email: true, fullName: true } },

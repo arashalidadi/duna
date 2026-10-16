@@ -111,6 +111,7 @@ model User {
   portalAgent             Agent?           @relation("UserPortalAgent", fields: [portalAgentId], references: [id])
   bookingsSubmitted       BookingRequest[] @relation("BookingSubmittedBy")
   bookingsHandled         BookingRequest[] @relation("BookingHandledBy")
+  notificationInbox       NotificationInbox[]
 
   @@index([email])
   @@index([isActive])
@@ -264,8 +265,12 @@ model Port {
   code                  String           @unique // e.g. JEBALI, KHALIFA
   name                  String
   country               String
+  // Existing rows remain nullable until the owner confirms all city/region and
+  // abbreviations. New API writes require both; never invent unsupported codes.
   city                  String?
-  abbreviation          String?         @unique @map("abbreviation") // short code e.g. HAM, JEA; nullable during migration
+  abbreviation          String?         @unique @map("abbreviation")
+  displayName           String?          @map("displayName") // optional override; official name remains name
+  aliases               PortAlias[]      @relation("PortAliases")
   isActive              Boolean          @default(true)
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
@@ -289,6 +294,19 @@ model Port {
   @@index([isActive])
 }
 
+// Aliases are for search and new selections, not a rewrite of historical port
+// references or document snapshots (DEC-066/117). Key is NFKC/case/space normalised.
+model PortAlias {
+  id        String   @id @default(cuid())
+  portId    String
+  label     String
+  key       String   @unique
+  createdAt DateTime @default(now())
+  port      Port     @relation("PortAliases", fields: [portId], references: [id], onDelete: Restrict)
+
+  @@index([portId])
+}
+
 model Yard {
   id          String          @id @default(cuid())
   portId      String
@@ -308,6 +326,23 @@ model Yard {
   @@index([isActive])
 }
 
+enum CustomerPersonKind {
+  NATURAL
+  LEGAL
+}
+
+// Historical values moved transactionally before removal from the Customer
+// table. No application endpoint exposes the unsupported fields.
+model CustomerLegacyAttribute {
+  customerId   String   @id
+  legacyType   String?
+  shortName    String?
+  taxId        String?
+  currency     String?
+  archivedAt   DateTime @default(now())
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+}
+
 // ---------------------------------------------------------------------------
 // Customers (will have many Cargo records in later phases)
 // ---------------------------------------------------------------------------
@@ -316,16 +351,14 @@ model Customer {
   id                     String           @id @default(cuid())
   code                   String           @unique // configurable numbering, e.g. CUS-001
   name                   String
-  shortName              String?
-  type                   String? // e.g. SHIPPER, CONSIGNEE, AGENT, FREIGHT_FORWARDER
+  // Natural/legal PERSON is not the prohibited commercial-role "type".
+  personKind             CustomerPersonKind?
   contactName            String?
   phone                  String?
   email                  String?
   address                String?
   country                String?
-  taxId                  String?
   creditLimit            Decimal?         @db.Decimal(18, 2)
-  currency               String? // ISO 4217
   isActive               Boolean          @default(true)
   notes                  String?
   createdAt              DateTime         @default(now())
@@ -342,16 +375,17 @@ model Customer {
   vouchersReceived       Voucher[]        @relation("VoucherCustomer")
   bookings               BookingRequest[] @relation("BookingAgent") // bookings submitted via the agent portal
   portalUsers            User[]           @relation("UserPortalCustomer")
+  legacyAttributes       CustomerLegacyAttribute?
 
   @@index([name])
   @@index([isActive])
-  @@index([type])
+  @@index([personKind])
 }
 
 // ---------------------------------------------------------------------------
 // Party Masters (Phase 2) — Shipper, Consignee, Agent are separate from
 // Customer. Customer remains the internal commercial counterparty.
-// Customer.type is deprecated for representing these external parties.
+// The Customer role-type has been archived; parties remain separate models.
 // ---------------------------------------------------------------------------
 
 model Shipper {
@@ -447,6 +481,37 @@ model AgentDestination {
   @@map("agent_destinations")
 }
 
+// A legacy value is never discarded when two old/new Cargo columns disagree.
+// The original trio is copied here before a separately authorized contract of
+// the old physical columns; the originals remain in place for verification.
+model CargoLegacyAttribute {
+  cargoId    String   @id
+  chassis   String?
+  serial    String?
+  comment   String?
+  units     Int?
+  archivedAt DateTime @default(now())
+  cargo     Cargo    @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+}
+
+enum CargoDocumentStatus {
+  EXID
+  BCC
+  LOCAL_TRANSFER
+}
+
+// Names spoken in REQ-064; no guessed expansion or document validity policy.
+model CargoIntakeDocument {
+  id        String   @id @default(cuid())
+  cargoId   String
+  name      String   @db.VarChar(80)
+  reference String?  @db.VarChar(120)
+  createdAt DateTime @default(now())
+  cargo     Cargo    @relation(fields: [cargoId], references: [id], onDelete: Restrict)
+
+  @@index([cargoId])
+}
+
 // ---------------------------------------------------------------------------
 // Cargo
 // ---------------------------------------------------------------------------
@@ -481,9 +546,13 @@ model Cargo {
   cargoValueCurrency   String?       @map("cargoValueCurrency")
   jobId                String?       @map("jobId")
   description          String?       @map("description")
-  chassis              String?       @map("chassis")
-  serial               String?       @map("serial")
-  units                Int?          @map("units")
+  // Expand/read-switch stage: original values are in CargoLegacyAttribute.
+  // The old physical columns remain for owner verification before a separately
+  // authorized contract. @ignore removes them from all generated API writers.
+  chassis             String?       @ignore
+  serial              String?       @ignore
+  comment             String?       @ignore
+  units               Int?          @ignore
   cargoType         CargoType
   specification     String?
   serialNumber      String?          @map("serialNumber")
@@ -501,7 +570,6 @@ model Cargo {
   manifestNumber    String?          @map("manifestNumber") // nullable; manifest in Phase 9
   status            CargoStatus      @default(REGISTERED)
   comments          String?
-  comment           String?          @map("comment")
   createdById       String?          @map("createdById") // audit-readiness (full audit in Phase 19)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -523,6 +591,9 @@ model Cargo {
   actualLoadingItems ActualLoadingItem[]
   manifestItems      ManifestItem[]
   billsOfLadingItems BillOfLadingItem[]  @relation("BillOfLadingItemCargo")
+  legacyAttributes   CargoLegacyAttribute?
+  intakeDocuments    CargoIntakeDocument[]
+  documentStatus     CargoDocumentStatus? // EXID / BCC / LOCAL_TRANSFER, never expand acronyms without evidence
 
   // unique index on @unique(reference) covers reference lookups
   @@index([customerId])
@@ -658,6 +729,8 @@ model Vessel {
   imo         String?    @unique // 7-digit IMO number; nullable, validated when supplied
   flag        String // country of registry (plain string, matches Port.country)
   vesselType  VesselType
+  // Fleet context only; a charter for a single trip is recorded on Voyage.
+  ownership   VesselOwnership?
   capacityTeu Int? // declared stowage capacity (TEU), master-data only
   isActive    Boolean    @default(true)
   notes       String?
@@ -707,6 +780,7 @@ model Voyage {
   id                 String       @id @default(cuid())
   voyageNumber       String       @unique // stable, unique, auto VOY-YYMM-#####
   vesselId           String       @map("vesselId")
+  vesselUse          VesselOwnership? // per-trip charter type; null for unclassified historical rows
   tugVesselId        String?      @map("tugVesselId")
   bargeVesselId      String?      @map("bargeVesselId")
   status             VoyageStatus @default(DRAFT)
@@ -856,6 +930,13 @@ enum LoadListItemSelectionStatus {
 
 // Controlled vessel category (ADR-022-style). Only types relevant to the
 // shipping operations are included; the set is an explicit, documented enum.
+enum VesselOwnership {
+  OWNED
+  VOYAGE_CHARTER
+  TIME_CHARTER
+  OTHER
+}
+
 enum VesselType {
   CONTAINER
   BULK
@@ -883,10 +964,12 @@ enum VoyageStatus {
 // ---------------------------------------------------------------------------
 // Phase 7: Load Planning & Load Lists
 // ---------------------------------------------------------------------------
-// LoadList represents a planned set of cargo for a specific Voyage.
-// It is created in DRAFT state, then progresses through the loading lifecycle.
-// Locked lifecycle (Phase 3): DRAFT → IN_PROGRESS → PARTIALLY_LOADED → COMPLETED → FINALIZED
+// ADR-041: the planned Load List has exactly three reachable states;
+// ActualLoading is a separate physical-loading lifecycle (ADR-028).
 // Items belong to LoadListItem with per-item selection state.
+// ADR-041: the application writes only DRAFT, FINALIZED and CANCELLED.
+// Historical enum members MUST remain until owner-data reconciliation establishes
+// a verified mapping and a separately reviewed contraction is authorized.
 enum LoadListStatus {
   DRAFT
   IN_PROGRESS
@@ -2891,4 +2974,112 @@ model ConfigApproval {
 
   @@index([scope, recordId, status])
   @@index([requestedById, status])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 10: administrator-managed reminders (no seeded business thresholds)
+// ---------------------------------------------------------------------------
+enum NotificationTrigger {
+  OVERDUE_INVOICE
+  PENDING_APPROVAL
+  JOB_STATUS_CHANGED
+  UNPAID_RELEASE
+  CARGO_DOCUMENT_PENDING
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENDING
+  DELIVERED
+  FAILED
+  SUPPRESSED
+}
+
+model NotificationRule {
+  id                   String              @id @default(cuid())
+  name                 String              @db.VarChar(160)
+  trigger              NotificationTrigger
+  conditions           Json                @default("{}")
+  recipients           Json                // { userIds: string[], roleIds: string[] }
+  channels             Json                // ["IN_APP", "EMAIL"]
+  delayMinutes         Int                 @default(0)
+  repeatMinutes        Int?
+  maxPerRecord         Int                 @default(1)
+  maxPerDay            Int?                // per recipient per rule, rolling 24 hours
+  escalateAfterMinutes Int?
+  escalationRecipients Json                @default("{}")
+  isActive             Boolean             @default(false)
+  createdById          String
+  updatedById          String
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  events               NotificationEvent[]
+  inbox                NotificationInbox[]
+
+  @@index([trigger, isActive])
+}
+
+// A durable event for each rule/source. Polled events use source id as key;
+// Job transitions use an opaque event key, written IN the Job mutation tx.
+model NotificationEvent {
+  id          String              @id @default(cuid())
+  ruleId      String
+  eventKey    String
+  sourceId    String
+  baseAt      DateTime
+  nextRunAt   DateTime
+  status      String              @default("ACTIVE") @db.VarChar(16)
+  cycle       Int                 @default(0)
+  escalated   Boolean             @default(false)
+  fromStatus  String?
+  toStatus    String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  rule        NotificationRule    @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  inbox       NotificationInbox[]
+
+  @@unique([ruleId, eventKey])
+  @@index([status, nextRunAt])
+  @@index([ruleId, sourceId])
+}
+
+model NotificationInbox {
+  id          String                 @id @default(cuid())
+  ruleId      String
+  eventId     String
+  userId      String
+  stage       Int                    // 0 primary, 1 escalation
+  cycle       Int
+  readAt      DateTime?
+  dismissedAt DateTime?
+  createdAt   DateTime               @default(now())
+  rule        NotificationRule       @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  event       NotificationEvent      @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  deliveries  NotificationDelivery[]
+
+  @@unique([eventId, userId, stage, cycle])
+  @@index([userId, createdAt])
+}
+
+model NotificationDelivery {
+  id            String                     @id @default(cuid())
+  inboxId       String
+  channel       NotificationChannel
+  status        NotificationDeliveryStatus @default(PENDING)
+  attempts      Int                        @default(0)
+  nextAttemptAt DateTime?
+  deliveredAt   DateTime?
+  lastErrorCode String?                    @db.VarChar(100) // never persist SMTP credentials/response text
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+  inbox         NotificationInbox          @relation(fields: [inboxId], references: [id], onDelete: Restrict)
+
+  @@unique([inboxId, channel])
+  @@index([status, nextAttemptAt])
 }

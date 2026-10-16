@@ -1,6 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { AuthenticatedUser } from '../../common/auth/types';
+import { requireOffice } from '../configuration/configuration.policy';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import {
@@ -30,7 +33,7 @@ const select = {
  */
 @Injectable()
 export class ConsigneesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async list(query: ListConsigneeQueryDto) {
     const pagination = parsePagination(query);
@@ -97,21 +100,33 @@ export class ConsigneesService {
     }
   }
 
-  async update(id: string, dto: UpdateConsigneeDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateConsigneeDto, actor: AuthenticatedUser) {
+    requireOffice(actor, 'consignee:update');
     try {
-      return await this.prisma.consignee.update({
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "consignees" WHERE "id" = ${id} FOR UPDATE`;
+        const before = await tx.consignee.findFirst({ where: { id, deletedAt: null },
+          select: { code: true, isActive: true } });
+        if (!before) throw new NotFoundException('Consignee not found');
+        const after = await tx.consignee.update({
         where: { id },
         data: {
           name: dto.name?.trim(),
-          taxId: dto.taxId?.trim() ?? null,
-          address: dto.address?.trim() ?? null,
-          phone: dto.phone?.trim() ?? null,
-          email: dto.email?.trim() ?? null,
-          notes: dto.notes?.trim() ?? null,
+          taxId: dto.taxId === undefined ? undefined : dto.taxId.trim() || null,
+          address: dto.address === undefined ? undefined : dto.address.trim() || null,
+          phone: dto.phone === undefined ? undefined : dto.phone.trim() || null,
+          email: dto.email === undefined ? undefined : dto.email.trim() || null,
+          notes: dto.notes === undefined ? undefined : dto.notes.trim() || null,
           isActive: dto.isActive,
         },
         select,
+        });
+        if (before.isActive !== after.isActive) {
+          await this.audit.recordIn(tx, { action: after.isActive ? 'consignee.reactivate' : 'consignee.deactivate',
+            entityType: 'Consignee', entityId: id, actorId: actor.id, actorEmail: actor.email,
+            beforeData: before, afterData: { code: after.code, isActive: after.isActive } });
+        }
+        return after;
       });
     } catch (e) {
       if (
@@ -124,21 +139,33 @@ export class ConsigneesService {
     }
   }
 
-  async setActive(id: string, isActive: boolean) {
-    await this.findById(id);
-    return this.prisma.consignee.update({
-      where: { id },
-      data: { isActive },
-      select,
-    });
+  async setActive(id: string, isActive: boolean, actor: AuthenticatedUser) {
+    return this.update(id, { isActive }, actor);
   }
 
-  async remove(id: string) {
-    await this.findById(id);
-    await this.prisma.consignee.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-      select,
+  /** A party with even archived operational/document relations must stay addressable. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    requireOffice(actor, 'consignee:delete');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "consignees" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.consignee.findFirst({ where: { id, deletedAt: null },
+        select: { id: true, code: true, isActive: true } });
+      if (!before) throw new NotFoundException('Consignee not found');
+      const [cargos, manifests, manifestItems, bills, attachments] = await Promise.all([
+        tx.cargo.count({ where: { consigneeId: id } }),
+        tx.manifest.count({ where: { consigneeId: id } }),
+        tx.manifestItem.count({ where: { consigneeId: id } }),
+        tx.billOfLading.count({ where: { consigneeId: id } }),
+        tx.fileAttachment.count({ where: { entityType: 'Consignee', entityId: id } }),
+      ]);
+      if (cargos || manifests || manifestItems || bills || attachments) {
+        throw new ConflictException('Consignee has operational or document history; deactivate instead');
+      }
+      await tx.consignee.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+      await this.audit.recordIn(tx, { action: 'consignee.archive', entityType: 'Consignee',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: before, afterData: { code: before.code, isActive: false, archived: true } });
+      return { id, archived: true };
     });
   }
 }

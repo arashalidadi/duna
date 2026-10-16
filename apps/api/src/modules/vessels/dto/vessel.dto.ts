@@ -1,5 +1,7 @@
+import { VesselOwnership } from '@prisma/client';
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -48,6 +50,10 @@ export class CreateVesselDto {
   @MaxLength(100)
   flag: string;
 
+  @IsOptional()
+  @IsEnum(VesselOwnership)
+  ownership?: VesselOwnership;
+
   @IsIn(VESSEL_TYPES)
   vesselType: string;
 
@@ -72,7 +78,7 @@ export class UpdateVesselDto {
   @IsOptional()
   @IsString()
   @Matches(IMO_REGEX, { message: 'imo must be a 7-digit IMO number' })
-  imo?: string;
+  imo?: string | null;
 
   @IsOptional()
   @IsString()
@@ -82,6 +88,10 @@ export class UpdateVesselDto {
   @IsOptional()
   @IsIn(VESSEL_TYPES)
   vesselType?: string;
+
+  @IsOptional()
+  @IsEnum(VesselOwnership)
+  ownership?: VesselOwnership | null;
 
   @IsOptional()
   @IsInt()

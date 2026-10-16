@@ -198,7 +198,7 @@ export interface ManifestEligibleCargo {
   quantity: number | null;
   packages: number | null;
   packageType: string | null;
-  customer?: { id: string; code: string; name: string; shortName: string | null };
+  customer?: { id: string; code: string; name: string };
   port?: { id: string; code: string; name: string };
   destinationPort?: { id: string; code: string; name: string };
   actualLoadingItemId?: string | null;

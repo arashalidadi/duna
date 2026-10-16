@@ -3,7 +3,9 @@ import type { CargoListItem } from './cargo';
 import type { UserRef } from './auth';
 import type { PaginatedResult } from './api';
 
-export type LoadListStatus = 'DRAFT' | 'FINALIZED' | 'CANCELLED';
+// Database reads retain all historical statuses. The application writes only
+// DRAFT / FINALIZED / CANCELLED; legacy rows are sealed until verified mapping.
+export type LoadListStatus = 'DRAFT' | 'IN_PROGRESS' | 'PARTIALLY_LOADED' | 'COMPLETED' | 'FINALIZED' | 'CANCELLED';
 
 export interface LoadList {
   id: string;

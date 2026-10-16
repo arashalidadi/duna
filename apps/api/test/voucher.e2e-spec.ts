@@ -86,7 +86,7 @@ describe('Vouchers & Ledger (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `VCHCUS-${tag}`, name: `VCH Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `VCHCUS-${tag}`, name: `VCH Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
@@ -94,7 +94,7 @@ describe('Vouchers & Ledger (e2e)', () => {
     const cust2 = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `VCHCU2-${tag}`, name: `VCH Co2 ${randomTag}`, type: 'CONSIGNEE' })
+      .send({ code: `VCHCU2-${tag}`, name: `VCH Co2 ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust2.body.data.id });
     customer2Id = cust2.body.data.id;

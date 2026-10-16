@@ -94,7 +94,7 @@ describe('Invoice (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `INVCUS-${tag}`, name: `INV Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `INVCUS-${tag}`, name: `INV Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
@@ -102,7 +102,7 @@ describe('Invoice (e2e)', () => {
     const cust2 = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `INVCU2-${tag}`, name: `INV Co2 ${randomTag}`, type: 'CONSIGNEE' })
+      .send({ code: `INVCU2-${tag}`, name: `INV Co2 ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust2.body.data.id });
     customerId2 = cust2.body.data.id;

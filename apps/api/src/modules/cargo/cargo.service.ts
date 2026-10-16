@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CargoStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import { AuthenticatedUser } from '../../common/auth/types';
@@ -54,15 +55,12 @@ const select = {
   status: true,
   // Phase 3A: free-text / spec fields written by create+update (see DTO)
   description: true,
-  chassis: true,
-  serial: true,
-  units: true,
-  comment: true,
   comments: true,
+  documentStatus: true,
   deletedAt: true,
   createdAt: true,
   updatedAt: true,
-  customer: { select: { id: true, code: true, name: true, shortName: true } },
+  customer: { select: { id: true, code: true, name: true } },
   port: { select: { id: true, code: true, name: true, country: true, city: true } },
   yard: { select: { id: true, code: true, name: true } },
   destinationPort: { select: { id: true, code: true, name: true, country: true, city: true } },
@@ -78,12 +76,17 @@ const select = {
 // The exact row shape produced by the select above (used for type-safe
 // normalization of the Decimal weight value).
 type CargoRow = Prisma.CargoGetPayload<{ select: typeof select }>;
+const detailSelect = { ...select, legacyAttributes: { select: {
+  chassis: true, serial: true, comment: true, units: true, archivedAt: true,
+} }, intakeDocuments: { select: { id: true, name: true, reference: true, createdAt: true },
+  orderBy: { createdAt: 'asc' as const } } } satisfies Prisma.CargoSelect;
 
 @Injectable()
 export class CargoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListCargoQueryDto) {
@@ -146,7 +149,7 @@ export class CargoService {
   }
 
   async findById(id: string) {
-    const row = await this.prisma.cargo.findUnique({ where: { id }, select });
+    const row = await this.prisma.cargo.findUnique({ where: { id }, select: detailSelect });
     if (!row || row.deletedAt) {
       throw new NotFoundException('Cargo not found');
     }
@@ -155,6 +158,8 @@ export class CargoService {
 
   async create(dto: CreateCargoDto, actor?: AuthenticatedUser) {
     await this.validateRelations(dto.portId, dto.customerId, dto.yardId, dto.destinationPortId);
+    if (dto.shipperId) await this.validateParty('shipper', dto.shipperId);
+    if (dto.consigneeId) await this.validateParty('consignee', dto.consigneeId);
 
     // Number and record are created in ONE transaction (DEC-027): concurrent creates get distinct
     // CRG numbers from the row-locked sequence, and a failed insert rolls the counter back.
@@ -175,7 +180,7 @@ export class CargoService {
           ),
         tx,
       });
-      return tx.cargo.create({
+      const created = await tx.cargo.create({
         data: {
           reference,
               customerId: dto.customerId,
@@ -198,11 +203,10 @@ export class CargoService {
               arrivalReference: dto.arrivalReference,
               manifestNumber: dto.manifestNumber,
               comments: dto.comments,
-              comment: dto.comment ?? null,
+              documentStatus: dto.documentStatus,
+              intakeDocuments: dto.intakeDocuments?.length ? { create: dto.intakeDocuments.map((d) =>
+                ({ name: d.name.trim(), reference: d.reference?.trim() || null })) } : undefined,
               description: dto.description ?? null,
-              chassis: dto.chassis ?? null,
-              serial: dto.serial ?? null,
-              units: dto.units,
               shipperId: dto.shipperId ?? null,
               consigneeId: dto.consigneeId ?? null,
               jobId: dto.jobId ?? null,
@@ -212,11 +216,18 @@ export class CargoService {
             },
         select,
       });
+      if (dto.documentStatus || dto.intakeDocuments?.length) await this.audit.recordIn(tx, {
+        action: 'cargo.paperwork.record', entityType: 'Cargo', entityId: created.id,
+        actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+        afterData: { documentStatus: dto.documentStatus ?? null,
+          intakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] },
+      });
+      return created;
     });
     return this.normalize(row);
   }
 
-  async update(id: string, dto: UpdateCargoDto, _actor?: AuthenticatedUser) {
+  async update(id: string, dto: UpdateCargoDto, actor?: AuthenticatedUser) {
     const existing = await this.prisma.cargo.findUnique({ where: { id }, select });
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Cargo not found');
@@ -232,10 +243,16 @@ export class CargoService {
       ? null
       : dto.destinationPortId ?? existing.destinationPortId;
 
-    await this.validateRelations(portId, customerId, yardId, destinationPortId);
+    await this.validateRelations(portId, customerId, yardId, destinationPortId,
+      { portId: existing.portId, customerId: existing.customerId, yardId: existing.yardId,
+        destinationPortId: existing.destinationPortId });
+    // Existing historical references may remain attached when their masters are
+    // deactivated; a newly selected inactive party must never be assigned.
+    if (dto.shipperId && dto.shipperId !== existing.shipperId) await this.validateParty('shipper', dto.shipperId);
+    if (dto.consigneeId && dto.consigneeId !== existing.consigneeId) await this.validateParty('consignee', dto.consigneeId);
 
-    return this.prisma.cargo
-      .update({
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.cargo.update({
         where: { id },
         data: {
           customerId,
@@ -258,11 +275,10 @@ export class CargoService {
           arrivalReference: dto.arrivalReference,
           manifestNumber: dto.manifestNumber,
           comments: dto.comments,
-          comment: dto.comment ?? undefined,
+          documentStatus: dto.documentStatus,
+          intakeDocuments: dto.intakeDocuments?.length ? { create: dto.intakeDocuments.map((d) =>
+            ({ name: d.name.trim(), reference: d.reference?.trim() || null })) } : undefined,
           description: dto.description ?? undefined,
-          chassis: dto.chassis ?? undefined,
-          serial: dto.serial ?? undefined,
-          units: dto.units ?? undefined,
           // Phase 3A: party and financial fields
           shipperId: dto.shipperId ?? existing.shipperId,
           consigneeId: dto.consigneeId ?? existing.consigneeId,
@@ -271,8 +287,16 @@ export class CargoService {
           cargoValueCurrency: dto.cargoValueCurrency ?? existing.cargoValueCurrency,
         },
         select,
-      })
-      .then((row) => this.normalize(row));
+      });
+      if (dto.documentStatus !== undefined || dto.intakeDocuments?.length) await this.audit.recordIn(tx, {
+        action: 'cargo.paperwork.update', entityType: 'Cargo', entityId: id,
+        actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+        beforeData: { documentStatus: existing.documentStatus },
+        afterData: { documentStatus: row.documentStatus,
+          addedIntakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] },
+      });
+      return this.normalize(row);
+    });
   }
 
   /**
@@ -311,19 +335,34 @@ export class CargoService {
       .then((row) => this.normalize(row));
   }
 
-  async remove(id: string) {
-    const existing = await this.prisma.cargo.findUnique({ where: { id }, select });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Cargo not found');
-    }
-    if (existing.inventory) {
-      throw new ConflictException(
-        'Cargo is currently recorded in a yard. Remove it from the yard before deleting the cargo record.'
-      );
-    }
-    await this.prisma.cargo.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  /** Only a never-used, non-financial cargo registration may be archived.
+   * Cargo with loading/manifest/B/L history is cancelled instead. */
+  async remove(id: string, actor?: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Cargo" WHERE "id" = ${id} FOR UPDATE`;
+      const cargo = await tx.cargo.findFirst({ where: { id, deletedAt: null },
+        include: { _count: { select: { inspections: true, dischargeItems: true,
+          loadListItems: true, actualLoadingItems: true, manifestItems: true,
+          billsOfLadingItems: true, intakeDocuments: true } },
+          inventory: { select: { id: true } }, legacyAttributes: { select: { cargoId: true } } } });
+      if (!cargo) throw new NotFoundException('Cargo not found');
+      const [attachments, sidecars, issued, rendered] = await Promise.all([
+        tx.fileAttachment.count({ where: { entityType: 'Cargo', entityId: id } }),
+        tx.configFieldValue.count({ where: { scope: 'Cargo', recordId: id } }),
+        tx.documentIssuedSnapshot.count({ where: { documentType: 'Cargo', recordId: id } }),
+        tx.documentRenderedOutput.count({ where: { documentType: 'Cargo', recordId: id } }),
+      ]);
+      if (attachments || sidecars || issued || rendered || cargo.inventory || cargo.legacyAttributes || cargo.jobId ||
+          cargo.cargoValue || Object.values(cargo._count).some((n) => n > 0) ||
+          cargo.status !== 'REGISTERED') {
+        throw new ConflictException('Cargo has dependent or historically significant records; cancel instead');
+      }
+      const result = await tx.cargo.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'cargo.archive', entityType: 'Cargo',
+        entityId: id, actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+        beforeData: { reference: cargo.reference, status: cargo.status },
+        afterData: { deletedAt: result.deletedAt } });
+      return { id, archived: true };
     });
   }
 
@@ -336,11 +375,21 @@ export class CargoService {
    * soft-deleted; new assignments require active master data while historical
    * records stay linked. yardId must belong to portId.
    */
+  private async validateParty(type: 'shipper' | 'consignee', id: string) {
+    const row = type === 'shipper'
+      ? await this.prisma.shipper.findUnique({ where: { id }, select: { deletedAt: true, isActive: true } })
+      : await this.prisma.consignee.findUnique({ where: { id }, select: { deletedAt: true, isActive: true } });
+    if (!row || row.deletedAt) throw new NotFoundException(`${type} not found`);
+    if (!row.isActive) throw new ConflictException(`Inactive ${type} cannot be selected`);
+  }
+
   private async validateRelations(
     portId: string,
     customerId: string,
     yardId?: string | null,
-    destinationPortId?: string | null
+    destinationPortId?: string | null,
+    previous?: { portId: string; customerId: string; yardId: string | null;
+      destinationPortId: string | null }
   ) {
     const [customer, port] = await Promise.all([
       this.prisma.customer.findUnique({ where: { id: customerId } }),
@@ -350,14 +399,14 @@ export class CargoService {
     if (!customer || customer.deletedAt) {
       throw new NotFoundException('Customer not found');
     }
-    if (!customer.isActive) {
+    if (!customer.isActive && (!previous || customerId !== previous.customerId)) {
       throw new ConflictException('Inactive customers cannot receive new cargo');
     }
 
     if (!port || port.deletedAt) {
       throw new NotFoundException('Port not found');
     }
-    if (!port.isActive) {
+    if (!port.isActive && (!previous || portId !== previous.portId)) {
       throw new ConflictException('Inactive ports cannot receive new cargo');
     }
 
@@ -366,7 +415,7 @@ export class CargoService {
       if (!dest || dest.deletedAt) {
         throw new NotFoundException('Destination port not found');
       }
-      if (!dest.isActive) {
+      if (!dest.isActive && (!previous || destinationPortId !== previous.destinationPortId)) {
         throw new ConflictException('Inactive destination port cannot be selected');
       }
     }
@@ -376,7 +425,7 @@ export class CargoService {
       if (!yard || yard.deletedAt) {
         throw new NotFoundException('Yard not found');
       }
-      if (!yard.isActive) {
+      if (!yard.isActive && (!previous || yardId !== previous.yardId)) {
         throw new ConflictException('Inactive yard cannot be assigned to cargo');
       }
       if (yard.portId !== portId) {

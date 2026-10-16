@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -41,7 +42,7 @@ function flattenEmp<T extends { _count?: { salaryRecords?: number } }>(
 
 @Injectable()
 export class EmployeeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async list(query: ListEmployeeQueryDto) {
     const pagination = parsePagination(query);
@@ -118,7 +119,7 @@ export class EmployeeService {
     }
   }
 
-  async update(id: string, dto: UpdateEmployeeDto) {
+  async update(id: string, dto: UpdateEmployeeDto, actor: AuthenticatedUser) {
     const existing = await this.assertExists(id);
     if (dto.code && dto.code !== existing.code) {
       const dup = await this.prisma.employee.findFirst({
@@ -128,7 +129,12 @@ export class EmployeeService {
       if (dup) throw new ConflictException(`Employee code ${dto.code} already exists`);
     }
     try {
-      const updated = await this.prisma.employee.update({
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "employees" WHERE "id" = ${id} FOR UPDATE`;
+        const current = await tx.employee.findFirst({ where: { id, deletedAt: null },
+          select: { code: true, status: true } });
+        if (!current) throw new NotFoundException('Employee not found');
+        const result = await tx.employee.update({
         where: { id: existing.id },
         data: {
           code: dto.code,
@@ -144,6 +150,13 @@ export class EmployeeService {
           notes: dto.notes,
         },
         select: listSelect,
+        });
+        if (current.status !== result.status) {
+          await this.audit.recordIn(tx, { action: result.status === 'ACTIVE' ? 'employee.reactivate' : 'employee.deactivate',
+            entityType: 'Employee', entityId: id, actorId: actor.id, actorEmail: actor.email,
+            beforeData: current, afterData: { code: result.code, status: result.status } });
+        }
+        return result;
       });
       return flattenEmp(updated);
     } catch (e) {
@@ -154,17 +167,27 @@ export class EmployeeService {
     }
   }
 
-  /** Hard delete — only when no payslips reference the employee (audit trail). */
-  async remove(id: string) {
-    const existing = await this.assertExists(id);
-    const records = await this.prisma.salaryRecord.count({ where: { employeeId: existing.id } });
-    if (records > 0) {
-      throw new ConflictException(
-        `Employee has ${records} payslip(s) — set status INACTIVE instead of deleting`,
-      );
-    }
-    await this.prisma.employee.delete({ where: { id: existing.id } });
-    return { deleted: true, id };
+  /** Preserve identity and linked records. Payroll (including archived rows) and
+   * sensitive attachments block archival; otherwise deactivate and audit. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "employees" WHERE "id" = ${id} FOR UPDATE`;
+      const row = await tx.employee.findFirst({ where: { id, deletedAt: null },
+        select: { id: true, code: true, status: true } });
+      if (!row) throw new NotFoundException('Employee not found');
+      const [records, attachments] = await Promise.all([
+        tx.salaryRecord.count({ where: { employeeId: id } }),
+        tx.fileAttachment.count({ where: { entityType: 'Employee', entityId: id } }),
+      ]);
+      if (records || attachments) {
+        throw new ConflictException('Employee has payroll or attachments; deactivate instead');
+      }
+      await tx.employee.update({ where: { id }, data: { status: 'INACTIVE', deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'employee.archive', entityType: 'Employee',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: row, afterData: { status: 'INACTIVE', archived: true } });
+      return { deleted: true, archived: true, id };
+    });
   }
 
   private async assertExists(id: string) {

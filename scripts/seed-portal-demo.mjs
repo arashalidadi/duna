@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Phase 20 demo seed — Agent Portal.
- * Creates: demo agent company (AGENT type) + portal role + linked portal user,
+ * Creates: demo company (LEGAL person; not a party role) + portal role + linked portal user,
  * 4 booking requests in every lifecycle state (via the real API so numbering,
  * stamps and guards are exercised), one DRAFT manifest re-agented to the demo
  * company (shipments tab), and one ISSUED invoice (statement tab).
@@ -60,8 +60,7 @@ async function main() {
     company = await api('POST', '/customers', {
       code: 'AGT-P20DEMO',
       name: 'Meridian Freight Co. (Portal Demo)',
-      shortName: 'Meridian',
-      type: 'AGENT',
+      personKind: 'LEGAL',
       contactName: 'Sara Amiri',
       phone: '+971 4 555 0182',
       email: 'ops@meridian-freight.example',

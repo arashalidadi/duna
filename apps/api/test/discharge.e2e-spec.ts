@@ -152,7 +152,7 @@ describe('Discharge (e2e)', () => {
     const portA = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `DSP5-${tag}`, name: `DS Origin ${randomTag}`, country: 'AE' })
+      .send({ code: `DSP5-${tag}`, name: `DS Origin ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     originPortId = portA.body.data.id;
     createdPortIds.push(originPortId);
@@ -160,7 +160,7 @@ describe('Discharge (e2e)', () => {
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `DSP6-${tag}`, name: `DS Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `DSP6-${tag}`, name: `DS Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     destPortId = portB.body.data.id;
     createdPortIds.push(destPortId);
@@ -184,7 +184,7 @@ describe('Discharge (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `DSCUS-${tag}`, name: `DS Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `DSCUS-${tag}`, name: `DS Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     customerId = cust.body.data.id;
     createdCustomerIds.push(customerId);

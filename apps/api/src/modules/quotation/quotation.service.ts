@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, QuotationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -70,7 +71,7 @@ const listSelect = {
   rejectedAt: true,
   cancelledAt: true,
   deletedAt: true,
-  customer: { select: { id: true, code: true, name: true, shortName: true } },
+  customer: { select: { id: true, code: true, name: true } },
   proforma: { select: { id: true, proformaNumber: true, status: true } },
   createdBy: { select: { id: true, email: true, fullName: true } },
   sentBy: { select: { id: true, email: true, fullName: true } },
@@ -109,6 +110,7 @@ export class QuotationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -273,16 +275,23 @@ export class QuotationService {
     });
   }
 
-  /** Hard delete — DRAFT only (SENT+ rows keep their audit trail; cancel instead). */
-  async remove(id: string) {
-    const existing = await this.assertExists(id);
-    if (existing.status !== 'DRAFT') {
-      throw new ConflictException(
-        'Only DRAFT quotations can be deleted — cancel SENT ones instead to keep the audit trail',
-      );
-    }
-    await this.prisma.quotation.delete({ where: { id } });
-    return { deleted: true, id };
+  /** Draft quotations, including their line items, remain in historical storage.
+   * A converted quotation must never disappear from its document chain. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "quotations" WHERE "id" = ${id} FOR UPDATE`;
+      const row = await tx.quotation.findFirst({ where: { id, deletedAt: null },
+        select: { id: true, quotationNumber: true, status: true, linkedProformaId: true } });
+      if (!row) throw new NotFoundException('Quotation not found');
+      if (row.status !== 'DRAFT' || row.linkedProformaId) {
+        throw new ConflictException('Only unconverted DRAFT quotations can be archived — cancel issued ones');
+      }
+      await tx.quotation.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'quotation.archive', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: row, afterData: { archived: true } });
+      return { deleted: true, archived: true, id };
+    });
   }
 
   // -------------------------------------------------------------------------

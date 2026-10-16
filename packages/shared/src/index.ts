@@ -73,6 +73,7 @@ export type {
 } from './inspection';
 export type {
   VesselType,
+  VesselOwnership,
   VesselListItem,
   VesselDetail,
   VesselRef,
@@ -205,3 +206,5 @@ export * from './discharge';
 
 export * from './portal';
 export * from './finance';
+
+export * from './notification';

@@ -390,7 +390,7 @@ export default function YardInventoryPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
-                      {row.cargo.customer.shortName ?? row.cargo.customer.code}
+                      {row.cargo.customer.code}
                     </td>
                     <td className="px-3 py-2 text-[12px] text-muted-foreground">
                       <span className="flex items-center gap-1">

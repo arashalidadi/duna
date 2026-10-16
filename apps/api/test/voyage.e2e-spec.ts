@@ -84,13 +84,13 @@ describe('Voyage (e2e)', () => {
     const portA = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `VOYA-${tag}`, name: `Voy Port A ${randomTag}`, country: 'AE' })
+      .send({ code: `VOYA-${tag}`, name: `Voy Port A ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: portA.body.data.id });
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `VOYB-${tag}`, name: `Voy Port B ${randomTag}`, country: 'IN' })
+      .send({ code: `VOYB-${tag}`, name: `Voy Port B ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     originPortId = portA.body.data.id;
@@ -267,7 +267,7 @@ describe('Voyage (e2e)', () => {
     const inactivePort = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `VOYC-${tag}`, name: `Voy Port C ${randomTag}`, country: 'AE' })
+      .send({ code: `VOYC-${tag}`, name: `Voy Port C ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T03${tag}` })
       .expect(201);
     await request(app.getHttpServer())
       .patch(`/api/v1/ports/${inactivePort.body.data.id}/active`)
@@ -595,11 +595,12 @@ describe('Voyage (e2e)', () => {
   const LEG_NUMBER_RE = /^\d+\/\d{2}$/;
   const yy = new Date().getUTCFullYear().toString().slice(-2);
 
+  let fixturePortSequence = 4;
   async function createPort(codeSuffix: string, nameSuffix: string): Promise<string> {
     const res = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `${codeSuffix}-${tag}`, name: `${nameSuffix} ${randomTag}`, country: 'AE' })
+      .send({ code: `${codeSuffix}-${tag}`, name: `${nameSuffix} ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T${String(++fixturePortSequence).padStart(2, '0')}${tag}` })
       .expect(201);
     createdPorts.push({ id: res.body.data.id });
     return res.body.data.id as string;

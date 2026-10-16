@@ -1,6 +1,8 @@
 import {
   Anchor,
   Banknote,
+  Bell,
+  BellRing,
   BarChart3,
   BookOpen,
   Briefcase,
@@ -65,6 +67,8 @@ export const NAV_SECTIONS: NavSection[] = [
         description: 'System overview and status',
         requiredPermission: 'dashboard:read',
       },
+      { labelKey: 'notifications', href: '/notifications', icon: Bell, status: 'implemented',
+        description: 'Office reminders', requiredPermission: 'notification:read' },
     ],
   },
   {
@@ -122,6 +126,8 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented', description: 'Managed fields, document types and workflows',
         requiredPermission: 'configuration:manage',
       },
+      { labelKey: 'notificationRules', href: '/notification-rules', icon: BellRing, status: 'implemented',
+        description: 'Notification rules, delivery health and audit', requiredPermission: 'notification:manage' },
     ],
   },
   {

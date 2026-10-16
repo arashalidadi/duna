@@ -72,9 +72,9 @@ describe('Agent Portal (e2e)', () => {
 
     const prisma = app.get(PrismaService);
     const [custA, custB, custC] = await Promise.all([
-      prisma.customer.create({ data: { code: `AGT-A-${tag}`, name: `Agent Alpha ${randomTag}`, type: 'AGENT' } }),
-      prisma.customer.create({ data: { code: `AGT-B-${tag}`, name: `Agent Beta ${randomTag}`, type: 'AGENT' } }),
-      prisma.customer.create({ data: { code: `AGT-C-${tag}`, name: `Agent Gamma ${randomTag}`, type: 'AGENT' } }),
+      prisma.customer.create({ data: { code: `AGT-A-${tag}`, name: `Agent Alpha ${randomTag}`, personKind: 'LEGAL' } }),
+      prisma.customer.create({ data: { code: `AGT-B-${tag}`, name: `Agent Beta ${randomTag}`, personKind: 'LEGAL' } }),
+      prisma.customer.create({ data: { code: `AGT-C-${tag}`, name: `Agent Gamma ${randomTag}`, personKind: 'LEGAL' } }),
     ]);
     customerAId = custA.id;
     customerBId = custB.id;

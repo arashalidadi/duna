@@ -1,6 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { AuthenticatedUser } from '../../common/auth/types';
+import { requireOffice } from '../configuration/configuration.policy';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import {
@@ -32,6 +35,7 @@ const destinationSelect = {
   agentId: true,
   portId: true,
   isActive: true,
+  deletedAt: true,
   createdAt: true,
   updatedAt: true,
   port: { select: { id: true, name: true, code: true } },
@@ -44,7 +48,7 @@ const destinationSelect = {
  */
 @Injectable()
 export class AgentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async list(query: ListAgentQueryDto) {
     const pagination = parsePagination(query);
@@ -111,48 +115,64 @@ export class AgentsService {
     }
   }
 
-  async update(id: string, dto: UpdateAgentDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateAgentDto, actor: AuthenticatedUser) {
+    requireOffice(actor, 'agent:update');
     try {
-      return await this.prisma.agent.update({
-        where: { id },
-        data: {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "agents" WHERE "id" = ${id} FOR UPDATE`;
+        const before = await tx.agent.findFirst({ where: { id, deletedAt: null },
+          select: { code: true, isActive: true } });
+        if (!before) throw new NotFoundException('Agent not found');
+        const after = await tx.agent.update({ where: { id }, data: {
           name: dto.name?.trim(),
-          taxId: dto.taxId?.trim() ?? null,
-          address: dto.address?.trim() ?? null,
-          phone: dto.phone?.trim() ?? null,
-          email: dto.email?.trim() ?? null,
-          notes: dto.notes?.trim() ?? null,
+          taxId: dto.taxId === undefined ? undefined : dto.taxId.trim() || null,
+          address: dto.address === undefined ? undefined : dto.address.trim() || null,
+          phone: dto.phone === undefined ? undefined : dto.phone.trim() || null,
+          email: dto.email === undefined ? undefined : dto.email.trim() || null,
+          notes: dto.notes === undefined ? undefined : dto.notes.trim() || null,
           isActive: dto.isActive,
-        },
-        select,
+        }, select });
+        if (before.isActive !== after.isActive) {
+          await this.audit.recordIn(tx, { action: after.isActive ? 'agent.reactivate' : 'agent.deactivate',
+            entityType: 'Agent', entityId: id, actorId: actor.id, actorEmail: actor.email,
+            beforeData: before, afterData: { code: after.code, isActive: after.isActive } });
+        }
+        return after;
       });
     } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException('An agent with this code already exists');
       }
       throw e;
     }
   }
 
-  async setActive(id: string, isActive: boolean) {
-    await this.findById(id);
-    return this.prisma.agent.update({
-      where: { id },
-      data: { isActive },
-      select,
-    });
+  async setActive(id: string, isActive: boolean, actor: AuthenticatedUser) {
+    return this.update(id, { isActive }, actor);
   }
 
-  async remove(id: string) {
-    await this.findById(id);
-    await this.prisma.agent.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-      select,
+  /** Keep portal links and historical manifests addressable. */
+  async remove(id: string, actor: AuthenticatedUser) {
+    requireOffice(actor, 'agent:delete');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "agents" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.agent.findFirst({ where: { id, deletedAt: null },
+        select: { id: true, code: true, isActive: true } });
+      if (!before) throw new NotFoundException('Agent not found');
+      const [manifests, portalUsers, destinations, attachments] = await Promise.all([
+        tx.manifest.count({ where: { agentId: id } }),
+        tx.user.count({ where: { portalAgentId: id } }),
+        tx.agentDestination.count({ where: { agentId: id } }),
+        tx.fileAttachment.count({ where: { entityType: 'Agent', entityId: id } }),
+      ]);
+      if (manifests || portalUsers || destinations || attachments) {
+        throw new ConflictException('Agent has portal, destination or document history; deactivate instead');
+      }
+      await tx.agent.update({ where: { id }, data: { deletedAt: new Date(), isActive: false } });
+      await this.audit.recordIn(tx, { action: 'agent.archive', entityType: 'Agent',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: before, afterData: { code: before.code, isActive: false, archived: true } });
+      return { id, archived: true };
     });
   }
 
@@ -163,6 +183,7 @@ export class AgentsService {
 
     const where: Prisma.AgentDestinationWhereInput = {
       agentId,
+      deletedAt: null,
       ...(isActive !== undefined ? { isActive } : {}),
     };
 
@@ -181,7 +202,16 @@ export class AgentsService {
   }
 
   async createDestination(agentId: string, dto: CreateAgentDestinationDto) {
-    await this.findById(agentId);
+    const agent = await this.findById(agentId);
+    if (!agent.isActive && dto.isActive !== false) {
+      throw new ConflictException('Inactive agent cannot receive an active destination');
+    }
+    const port = await this.prisma.port.findFirst({ where: { id: dto.portId, deletedAt: null },
+      select: { isActive: true } });
+    if (!port) throw new NotFoundException('Port not found');
+    if (!port.isActive && dto.isActive !== false) {
+      throw new ConflictException('Inactive port cannot be an active destination');
+    }
     try {
       return await this.prisma.agentDestination.create({
         data: {
@@ -202,24 +232,41 @@ export class AgentsService {
     }
   }
 
-  async updateDestination(
-    agentId: string,
-    destinationId: string,
-    dto: UpdateAgentDestinationDto
-  ) {
-    await this.findDestinationById(agentId, destinationId);
-    return this.prisma.agentDestination.update({
-      where: { id: destinationId },
-      data: {
-        isActive: dto.isActive,
-      },
-      select: destinationSelect,
+  async updateDestination(agentId: string, destinationId: string,
+    dto: UpdateAgentDestinationDto, actor: AuthenticatedUser) {
+    requireOffice(actor, 'agent:update');
+    await this.findById(agentId);
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "agent_destinations" WHERE "id" = ${destinationId} FOR UPDATE`;
+      const before = await tx.agentDestination.findFirst({
+        where: { id: destinationId, agentId, deletedAt: null },
+        select: { id: true, portId: true, isActive: true },
+      });
+      if (!before) throw new NotFoundException('Agent destination not found');
+      if (dto.isActive) {
+        const [agent, port] = await Promise.all([
+          tx.agent.findFirst({ where: { id: agentId, deletedAt: null }, select: { isActive: true } }),
+          tx.port.findFirst({ where: { id: before.portId, deletedAt: null }, select: { isActive: true } }),
+        ]);
+        if (!agent?.isActive || !port?.isActive) {
+          throw new ConflictException('Activate the agent and port before reactivating this destination');
+        }
+      }
+      const after = await tx.agentDestination.update({ where: { id: destinationId },
+        data: { isActive: dto.isActive }, select: destinationSelect });
+      if (before.isActive !== after.isActive) {
+        await this.audit.recordIn(tx, { action: after.isActive ? 'agent_destination.reactivate' : 'agent_destination.deactivate',
+          entityType: 'AgentDestination', entityId: destinationId,
+          actorId: actor.id, actorEmail: actor.email,
+          beforeData: before, afterData: { portId: before.portId, isActive: after.isActive } });
+      }
+      return after;
     });
   }
 
-  async removeDestination(agentId: string, destinationId: string) {
-    await this.findDestinationById(agentId, destinationId);
-    await this.prisma.agentDestination.delete({ where: { id: destinationId } });
+  /** DELETE deactivates the link; PATCH can reactivate it without losing its identity. */
+  async removeDestination(agentId: string, destinationId: string, actor: AuthenticatedUser) {
+    return this.updateDestination(agentId, destinationId, { isActive: false }, actor);
   }
 
   async findDestinationById(agentId: string, destinationId: string) {
@@ -227,7 +274,7 @@ export class AgentsService {
       where: { id: destinationId },
       select: destinationSelect,
     });
-    if (!destination || destination.agentId !== agentId) {
+    if (!destination || destination.agentId !== agentId || destination.deletedAt) {
       throw new NotFoundException('Agent destination not found');
     }
     return destination;

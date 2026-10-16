@@ -74,10 +74,10 @@ describe('Quotation (e2e)', () => {
     );
 
     const cust = await S().post('/api/v1/customers').set(auth(adminToken))
-      .send({ code: `QTCUS-${tag}`, name: `QT Co ${randomTag}`, type: 'SHIPPER' }).expect(201);
+      .send({ code: `QTCUS-${tag}`, name: `QT Co ${randomTag}`, personKind: 'LEGAL' }).expect(201);
     customerId = cust.body.data.id;
     const cust2 = await S().post('/api/v1/customers').set(auth(adminToken))
-      .send({ code: `QTC2-${tag}`, name: `QT Co2 ${randomTag}`, type: 'SHIPPER' }).expect(201);
+      .send({ code: `QTC2-${tag}`, name: `QT Co2 ${randomTag}`, personKind: 'LEGAL' }).expect(201);
     customerId2 = cust2.body.data.id;
 
     async function createRoleToken(roleCode: string, permissionCodes: string[], email: string): Promise<string> {

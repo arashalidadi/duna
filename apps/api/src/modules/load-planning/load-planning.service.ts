@@ -33,13 +33,11 @@ import {
 // (finalize/cancel) — never an arbitrary status edit.
 // ---------------------------------------------------------------------------
 const LOAD_LIST_TRANSITIONS: Record<LoadListStatus, LoadListStatus[]> = {
-  // ADR-041: shipped lifecycle is DRAFT -> FINALIZED -> (CANCELLED). The intermediate
-  // IN_PROGRESS/PARTIALLY_LOADED/COMPLETED entries below are unreachable (no code writes
-  // them) and are retained deliberately — see ADR-041 for the supersession note.
-  DRAFT: ['IN_PROGRESS', 'FINALIZED', 'CANCELLED'],
-  IN_PROGRESS: ['PARTIALLY_LOADED', 'COMPLETED', 'CANCELLED'],
-  PARTIALLY_LOADED: ['COMPLETED', 'CANCELLED'],
-  COMPLETED: ['FINALIZED', 'CANCELLED'],
+  DRAFT: ['FINALIZED', 'CANCELLED'],
+  // Legacy database values are readable but sealed: no inferred mapping (ADR-041).
+  IN_PROGRESS: [],
+  PARTIALLY_LOADED: [],
+  COMPLETED: [],
   FINALIZED: [],
   CANCELLED: [],
 };
@@ -124,7 +122,7 @@ const detailSelect = {
           serialNumber: true,
           chassisNumber: true,
           vin: true,
-          customer: { select: { id: true, code: true, name: true, shortName: true } },
+          customer: { select: { id: true, code: true, name: true } },
           port: { select: { id: true, code: true, name: true } },
           destinationPort: { select: { id: true, code: true, name: true } },
           yard: { select: { id: true, code: true, name: true } },
@@ -161,7 +159,7 @@ const itemSelect = {
       serialNumber: true,
       chassisNumber: true,
       vin: true,
-      customer: { select: { id: true, code: true, name: true, shortName: true } },
+      customer: { select: { id: true, code: true, name: true } },
       port: { select: { id: true, code: true, name: true } },
       destinationPort: { select: { id: true, code: true, name: true } },
       yard: { select: { id: true, code: true, name: true } },
@@ -500,7 +498,7 @@ export class LoadPlanningService {
       serialNumber: true,
       chassisNumber: true,
       vin: true,
-      customer: { select: { id: true, code: true, name: true, shortName: true } },
+      customer: { select: { id: true, code: true, name: true } },
       port: { select: { id: true, code: true, name: true } },
       destinationPort: { select: { id: true, code: true, name: true } },
       yard: { select: { id: true, code: true, name: true } },

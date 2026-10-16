@@ -142,7 +142,7 @@ describe('BillOfLading (e2e)', () => {
     const portA = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `BLP1-${tag}`, name: `BL Origin ${randomTag}`, country: 'AE' })
+      .send({ code: `BLP1-${tag}`, name: `BL Origin ${randomTag}`, country: 'AE', city: 'Fixture region', abbreviation: `T01${tag}` })
       .expect(201);
     createdPorts.push({ id: portA.body.data.id });
     originPortId = portA.body.data.id;
@@ -150,7 +150,7 @@ describe('BillOfLading (e2e)', () => {
     const portB = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `BLP2-${tag}`, name: `BL Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `BLP2-${tag}`, name: `BL Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T02${tag}` })
       .expect(201);
     createdPorts.push({ id: portB.body.data.id });
     destPortId = portB.body.data.id;
@@ -174,7 +174,7 @@ describe('BillOfLading (e2e)', () => {
     const cust = await request(app.getHttpServer())
       .post('/api/v1/customers')
       .set(auth(adminToken))
-      .send({ code: `BLCUS-${tag}`, name: `BL Co ${randomTag}`, type: 'SHIPPER' })
+      .send({ code: `BLCUS-${tag}`, name: `BL Co ${randomTag}`, personKind: 'LEGAL' })
       .expect(201);
     createdCustomers.push({ id: cust.body.data.id });
     customerId = cust.body.data.id;
@@ -1262,7 +1262,7 @@ describe('BillOfLading (e2e)', () => {
     const p3 = await request(app.getHttpServer())
       .post('/api/v1/ports')
       .set(auth(adminToken))
-      .send({ code: `BLNP3-${tag}`, name: `BL Numbering Dest ${randomTag}`, country: 'IN' })
+      .send({ code: `BLNP3-${tag}`, name: `BL Numbering Dest ${randomTag}`, country: 'IN', city: 'Fixture region', abbreviation: `T03${tag}` })
       .expect(201);
     createdPorts.push({ id: p3.body.data.id });
     const v3 = await request(app.getHttpServer())

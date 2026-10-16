@@ -5,6 +5,9 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { requireOffice } from '../configuration/configuration.policy';
+import type { AuthenticatedUser } from '../../common/auth/types';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import {
@@ -20,6 +23,7 @@ const select = {
   imo: true,
   flag: true,
   vesselType: true,
+  ownership: true,
   capacityTeu: true,
   isActive: true,
   notes: true,
@@ -30,7 +34,7 @@ const select = {
 
 @Injectable()
 export class VesselsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
   async list(query: ListVesselQueryDto) {
     const pagination = parsePagination(query);
@@ -81,19 +85,27 @@ export class VesselsService {
     return this.prisma.vessel.findUnique({ where: { code }, select });
   }
 
-  async create(dto: CreateVesselDto) {
+  async create(dto: CreateVesselDto, actor: AuthenticatedUser) {
+    requireOffice(actor, 'vessel:create');
     try {
-      return await this.prisma.vessel.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const vessel = await tx.vessel.create({
         data: {
           code: dto.code.trim(),
           name: dto.name.trim(),
           imo: dto.imo?.trim() || null,
           flag: dto.flag.trim(),
           vesselType: dto.vesselType as Prisma.VesselCreateInput['vesselType'],
+          ownership: dto.ownership,
           capacityTeu: dto.capacityTeu,
           notes: dto.notes,
         },
         select,
+        });
+        await this.audit.recordIn(tx, { action: 'vessel.create', entityType: 'Vessel',
+          entityId: vessel.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { code: vessel.code, ownership: vessel.ownership, imo: vessel.imo } });
+        return vessel;
       });
     } catch (e) {
       if (
@@ -116,20 +128,31 @@ export class VesselsService {
    * immutable once assigned, since voyage references display it). Mutable
    * master fields: name, imo, flag, vesselType, capacityTeu, notes.
    */
-  async update(id: string, dto: UpdateVesselDto) {
-    await this.findById(id);
+  async update(id: string, dto: UpdateVesselDto, actor: AuthenticatedUser) {
+    requireOffice(actor, 'vessel:update');
     try {
-      return await this.prisma.vessel.update({
+      return await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Vessel" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.vessel.findFirst({ where: { id, deletedAt: null } });
+      if (!before) throw new NotFoundException('Vessel not found');
+      const after = await tx.vessel.update({
         where: { id },
         data: {
           name: dto.name?.trim(),
-          imo: dto.imo?.trim() ?? null,
+          imo: dto.imo === undefined ? undefined : dto.imo?.trim() || null,
           flag: dto.flag?.trim(),
           vesselType: dto.vesselType as Prisma.VesselUpdateInput['vesselType'] | undefined,
+          ownership: dto.ownership,
           capacityTeu: dto.capacityTeu,
           notes: dto.notes,
         },
         select,
+      });
+      await this.audit.recordIn(tx, { action: 'vessel.update', entityType: 'Vessel',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { name: before.name, imo: before.imo, ownership: before.ownership },
+        afterData: { name: after.name, imo: after.imo, ownership: after.ownership } });
+      return after;
       });
     } catch (e) {
       if (
@@ -148,38 +171,49 @@ export class VesselsService {
    * reference it operationally. Completed historical voyages do NOT block
    * deactivation and remain readable.
    */
-  async setActive(id: string, isActive: boolean) {
-    await this.findById(id);
-    if (!isActive) {
-      const activeVoyages = await this.prisma.voyage.count({
-        where: {
-          vesselId: id,
+  async setActive(id: string, isActive: boolean, actor: AuthenticatedUser) {
+    requireOffice(actor, 'vessel:activate');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Vessel" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.vessel.findFirst({ where: { id, deletedAt: null } });
+      if (!before) throw new NotFoundException('Vessel not found');
+      if (before.isActive === isActive) return tx.vessel.findUniqueOrThrow({ where: { id }, select });
+      if (!isActive) {
+        const activeVoyages = await tx.voyage.count({ where: {
           status: { in: ['DRAFT', 'SCHEDULED', 'IN_PROGRESS'] },
-        },
-      });
-      if (activeVoyages > 0) {
-        throw new ConflictException(
-          `Cannot deactivate vessel "${id}": it still has ${activeVoyages} active/unfinished voyage(s). Cancel or complete them first.`
-        );
+          OR: [{ vesselId: id }, { tugVesselId: id }, { bargeVesselId: id }],
+        } });
+        if (activeVoyages) throw new ConflictException(
+          `Cannot deactivate vessel: ${activeVoyages} unfinished voyage(s) still use it. Cancel or complete them first.`);
       }
-    }
-    return this.prisma.vessel.update({
-      where: { id },
-      data: { isActive },
+      const after = await tx.vessel.update({ where: { id }, data: { isActive }, select });
+      await this.audit.recordIn(tx, { action: isActive ? 'vessel.activate' : 'vessel.deactivate',
+        entityType: 'Vessel', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { isActive: before.isActive }, afterData: { isActive } });
+      return after;
     });
   }
 
-  async remove(id: string) {
-    const vessel = await this.findById(id);
-    const voyageCount = await this.prisma.voyage.count({ where: { vesselId: id } });
-    if (voyageCount > 0) {
-      throw new ConflictException(
-        `Cannot delete vessel "${vessel.code}": it is referenced by ${voyageCount} voyage(s). Deactivate the vessel instead.`
-      );
-    }
-    await this.prisma.vessel.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  async remove(id: string, actor: AuthenticatedUser) {
+    requireOffice(actor, 'vessel:update');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Vessel" WHERE "id" = ${id} FOR UPDATE`;
+      const vessel = await tx.vessel.findFirst({ where: { id, deletedAt: null }, include: { _count: {
+        select: { voyages: true, tugVoyages: true, bargeVoyages: true, legNumberingVessels: true },
+      } } });
+      if (!vessel) throw new NotFoundException('Vessel not found');
+      const attachments = await tx.fileAttachment.count({ where: {
+        entityType: 'Vessel', entityId: id } });
+      if (attachments || Object.values(vessel._count).some((n) => n > 0)) {
+        throw new ConflictException('Vessel has voyage or retained records; deactivate instead');
+      }
+      const after = await tx.vessel.update({ where: { id },
+        data: { deletedAt: new Date(), isActive: false } });
+      await this.audit.recordIn(tx, { action: 'vessel.archive', entityType: 'Vessel',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { code: vessel.code, isActive: vessel.isActive },
+        afterData: { deletedAt: after.deletedAt, isActive: false } });
+      return { id, archived: true };
     });
   }
 }
