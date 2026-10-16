@@ -268,8 +268,15 @@ describe('Phase 10 lifecycle retention and transactional audits (no database)', 
     const a = auditRecord();
     const placement = { id: 'inv', cargoId: 'full', yardId: 'yard', portId: 'port',
       status: 'RESERVED', enteredAt: new Date('2026-10-01'), locationLabel: 'A1', notes: 'kept' };
-    const tx = { actualLoading: { update: jest.fn().mockResolvedValue({ id: 'al', status: 'COMPLETED' }) },
-      cargo: { update: jest.fn() }, yardInventory: {
+    const tx = { $queryRaw: jest.fn(), actualLoading: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'al', status: 'IN_PROGRESS', actualLoadingNumber: 'AL-1' }),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ items: [
+        { cargoId: 'full', actualQuantity: 2, result: 'FULL' },
+        { cargoId: 'partial', actualQuantity: 1, result: 'PARTIAL' },
+      ] }),
+      update: jest.fn().mockResolvedValue({ id: 'al', status: 'COMPLETED' }) },
+      cargo: { update: jest.fn(), findUnique: jest.fn().mockImplementation(({ where }: { where: { id: string } }) =>
+        ({ id: where.id, inspectionStatus: 'DONE', status: 'AT_YARD', quantity: 2, deletedAt: null })) }, yardInventory: {
         findUnique: jest.fn().mockResolvedValue(placement), delete: jest.fn(),
       } };
     const prisma = db({ actualLoading: { findUnique: jest.fn().mockResolvedValue({ id: 'al',
@@ -300,8 +307,11 @@ describe('Phase 10 lifecycle retention and transactional audits (no database)', 
       findFirst: jest.fn().mockResolvedValue({ status: 'DRAFT' }), update,
     } };
     const notify = { jobTransitionIn: jest.fn().mockResolvedValue(undefined) };
-    const service = new JobService(transaction(tx), notify as unknown as NotificationWorkerService);
+    const a = auditRecord();
+    const service = new JobService(transaction(tx), notify as unknown as NotificationWorkerService, audit(a));
     expect(await service.start('j', actor('job:start'))).toEqual(expect.objectContaining({ status: 'OPEN' }));
+    expect(a.recordIn).toHaveBeenCalledWith(tx, expect.objectContaining({
+      action: 'job.open', entityId: 'j', beforeData: { status: 'DRAFT' } }));
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { status: 'OPEN' } }));
     expect(notify.jobTransitionIn).toHaveBeenCalledWith(tx, 'j', 'DRAFT', 'OPEN', expect.any(Date));
     notify.jobTransitionIn.mockRejectedValueOnce(new Error('outbox write failed'));

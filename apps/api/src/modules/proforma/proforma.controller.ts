@@ -50,14 +50,14 @@ export class ProformaController {
 
   @Patch(':id')
   @RequirePermissions('proforma:update')
-  update(@Param('id') id: string, @Body() dto: UpdateProformaDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateProformaDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('proforma:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.remove(id, actor);
   }
 
   // ── line items ──────────────────────────────────────────────────────────
@@ -65,8 +65,8 @@ export class ProformaController {
   @Post(':id/items')
   @RequirePermissions('proforma:update')
   @HttpCode(HttpStatus.OK)
-  addItem(@Param('id') id: string, @Body() dto: AddProformaItemDto) {
-    return this.service.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: AddProformaItemDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.addItem(id, dto, actor);
   }
 
   @Patch(':id/items/:itemId')
@@ -75,14 +75,15 @@ export class ProformaController {
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateProformaItemDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.service.updateItem(id, itemId, dto);
+    return this.service.updateItem(id, itemId, dto, actor);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('proforma:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.service.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.removeItem(id, itemId, actor);
   }
 
   // ── lifecycle ───────────────────────────────────────────────────────────

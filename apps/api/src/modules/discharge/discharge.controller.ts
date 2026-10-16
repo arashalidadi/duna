@@ -49,14 +49,15 @@ export class DischargeController {
 
   @Patch(':id')
   @RequirePermissions('discharge:update')
-  update(@Param('id') id: string, @Body() dto: UpdateDischargeDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateDischargeDto,
+    @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('discharge:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.remove(id, actor);
   }
 
   // -------------------------------------------------------------------------

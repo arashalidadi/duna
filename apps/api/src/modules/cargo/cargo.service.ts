@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { CargoStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { parseBooleanFilter } from '../../common/utils/query-filter.util';
 import { AuthenticatedUser } from '../../common/auth/types';
@@ -81,6 +82,15 @@ const detailSelect = { ...select, legacyAttributes: { select: {
 } }, intakeDocuments: { select: { id: true, name: true, reference: true, createdAt: true },
   orderBy: { createdAt: 'asc' as const } } } satisfies Prisma.CargoSelect;
 
+// Excludes relation objects and personal identifiers; captures the operational
+// fields needed to reconstruct a significant cargo change without log bloat.
+const auditedCargoFields = [
+  'reference', 'status', 'customerId', 'portId', 'yardId', 'destinationPortId',
+  'shipperId', 'consigneeId', 'jobId', 'cargoType', 'quantity', 'packages',
+  'weight', 'cargoValue', 'cargoValueCurrency', 'inspectionStatus',
+  'loadingStatus', 'documentStatus', 'pol', 'pod', 'manifestNumber',
+] as const;
+
 @Injectable()
 export class CargoService {
   constructor(
@@ -156,7 +166,7 @@ export class CargoService {
     return this.normalize(row);
   }
 
-  async create(dto: CreateCargoDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateCargoDto, actor: AuthenticatedUser) {
     await this.validateRelations(dto.portId, dto.customerId, dto.yardId, dto.destinationPortId);
     if (dto.shipperId) await this.validateParty('shipper', dto.shipperId);
     if (dto.consigneeId) await this.validateParty('consignee', dto.consigneeId);
@@ -212,13 +222,17 @@ export class CargoService {
               jobId: dto.jobId ?? null,
               cargoValue: dto.cargoValue ?? null,
               cargoValueCurrency: dto.cargoValueCurrency ?? null,
-              createdById: actor?.id,
+              createdById: actor.id,
             },
         select,
       });
+      await this.audit.recordIn(tx, { action: 'cargo.create', entityType: 'Cargo',
+        entityId: created.id, actorId: actor.id, actorEmail: actor.email,
+        afterData: auditProjection(created, auditedCargoFields),
+        metadata: { intakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] } });
       if (dto.documentStatus || dto.intakeDocuments?.length) await this.audit.recordIn(tx, {
         action: 'cargo.paperwork.record', entityType: 'Cargo', entityId: created.id,
-        actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+        actorId: actor.id, actorEmail: actor.email,
         afterData: { documentStatus: dto.documentStatus ?? null,
           intakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] },
       });
@@ -227,7 +241,7 @@ export class CargoService {
     return this.normalize(row);
   }
 
-  async update(id: string, dto: UpdateCargoDto, actor?: AuthenticatedUser) {
+  async update(id: string, dto: UpdateCargoDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.cargo.findUnique({ where: { id }, select });
     if (!existing || existing.deletedAt) {
       throw new NotFoundException('Cargo not found');
@@ -252,6 +266,12 @@ export class CargoService {
     if (dto.consigneeId && dto.consigneeId !== existing.consigneeId) await this.validateParty('consignee', dto.consigneeId);
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Cargo" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.cargo.findUnique({ where: { id }, select });
+      if (!before || before.deletedAt) throw new NotFoundException('Cargo not found');
+      if (before.status === 'CANCELLED' || before.updatedAt.getTime() !== existing.updatedAt.getTime()) {
+        throw new ConflictException('Cargo changed while being edited; retry');
+      }
       const row = await tx.cargo.update({
         where: { id },
         data: {
@@ -288,10 +308,15 @@ export class CargoService {
         },
         select,
       });
+      await this.audit.recordIn(tx, { action: 'cargo.update', entityType: 'Cargo',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, auditedCargoFields),
+        afterData: auditProjection(row, auditedCargoFields),
+        metadata: { addedIntakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] } });
       if (dto.documentStatus !== undefined || dto.intakeDocuments?.length) await this.audit.recordIn(tx, {
         action: 'cargo.paperwork.update', entityType: 'Cargo', entityId: id,
-        actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
-        beforeData: { documentStatus: existing.documentStatus },
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { documentStatus: before.documentStatus },
         afterData: { documentStatus: row.documentStatus,
           addedIntakeDocuments: dto.intakeDocuments?.map((d) => d.name) ?? [] },
       });
@@ -304,40 +329,34 @@ export class CargoService {
    * inspection/loading readiness rules. Inventory is updated transactionally by
    * the YardInventory module when cargo is placed into or removed from a yard.
    */
-  async transition(id: string, to: CargoStatus, _actor?: AuthenticatedUser) {
-    const existing = await this.prisma.cargo.findUnique({ where: { id }, select });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Cargo not found');
-    }
-
-    const from = existing.status;
-    if (from === to) return this.normalize(existing);
-
-    if (!TRANSITIONS[from]?.includes(to)) {
-      throw new ConflictException(`Cannot transition cargo from ${from} to ${to}.`);
-    }
-
-    if (to === 'READY_FOR_LOADING' && existing.inspectionStatus !== 'DONE') {
-      throw new ConflictException(
-        'Cargo cannot be marked READY_FOR_LOADING until its inspection status is DONE.'
-      );
-    }
-
-    const hasInventory = existing.inventory != null;
-    if ((to === 'LOADED' || to === 'DELIVERED') && !hasInventory) {
-      throw new ConflictException(
-        'Cargo must be recorded in a yard (inventory) before it can be marked loaded/delivered.'
-      );
-    }
-
-    return this.prisma.cargo
-      .update({ where: { id }, data: { status: to }, select })
-      .then((row) => this.normalize(row));
+  async transition(id: string, to: CargoStatus, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Cargo" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.cargo.findUnique({ where: { id }, select });
+      if (!before || before.deletedAt) throw new NotFoundException('Cargo not found');
+      const from = before.status;
+      if (from === to) return this.normalize(before);
+      if (!TRANSITIONS[from]?.includes(to)) {
+        throw new ConflictException(`Cannot transition cargo from ${from} to ${to}.`);
+      }
+      if (to === 'READY_FOR_LOADING' && before.inspectionStatus !== 'DONE') {
+        throw new ConflictException('Cargo cannot be marked READY_FOR_LOADING until its inspection status is DONE.');
+      }
+      if ((to === 'LOADED' || to === 'DELIVERED') && before.inventory == null) {
+        throw new ConflictException('Cargo must be recorded in a yard (inventory) before it can be marked loaded/delivered.');
+      }
+      const after = await tx.cargo.update({ where: { id }, data: { status: to }, select });
+      await this.audit.recordIn(tx, { action: 'cargo.transition', entityType: 'Cargo',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: from }, afterData: { status: to },
+        metadata: { reference: before.reference } });
+      return this.normalize(after);
+    });
   }
 
   /** Only a never-used, non-financial cargo registration may be archived.
    * Cargo with loading/manifest/B/L history is cancelled instead. */
-  async remove(id: string, actor?: AuthenticatedUser) {
+  async remove(id: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "Cargo" WHERE "id" = ${id} FOR UPDATE`;
       const cargo = await tx.cargo.findFirst({ where: { id, deletedAt: null },
@@ -359,7 +378,7 @@ export class CargoService {
       }
       const result = await tx.cargo.update({ where: { id }, data: { deletedAt: new Date() } });
       await this.audit.recordIn(tx, { action: 'cargo.archive', entityType: 'Cargo',
-        entityId: id, actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
         beforeData: { reference: cargo.reference, status: cargo.status },
         afterData: { deletedAt: result.deletedAt } });
       return { id, archived: true };

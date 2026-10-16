@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -90,10 +91,11 @@ export class EmployeeService {
     return flattenEmp(row);
   }
 
-  async create(dto: CreateEmployeeDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateEmployeeDto, actor: AuthenticatedUser) {
     const code = dto.code?.trim() || (await this.generateCode());
     try {
-      const created = await this.prisma.employee.create({
+      const created = await this.prisma.$transaction(async (tx) => {
+        const row = await tx.employee.create({
         data: {
           code,
           name: dto.name,
@@ -106,9 +108,15 @@ export class EmployeeService {
           currencyCode: dto.currencyCode ?? 'IRR',
           status: (dto.status as 'ACTIVE' | 'INACTIVE') ?? 'ACTIVE',
           notes: dto.notes,
-          createdById: actor?.id,
+          createdById: actor.id,
         },
         select: listSelect,
+        });
+        await this.audit.recordIn(tx, { action: 'employee.create', entityType: 'Employee',
+          entityId: row.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(row, ['code', 'position', 'baseSalary', 'currencyCode', 'status']),
+          metadata: { nationalIdPresent: Boolean(row.nationalId) } });
+        return row;
       });
       return flattenEmp(created);
     } catch (e) {
@@ -132,7 +140,7 @@ export class EmployeeService {
       const updated = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT "id" FROM "employees" WHERE "id" = ${id} FOR UPDATE`;
         const current = await tx.employee.findFirst({ where: { id, deletedAt: null },
-          select: { code: true, status: true } });
+          select: listSelect });
         if (!current) throw new NotFoundException('Employee not found');
         const result = await tx.employee.update({
         where: { id: existing.id },
@@ -151,10 +159,18 @@ export class EmployeeService {
         },
         select: listSelect,
         });
+        const fields = ['code', 'position', 'baseSalary', 'currencyCode', 'status'];
+        await this.audit.recordIn(tx, { action: 'employee.update', entityType: 'Employee',
+          entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(current, fields), afterData: auditProjection(result, fields),
+          metadata: { nationalIdChanged: current.nationalId !== result.nationalId,
+            contactChanged: current.phone !== result.phone || current.email !== result.email,
+            nameChanged: current.name !== result.name } });
         if (current.status !== result.status) {
           await this.audit.recordIn(tx, { action: result.status === 'ACTIVE' ? 'employee.reactivate' : 'employee.deactivate',
             entityType: 'Employee', entityId: id, actorId: actor.id, actorEmail: actor.email,
-            beforeData: current, afterData: { code: result.code, status: result.status } });
+            beforeData: auditProjection(current, ['code', 'status']),
+            afterData: { code: result.code, status: result.status } });
         }
         return result;
       });

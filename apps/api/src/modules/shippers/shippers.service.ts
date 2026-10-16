@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { requireOffice } from '../configuration/configuration.policy';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
@@ -71,9 +72,10 @@ export class ShippersService {
     return shipper;
   }
 
-  async create(dto: CreateShipperDto) {
+  async create(dto: CreateShipperDto, actor: AuthenticatedUser) {
     try {
-      return await this.prisma.shipper.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const row = await tx.shipper.create({
         data: {
           code: dto.code.trim(),
           name: dto.name.trim(),
@@ -84,6 +86,13 @@ export class ShippersService {
           notes: dto.notes?.trim() || null,
         },
         select,
+        });
+        await this.audit.recordIn(tx, { action: 'shipper.create',
+          entityType: 'Shipper', entityId: row.id,
+          actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(row, ['code', 'name', 'isActive']),
+          metadata: { taxIdPresent: Boolean(row.taxId) } });
+        return row;
       });
     } catch (e) {
       if (
@@ -102,7 +111,7 @@ export class ShippersService {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT "id" FROM "shippers" WHERE "id" = ${id} FOR UPDATE`;
         const before = await tx.shipper.findFirst({ where: { id, deletedAt: null },
-          select: { code: true, isActive: true } });
+          select });
         if (!before) throw new NotFoundException('Shipper not found');
         const after = await tx.shipper.update({
         where: { id },
@@ -117,6 +126,12 @@ export class ShippersService {
         },
         select,
         });
+        await this.audit.recordIn(tx, { action: 'shipper.update',
+          entityType: 'Shipper', entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, ['code', 'name', 'isActive']),
+          afterData: auditProjection(after, ['code', 'name', 'isActive']),
+          metadata: { contactChanged: before.phone !== after.phone || before.email !== after.email,
+            taxIdChanged: before.taxId !== after.taxId } });
         if (before.isActive !== after.isActive) {
           await this.audit.recordIn(tx, { action: after.isActive ? 'shipper.reactivate' : 'shipper.deactivate',
             entityType: 'Shipper', entityId: id, actorId: actor.id, actorEmail: actor.email,

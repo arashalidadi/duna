@@ -12,6 +12,7 @@ const PAGE_SIZE_MAX = 100;
 
 type Tx = Prisma.TransactionClient;
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { RELEASE_ORDER_ELIGIBILITY_POLICY as RELEASE_POLICY } from './release-order.policy';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import { WorkflowConfigService } from '../configuration/workflow-config.service';
@@ -254,12 +255,17 @@ export class DeliveryReleaseService {
         },
       });
       await captureIssuedDocument(tx, 'delivery-order', order.id, ctx.userId);
+      await this.audit.recordIn(tx, { action: 'delivery.issue', entityType: 'DeliveryOrder',
+        entityId: order.id, actorId: ctx.userId!, actorEmail: ctx.actorEmail!,
+        afterData: { status: order.status, docNumber: order.docNumber,
+          billOfLadingId: order.billOfLadingId, recipientId: order.recipientId,
+          portId: order.portId } });
       return order;
     });
     return this.detailDelivery(created.id);
   }
 
-  async updateDelivery(id: string, dto: { recipient?: string; recipientId?: string | null; vehiclePlate?: string; notes?: string; issueDate?: string }) {
+  async updateDelivery(id: string, dto: { recipient?: string; recipientId?: string | null; vehiclePlate?: string; notes?: string; issueDate?: string }, actor: AuthenticatedUser) {
     await this.prisma.$transaction(async (tx) => {
       const d = await tx.deliveryOrder.findFirst({ where: { id, deletedAt: null } });
       if (!d) throw new NotFoundException('delivery order not found');
@@ -276,7 +282,12 @@ export class DeliveryReleaseService {
       if (dto.vehiclePlate !== undefined) data.vehiclePlate = dto.vehiclePlate;
       if (dto.notes !== undefined) data.notes = dto.notes;
       if (dto.issueDate !== undefined) data.issueDate = new Date(dto.issueDate);
-      await tx.deliveryOrder.update({ where: { id }, data });
+      const after = await tx.deliveryOrder.update({ where: { id }, data });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'delivery.update', entityType: 'DeliveryOrder',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(d, fields), afterData: auditProjection(after, fields),
+        metadata: { fields, docNumber: d.docNumber } });
     });
     return this.detailDelivery(id);
   }
@@ -453,12 +464,18 @@ export class DeliveryReleaseService {
         });
       }
       await captureIssuedDocument(tx, 'release-order', ro.id, ctx.userId);
+      await this.audit.recordIn(tx, { action: 'release.issue', entityType: 'ReleaseOrder',
+        entityId: ro.id, actorId: ctx.userId!, actorEmail: ctx.actorEmail!,
+        afterData: { status: ro.status, docNumber: ro.docNumber,
+          billOfLadingId: ro.billOfLadingId, paymentState: ro.paymentState,
+          financialOverride }, metadata: { workflowApprovalId: approvalId,
+            authorizationBasis: financialOverride ? ctx.authorizationBasis : null } });
       return ro;
     });
     return this.detailRelease(created.id);
   }
 
-  async updateRelease(id: string, dto: { notes?: string; releaseDate?: string }) {
+  async updateRelease(id: string, dto: { notes?: string; releaseDate?: string }, actor: AuthenticatedUser) {
     await this.prisma.$transaction(async (tx) => {
       const r = await tx.releaseOrder.findFirst({ where: { id, deletedAt: null } });
       if (!r) throw new NotFoundException('release order not found');
@@ -466,7 +483,12 @@ export class DeliveryReleaseService {
       const data: Prisma.ReleaseOrderUpdateInput = {};
       if (dto.notes !== undefined) data.notes = dto.notes;
       if (dto.releaseDate !== undefined) data.releaseDate = new Date(dto.releaseDate);
-      await tx.releaseOrder.update({ where: { id }, data });
+      const after = await tx.releaseOrder.update({ where: { id }, data });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'release.update', entityType: 'ReleaseOrder',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(r, fields), afterData: auditProjection(after, fields),
+        metadata: { fields, docNumber: r.docNumber } });
     });
     return this.detailRelease(id);
   }

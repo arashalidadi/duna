@@ -51,32 +51,36 @@ export class InvoiceController {
 
   @Patch(':id')
   @RequirePermissions('invoice:update')
-  update(@Param('id') id: string, @Body() dto: UpdateInvoiceDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateInvoiceDto,
+    @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('invoice:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.remove(id, actor);
   }
 
   @Post(':id/items')
   @RequirePermissions('invoice:update')
-  addItem(@Param('id') id: string, @Body() dto: AddInvoiceItemDto) {
-    return this.service.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: AddInvoiceItemDto,
+    @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.addItem(id, dto, actor);
   }
 
   @Patch(':id/items/:itemId')
   @RequirePermissions('invoice:update')
-  updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateInvoiceItemDto) {
-    return this.service.updateItem(id, itemId, dto);
+  updateItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @Body() dto: UpdateInvoiceItemDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.updateItem(id, itemId, dto, actor);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('invoice:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.service.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.removeItem(id, itemId, actor);
   }
 
   @Post(':id/issue')

@@ -82,8 +82,9 @@ export class ReleaseOrderController {
 
   @Patch(':id')
   @RequirePermissions('release:update')
-  update(@Param('id') id: string, @Body() dto: UpdateReleaseOrderDto) {
-    return this.service.updateRelease(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateReleaseOrderDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateRelease(id, dto, user);
   }
 
   @Post(':id/cancel')

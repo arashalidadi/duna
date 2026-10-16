@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../common/auth/decorators/require-permissions.decorator';
+import { Authenticated } from '../../common/auth/decorators/authenticated.decorator';
 import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
 import { AccountAccess } from '../../common/auth/account-access';
 import { UsersService } from './users.service';
@@ -49,6 +50,7 @@ export class UsersController {
 
   // Self-service password change (authenticated only; no admin permission needed).
   @Patch('me/password')
+  @Authenticated()
   async changeMyPassword(
     @CurrentUser() user: AccountAccess,
     @Body() dto: ChangeMyPasswordDto

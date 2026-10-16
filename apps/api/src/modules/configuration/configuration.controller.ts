@@ -9,13 +9,14 @@ import { WorkflowConfigService } from './workflow-config.service';
 import { DocumentConfigService } from './document-config.service';
 import { ConfigDocumentOutputService } from './config-document-output.service';
 import { CoreLabelService } from './core-label.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 
 @ApiTags('configuration')
 @Controller('configuration')
 export class ConfigurationController {
   constructor(private readonly fields: FieldConfigService, private readonly flows: WorkflowConfigService,
     private readonly documents: DocumentConfigService, private readonly output: ConfigDocumentOutputService,
-    private readonly coreLabels: CoreLabelService) {}
+    private readonly coreLabels: CoreLabelService, private readonly audit: AuditService) {}
 
   @Get('option-lists')
   @RequirePermissions('configuration:read')
@@ -68,8 +69,9 @@ export class ConfigurationController {
     return this.fields.releaseCreateFields(actor);
   }
   @Get('records/:scope/search/:key')
-  // The service intersects source-read, live/saved field visibility and report
-  // or export grants. Operators need not administer configuration to query it.
+  @RequirePermissions(['customer:read', 'cargo:read', 'job:read', 'bill:read', 'invoice:read', 'release:read'], { match: 'OR' })
+  // The guard requires a source-read capability; the service enforces the EXACT
+  // requested source plus office scope, saved visibility and report/export grants.
   searchFields(@Param('scope') scope: string, @Param('key') key: string,
     @Query('term') term: string | undefined, @Query('mode') mode: string,
     @Query('page') page: string | undefined, @CurrentUser() actor: AuthenticatedUser) {
@@ -80,7 +82,8 @@ export class ConfigurationController {
       mode as 'searchable' | 'filterable' | 'reportable' | 'exportable', page);
   }
   @Get('records/:scope/:recordId/fields')
-  // Record-scoped projection: the service checks the base record read grant,
+  @RequirePermissions(['customer:read', 'cargo:read', 'job:read', 'bill:read', 'invoice:read', 'release:read'], { match: 'OR' })
+  // Record-scoped projection: the service checks the exact base record read grant,
   // existence and each saved field's current AND issue-time visibility.
   values(@Param('scope') scope: string, @Param('recordId') id: string, @CurrentUser() actor: AuthenticatedUser) {
     return this.fields.values(scope, id, actor);
@@ -199,7 +202,14 @@ export class ConfigurationController {
   @Get('documents/archive/:id')
   @RequirePermissions('config_document:render')
   async archive(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser,
-    @Res() res: Response) { return send(res, await this.output.archived(id, actor)); }
+    @Res() res: Response) {
+    const file = await this.output.archived(id, actor);
+    await this.audit.record({ action: 'config_document.output.access',
+      entityType: 'DocumentRenderedOutput', entityId: id,
+      actorId: actor.id, actorEmail: actor.email,
+      metadata: { archived: true, filename: file.filename } });
+    return send(res, file);
+  }
   @Get('documents/:id')
   @RequirePermissions('config_document:read')
   doc(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
@@ -239,7 +249,11 @@ export class ConfigurationController {
   @RequirePermissions('config_document:render')
   async render(@Param('id') id: string, @Param('format') format: string,
     @CurrentUser() actor: AuthenticatedUser, @Res() res: Response) {
-    return send(res, await this.output.render(id, format, actor));
+    const file = await this.output.render(id, format, actor);
+    await this.audit.record({ action: 'config_document.output.access',
+      entityType: 'ConfigDocument', entityId: id,
+      actorId: actor.id, actorEmail: actor.email, metadata: { format } });
+    return send(res, file);
   }
 }
 

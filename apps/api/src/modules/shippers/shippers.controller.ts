@@ -35,7 +35,7 @@ export class ShippersController {
   @RequirePermissions('shipper:create')
   create(@Body() dto: CreateShipperDto, @CurrentUser() user: AuthenticatedUser) {
     requireOffice(user, 'shipper:create');
-    return this.shippersService.create(dto);
+    return this.shippersService.create(dto, user);
   }
 
   @Patch(':id')

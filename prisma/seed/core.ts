@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { phase9Permissions } from './phase9-permissions';
 import { phase10Permissions } from './phase10-permissions';
+import { AUDIT_EXPORT_ROLE, phase11Permissions, seedPhase11Permissions } from './phase11-permissions';
 
 /**
  * Phase 1 (A3) — REQUIRED seed data.
@@ -82,6 +83,8 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     // Sidecar values also require the underlying entity read/edit permission.
     ...phase9Permissions,
     ...phase10Permissions,
+    // Phase 11's explicit-only export code is seeded through its separate
+    // conflict checker below, never through the generic overwriting upsert.
     { code: 'voucher:allocate', module: 'voucher', action: 'allocate' },
     { code: 'voucher:adjust', module: 'voucher', action: 'adjust' },
     // User management
@@ -286,6 +289,14 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     });
     createdPermissions[p.code] = record.id;
   }
+  // In the default seed, apply the same conflict checks as the existing-DB
+  // incremental seed. A conflicting reserved permission must not be silently
+  // relabelled by the generic upsert before it can be validated.
+  await prisma.$transaction(seedPhase11Permissions);
+  const auditExport = await prisma.permission.findUniqueOrThrow({
+    where: { code: phase11Permissions[0].code }, select: { id: true },
+  });
+  createdPermissions[phase11Permissions[0].code] = auditExport.id;
   console.log(`  Permissions seeded: ${Object.keys(createdPermissions).length}`);
 
   // ==========================================================================
@@ -332,7 +343,12 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
       create: { roleId: portalRole.id, permissionId: createdPermissions[code] },
     });
   }
-  console.log(`  Roles seeded: ${adminRole.code}, ${opsRole.code}, ${portalRole.code}`);
+  // Phase 11: the dedicated export role has NO users by default. No ordinary
+  // administrator receives audit:export simply by holding ADMIN; the owner must
+  // explicitly assign AUDIT_EXPORTER through the audited user-role endpoint.
+  // The earlier conflict-checked Phase 11 seed never assigns users; an
+  // existing populated but incomplete exporter role stops for owner review.
+  console.log(`  Roles seeded: ${adminRole.code}, ${opsRole.code}, ${portalRole.code}, ${AUDIT_EXPORT_ROLE}`);
 
   // ==========================================================================
   // DEC-116 / OQ-06 — release-exception authority is a BUSINESS delegation,
@@ -359,7 +375,7 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   // by any decision: ADMIN is the system administrator and receives every other
   // catalogue permission, including these two. Managers and other roles still get only
   // what the administrator assigns.
-  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override']);
+  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override', 'audit:export']);
 
   for (const [code, permissionId] of Object.entries(createdPermissions)) {
     if (EXPLICIT_GRANT_ONLY.has(code)) {

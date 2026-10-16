@@ -174,12 +174,12 @@ export class AuthService {
     return pair;
   }
 
-  async logout(refreshToken: string): Promise<void> {
+  async logout(refreshToken: string, actorId: string): Promise<void> {
     const record = await this.findByIdHash(refreshToken);
-    if (record) {
-      await this.revokeById(record.id);
-    }
-    // Idempotent: unknown token => nothing to revoke.
+    // A permissionless self-service route must not revoke someone else's
+    // session, even when presented with a different user's refresh token.
+    if (record?.userId === actorId) await this.revokeById(record.id);
+    // Idempotent: unknown or non-owned token => nothing to revoke.
   }
 
   private async issueTokenPair(userId: string): Promise<AuthTokenPair> {

@@ -260,13 +260,7 @@ describe('Delivery & Release Orders (e2e)', () => {
       const { PrismaClient } = require('@prisma/client');
       const prisma = new PrismaClient();
       // Fixture-only teardown on a designated disposable test DB; never run on live data.
-      // Explicit IDs prevent sweeping real audit rows. Append-only applies to the application.
-      await prisma.auditLog.deleteMany({
-        where: { OR: [
-          { entityType: 'ReleaseOrder', entityId: { in: [ro1Id, settledRoId, roSlice2Id].filter(Boolean) } },
-          { entityType: 'DeliveryOrder', entityId: { in: [cancelledDoId].filter(Boolean) } },
-        ] },
-      });
+      // P11 retains audit history even when its referenced fixture documents are removed.
       await prisma.deliveryOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.releaseOrder.deleteMany({ where: { billOfLadingId: { in: billIds } } });
       await prisma.voucherAllocation.deleteMany({ where: { invoiceId: { in: invoiceIds } } });
@@ -591,8 +585,10 @@ describe('Delivery & Release Orders (e2e)', () => {
       const meta = row!.metadata as { outstanding: string; invoicesTotal: string };
       expect(meta.invoicesTotal).toBe('800.00');
       expect(meta.outstanding).toBe('800.00'); // the blocked amount the override bypassed
-      // exactly one override row in the whole audit trail (nothing wrote one before)
-      const count = await fx.auditLog.count({ where: { action: 'release:override' } });
+      // Exactly one override for this fixture's release; append-only history
+      // legitimately retains overrides from prior isolated-suite runs.
+      const count = await fx.auditLog.count({ where: { entityType: 'ReleaseOrder',
+        entityId: ro1Id, action: 'release:override' } });
       expect(count).toBe(1);
     } finally {
       await fx.$disconnect();

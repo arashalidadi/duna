@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -6,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, LetterStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { CreateLetterDto, ListLetterQueryDto, UpdateLetterDto } from './dto/letter.dto';
@@ -58,9 +61,24 @@ function flatten(l: { _count?: { replies?: number } } & Record<string, unknown>)
   return { ...rest, repliesCount: _count?.replies ?? 0 };
 }
 
+function letterChange(row: { body?: string | null } & object, keys: string[]): Record<string, unknown> {
+  const values = auditProjection(row, keys.filter((key) => key !== 'body'));
+  if (keys.includes('body')) {
+    values.bodySha256 = row.body ? createHash('sha256').update(row.body).digest('hex') : null;
+  }
+  return values;
+}
+
 @Injectable()
 export class LetterService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+
+  private async lockLetter(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "letters" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.letter.findFirst({ where: { id, deletedAt: null } });
+    if (!row) throw new NotFoundException('Letter not found');
+    return row;
+  }
 
   // -------------------------------------------------------------------------
   // Queries
@@ -122,7 +140,7 @@ export class LetterService {
   // Mutations
   // -------------------------------------------------------------------------
 
-  async create(dto: CreateLetterDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateLetterDto, actor: AuthenticatedUser) {
     if (dto.replyToId) {
       const parent = await this.prisma.letter.findFirst({
         where: { id: dto.replyToId, deletedAt: null },
@@ -140,7 +158,8 @@ export class LetterService {
 
     const letterNumber = await this.generateLetterNumber();
     try {
-      return flatten(await this.prisma.letter.create({
+      return this.prisma.$transaction(async (tx) => {
+        const saved = await tx.letter.create({
         data: {
           letterNumber,
           direction: dto.direction,
@@ -155,10 +174,16 @@ export class LetterService {
           customerId: dto.customerId,
           replyToId: dto.replyToId,
           notes: dto.notes,
-          createdById: actor?.id,
+          createdById: actor.id,
         },
         select: listSelect,
-      }));
+      });
+        await this.audit.recordIn(tx, { action: 'letter.create', entityType: 'Letter',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { letterNumber, direction: saved.direction, status: saved.status,
+            ...letterChange(saved, ['subject', 'body', 'customerId', 'replyToId']) } });
+        return flatten(saved);
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException(`Letter number ${letterNumber} already exists`);
@@ -167,7 +192,7 @@ export class LetterService {
     }
   }
 
-  async update(id: string, dto: UpdateLetterDto) {
+  async update(id: string, dto: UpdateLetterDto, actor: AuthenticatedUser) {
     const existing = await this.assertExists(id);
     if (existing.status !== 'DRAFT') {
       throw new ConflictException('Only DRAFT letters can be edited');
@@ -187,7 +212,10 @@ export class LetterService {
       if (!customer) throw new BadRequestException('Customer not found');
     }
 
-    return flatten(await this.prisma.letter.update({
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLetter(tx, id);
+      if (before.status !== 'DRAFT') throw new ConflictException('Only DRAFT letters can be edited');
+      const saved = await tx.letter.update({
       where: { id },
       data: {
         ...(dto.letterDate !== undefined ? { letterDate: new Date(dto.letterDate) } : {}),
@@ -201,25 +229,37 @@ export class LetterService {
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
       select: listSelect,
-    }));
+      });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'letter.update_draft', entityType: 'Letter',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: letterChange(before, fields), afterData: letterChange(saved, fields),
+        metadata: { letterNumber: saved.letterNumber, fields } });
+      return flatten(saved);
+    });
   }
 
   /** DRAFT -> SENT (outgoing only). Freezes content, stamps sender + time. */
-  async send(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'SENT');
-    return flatten(await this.prisma.letter.update({
-      where: { id },
-      data: { status: 'SENT', sentById: actor?.id, sentAt: new Date() },
-      select: listSelect,
-    }));
+  async send(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLetter(tx, id);
+      this.assertTransition(before.status, 'SENT');
+      const after = await tx.letter.update({ where: { id },
+        data: { status: 'SENT', sentById: actor.id, sentAt: new Date() }, select: listSelect });
+      await this.audit.recordIn(tx, { action: 'letter.send', entityType: 'Letter',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, sentAt: after.sentAt, sentById: after.sentById },
+        metadata: { letterNumber: after.letterNumber } });
+      return flatten(after);
+    });
   }
 
   /**
    * One-click reply: creates an OUTGOING DRAFT linked to the parent letter,
    * mirroring contacts and prefixing the subject with "Re: ".
    */
-  async reply(id: string, dto: { body?: string; notes?: string }, actor?: AuthenticatedUser) {
+  async reply(id: string, dto: { body?: string; notes?: string }, actor: AuthenticatedUser) {
     const parent = await this.prisma.letter.findFirst({
       where: { id, deletedAt: null },
       select: {
@@ -237,7 +277,8 @@ export class LetterService {
     const subject = parent.subject.startsWith('Re: ') ? parent.subject : `Re: ${parent.subject}`;
     const letterNumber = await this.generateLetterNumber();
     try {
-      return flatten(await this.prisma.letter.create({
+      return this.prisma.$transaction(async (tx) => {
+        const saved = await tx.letter.create({
         data: {
           letterNumber,
           direction: 'OUTGOING',
@@ -252,10 +293,16 @@ export class LetterService {
           customerId: parent.customerId ?? undefined,
           replyToId: parent.id,
           notes: dto.notes,
-          createdById: actor?.id,
+          createdById: actor.id,
         },
         select: listSelect,
-      }));
+      });
+        await this.audit.recordIn(tx, { action: 'letter.reply', entityType: 'Letter',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { letterNumber, direction: saved.direction, status: saved.status,
+            ...letterChange(saved, ['subject', 'body', 'customerId', 'replyToId']) } });
+        return flatten(saved);
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException(`Letter number ${letterNumber} already exists`);
@@ -265,23 +312,34 @@ export class LetterService {
   }
 
   /** SENT | RECEIVED -> ARCHIVED. */
-  async archive(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'ARCHIVED');
-    return flatten(await this.prisma.letter.update({
-      where: { id },
-      data: { status: 'ARCHIVED', archivedById: actor?.id, archivedAt: new Date() },
-      select: listSelect,
-    }));
+  async archive(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLetter(tx, id);
+      this.assertTransition(before.status, 'ARCHIVED');
+      const after = await tx.letter.update({ where: { id },
+        data: { status: 'ARCHIVED', archivedById: actor.id, archivedAt: new Date() },
+        select: listSelect });
+      await this.audit.recordIn(tx, { action: 'letter.archive', entityType: 'Letter',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, archivedAt: after.archivedAt,
+          archivedById: after.archivedById }, metadata: { letterNumber: after.letterNumber } });
+      return flatten(after);
+    });
   }
 
-  async remove(id: string) {
-    const existing = await this.assertExists(id);
-    if (existing.status !== 'DRAFT') {
-      throw new ConflictException('Only DRAFT letters can be deleted');
-    }
-    await this.prisma.letter.update({ where: { id }, data: { deletedAt: new Date() } });
-    return { id, deleted: true };
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLetter(tx, id);
+      if (before.status !== 'DRAFT') throw new ConflictException('Only DRAFT letters can be deleted');
+      await tx.letter.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'letter.delete_draft', entityType: 'Letter',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, letterNumber: before.letterNumber,
+          ...letterChange(before, ['subject', 'body', 'replyToId']) },
+        afterData: { deleted: true } });
+      return { id, deleted: true };
+    });
   }
 
   // -------------------------------------------------------------------------

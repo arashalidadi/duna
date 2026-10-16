@@ -18,7 +18,8 @@ export class PortalController {
 
   private actor(req: Request) {
     const user = (req as any).user;
-    return { id: (user?.id ?? user?.sub) as string | undefined };
+    return { id: (user?.id ?? user?.sub) as string | undefined,
+      email: user?.email as string | undefined };
   }
 
   @Get('me')

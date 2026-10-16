@@ -1,8 +1,12 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../auth/decorators/require-permissions.decorator';
+import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../../auth/types';
 import { AuditService } from './audit.service';
 import { AuditQueryDto } from './dto/audit-query.dto';
+import { AuditExportQueryDto } from './dto/audit-export-query.dto';
 
 /**
  * DEC-044…DEC-048 / DEC-116 — audit review.
@@ -17,9 +21,9 @@ import { AuditQueryDto } from './dto/audit-query.dto';
  * they are still subject to the same audit trail as everyone else, because every
  * action they take is recorded.
  *
- * Read-only by construction: there is no create, update or delete route. The
- * audit log is append-only (DEC-047 tamper resistance; DEC-048 corrections create
- * new events rather than erasing history).
+ * There is no create, update or delete route. A separately gated CSV export
+ * appends its own audit event; database triggers reject UPDATE/DELETE/TRUNCATE
+ * regardless of the caller's application permissions (DEC-047/048).
  */
 @ApiTags('audit')
 @ApiBearerAuth()
@@ -49,6 +53,23 @@ export class AuditController {
       limit: limit !== undefined && Number.isFinite(limit) ? limit : undefined,
       offset: offset !== undefined && Number.isFinite(offset) ? offset : undefined,
     });
+  }
+
+  /** Sensitive export is separate from browsing and always records the actor. */
+  @Get('export')
+  @RequirePermissions(['audit:read', 'audit:export'])
+  async export(@Query() query: AuditExportQueryDto, @CurrentUser() actor: AuthenticatedUser,
+    @Req() req: Request, @Res() res: Response) {
+    const page = await this.auditService.exportCsv(query, actor, {
+      ipAddress: req.ip ?? null, userAgent: req.get('user-agent') ?? null,
+    });
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="audit-export.csv"',
+      'Cache-Control': 'no-store',
+      'X-Audit-Export-Has-More': String(page.hasMore),
+      ...(page.nextOffset !== null ? { 'X-Audit-Export-Next-Offset': String(page.nextOffset) } : {}),
+    });
+    res.status(200).send(page.csv);
   }
 
   /** Audit history for one entity — the "who changed this record" view. */

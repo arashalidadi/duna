@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/auth/decorators/public.decorator';
+import { Authenticated } from '../../common/auth/decorators/authenticated.decorator';
 import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { AuthService } from './auth.service';
@@ -19,6 +20,7 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Authenticated() // own account only; no administrative permission is required
   @Get('me')
   @HttpCode(HttpStatus.OK)
   async me(@CurrentUser() user: AuthenticatedUser) {
@@ -34,10 +36,11 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Authenticated() // the submitted token is validated by AuthService
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@CurrentUser() user: AuthenticatedUser, @Body() dto: RefreshTokenDto) {
-    await this.authService.logout(dto.refreshToken);
+    await this.authService.logout(dto.refreshToken, user.id);
     return { loggedOut: true };
   }
 }

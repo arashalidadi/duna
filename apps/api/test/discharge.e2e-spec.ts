@@ -861,4 +861,18 @@ describe('Discharge (e2e)', () => {
       'Nothing was actually loaded on this Actual Loading; there is nothing to discharge'
     );
   }, 30000);
+
+  it('Phase 11: full discharge, line and lifecycle events are atomic and attributable', async () => {
+    const prisma = app.get(PrismaService);
+    const events = await prisma.auditLog.findMany({ where: { entityType: 'Discharge',
+      entityId: dischargeId }, orderBy: { createdAt: 'asc' } });
+    expect(events.map((row) => row.action)).toEqual(expect.arrayContaining([
+      'discharge.create', 'discharge.item.update', 'discharge.start', 'discharge.complete',
+    ]));
+    const line = events.find((row) => row.action === 'discharge.item.update');
+    expect(line?.metadata).toEqual(expect.objectContaining({ itemId }));
+    const completed = events.find((row) => row.action === 'discharge.complete');
+    expect(completed?.afterData).toEqual(expect.objectContaining({ status: 'COMPLETED' }));
+    expect(events.every((row) => Boolean(row.actorId && row.actorEmail))).toBe(true);
+  });
 });

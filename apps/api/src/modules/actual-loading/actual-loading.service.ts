@@ -8,6 +8,7 @@ import { Prisma, ActualLoadingStatus } from '@prisma/client';
 type ActualLoadingStatusFilter = { equals: ActualLoadingStatus } | { in: ActualLoadingStatus[] } | { not: ActualLoadingStatus };
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -171,6 +172,13 @@ export class ActualLoadingService {
     private readonly audit: AuditService,
   ) {}
 
+  private async lockActual(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "ActualLoading" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.actualLoading.findUnique({ where: { id } });
+    if (!row || row.deletedAt) throw new NotFoundException('Actual Loading not found');
+    return row;
+  }
+
   // -------------------------------------------------------------------------
   // Actual Loading CRUD
   // -------------------------------------------------------------------------
@@ -239,7 +247,7 @@ export class ActualLoadingService {
    * Validates: load list exists, is active (not soft-deleted), and in COMPLETED state.
    * Creates in DRAFT state. Generates stable actualLoadingNumber: AL-YYMM-#####.
    */
-  async create(dto: CreateActualLoadingDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateActualLoadingDto, actor: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id: dto.loadListId },
       select: { id: true, status: true, loadListNumber: true, voyageId: true, items: { select: { id: true, cargoId: true } } },
@@ -282,12 +290,12 @@ export class ActualLoadingService {
         // number allocation and the nested items commit or roll back together. A loadListItemId
         // unique collision rolls the number back too and falls through to the 409 path.
         // Mirrors Discharge.create()'s nested `items: { create: [...] }` shape.
-        return tx.actualLoading.create({
+        const saved = await tx.actualLoading.create({
           data: {
             actualLoadingNumber,
             loadListId: dto.loadListId,
             notes: dto.notes,
-            createdById: actor?.id,
+            createdById: actor.id,
             items: {
               create: loadList.items.map((line) => ({
                 loadListItemId: line.id,
@@ -299,6 +307,11 @@ export class ActualLoadingService {
           },
           select: detailSelect,
         });
+        await this.audit.recordIn(tx, { action: 'actual_loading.create', entityType: 'ActualLoading',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { actualLoadingNumber, loadListId: saved.loadListId,
+            status: saved.status, itemIds: saved.items.map((item) => item.id) } });
+        return saved;
       });
     } catch (e) {
       if (
@@ -315,24 +328,17 @@ export class ActualLoadingService {
    * Update Actual Loading notes.
    * Only DRAFT/IN_PROGRESS lists may be edited.
    */
-  async update(id: string, dto: { notes?: string }) {
-    const existing = await this.prisma.actualLoading.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Actual Loading not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Actual Loading is ${existing.status}; only DRAFT/IN_PROGRESS can be edited`,
-      );
-    }
-
-    return this.prisma.actualLoading.update({
-      where: { id },
-      data: { notes: dto.notes },
-      select: detailSelect,
+  async update(id: string, dto: { notes?: string }, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockActual(tx, id);
+      if (!EDITABLE_STATUSES.includes(before.status)) throw new ConflictException('Loading is frozen');
+      const after = await tx.actualLoading.update({ where: { id },
+        data: { notes: dto.notes }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'actual_loading.update', entityType: 'ActualLoading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { notes: before.notes }, afterData: { notes: after.notes },
+        metadata: { actualLoadingNumber: after.actualLoadingNumber } });
+      return after;
     });
   }
 
@@ -340,23 +346,15 @@ export class ActualLoadingService {
    * Soft delete an Actual Loading.
    * Only DRAFT/IN_PROGRESS lists may be deleted. COMPLETED/FINALIZED/CANCELLED are preserved for audit.
    */
-  async remove(id: string) {
-    const existing = await this.prisma.actualLoading.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Actual Loading not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Actual Loading is ${existing.status}; only DRAFT/IN_PROGRESS can be deleted`,
-      );
-    }
-
-    await this.prisma.actualLoading.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  async remove(id: string, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockActual(tx, id);
+      if (!EDITABLE_STATUSES.includes(before.status)) throw new ConflictException('Loading is frozen');
+      await tx.actualLoading.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'actual_loading.delete_draft', entityType: 'ActualLoading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, actualLoadingNumber: before.actualLoadingNumber },
+        afterData: { deleted: true } });
     });
   }
 
@@ -372,7 +370,7 @@ export class ActualLoadingService {
     actualLoadingId: string,
     loadListItemId: string,
     dto: UpdateActualLoadingItemDto,
-    _actor?: AuthenticatedUser
+    actor: AuthenticatedUser
   ) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
       where: { id: actualLoadingId },
@@ -439,6 +437,9 @@ export class ActualLoadingService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const parent = await this.lockActual(tx, actualLoadingId);
+        if (!EDITABLE_STATUSES.includes(parent.status)) throw new ConflictException('Loading is frozen');
+        const before = await tx.actualLoadingItem.findUnique({ where: { loadListItemId } });
         const item = await tx.actualLoadingItem.upsert({
           where: { loadListItemId },
           create: {
@@ -458,11 +459,15 @@ export class ActualLoadingService {
         });
 
         // Update actual loading updatedAt
-        await tx.actualLoading.update({
-          where: { id: actualLoadingId },
-          data: { updatedAt: new Date() },
-        });
-
+        await tx.actualLoading.update({ where: { id: actualLoadingId },
+          data: { updatedAt: new Date() } });
+        const fields = ['id', 'loadListItemId', 'cargoId', 'actualQuantity', 'result', 'notes'];
+        await this.audit.recordIn(tx, { action: 'actual_loading.item.update',
+          entityType: 'ActualLoading', entityId: actualLoadingId,
+          actorId: actor.id, actorEmail: actor.email,
+          beforeData: before ? auditProjection(before, fields) : null,
+          afterData: auditProjection(item, fields),
+          metadata: { actualLoadingNumber: parent.actualLoadingNumber, loadListItemId } });
         return item;
       });
     } catch (e) {
@@ -483,7 +488,7 @@ export class ActualLoadingService {
   async updateItemsBulk(
     actualLoadingId: string,
     dto: BulkUpdateActualLoadingItemsDto,
-    _actor?: AuthenticatedUser
+    actor: AuthenticatedUser
   ) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
       where: { id: actualLoadingId },
@@ -578,6 +583,10 @@ export class ActualLoadingService {
     // Insert/update valid items transactionally
     await this.prisma.$transaction(
       async (tx) => {
+        const parent = await this.lockActual(tx, actualLoadingId);
+        if (!EDITABLE_STATUSES.includes(parent.status)) throw new ConflictException('Loading is frozen');
+        const changes: Array<{ loadListItemId: string; before: unknown; after: unknown }> = [];
+        const fields = ['id', 'loadListItemId', 'cargoId', 'actualQuantity', 'result', 'notes'];
         for (const { item, result } of validItems) {
           let loadingResult: 'FULL' | 'PARTIAL' | 'NOT_LOADED' = 'NOT_LOADED';
           if (item.actualQuantity !== undefined) {
@@ -589,8 +598,11 @@ export class ActualLoadingService {
               loadingResult = 'PARTIAL';
             }
           }
-          await tx.actualLoadingItem.upsert({
-            where: { actualLoadingId_loadListItemId: { actualLoadingId, loadListItemId: item.loadListItemId } },
+          const key = { actualLoadingId, loadListItemId: item.loadListItemId };
+          const before = await tx.actualLoadingItem.findUnique({
+            where: { actualLoadingId_loadListItemId: key } });
+          const after = await tx.actualLoadingItem.upsert({
+            where: { actualLoadingId_loadListItemId: key },
             create: {
               actualLoadingId,
               loadListItemId: item.loadListItemId,
@@ -605,12 +617,20 @@ export class ActualLoadingService {
               notes: item.notes,
             },
           });
+          changes.push({ loadListItemId: item.loadListItemId,
+            before: before ? auditProjection(before, fields) : null,
+            after: auditProjection(after, fields) });
         }
-        // Update actual loading updatedAt
-        await tx.actualLoading.update({
-          where: { id: actualLoadingId },
-          data: { updatedAt: new Date() },
-        });
+        await tx.actualLoading.update({ where: { id: actualLoadingId },
+          data: { updatedAt: new Date() } });
+        await this.audit.recordIn(tx, { action: 'actual_loading.item.update_bulk',
+          entityType: 'ActualLoading', entityId: actualLoadingId,
+          actorId: actor.id, actorEmail: actor.email,
+          beforeData: changes.map((change) => ({ loadListItemId: change.loadListItemId,
+            values: change.before })),
+          afterData: changes.map((change) => ({ loadListItemId: change.loadListItemId,
+            values: change.after })),
+          metadata: { actualLoadingNumber: parent.actualLoadingNumber, updatedCount: changes.length } });
       }
     );
 
@@ -626,7 +646,7 @@ export class ActualLoadingService {
   /**
    * Only DRAFT/IN_PROGRESS lists. Removes actual loading relationship only.
    */
-  async removeItem(actualLoadingId: string, itemId: string) {
+  async removeItem(actualLoadingId: string, itemId: string, actor: AuthenticatedUser) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
       where: { id: actualLoadingId },
       select: { id: true, status: true, deletedAt: true },
@@ -646,10 +666,21 @@ export class ActualLoadingService {
       throw new NotFoundException('Actual Loading item not found');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.actualLoadingItem.delete({ where: { id: itemId } }),
-      this.prisma.actualLoading.update({ where: { id: actualLoadingId }, data: { updatedAt: new Date() } }),
-    ]);
+    await this.prisma.$transaction(async (tx) => {
+      const parent = await this.lockActual(tx, actualLoadingId);
+      if (!EDITABLE_STATUSES.includes(parent.status)) throw new ConflictException('Loading is frozen');
+      const before = await tx.actualLoadingItem.findFirst({ where: { id: itemId, actualLoadingId } });
+      if (!before) throw new NotFoundException('Actual Loading item not found');
+      await tx.actualLoadingItem.delete({ where: { id: itemId } });
+      await tx.actualLoading.update({ where: { id: actualLoadingId },
+        data: { updatedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'actual_loading.item.remove',
+        entityType: 'ActualLoading', entityId: actualLoadingId,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, ['id', 'cargoId', 'loadListItemId',
+          'actualQuantity', 'result']),
+        metadata: { actualLoadingNumber: parent.actualLoadingNumber, itemId } });
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -661,20 +692,18 @@ export class ActualLoadingService {
    * Transitions DRAFT -> IN_PROGRESS. Required before recording quantities
    * in the standard flow (quantities may still be recorded while IN_PROGRESS).
    */
-  async start(id: string, _actor?: AuthenticatedUser) {
-    const existing = await this.prisma.actualLoading.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Actual Loading not found');
-    }
-    this.assertTransition(existing.status, 'IN_PROGRESS');
-
-    return this.prisma.actualLoading.update({
-      where: { id },
-      data: { status: 'IN_PROGRESS', updatedAt: new Date() },
-      select: detailSelect,
+  async start(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockActual(tx, id);
+      this.assertTransition(before.status, 'IN_PROGRESS');
+      const after = await tx.actualLoading.update({ where: { id },
+        data: { status: 'IN_PROGRESS', updatedAt: new Date() }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'actual_loading.start',
+        entityType: 'ActualLoading', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status }, afterData: { status: after.status },
+        metadata: { actualLoadingNumber: after.actualLoadingNumber } });
+      return after;
     });
   }
 
@@ -686,54 +715,33 @@ export class ActualLoadingService {
    * yard inventory record (cargo has left the yard) in the same transaction.
    * Completed Actual Loadings are immutable for ordinary edits.
    */
-  async complete(id: string, dto: CompleteActualLoadingDto, actor?: AuthenticatedUser) {
-    const actualLoading = await this.prisma.actualLoading.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        loadListId: true,
-        deletedAt: true,
-        items: {
-          select: { cargoId: true, loadListItemId: true, actualQuantity: true, result: true },
-        },
-      },
-    });
-    if (!actualLoading || actualLoading.deletedAt) {
-      throw new NotFoundException('Actual Loading not found');
-    }
-    this.assertTransition(actualLoading.status, 'COMPLETED');
-    if (actualLoading.items.length === 0) {
-      throw new BadRequestException('Cannot complete an Actual Loading with no items');
-    }
-
-    // Re-validate ALL items against CURRENT cargo state (stale frontend cannot bypass)
-    for (const item of actualLoading.items) {
-      const cargo = await this.prisma.cargo.findUnique({
-        where: { id: item.cargoId },
-        select: { id: true, inspectionStatus: true, status: true, quantity: true, deletedAt: true },
-      });
-      if (!cargo || cargo.deletedAt) {
-        throw new ConflictException(`Cargo ${item.cargoId} no longer exists`);
-      }
-      if (cargo.status === 'CANCELLED') {
-        throw new ConflictException(`Cargo is cancelled; cannot complete loading`);
-      }
-      if (cargo.inspectionStatus !== 'DONE') {
-        throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be DONE`);
-      }
-      if (item.actualQuantity !== null && cargo.quantity !== null && item.actualQuantity > cargo.quantity) {
-        throw new ConflictException(`Actual quantity exceeds cargo quantity`);
-      }
-    }
-
+  async complete(id: string, dto: CompleteActualLoadingDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockActual(tx, id);
+      this.assertTransition(before.status, 'COMPLETED');
+      const actualLoading = await tx.actualLoading.findUniqueOrThrow({ where: { id }, select: {
+        items: { select: { cargoId: true, loadListItemId: true, actualQuantity: true, result: true } },
+      } });
+      if (actualLoading.items.length === 0) throw new BadRequestException('Cannot complete an Actual Loading with no items');
+      // Parent lock serializes concurrent item edits and completion.
+      for (const item of actualLoading.items) {
+        const cargo = await tx.cargo.findUnique({ where: { id: item.cargoId },
+          select: { id: true, inspectionStatus: true, status: true, quantity: true, deletedAt: true } });
+        if (!cargo || cargo.deletedAt) throw new ConflictException(`Cargo ${item.cargoId} no longer exists`);
+        if (cargo.status === 'CANCELLED') throw new ConflictException('Cargo is cancelled; cannot complete loading');
+        if (cargo.inspectionStatus !== 'DONE') {
+          throw new ConflictException(`Cargo inspection is ${cargo.inspectionStatus}; must be DONE`);
+        }
+        if (item.actualQuantity !== null && cargo.quantity !== null && item.actualQuantity > cargo.quantity) {
+          throw new ConflictException('Actual quantity exceeds cargo quantity');
+        }
+      }
       const updated = await tx.actualLoading.update({
         where: { id },
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
-          completedById: actor?.id,
+          completedById: actor.id,
           notes: dto.notes,
         },
         select: detailSelect,
@@ -756,11 +764,20 @@ export class ActualLoadingService {
           await tx.yardInventory.delete({ where: { id: placement.id } });
           await this.audit.recordIn(tx, { action: 'yard_inventory.loaded_exit',
             entityType: 'YardInventory', entityId: placement.id,
-            actorId: actor?.id ?? 'system', actorEmail: actor?.email ?? 'system',
+            actorId: actor.id, actorEmail: actor.email,
             beforeData: placement, afterData: { removed: true, actualLoadingId: id } });
         }
       }
 
+      await this.audit.recordIn(tx, { action: 'actual_loading.complete',
+        entityType: 'ActualLoading', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: updated.status, completedAt: updated.completedAt,
+          completedById: actor.id,
+          items: actualLoading.items.map((item) => ({ cargoId: item.cargoId,
+            actualQuantity: item.actualQuantity, result: item.result })) },
+        metadata: { actualLoadingNumber: before.actualLoadingNumber } });
       return updated;
     });
   }
@@ -770,7 +787,7 @@ export class ActualLoadingService {
    * Requires cancel reason. Sets status = CANCELLED, cancelledAt, cancelledById.
    * Cancelled Actual Loadings are immutable.
    */
-  async cancel(id: string, dto: CancelActualLoadingDto, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: CancelActualLoadingDto, actor: AuthenticatedUser) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -785,15 +802,21 @@ export class ActualLoadingService {
       throw new BadRequestException('A cancellation reason is required');
     }
 
-    return this.prisma.actualLoading.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockActual(tx, id);
+      this.assertTransition(before.status, 'CANCELLED');
+      const after = await tx.actualLoading.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelledAt: new Date(), cancelledById: actor.id,
         notes: dto.cancelReason,
-      },
-      select: detailSelect,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'actual_loading.cancel',
+        entityType: 'ActualLoading', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, cancelledAt: after.cancelledAt,
+          cancelledById: actor.id, reason },
+        metadata: { actualLoadingNumber: after.actualLoadingNumber, reason } });
+      return after;
     });
   }
 

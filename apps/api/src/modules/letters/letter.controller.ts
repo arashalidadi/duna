@@ -31,14 +31,14 @@ export class LetterController {
 
   @Patch(':id')
   @RequirePermissions('letter:update')
-  update(@Param('id') id: string, @Body() dto: UpdateLetterDto) {
-    return this.letters.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateLetterDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.letters.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('letter:delete')
-  remove(@Param('id') id: string) {
-    return this.letters.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.letters.remove(id, actor);
   }
 
   // ─── lifecycle ────────────────────────────────────────────────────────────

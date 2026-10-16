@@ -51,35 +51,35 @@ export class VoyagesController {
 
   @Patch(':id')
   @RequirePermissions('voyage:update')
-  update(@Param('id') id: string, @Body() dto: UpdateVoyageDto) {
-    return this.voyagesService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateVoyageDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.voyagesService.update(id, dto, actor);
   }
 
   @Post(':id/schedule')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('voyage:schedule')
-  schedule(@Param('id') id: string, @Body() dto: ScheduleVoyageDto) {
-    return this.voyagesService.schedule(id, dto);
+  schedule(@Param('id') id: string, @Body() dto: ScheduleVoyageDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.voyagesService.schedule(id, dto, actor);
   }
 
   @Post(':id/start')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('voyage:start')
-  start(@Param('id') id: string) {
-    return this.voyagesService.start(id);
+  start(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.voyagesService.start(id, actor);
   }
 
   @Post(':id/complete')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('voyage:complete')
-  complete(@Param('id') id: string) {
-    return this.voyagesService.complete(id);
+  complete(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.voyagesService.complete(id, actor);
   }
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions('voyage:cancel')
-  cancel(@Param('id') id: string, @Body() dto: CancelVoyageDto) {
-    return this.voyagesService.cancel(id, dto.cancelReason);
+  cancel(@Param('id') id: string, @Body() dto: CancelVoyageDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.voyagesService.cancel(id, dto.cancelReason, actor);
   }
 }

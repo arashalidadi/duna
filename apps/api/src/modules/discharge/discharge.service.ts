@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, DischargeStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -134,7 +136,15 @@ export class DischargeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
+
+  private async lockDischarge(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "Discharge" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.discharge.findUnique({ where: { id } });
+    if (!row || row.deletedAt) throw new NotFoundException('Discharge not found');
+    return row;
+  }
 
   // -------------------------------------------------------------------------
   // CRUD
@@ -225,7 +235,7 @@ export class DischargeService {
    * results with a recorded quantity); NOT_LOADED lines never left the yard
    * and cannot be discharged. One live discharge per actual loading.
    */
-  async create(dto: CreateDischargeDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateDischargeDto, actor: AuthenticatedUser) {
     const actualLoading = await this.prisma.actualLoading.findUnique({
       where: { id: dto.actualLoadingId },
       select: {
@@ -298,7 +308,7 @@ export class DischargeService {
             dischargeNumber,
             actualLoadingId: dto.actualLoadingId,
             notes: dto.notes,
-            createdById: actor?.id,
+            createdById: actor.id,
             items: {
               create: onBoard.map((it) => ({
                 actualLoadingItemId: it.id,
@@ -310,6 +320,11 @@ export class DischargeService {
           },
           select: detailSelect,
         });
+        await this.audit.recordIn(tx, { action: 'discharge.create', entityType: 'Discharge',
+          entityId: row.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { dischargeNumber, actualLoadingId: dto.actualLoadingId,
+            status: row.status, items: row.items.map((item) => ({ id: item.id,
+              cargoId: item.cargoId, expectedQuantity: item.expectedQuantity })) } });
         return row;
       });
       return flatten(created as DischargeDetail);
@@ -325,43 +340,32 @@ export class DischargeService {
   }
 
   /** Update notes. Only NOT_STARTED/IN_PROGRESS. */
-  async update(id: string, dto: { notes?: string }) {
-    const existing = await this.prisma.discharge.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Discharge not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Discharge is ${existing.status}; only NOT_STARTED/IN_PROGRESS can be edited`,
-      );
-    }
-
-    const row = await this.prisma.discharge.update({
-      where: { id },
-      data: { notes: dto.notes },
-      select: detailSelect,
+  async update(id: string, dto: { notes?: string }, actor: AuthenticatedUser) {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDischarge(tx, id);
+      if (!EDITABLE_STATUSES.includes(before.status)) throw new ConflictException('Discharge is frozen');
+      const after = await tx.discharge.update({ where: { id },
+        data: { notes: dto.notes }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'discharge.update', entityType: 'Discharge',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { notes: before.notes }, afterData: { notes: after.notes },
+        metadata: { dischargeNumber: after.dischargeNumber } });
+      return after;
     });
     return flatten(row as DischargeDetail);
   }
 
   /** Soft delete. Only NOT_STARTED/IN_PROGRESS. */
-  async remove(id: string) {
-    const existing = await this.prisma.discharge.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
+  async remove(id: string, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDischarge(tx, id);
+      if (!EDITABLE_STATUSES.includes(before.status)) throw new ConflictException('Discharge is frozen');
+      await tx.discharge.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'discharge.delete_draft', entityType: 'Discharge',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, dischargeNumber: before.dischargeNumber },
+        afterData: { deleted: true } });
     });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Discharge not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Discharge is ${existing.status}; only NOT_STARTED/IN_PROGRESS can be deleted`,
-      );
-    }
-    await this.prisma.discharge.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   // -------------------------------------------------------------------------
@@ -377,68 +381,47 @@ export class DischargeService {
     dischargeId: string,
     itemId: string,
     dto: UpdateDischargeItemDto,
-    _actor?: AuthenticatedUser,
+    actor: AuthenticatedUser,
   ) {
-    const discharge = await this.prisma.discharge.findUnique({
-      where: { id: dischargeId },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!discharge || discharge.deletedAt) {
-      throw new NotFoundException('Discharge not found');
-    }
-    if (!EDITABLE_STATUSES.includes(discharge.status)) {
-      throw new ConflictException(
-        `Discharge is ${discharge.status}; items can only be updated in NOT_STARTED/IN_PROGRESS`,
-      );
-    }
-
-    const item = await this.prisma.dischargeItem.findUnique({
-      where: { id: itemId },
-      select: { id: true, dischargeId: true, expectedQuantity: true },
-    });
-    if (!item || item.dischargeId !== dischargeId) {
-      throw new NotFoundException('Discharge item not found or does not belong to this Discharge');
-    }
-
-    if (dto.dischargeQuantity !== undefined) {
-      if (dto.dischargeQuantity < 0) {
-        throw new BadRequestException('Discharged quantity cannot be negative');
-      }
-      if (item.expectedQuantity !== null && dto.dischargeQuantity > item.expectedQuantity) {
-        throw new BadRequestException(
-          `Discharged quantity (${dto.dischargeQuantity}) exceeds expected/loaded quantity (${item.expectedQuantity})`,
+    return this.prisma.$transaction(async (tx) => {
+      // Lock first, then validate and snapshot the same line whose mutation is
+      // logged. Completion and competing item edits also lock this parent row.
+      const parent = await this.lockDischarge(tx, dischargeId);
+      if (!EDITABLE_STATUSES.includes(parent.status)) {
+        throw new ConflictException(
+          `Discharge is ${parent.status}; items can only be updated in NOT_STARTED/IN_PROGRESS`,
         );
       }
-    }
-
-    let result: 'FULL' | 'PARTIAL' | 'NOT_DISCHARGED' = 'NOT_DISCHARGED';
-    if (dto.dischargeQuantity !== undefined) {
-      if (dto.dischargeQuantity === 0) {
-        result = 'NOT_DISCHARGED';
-      } else if (item.expectedQuantity !== null && dto.dischargeQuantity >= item.expectedQuantity) {
-        result = 'FULL';
-      } else {
-        result = 'PARTIAL';
+      const before = await tx.dischargeItem.findFirst({ where: { id: itemId, dischargeId } });
+      if (!before) throw new NotFoundException('Discharge item not found or does not belong to this Discharge');
+      if (dto.dischargeQuantity !== undefined) {
+        if (dto.dischargeQuantity < 0) throw new BadRequestException('Discharged quantity cannot be negative');
+        if (before.expectedQuantity !== null && dto.dischargeQuantity > before.expectedQuantity) {
+          throw new BadRequestException(
+            `Discharged quantity (${dto.dischargeQuantity}) exceeds expected/loaded quantity (${before.expectedQuantity})`,
+          );
+        }
       }
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.dischargeItem.update({
-        where: { id: itemId },
-        data: {
-          ...(dto.dischargeQuantity !== undefined ? { dischargeQuantity: dto.dischargeQuantity } : {}),
-          result,
-          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
-        },
-      }),
-      this.prisma.discharge.update({ where: { id: dischargeId }, data: { updatedAt: new Date() } }),
-    ]);
-
-    const row = await this.prisma.discharge.findUnique({
-      where: { id: dischargeId },
-      select: detailSelect,
+      let result: 'FULL' | 'PARTIAL' | 'NOT_DISCHARGED' = 'NOT_DISCHARGED';
+      if (dto.dischargeQuantity !== undefined && dto.dischargeQuantity > 0) {
+        result = before.expectedQuantity !== null && dto.dischargeQuantity >= before.expectedQuantity
+          ? 'FULL' : 'PARTIAL';
+      }
+      const after = await tx.dischargeItem.update({ where: { id: itemId }, data: {
+        ...(dto.dischargeQuantity !== undefined ? { dischargeQuantity: dto.dischargeQuantity } : {}),
+        result,
+        ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      } });
+      await tx.discharge.update({ where: { id: dischargeId }, data: { updatedAt: new Date() } });
+      const fields = ['dischargeQuantity', 'result', 'notes'];
+      await this.audit.recordIn(tx, { action: 'discharge.item.update', entityType: 'Discharge',
+        entityId: dischargeId, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { dischargeNumber: parent.dischargeNumber, itemId, cargoId: before.cargoId } });
+      const row = await tx.discharge.findUniqueOrThrow({ where: { id: dischargeId },
+        select: detailSelect });
+      return flatten(row as DischargeDetail);
     });
-    return flatten(row as DischargeDetail);
   }
 
   // -------------------------------------------------------------------------
@@ -446,20 +429,17 @@ export class DischargeService {
   // -------------------------------------------------------------------------
 
   /** NOT_STARTED -> IN_PROGRESS. */
-  async start(id: string, _actor?: AuthenticatedUser) {
-    const existing = await this.prisma.discharge.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Discharge not found');
-    }
-    this.assertTransition(existing.status, 'IN_PROGRESS');
-
-    const row = await this.prisma.discharge.update({
-      where: { id },
-      data: { status: 'IN_PROGRESS', updatedAt: new Date() },
-      select: detailSelect,
+  async start(id: string, actor: AuthenticatedUser) {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDischarge(tx, id);
+      this.assertTransition(before.status, 'IN_PROGRESS');
+      const after = await tx.discharge.update({ where: { id },
+        data: { status: 'IN_PROGRESS', updatedAt: new Date() }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'discharge.start', entityType: 'Discharge',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status }, afterData: { status: after.status },
+        metadata: { dischargeNumber: after.dischargeNumber } });
+      return after;
     });
     return flatten(row as DischargeDetail);
   }
@@ -469,56 +449,34 @@ export class DischargeService {
    * reaches CargoStatus.DELIVERED in the same transaction. Partial / not
    * discharged lines keep their cargo at LOADED for follow-up claims.
    */
-  async complete(id: string, dto: CompleteDischargeDto, actor?: AuthenticatedUser) {
-    const discharge = await this.prisma.discharge.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        status: true,
-        deletedAt: true,
-        items: {
-          select: { id: true, cargoId: true, expectedQuantity: true, dischargeQuantity: true, result: true },
-        },
-      },
-    });
-    if (!discharge || discharge.deletedAt) {
-      throw new NotFoundException('Discharge not found');
-    }
-    this.assertTransition(discharge.status, 'COMPLETED');
-    if (discharge.items.length === 0) {
-      throw new BadRequestException('Cannot complete a Discharge with no items');
-    }
-
-    // Re-validate quantities against the expected snapshots (stale clients cannot bypass).
-    for (const item of discharge.items) {
-      if (
-        item.dischargeQuantity !== null &&
-        item.expectedQuantity !== null &&
-        item.dischargeQuantity > item.expectedQuantity
-      ) {
-        throw new ConflictException(
-          `Discharged quantity exceeds the expected/loaded quantity on one of the lines`,
-        );
-      }
-      const cargo = await this.prisma.cargo.findUnique({
-        where: { id: item.cargoId },
-        select: { status: true, deletedAt: true },
-      });
-      if (!cargo || cargo.deletedAt) {
-        throw new ConflictException('A cargo on this discharge no longer exists');
-      }
-      if (cargo.status === 'CANCELLED') {
-        throw new ConflictException('A cargo on this discharge is cancelled');
-      }
-    }
-
+  async complete(id: string, dto: CompleteDischargeDto, actor: AuthenticatedUser) {
     const row = await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDischarge(tx, id);
+      this.assertTransition(before.status, 'COMPLETED');
+      const discharge = await tx.discharge.findUniqueOrThrow({ where: { id }, select: {
+        items: { select: { id: true, cargoId: true, expectedQuantity: true,
+          dischargeQuantity: true, result: true } },
+      } });
+      if (discharge.items.length === 0) throw new BadRequestException('Cannot complete a Discharge with no items');
+      // Parent row lock serializes item changes and completion. Validate the exact
+      // quantities and statuses which are committed alongside this audit event.
+      for (const item of discharge.items) {
+        if (item.dischargeQuantity !== null && item.expectedQuantity !== null &&
+            item.dischargeQuantity > item.expectedQuantity) {
+          throw new ConflictException('Discharged quantity exceeds expected/loaded quantity');
+        }
+        const cargo = await tx.cargo.findUnique({ where: { id: item.cargoId },
+          select: { status: true, deletedAt: true } });
+        if (!cargo || cargo.deletedAt || cargo.status === 'CANCELLED') {
+          throw new ConflictException('A cargo on this discharge no longer exists or is cancelled');
+        }
+      }
       const updated = await tx.discharge.update({
         where: { id },
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
-          completedById: actor?.id,
+          completedById: actor.id,
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         },
         select: detailSelect,
@@ -534,13 +492,20 @@ export class DischargeService {
         });
       }
 
+      await this.audit.recordIn(tx, { action: 'discharge.complete', entityType: 'Discharge',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: updated.status, completedAt: updated.completedAt,
+          completedById: actor.id, items: discharge.items.map((item) => ({
+            cargoId: item.cargoId, dischargeQuantity: item.dischargeQuantity, result: item.result })) },
+        metadata: { dischargeNumber: before.dischargeNumber } });
       return updated;
     });
     return flatten(row as DischargeDetail);
   }
 
   /** Cancel with mandatory reason. NOT_STARTED/IN_PROGRESS -> CANCELLED. */
-  async cancel(id: string, dto: CancelDischargeDto, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: CancelDischargeDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.discharge.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -555,15 +520,20 @@ export class DischargeService {
       throw new BadRequestException('A cancellation reason is required');
     }
 
-    const row = await this.prisma.discharge.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
+    const row = await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDischarge(tx, id);
+      this.assertTransition(before.status, 'CANCELLED');
+      const after = await tx.discharge.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelledAt: new Date(), cancelledById: actor.id,
         notes: dto.cancelReason,
-      },
-      select: detailSelect,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'discharge.cancel', entityType: 'Discharge',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, cancelledAt: after.cancelledAt,
+          cancelledById: actor.id, reason },
+        metadata: { dischargeNumber: after.dischargeNumber, reason } });
+      return after;
     });
     return flatten(row as DischargeDetail);
   }

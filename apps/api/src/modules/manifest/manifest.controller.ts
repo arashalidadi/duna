@@ -62,14 +62,15 @@ export class ManifestController {
 
   @Patch(':id')
   @RequirePermissions('manifest:update')
-  update(@Param('id') id: string, @Body() dto: UpdateManifestDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateManifestDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.update(id, dto, user);
   }
 
   @Delete(':id')
   @RequirePermissions('manifest:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user);
   }
 
   // -------------------------------------------------------------------------
@@ -88,14 +89,16 @@ export class ManifestController {
 
   @Patch(':id/items/:itemId')
   @RequirePermissions('manifest:update')
-  updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateManifestItemDto) {
-    return this.service.updateItem(id, itemId, dto);
+  updateItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @Body() dto: UpdateManifestItemDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateItem(id, itemId, dto, user);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('manifest:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.service.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.removeItem(id, itemId, user);
   }
 
   // -------------------------------------------------------------------------

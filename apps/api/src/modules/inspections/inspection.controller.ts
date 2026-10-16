@@ -42,8 +42,9 @@ export class InspectionController {
 
   @Patch(':id')
   @RequirePermissions('inspection:update')
-  update(@Param('id') id: string, @Body() dto: UpdateInspectionDto) {
-    return this.inspectionService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateInspectionDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.inspectionService.update(id, dto, user);
   }
 
   /**

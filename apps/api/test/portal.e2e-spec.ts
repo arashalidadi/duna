@@ -354,4 +354,16 @@ describe('Agent Portal (e2e)', () => {
     const rows = byStatus.body.data.data ?? byStatus.body.data;
     expect(rows.some((b: { id: string }) => b.id === bookingBId)).toBe(true);
   });
+
+  it('Phase 11: scoped booking changes preserve the portal and office actor in the audit trail', async () => {
+    const prisma = app.get(PrismaService);
+    const rows = await prisma.auditLog.findMany({ where: { entityType: 'BookingRequest',
+      entityId: bookingAId } });
+    expect(rows.map((row) => row.action)).toEqual(expect.arrayContaining(['booking.create', 'booking.respond']));
+    expect(rows.find((row) => row.action === 'booking.create')?.actorEmail)
+      .toBe(`pf-aga-${randomTag}@shipping.local`);
+    expect(rows.find((row) => row.action === 'booking.respond')?.actorEmail)
+      .toBe(`pf-ofc-${randomTag}@shipping.local`);
+    expect(rows.filter((row) => row.action === 'booking.respond')).toHaveLength(1);
+  });
 });

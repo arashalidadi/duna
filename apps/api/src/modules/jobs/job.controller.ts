@@ -44,14 +44,14 @@ export class JobController {
 
   @Patch(':id')
   @RequirePermissions('job:update')
-  update(@Param('id') id: string, @Body() dto: UpdateJobDto) {
-    return this.jobs.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateJobDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.jobs.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('job:delete')
-  remove(@Param('id') id: string) {
-    return this.jobs.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.jobs.remove(id, actor);
   }
 
   // ─── items ─────────────────────────────────────────────────────────────────
@@ -60,22 +60,22 @@ export class JobController {
   @HttpCode(200)
   @RequirePermissions('job:update')
   @ApiOperation({ summary: 'Add a COST/INCOME line; returns the refreshed job' })
-  addItem(@Param('id') id: string, @Body() dto: JobItemInputDto) {
-    return this.jobs.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: JobItemInputDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.jobs.addItem(id, dto, actor);
   }
 
   @Patch(':id/items/:itemId')
   @RequirePermissions('job:update')
   @ApiOperation({ summary: 'Update a line; returns the refreshed job' })
-  updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateJobItemDto) {
-    return this.jobs.updateItem(id, itemId, dto);
+  updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateJobItemDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.jobs.updateItem(id, itemId, dto, actor);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('job:update')
   @ApiOperation({ summary: 'Remove a line; returns the refreshed job' })
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.jobs.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.jobs.removeItem(id, itemId, actor);
   }
 
   // ─── lifecycle ────────────────────────────────────────────────────────────

@@ -60,14 +60,14 @@ export class LoadPlanningController {
 
   @Patch(':id')
   @RequirePermissions('load_list:update')
-  update(@Param('id') id: string, @Body() dto: UpdateLoadListDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateLoadListDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.update(id, dto, actor);
   }
 
   @Delete(':id')
   @RequirePermissions('load_list:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.remove(id, actor);
   }
 
   // -------------------------------------------------------------------------
@@ -76,20 +76,20 @@ export class LoadPlanningController {
 
   @Post(':id/items')
   @RequirePermissions('load_list:update')
-  addItem(@Param('id') id: string, @Body() dto: AddLoadListItemDto) {
-    return this.service.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: AddLoadListItemDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.addItem(id, dto, actor);
   }
 
   @Post(':id/items/bulk')
   @RequirePermissions('load_list:update')
-  addItemsBulk(@Param('id') id: string, @Body() dto: BulkAddLoadListItemsDto) {
-    return this.service.addItemsBulk(id, dto);
+  addItemsBulk(@Param('id') id: string, @Body() dto: BulkAddLoadListItemsDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.addItemsBulk(id, dto, actor);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('load_list:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.service.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.removeItem(id, itemId, actor);
   }
 
   // -------------------------------------------------------------------------

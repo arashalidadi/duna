@@ -23,7 +23,7 @@ export class DocumentAssetsController {
   constructor(private readonly assets: DocumentAssetsService) {}
 
   @Get()
-  list() { return this.assets.list(); }
+  list(@CurrentUser() user: AuthenticatedUser) { return this.assets.list(user); }
 
   @Post()
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_ASSET_BYTES, files: 1, fields: 5 } }))

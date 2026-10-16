@@ -7,6 +7,8 @@ import {
 import { Prisma, ManifestStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
@@ -183,6 +185,7 @@ export class ManifestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -263,7 +266,7 @@ export class ManifestService {
    * document stays stable even if the voyage is later edited.
    * Creates in DRAFT state. Generates manifestNumber: MAN-YYMM-#####.
    */
-  async create(dto: CreateManifestDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateManifestDto, actor: AuthenticatedUser) {
     const voyage = await this.prisma.voyage.findUnique({
       where: { id: dto.voyageId },
       select: {
@@ -385,7 +388,7 @@ export class ManifestService {
                 notifyParty: null,
                 description: null,
                 notes: null,
-                createdById: actor?.id,
+                createdById: actor.id,
               },
               select: detailSelect,
             });
@@ -441,10 +444,13 @@ export class ManifestService {
               });
             }
 
+            await this.audit.recordIn(tx, { action: 'manifest.create', entityType: 'Manifest',
+              entityId: manifest.id, actorId: actor.id, actorEmail: actor.email,
+              afterData: { manifestNumber, status: 'DRAFT', voyageId: dto.voyageId,
+                billIds, items: billItems.length } });
             return this.withPartySummary(
               await tx.manifest.findUniqueOrThrow({
-                where: { id: manifest.id },
-                select: detailSelect,
+                where: { id: manifest.id }, select: detailSelect,
               }),
             );
           });
@@ -489,8 +495,8 @@ export class ManifestService {
         voyage.destinationPortId,
       );
       try {
-        return this.withPartySummary(
-          await this.prisma.manifest.create({
+        return await this.prisma.$transaction(async (tx) => {
+          const row = await tx.manifest.create({
             data: {
               manifestNumber,
               voyageId: dto.voyageId,
@@ -504,11 +510,15 @@ export class ManifestService {
               notifyParty: dto.notifyParty,
               description: dto.description,
               notes: dto.notes,
-              createdById: actor?.id,
+              createdById: actor.id,
             },
             select: detailSelect,
-          }),
-        );
+          });
+          await this.audit.recordIn(tx, { action: 'manifest.create', entityType: 'Manifest',
+            entityId: row.id, actorId: actor.id, actorEmail: actor.email,
+            afterData: { manifestNumber, status: row.status, voyageId: row.voyageId } });
+          return this.withPartySummary(row);
+        });
       } catch (e) {
         if (
           e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -540,7 +550,7 @@ export class ManifestService {
    * Update Manifest header fields (parties, costs, description, notes).
    * Only DRAFT manifests may be edited.
    */
-  async update(id: string, dto: UpdateManifestDto) {
+  async update(id: string, dto: UpdateManifestDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true, shipperId: true, consigneeId: true, agentId: true },
@@ -553,8 +563,11 @@ export class ManifestService {
     });
 
     try {
-      return this.withPartySummary(
-        await this.prisma.manifest.update({
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "manifests" WHERE "id" = ${id} FOR UPDATE`;
+        const before = await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+        await this.assertEditable(before, 'edited');
+        const updated = await tx.manifest.update({
           where: { id },
           data: {
             ...(dto.shipperId !== undefined ? { shipperId: dto.shipperId || null } : {}),
@@ -571,8 +584,14 @@ export class ManifestService {
             ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
           },
           select: detailSelect,
-        }),
-      );
+        });
+        const fields = Object.keys(dto);
+        await this.audit.recordIn(tx, { action: 'manifest.update', entityType: 'Manifest',
+          entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, fields),
+          afterData: auditProjection(updated, fields), metadata: { fields } });
+        return this.withPartySummary(updated);
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
         throw new BadRequestException(
@@ -587,21 +606,25 @@ export class ManifestService {
    * Soft delete a Manifest. Only DRAFT manifests may be deleted; submitted and
    * approved documents are preserved for audit.
    */
-  async remove(id: string) {
+  async remove(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
     await this.assertEditable(existing, 'deleted');
 
-    await this.prisma.manifest.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.manifest.updateMany({ where: { id, status: 'DRAFT', deletedAt: null },
+        data: { deletedAt: new Date() } });
+      if (changed.count !== 1) throw new ConflictException('Manifest changed during draft deletion');
+      const row = await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'manifest.delete_draft', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing!.status, deletedAt: null },
+        afterData: { status: row.status, deletedAt: row.deletedAt },
+        metadata: { manifestNumber: row.manifestNumber } });
+      return this.withPartySummary(row);
     });
-
-    return this.withPartySummary(
-      await this.prisma.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
-    );
   }
 
   // -------------------------------------------------------------------------
@@ -614,7 +637,7 @@ export class ManifestService {
    * (present in a COMPLETED Actual Loading for the voyage); cargo not cancelled;
    * not already on this manifest. Snapshots weight/quantity/packages from cargo.
    */
-  async addItem(id: string, dto: AddManifestItemDto, _actor?: AuthenticatedUser) {
+  async addItem(id: string, dto: AddManifestItemDto, actor: AuthenticatedUser) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, voyageId: true, deletedAt: true },
@@ -678,7 +701,7 @@ export class ManifestService {
     const sequence = (maxSeq._max.sequence ?? 0) + 1;
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.manifestItem.create({
+      const created = await tx.manifestItem.create({
         data: {
           manifestId: id,
           cargoId: dto.cargoId,
@@ -694,6 +717,10 @@ export class ManifestService {
         },
       });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'manifest.item.add', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: { itemId: created.id, cargoId: created.cargoId,
+          quantity: created.quantity, sequence: created.sequence } });
       return this.withPartySummary(
         await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
       );
@@ -701,7 +728,7 @@ export class ManifestService {
   }
 
   /** Update a manifest line's B/L number / notes. DRAFT only. */
-  async updateItem(id: string, itemId: string, dto: UpdateManifestItemDto) {
+  async updateItem(id: string, itemId: string, dto: UpdateManifestItemDto, actor: AuthenticatedUser) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -717,13 +744,19 @@ export class ManifestService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.manifestItem.update({
+      const before = await tx.manifestItem.findUniqueOrThrow({ where: { id: itemId } });
+      const updated = await tx.manifestItem.update({
         where: { id: itemId },
         data: {
           ...(dto.blNumber !== undefined ? { blNumber: dto.blNumber } : {}),
           ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
         },
       });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'manifest.item.update', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(updated, fields),
+        metadata: { itemId, fields } });
       return this.withPartySummary(
         await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
       );
@@ -731,7 +764,7 @@ export class ManifestService {
   }
 
   /** Remove a manifest line and recompute totals. DRAFT only. */
-  async removeItem(id: string, itemId: string) {
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -747,8 +780,12 @@ export class ManifestService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.manifestItem.delete({ where: { id: itemId } });
+      const removed = await tx.manifestItem.delete({ where: { id: itemId } });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'manifest.item.remove', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { itemId, cargoId: removed.cargoId, sequence: removed.sequence },
+        afterData: { removed: true }, metadata: { itemId } });
       return this.withPartySummary(
         await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }),
       );
@@ -807,7 +844,7 @@ export class ManifestService {
   // -------------------------------------------------------------------------
 
   /** DRAFT -> SUBMITTED. Requires at least one cargo line. */
-  async submit(id: string, actor?: AuthenticatedUser) {
+  async submit(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true, _count: { select: { items: true } } },
@@ -820,17 +857,21 @@ export class ManifestService {
       throw new BadRequestException('Cannot submit a manifest with no cargo lines');
     }
 
-    return this.withPartySummary(
-      await this.prisma.manifest.update({
-        where: { id },
-        data: { status: 'SUBMITTED', submittedAt: new Date(), submittedById: actor?.id },
-        select: detailSelect,
-      }),
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.manifest.updateMany({
+        where: { id, status: 'DRAFT', deletedAt: null },
+        data: { status: 'SUBMITTED', submittedAt: new Date(), submittedById: actor.id },
+      });
+      if (changed.count !== 1) throw new ConflictException('Manifest changed during submission');
+      await this.audit.recordIn(tx, { action: 'manifest.submit', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: 'DRAFT' }, afterData: { status: 'SUBMITTED', submittedById: actor.id } });
+      return this.withPartySummary(await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect }));
+    });
   }
 
   /** SUBMITTED -> APPROVED. Terminal. */
-  async approve(id: string, actor?: AuthenticatedUser) {
+  async approve(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -841,19 +882,23 @@ export class ManifestService {
     this.assertTransition(existing.status, 'APPROVED');
 
     const approved = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.manifest.update({
-        where: { id },
-        data: { status: 'APPROVED', approvedAt: new Date(), approvedById: actor?.id },
-        select: detailSelect,
-      });
-      await captureIssuedDocument(tx, 'manifest', id, actor?.id);
+      const changed = await tx.manifest.updateMany({ where: { id, status: 'SUBMITTED', deletedAt: null },
+        data: { status: 'APPROVED', approvedAt: new Date(), approvedById: actor.id } });
+      if (changed.count !== 1) throw new ConflictException('Manifest changed during approval');
+      const row = await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await captureIssuedDocument(tx, 'manifest', id, actor.id);
+      await this.audit.recordIn(tx, { action: 'manifest.approve', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: 'SUBMITTED' },
+        afterData: { status: 'APPROVED', approvedById: actor.id, approvedAt: row.approvedAt },
+        metadata: { manifestNumber: row.manifestNumber } });
       return row;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     return this.withPartySummary(approved);
   }
 
   /** DRAFT|SUBMITTED -> CANCELLED. Reason required. Terminal. */
-  async cancel(id: string, dto: CancelManifestDto, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: CancelManifestDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.manifest.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -866,18 +911,21 @@ export class ManifestService {
       throw new BadRequestException('A cancellation reason is required');
     }
 
-    return this.withPartySummary(
-      await this.prisma.manifest.update({
-        where: { id },
-        data: {
-          status: 'CANCELLED',
-          cancelReason: dto.cancelReason.trim(),
-          cancelledAt: new Date(),
-          cancelledById: actor?.id,
-        },
-        select: detailSelect,
-      }),
-    );
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.manifest.updateMany({
+        where: { id, status: existing.status, deletedAt: null },
+        data: { status: 'CANCELLED', cancelReason: dto.cancelReason.trim(),
+          cancelledAt: new Date(), cancelledById: actor.id },
+      });
+      if (changed.count !== 1) throw new ConflictException('Manifest changed during cancellation');
+      const row = await tx.manifest.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'manifest.cancel', entityType: 'Manifest',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing.status },
+        afterData: { status: 'CANCELLED', cancelReason: dto.cancelReason.trim() },
+        metadata: { manifestNumber: row.manifestNumber, reason: dto.cancelReason.trim() } });
+      return this.withPartySummary(row);
+    });
   }
 
   // -------------------------------------------------------------------------

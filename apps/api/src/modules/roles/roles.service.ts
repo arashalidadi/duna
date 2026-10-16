@@ -9,7 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { CreateRoleDto, ListRolesQueryDto, SetRolePermissionsDto, UpdateRoleDto } from './dto/roles.dto';
 import { AccountAccess } from '../../common/auth/account-access';
-import { RELEASE_OVERRIDE_PERMISSION } from '../../common/auth/types';
+import { AUDIT_EXPORT_PERMISSION, AUDIT_EXPORT_ROLE, RELEASE_OVERRIDE_PERMISSION } from '../../common/auth/types';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 
 const roleSelect = {
@@ -90,152 +90,155 @@ export class RolesService {
     if (existing && !existing.deletedAt) {
       throw new BadRequestException('A role with this code already exists');
     }
-    const role = await this.prisma.role.create({
-      data: { code: dto.code, name: dto.name, description: dto.description, isSystem: false },
-      select: { ...roleSelect, ...withCounts },
+    const role = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.role.create({
+        data: { code: dto.code, name: dto.name, description: dto.description, isSystem: false },
+        select: { ...roleSelect, ...withCounts },
+      });
+      await this.audit.recordIn(tx, { action: 'role:create', entityType: 'Role', entityId: row.id,
+        actorId: actor.id, actorEmail: actor.email, afterData: { code: row.code, name: row.name } });
+      return row;
     });
-
-    // DEC-044..048 / DEC-116 — role lifecycle changes are audited.
-    await this.audit.record({
-      action: 'role:create',
-      entityType: 'Role',
-      entityId: role.id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      afterData: { code: role.code, name: role.name },
-    });
-
     return this.mapOne(role);
   }
 
   async update(id: string, dto: UpdateRoleDto, actor: AccountAccess) {
-    const before = await this.findById(id);
-    const role = await this.prisma.role.update({
-      where: { id },
-      data: { name: dto.name, description: dto.description },
-      select: { ...roleSelect, ...withCounts },
+    const role = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Role" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.role.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Role not found');
+      if (before.isSystem && actor.isPrimaryAdmin !== true) {
+        throw new ForbiddenException('Only the primary administrator may edit system roles');
+      }
+      await this.assertCanManageRole(tx, id, actor);
+      const row = await tx.role.update({
+        where: { id }, data: { name: dto.name, description: dto.description },
+        select: { ...roleSelect, ...withCounts },
+      });
+      await this.audit.recordIn(tx, { action: 'role:update', entityType: 'Role', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { name: before.name, description: before.description },
+        afterData: { name: row.name, description: row.description } });
+      return row;
     });
-
-    await this.audit.record({
-      action: 'role:update',
-      entityType: 'Role',
-      entityId: id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      beforeData: { name: before.name, description: before.description },
-      afterData: { name: role.name, description: role.description },
-    });
-
     return this.mapOne(role);
   }
 
   /** Activate = clear deletedAt; deactivate = soft-delete (set deletedAt). */
   async setActive(id: string, isActive: boolean, actor: AccountAccess) {
-    const role = await this.findById(id);
-    if (role.isSystem) {
-      throw new ForbiddenException('System roles cannot be deactivated');
-    }
-    const updated = await this.prisma.role.update({
-      where: { id },
-      data: { deletedAt: isActive ? null : new Date() },
-      select: { ...roleSelect, ...withCounts },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Role" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.role.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Role not found');
+      if (before.isSystem) throw new ForbiddenException('System roles cannot be deactivated');
+      // Reactivating a dormant role also reactivates every permission it holds
+      // for its members. A delegated role editor must not resurrect an owner's
+      // release-exception delegation (or any power beyond their own).
+      await this.assertCanManageRole(tx, id, actor);
+      const row = await tx.role.update({ where: { id },
+        data: { deletedAt: isActive ? null : new Date() }, select: { ...roleSelect, ...withCounts } });
+      await this.audit.recordIn(tx, { action: isActive ? 'role:reactivate' : 'role:deactivate',
+        entityType: 'Role', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { isActive: !before.deletedAt }, afterData: { isActive } });
+      return row;
     });
-
-    await this.audit.record({
-      action: 'role:activate',
-      entityType: 'Role',
-      entityId: id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      beforeData: { isActive: !isActive },
-      afterData: { isActive },
-    });
-
     return this.mapOne(updated);
   }
 
   async setPermissions(id: string, dto: SetRolePermissionsDto, actor: AccountAccess) {
-    const before = await this.findById(id);
-    const permissionIds = dto.permissionIds;
-    const perms = await this.prisma.permission.findMany({
-      where: { id: { in: permissionIds } },
-      select: { id: true, code: true },
-    });
-    if (perms.length !== permissionIds.length) {
-      throw new BadRequestException('One or more permissions do not exist');
-    }
+    // A row lock serializes competing grant editors; the before/after audit and
+    // the grants must commit together (never post-commit best-effort logging).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Role" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.role.findUnique({ where: { id },
+        include: { permissions: { include: { permission: true } } } });
+      if (!before) throw new NotFoundException('Role not found');
+      if (before.isSystem && actor.isPrimaryAdmin !== true) {
+        throw new ForbiddenException('Only the primary administrator may change system roles');
+      }
+      const permissionIds = dto.permissionIds;
+      if (new Set(permissionIds).size !== permissionIds.length) {
+        throw new BadRequestException('Duplicate permission ids');
+      }
+      const perms = await tx.permission.findMany({
+        where: { id: { in: permissionIds } }, select: { id: true, code: true },
+      });
+      if (perms.length !== permissionIds.length) {
+        throw new BadRequestException('One or more permissions do not exist');
+      }
+      const beforeCodes = before.permissions.map((p) => p.permission.code);
+      const afterCodes = perms.map((p) => p.code);
+      // A delegated editor cannot even change a more powerful target role:
+      // revocation or no-op regrant would otherwise bypass owner delegation.
+      this.assertCanManageRoleCodes(beforeCodes, actor);
+      // A delegated role editor cannot mint capabilities they do not already
+      // possess. In particular, editing their OWN role must not self-escalate.
+      if (actor.isPrimaryAdmin !== true && afterCodes.some((code) =>
+        !beforeCodes.includes(code) && !actor.permissions.includes(code))) {
+        throw new ForbiddenException('Cannot grant permissions beyond your own authority');
+      }
+      this.assertCanChangePrivilegedPermissions(actor, beforeCodes, afterCodes);
+      if (afterCodes.includes(AUDIT_EXPORT_PERMISSION) && before.code !== AUDIT_EXPORT_ROLE) {
+        throw new ForbiddenException('Audit export may be granted only to the dedicated AUDIT_EXPORTER role');
+      }
+      if (before.code === AUDIT_EXPORT_ROLE &&
+        (afterCodes.length !== 2 || !afterCodes.includes('audit:read') ||
+          !afterCodes.includes(AUDIT_EXPORT_PERMISSION))) {
+        throw new BadRequestException('The dedicated audit exporter role may hold only audit:read and audit:export');
+      }
 
-    // DEC-116 (T-F) — release-exception authority may only be granted or revoked
-    // by the primary administrator. Ordinary ADMIN roles hold `role:permissions`
-    // and could otherwise self-escalate; this closes that path at the server.
-    //
-    // Only an actual CHANGE of membership is refused. The role screen submits the
-    // role's complete permission set, so a non-owner editing an unrelated
-    // permission on a role that already holds `release:override` would otherwise
-    // be rejected with a misleading 403 although nothing about release authority
-    // changed. Retaining an existing grant is not a grant.
-    const beforeCodes = (before.permissions ?? []).map((p) => p.code);
-    const afterCodes = perms.map((p: { code: string }) => p.code);
-    await this.assertCanGrantReleaseOverride(actor, beforeCodes, afterCodes);
-
-    await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({ where: { roleId: id } }),
-      this.prisma.rolePermission.createMany({
+      await tx.rolePermission.deleteMany({ where: { roleId: id } });
+      await tx.rolePermission.createMany({
         data: permissionIds.map((permissionId) => ({ roleId: id, permissionId })),
-      }),
-    ]);
-
-    // DEC-044..048 / DEC-116 — permission assignment is the most security-sensitive
-    // role operation. The complete before/after code sets are recorded so that any
-    // grant of release authority is traceable to the person who granted it.
-    await this.audit.record({
-      action: 'role:permissions:set',
-      entityType: 'Role',
-      entityId: id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      beforeData: { permissionCodes: beforeCodes },
-      afterData: { permissionCodes: afterCodes },
-      metadata: {
-        grantedByPrimaryAdmin: actor.isPrimaryAdmin === true,
-        added: afterCodes.filter((c: string) => !beforeCodes.includes(c)),
-        removed: beforeCodes.filter((c: string) => !afterCodes.includes(c)),
-        releaseOverrideGranted:
-          afterCodes.includes(RELEASE_OVERRIDE_PERMISSION) &&
-          !beforeCodes.includes(RELEASE_OVERRIDE_PERMISSION),
-      },
+      });
+      await this.audit.recordIn(tx, { action: 'role:permissions:set', entityType: 'Role',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { permissionCodes: beforeCodes }, afterData: { permissionCodes: afterCodes },
+        metadata: { grantedByPrimaryAdmin: actor.isPrimaryAdmin === true,
+          added: afterCodes.filter((code) => !beforeCodes.includes(code)),
+          removed: beforeCodes.filter((code) => !afterCodes.includes(code)),
+          releaseOverrideGranted: afterCodes.includes(RELEASE_OVERRIDE_PERMISSION) &&
+            !beforeCodes.includes(RELEASE_OVERRIDE_PERMISSION),
+          auditExportGranted: afterCodes.includes(AUDIT_EXPORT_PERMISSION) &&
+            !beforeCodes.includes(AUDIT_EXPORT_PERMISSION) },
+      });
     });
-
     return this.findById(id);
   }
 
-  /**
-   * DEC-116 (T-F) — only the primary administrator may grant or revoke
-   * `release:override`.
-   *
-   * This is what makes "the primary administrator has explicitly granted the
-   * permission" a real, server-enforced property rather than a convention: the
-   * grant is refused at write time and recorded, so its provenance is auditable.
-   * The primary administrator is exempt by implicit full authority — no approval
-   * above them is created.
-   *
-   * Revocation is covered too: DEC-116 states the owner may withhold release
-   * authority, so a non-owner must not be able to strip it out of a role either.
-   * A submission that leaves membership untouched is not a grant and not a
-   * revocation, and is therefore allowed.
-   */
-  private async assertCanGrantReleaseOverride(
-    actor: AccountAccess,
-    beforeCodes: string[],
-    afterCodes: string[]
-  ): Promise<void> {
+  /** The caller locks the Role row before loading its grants. Mutations of a
+   * powerful role, including reactivation and innocuous-looking edits, are
+   * owner-only when the role holds special delegations or broader authority. */
+  private async assertCanManageRole(tx: Prisma.TransactionClient, id: string, actor: AccountAccess) {
     if (actor.isPrimaryAdmin === true) return;
-    const heldBefore = beforeCodes.includes(RELEASE_OVERRIDE_PERMISSION);
-    const heldAfter = afterCodes.includes(RELEASE_OVERRIDE_PERMISSION);
-    if (heldBefore === heldAfter) return;
-    throw new ForbiddenException(
-      `Only the primary administrator may grant or revoke '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
-    );
+    const grants = await tx.rolePermission.findMany({ where: { roleId: id },
+      select: { permission: { select: { code: true } } } });
+    this.assertCanManageRoleCodes(grants.map((p) => p.permission.code), actor);
+  }
+
+  private assertCanManageRoleCodes(codes: string[], actor: AccountAccess) {
+    if (actor.isPrimaryAdmin === true) return;
+    if (codes.some((code) => code === RELEASE_OVERRIDE_PERMISSION ||
+      code === AUDIT_EXPORT_PERMISSION || !actor.permissions.includes(code))) {
+      throw new ForbiddenException('Cannot manage a role with authority beyond your own');
+    }
+  }
+
+  /** Owner-only changes to release-exception and audit-export delegation.
+   * Resubmitting the same complete permission set is not a new grant; both
+   * additions and revocations are otherwise denied to an ordinary ADMIN. */
+  private assertCanChangePrivilegedPermissions(
+    actor: AccountAccess, beforeCodes: string[], afterCodes: string[]
+  ): void {
+    if (actor.isPrimaryAdmin === true) return;
+    for (const code of [RELEASE_OVERRIDE_PERMISSION, AUDIT_EXPORT_PERMISSION]) {
+      if (beforeCodes.includes(code) !== afterCodes.includes(code)) {
+        throw new ForbiddenException(
+          `Only the primary administrator may grant or revoke '${code}' (${code === RELEASE_OVERRIDE_PERMISSION
+            ? 'release-exception approval authority' : 'audit export authority'}).`
+        );
+      }
+    }
   }
 
   private mapItems(items: RoleWithRelations[]) {

@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { CargoStatus, LoadListStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
@@ -182,7 +184,16 @@ export class LoadPlanningService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
+
+  private async lockDraft(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "LoadList" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.loadList.findUnique({ where: { id } });
+    if (!row || row.deletedAt) throw new NotFoundException('Load List not found');
+    if (row.status !== 'DRAFT') throw new ConflictException('Only DRAFT Load Lists can be changed');
+    return row;
+  }
 
   // -------------------------------------------------------------------------
   // Load List CRUD
@@ -250,7 +261,7 @@ export class LoadPlanningService {
    * Validates: voyage exists, is active (not soft-deleted), and in a planning-allowed state.
    * Creates in DRAFT state. Generates stable loadListNumber: LL-YYMM-#####.
    */
-  async create(dto: CreateLoadListDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateLoadListDto, actor: AuthenticatedUser) {
     const voyage = await this.prisma.voyage.findUnique({
       where: { id: dto.voyageId },
       select: { id: true, status: true, voyageNumber: true },
@@ -284,7 +295,7 @@ export class LoadPlanningService {
             ),
           tx,
         });
-        return tx.loadList.create({
+        const saved = await tx.loadList.create({
           data: {
             loadListNumber,
             voyageId: dto.voyageId,
@@ -293,6 +304,10 @@ export class LoadPlanningService {
           },
           select: detailSelect,
         });
+        await this.audit.recordIn(tx, { action: 'load_list.create', entityType: 'LoadList',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { loadListNumber, voyageId: dto.voyageId, status: saved.status } });
+        return saved;
       });
     } catch (e) {
       if (
@@ -309,24 +324,16 @@ export class LoadPlanningService {
    * Update a Load List (notes only).
    * Only DRAFT lists may be edited.
    */
-  async update(id: string, dto: UpdateLoadListDto) {
-    const existing = await this.prisma.loadList.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Load List not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Load List is ${existing.status}; only DRAFT lists can be edited`
-      );
-    }
-
-    return this.prisma.loadList.update({
-      where: { id },
-      data: { notes: dto.notes },
-      select: detailSelect,
+  async update(id: string, dto: UpdateLoadListDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDraft(tx, id);
+      const after = await tx.loadList.update({ where: { id },
+        data: { notes: dto.notes }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'load_list.update_draft', entityType: 'LoadList',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { notes: before.notes }, afterData: { notes: after.notes },
+        metadata: { loadListNumber: after.loadListNumber } });
+      return after;
     });
   }
 
@@ -334,23 +341,14 @@ export class LoadPlanningService {
    * Delete a Load List (soft delete).
    * Only DRAFT lists may be deleted. FINALIZED/CANCELLED are preserved for audit.
    */
-  async remove(id: string) {
-    const existing = await this.prisma.loadList.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Load List not found');
-    }
-    if (!EDITABLE_STATUSES.includes(existing.status)) {
-      throw new ConflictException(
-        `Load List is ${existing.status}; only DRAFT lists can be deleted`
-      );
-    }
-
-    await this.prisma.loadList.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  async remove(id: string, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDraft(tx, id);
+      await tx.loadList.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'load_list.delete_draft', entityType: 'LoadList',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, loadListNumber: before.loadListNumber },
+        afterData: { deleted: true } });
     });
   }
 
@@ -531,7 +529,7 @@ export class LoadPlanningService {
   async addItem(
     loadListId: string,
     dto: AddLoadListItemDto,
-    actor?: AuthenticatedUser
+    actor: AuthenticatedUser
   ) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id: loadListId },
@@ -593,32 +591,19 @@ export class LoadPlanningService {
       );
     }
 
-    // Determine next sequence number
-    const maxSeq = await this.prisma.loadListItem.aggregate({
-      where: { loadListId },
-      _max: { sequence: true },
-    });
-    const nextSequence = (maxSeq._max.sequence ?? 0) + 1;
-
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const item = await tx.loadListItem.create({
-          data: {
-            loadListId,
-            cargoId: dto.cargoId,
-            plannedQuantity: dto.plannedQuantity ?? null,
-            sequence: dto.sequence ?? nextSequence,
-            notes: dto.notes,
-          },
-          select: itemSelect,
-        });
-
-        // Update load list updatedAt
-        await tx.loadList.update({
-          where: { id: loadListId },
-          data: { updatedAt: new Date() },
-        });
-
+        const parent = await this.lockDraft(tx, loadListId);
+        const last = await tx.loadListItem.aggregate({ where: { loadListId }, _max: { sequence: true } });
+        const item = await tx.loadListItem.create({ data: {
+          loadListId, cargoId: dto.cargoId, plannedQuantity: dto.plannedQuantity ?? null,
+          sequence: dto.sequence ?? (last._max.sequence ?? 0) + 1, notes: dto.notes,
+        }, select: itemSelect });
+        await tx.loadList.update({ where: { id: loadListId }, data: { updatedAt: new Date() } });
+        await this.audit.recordIn(tx, { action: 'load_list.item.add', entityType: 'LoadList',
+          entityId: loadListId, actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(item, ['id', 'cargoId', 'plannedQuantity', 'sequence', 'notes']),
+          metadata: { loadListNumber: parent.loadListNumber } });
         return item;
       });
     } catch (e) {
@@ -637,7 +622,7 @@ export class LoadPlanningService {
    * Transactional: all items validated first, then all inserted or none.
    * Returns detailed results per item (success/failure with reasons).
    */
-  async addItemsBulk(loadListId: string, dto: BulkAddLoadListItemsDto, actor?: AuthenticatedUser) {
+  async addItemsBulk(loadListId: string, dto: BulkAddLoadListItemsDto, actor: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id: loadListId },
       select: { id: true, status: true, voyageId: true, deletedAt: true },
@@ -688,34 +673,27 @@ export class LoadPlanningService {
       };
     }
 
-    // Determine sequence start
-    const maxSeq = await this.prisma.loadListItem.aggregate({
-      where: { loadListId },
-      _max: { sequence: true },
-    });
-    let nextSequence = (maxSeq._max.sequence ?? 0) + 1;
-
-    // Insert valid items transactionally
-    await this.prisma.$transaction(
-      async (tx) => {
-        for (const item of validItems) {
-          await tx.loadListItem.create({
-            data: {
-              loadListId,
-              cargoId: item.cargoId,
-              plannedQuantity: item.plannedQuantity ?? null,
-              sequence: item.sequence ?? nextSequence++,
-              notes: item.notes,
-            },
-          });
-        }
-        // Update load list updatedAt
-        await tx.loadList.update({
-          where: { id: loadListId },
-          data: { updatedAt: new Date() },
-        });
+    // Insert valid items and their audit in one transaction; lock the parent
+    // before allocating sequence positions or a concurrent finalize/add can race.
+    await this.prisma.$transaction(async (tx) => {
+      const parent = await this.lockDraft(tx, loadListId);
+      const maxSeq = await tx.loadListItem.aggregate({ where: { loadListId }, _max: { sequence: true } });
+      let nextSequence = (maxSeq._max.sequence ?? 0) + 1;
+      const inserted = [];
+      for (const item of validItems) {
+        inserted.push(await tx.loadListItem.create({ data: {
+          loadListId, cargoId: item.cargoId,
+          plannedQuantity: item.plannedQuantity ?? null,
+          sequence: item.sequence ?? nextSequence++, notes: item.notes,
+        } }));
       }
-    );
+      await tx.loadList.update({ where: { id: loadListId }, data: { updatedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'load_list.item.add_bulk', entityType: 'LoadList',
+        entityId: loadListId, actorId: actor.id, actorEmail: actor.email,
+        afterData: inserted.map((item) => auditProjection(item,
+          ['id', 'cargoId', 'plannedQuantity', 'sequence', 'notes'])),
+        metadata: { loadListNumber: parent.loadListNumber, addedCount: inserted.length } });
+    });
 
     return {
       added: validItems.length,
@@ -730,7 +708,7 @@ export class LoadPlanningService {
    * Remove a cargo item from a Load List.
    * Only DRAFT lists. Removes planning relationship only — does not affect cargo/inspection/inventory.
    */
-  async removeItem(loadListId: string, itemId: string) {
+  async removeItem(loadListId: string, itemId: string, actor: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id: loadListId },
       select: { id: true, status: true, deletedAt: true },
@@ -750,10 +728,17 @@ export class LoadPlanningService {
       throw new NotFoundException('Load List item not found');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.loadListItem.delete({ where: { id: itemId } }),
-      this.prisma.loadList.update({ where: { id: loadListId }, data: { updatedAt: new Date() } }),
-    ]);
+    await this.prisma.$transaction(async (tx) => {
+      const parent = await this.lockDraft(tx, loadListId);
+      const before = await tx.loadListItem.findFirst({ where: { id: itemId, loadListId } });
+      if (!before) throw new NotFoundException('Load List item not found');
+      await tx.loadListItem.delete({ where: { id: itemId } });
+      await tx.loadList.update({ where: { id: loadListId }, data: { updatedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'load_list.item.remove', entityType: 'LoadList',
+        entityId: loadListId, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, ['id', 'cargoId', 'plannedQuantity', 'sequence', 'notes']),
+        metadata: { loadListNumber: parent.loadListNumber, itemId } });
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -766,7 +751,7 @@ export class LoadPlanningService {
    * Sets status = FINALIZED, finalizedAt, finalizedById.
    * Finalized lists are immutable for ordinary edits.
    */
-  async finalize(id: string, actor?: AuthenticatedUser) {
+  async finalize(id: string, actor: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id },
       select: { id: true, status: true, voyageId: true, deletedAt: true, items: { select: { cargoId: true } } },
@@ -790,16 +775,17 @@ export class LoadPlanningService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const finalized = await tx.loadList.update({
-        where: { id },
-        data: {
-          status: 'FINALIZED',
-          finalizedAt: new Date(),
-          finalizedById: actor?.id,
-        },
-        select: detailSelect,
-      });
-      await captureIssuedDocument(tx, 'loading-list', id, actor?.id);
+      const before = await this.lockDraft(tx, id);
+      const finalized = await tx.loadList.update({ where: { id }, data: {
+        status: 'FINALIZED', finalizedAt: new Date(), finalizedById: actor.id,
+      }, select: detailSelect });
+      await captureIssuedDocument(tx, 'loading-list', id, actor.id);
+      await this.audit.recordIn(tx, { action: 'load_list.finalize', entityType: 'LoadList',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: finalized.status, finalizedAt: finalized.finalizedAt,
+          finalizedById: actor.id, itemIds: finalized.items.map((item) => item.id) },
+        metadata: { loadListNumber: finalized.loadListNumber } });
       return finalized;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
@@ -809,7 +795,7 @@ export class LoadPlanningService {
    * Requires cancel reason. Sets status = CANCELLED, cancelledAt, cancelledById.
    * Cancelled lists are immutable and no longer block duplicate assignments.
    */
-  async cancel(id: string, dto: CancelLoadListDto, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: CancelLoadListDto, actor: AuthenticatedUser) {
     const loadList = await this.prisma.loadList.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -824,14 +810,18 @@ export class LoadPlanningService {
       throw new BadRequestException('A cancellation reason is required');
     }
 
-    return this.prisma.loadList.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
-      },
-      select: detailSelect
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockDraft(tx, id);
+      const after = await tx.loadList.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelledAt: new Date(), cancelledById: actor.id,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'load_list.cancel', entityType: 'LoadList',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, cancelledAt: after.cancelledAt,
+          cancelledById: actor.id, reason },
+        metadata: { loadListNumber: after.loadListNumber, reason } });
+      return after;
     });
   }
 

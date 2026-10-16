@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AccountAccess } from '../../common/auth/account-access';
-import { RELEASE_OVERRIDE_PERMISSION } from '../../common/auth/types';
+import { AUDIT_EXPORT_PERMISSION, AUDIT_EXPORT_ROLE, RELEASE_OVERRIDE_PERMISSION } from '../../common/auth/types';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import type { AuditContext } from '../../common/infrastructure/audit/audit.types';
 import {
@@ -135,44 +135,35 @@ export class UsersService {
       await this.assertValidPortalCustomer(dto.portalCustomerId);
     }
 
-    // DEC-116 (T-F): a role set carrying release-exception authority may only be
-    // assigned by the primary administrator. See assertCanGrantReleaseOverride.
-    // A new user holds no roles, so any release authority in the requested set is
-    // a fresh grant.
-    await this.assertCanGrantReleaseOverride(_actor, [], dto.roleIds);
-
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email.trim().toLowerCase(),
-        fullName: dto.fullName,
-        passwordHash,
-        passwordChangedAt: new Date(),
-        ...(dto.portalCustomerId ? { portalCustomer: { connect: { id: dto.portalCustomerId } } } : {}),
-        roles: {
-          create: dto.roleIds.map((roleId) => ({ roleId })),
-        },
-      },
-      select: { ...userSelect, ...roleRelations },
+    const user = await this.prisma.$transaction(async (tx) => {
+      await this.lockRoles(tx, dto.roleIds);
+      // Preflight above is for an early error only. A role may have been
+      // deactivated between that read and this transaction: check activity
+      // again under the locks before creating a membership.
+      const active = await tx.role.count({ where: { id: { in: dto.roleIds }, deletedAt: null } });
+      if (active !== dto.roleIds.length) {
+        throw new BadRequestException('One or more roles do not exist or are inactive');
+      }
+      await this.assertCanGrantPrivilegedRoles(_actor, [], dto.roleIds, tx);
+      const row = await tx.user.create({
+        data: { email: dto.email.trim().toLowerCase(), fullName: dto.fullName,
+          passwordHash, passwordChangedAt: new Date(),
+          ...(dto.portalCustomerId ? { portalCustomer: { connect: { id: dto.portalCustomerId } } } : {}),
+          roles: { create: dto.roleIds.map((roleId) => ({ roleId })) } },
+        select: { ...userSelect, ...roleRelations },
+      });
+      // No password or hash is ever written to the audit trail.
+      await this.audit.recordIn(tx, { action: 'user:create', entityType: 'User', entityId: row.id,
+        actorId: _actor.id, actorEmail: _actor.email,
+        afterData: { email: row.email, fullName: row.fullName, roleIds: dto.roleIds },
+        metadata: { isPrimaryAdmin: row.isPrimaryAdmin === true } });
+      return row;
     });
-
-    // DEC-044..048 / DEC-116 — user creation is a sensitive operation and is audited.
-    await this.audit.record({
-      action: 'user:create',
-      entityType: 'User',
-      entityId: user.id,
-      actorId: _actor.id,
-      actorEmail: _actor.email,
-      afterData: { email: user.email, fullName: user.fullName, roleIds: dto.roleIds },
-      metadata: { isPrimaryAdmin: user.isPrimaryAdmin === true },
-    });
-
     return this.mapOne(user);
   }
 
   async update(id: string, dto: UpdateUserDto, _actor: AccountAccess) {
-    const before = await this.findById(id);
     await this.assertPrimaryAdminUnchanged(id, dto as unknown as Record<string, unknown>);
 
     const data: Prisma.UserUpdateInput = {};
@@ -197,129 +188,107 @@ export class UsersService {
       }
     }
 
-    const user = await this.prisma.user.update({
-      where: { id },
-      data,
-      select: { ...userSelect, ...roleRelations },
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.user.findUnique({ where: { id },
+        select: { email: true, fullName: true, portalCustomerId: true,
+          isPrimaryAdmin: true, roles: { select: { roleId: true } }, deletedAt: true } });
+      if (!before || before.deletedAt) throw new NotFoundException('User not found');
+      await this.lockRoles(tx, before.roles.map((role) => role.roleId));
+      await this.assertCanManageTarget(tx, id, before.isPrimaryAdmin, _actor);
+      const row = await tx.user.update({ where: { id }, data,
+        select: { ...userSelect, ...roleRelations } });
+      await this.audit.recordIn(tx, { action: 'user:update', entityType: 'User', entityId: id,
+        actorId: _actor.id, actorEmail: _actor.email,
+        beforeData: { email: before.email, fullName: before.fullName,
+          portalCustomerId: before.portalCustomerId ?? null },
+        afterData: { email: row.email, fullName: row.fullName,
+          portalCustomerId: row.portalCustomerId ?? null } });
+      return row;
     });
-
-    // DEC-044..048 — user modification is audited with before/after state.
-    await this.audit.record({
-      action: 'user:update',
-      entityType: 'User',
-      entityId: id,
-      actorId: _actor.id,
-      actorEmail: _actor.email,
-      beforeData: { email: before.email, fullName: before.fullName },
-      afterData: { email: user.email, fullName: user.fullName },
-    });
-
     return this.mapOne(user);
   }
 
   async setActive(id: string, dto: SetUserActiveDto, actor: AccountAccess) {
-    await this.findById(id);
-
-    // DEC-116 (T-I): the primary administrator must never be deactivated. Doing so
-    // would remove the company owner's only route into the system.
-    await this.assertNotDeactivatingPrimaryAdmin(id, dto.isActive);
-
     // A user cannot deactivate their own account (would lock themselves out).
     if (actor.id === id && !dto.isActive) {
       throw new ForbiddenException('You cannot disable your own account');
     }
-    const user = await this.prisma.user.update({
-      where: { id },
-      data: {
-        isActive: dto.isActive,
-        ...(dto.isActive
-          ? { failedLoginAttempts: 0, lockedUntil: null }
-          : {}),
-      },
-      select: { ...userSelect, ...roleRelations },
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.user.findUnique({ where: { id },
+        select: { isActive: true, isPrimaryAdmin: true,
+          roles: { select: { roleId: true } }, deletedAt: true } });
+      if (!before || before.deletedAt) throw new NotFoundException('User not found');
+      await this.lockRoles(tx, before.roles.map((role) => role.roleId));
+      await this.assertCanManageTarget(tx, id, before.isPrimaryAdmin, actor);
+      // Check after locking so a concurrent ownership transfer cannot hand the
+      // designation to an account that is about to be disabled.
+      if (!dto.isActive && before.isPrimaryAdmin) {
+        throw new ForbiddenException(
+          'The primary administrator cannot be deactivated. Transfer the primary administrator role to another user first.',
+        );
+      }
+      const row = await tx.user.update({ where: { id },
+        data: { isActive: dto.isActive,
+          ...(dto.isActive ? { failedLoginAttempts: 0, lockedUntil: null } : {}) },
+        select: { ...userSelect, ...roleRelations } });
+      await this.audit.recordIn(tx, { action: dto.isActive ? 'user:reactivate' : 'user:deactivate',
+        entityType: 'User', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { isActive: before.isActive }, afterData: { isActive: dto.isActive } });
+      return row;
     });
-
-    await this.audit.record({
-      action: 'user:activate',
-      entityType: 'User',
-      entityId: id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      beforeData: { isActive: !dto.isActive },
-      afterData: { isActive: dto.isActive },
-    });
-
     return this.mapOne(user);
   }
 
   async setRoles(id: string, dto: SetUserRolesDto, actor: AccountAccess) {
-    const target = await this.findById(id);
-    await this.validateRoleIds(dto.roleIds);
-
-    // findById() returns `roles` already flattened to `{ id, code, name }[]`,
-    // so `r.id` is the role id — the `UserRole` join row has no separate id.
-    const existingRoleIds = target.roles.map((r) => r.id);
-
-    // DEC-116 (T-F): a role set carrying release-exception authority may only be
-    // assigned by the primary administrator. See assertCanGrantReleaseOverride.
-    await this.assertCanGrantReleaseOverride(actor, existingRoleIds, dto.roleIds);
-
-    // Prevent removing your own last/only roles (self-lockout of management).
-    if (actor.id === id) {
-      const removed = existingRoleIds.filter((r) => !dto.roleIds.includes(r));
-      const retained = dto.roleIds.filter((r) => existingRoleIds.includes(r));
-      if (removed.length > 0 && retained.length === 0) {
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.user.findUnique({ where: { id },
+        select: { deletedAt: true, isPrimaryAdmin: true, roles: { select: { roleId: true } } } });
+      if (!before || before.deletedAt) throw new NotFoundException('User not found');
+      if (before.isPrimaryAdmin && actor.isPrimaryAdmin !== true) {
+        throw new ForbiddenException('Only the primary administrator may change their own role membership');
+      }
+      const priorIds = before.roles.map((role) => role.roleId);
+      if (new Set(dto.roleIds).size !== dto.roleIds.length) throw new BadRequestException('Duplicate role ids');
+      await this.lockRoles(tx, [...priorIds, ...dto.roleIds]);
+      await this.assertCanManageTarget(tx, id, before.isPrimaryAdmin, actor);
+      const active = await tx.role.count({ where: { id: { in: dto.roleIds }, deletedAt: null } });
+      if (active !== dto.roleIds.length) throw new BadRequestException('One or more roles do not exist or are inactive');
+      await this.assertCanGrantPrivilegedRoles(actor, priorIds, dto.roleIds, tx);
+      // Prevent self-lockout of management, without restricting the owner's
+      // implicit authority if their ordinary roles are intentionally changed.
+      if (actor.id === id && !actor.isPrimaryAdmin && priorIds.length && !dto.roleIds.some((r) => priorIds.includes(r))) {
         throw new ForbiddenException('You cannot remove all of your own roles');
       }
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.userRole.deleteMany({ where: { userId: id } }),
-      this.prisma.userRole.createMany({
-        data: dto.roleIds.map((roleId) => ({ userId: id, roleId })),
-      }),
-    ]);
-
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { ...userSelect, ...roleRelations },
+      await tx.userRole.deleteMany({ where: { userId: id } });
+      await tx.userRole.createMany({ data: dto.roleIds.map((roleId) => ({ userId: id, roleId })) });
+      await this.audit.recordIn(tx, { action: 'user:roles:set', entityType: 'User', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { roleIds: priorIds }, afterData: { roleIds: dto.roleIds },
+        metadata: { grantedByPrimaryAdmin: actor.isPrimaryAdmin === true } });
+      return tx.user.findUniqueOrThrow({ where: { id }, select: { ...userSelect, ...roleRelations } });
     });
-
-    // DEC-044..048 / DEC-116 — role assignment is a sensitive operation; the
-    // before/after role sets and the actor are recorded so that any grant of
-    // release-exception authority is traceable to the person who granted it.
-    await this.audit.record({
-      action: 'user:roles:set',
-      entityType: 'User',
-      entityId: id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      // findById() returns `roles` already flattened to `{ id, code, name }[]`
-      // (it maps `user.roles.map(r => r.role)`). There is no `.role` sub-object here.
-      beforeData: { roleIds: target.roles.map((r) => r.id) },
-      afterData: { roleIds: dto.roleIds },
-      metadata: { grantedByPrimaryAdmin: actor.isPrimaryAdmin === true },
-    });
-
-    return this.mapOne(user!);
+    return this.mapOne(user);
   }
 
   async resetPassword(id: string, dto: ResetUserPasswordDto, _actor: AccountAccess) {
-    await this.findById(id);
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({
-      where: { id },
-      data: { passwordHash, passwordChangedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
-    });
-    await this.invalidateUserRefreshTokens(id);
-
-    await this.audit.record({
-      action: 'user:password:reset',
-      entityType: 'User',
-      entityId: id,
-      actorId: _actor.id,
-      actorEmail: _actor.email,
-      metadata: { method: 'admin-reset', sessionsInvalidated: true },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${id} FOR UPDATE`;
+      const target = await tx.user.findUnique({ where: { id },
+        select: { isPrimaryAdmin: true, deletedAt: true, roles: { select: { roleId: true } } } });
+      if (!target || target.deletedAt) throw new NotFoundException('User not found');
+      await this.lockRoles(tx, target.roles.map((role) => role.roleId));
+      await this.assertCanManageTarget(tx, id, target.isPrimaryAdmin, _actor);
+      await tx.user.update({ where: { id }, data: {
+        passwordHash, passwordChangedAt: new Date(), failedLoginAttempts: 0, lockedUntil: null } });
+      await tx.refreshToken.updateMany({ where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'user:password:reset', entityType: 'User',
+        entityId: id, actorId: _actor.id, actorEmail: _actor.email,
+        metadata: { method: 'admin-reset', sessionsInvalidated: true } });
     });
 
     return { reset: true };
@@ -336,19 +305,14 @@ export class UsersService {
     if (!ok) throw new BadRequestException('Current password is incorrect');
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({
-      where: { id: actor.id },
-      data: { passwordHash, passwordChangedAt: new Date() },
-    });
-    await this.invalidateUserRefreshTokens(actor.id);
-
-    await this.audit.record({
-      action: 'user:password:self',
-      entityType: 'User',
-      entityId: actor.id,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      metadata: { method: 'self-service' },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: actor.id },
+        data: { passwordHash, passwordChangedAt: new Date() } });
+      await tx.refreshToken.updateMany({ where: { userId: actor.id, revokedAt: null },
+        data: { revokedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'user:password:self', entityType: 'User',
+        entityId: actor.id, actorId: actor.id, actorEmail: actor.email,
+        metadata: { method: 'self-service', sessionsInvalidated: true } });
     });
   }
 
@@ -360,26 +324,6 @@ export class UsersService {
   // step above the owner: the owner is never blocked from acting, and no other
   // user's approval is ever required.
   // ---------------------------------------------------------------------------
-
-  /**
-   * Blocks deactivation of the primary administrator. The owner's account must
-   * always remain active — it is the only guaranteed route into the system.
-   */
-  private async assertNotDeactivatingPrimaryAdmin(
-    userId: string,
-    nextIsActive: boolean
-  ): Promise<void> {
-    if (nextIsActive) return;
-    const target = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { isPrimaryAdmin: true },
-    });
-    if (target?.isPrimaryAdmin === true) {
-      throw new ForbiddenException(
-        'The primary administrator cannot be deactivated. Transfer the primary administrator role to another user first.'
-      );
-    }
-  }
 
   /**
    * Blocks any update that would alter the isPrimaryAdmin flag.
@@ -405,52 +349,80 @@ export class UsersService {
     }
   }
 
-  /**
-   * DEC-116 (T-F) — release-exception authority may only be conferred or
-   * withdrawn by the primary administrator.
-   *
-   * Possession of `release:override` is necessary but not sufficient for a manager
-   * to exercise release authority: it must have been granted explicitly by the
-   * owner. Enforcing that at write time (rather than inferring it at read time)
-   * is what makes the grant's provenance auditable — and it introduces no
-   * approval layer above the owner, who is exempt by implicit full authority.
-   *
-   * Only a CHANGE is refused. Re-assigning a user the same roles they already
-   * hold — which is what the user-management screen submits — is neither a grant
-   * nor a revocation and must not be rejected as if it were an escalation.
-   */
-  private async assertCanGrantReleaseOverride(
-    actor: AccountAccess,
-    beforeRoleIds: string[],
-    afterRoleIds: string[]
-  ): Promise<void> {
+  /** User-management permissions cannot become a way to hijack the owner or a
+   * more privileged account via password reset, profile edit or deactivation.
+   * Caller holds the target User lock and the target's Role locks before this
+   * read, so a simultaneous permission change cannot bypass the comparison. */
+  private async assertCanManageTarget(tx: Prisma.TransactionClient, targetId: string,
+    targetIsPrimaryAdmin: boolean, actor: AccountAccess): Promise<void> {
     if (actor.isPrimaryAdmin === true) return;
-
-    const [heldBefore, heldAfter] = await Promise.all([
-      this.rolesCarryReleaseOverride(beforeRoleIds),
-      this.rolesCarryReleaseOverride(afterRoleIds),
-    ]);
-    if (heldBefore === heldAfter) return;
-
-    throw new ForbiddenException(
-      `Only the primary administrator may grant or revoke '${RELEASE_OVERRIDE_PERMISSION}' (release-exception approval authority).`
-    );
+    if (targetIsPrimaryAdmin) {
+      throw new ForbiddenException('Only the primary administrator may manage their own account');
+    }
+    // Include dormant memberships. Resetting an account's password (or editing
+    // its profile) while its privileged role is inactive would let a delegated
+    // manager take over that authority when the owner reactivates the role.
+    const grants = await tx.rolePermission.findMany({
+      where: { role: { users: { some: { userId: targetId } } } },
+      select: { permission: { select: { code: true } } },
+    });
+    if (grants.some(({ permission }) =>
+      permission.code === AUDIT_EXPORT_PERMISSION ||
+      permission.code === RELEASE_OVERRIDE_PERMISSION ||
+      !actor.permissions.includes(permission.code))) {
+      throw new ForbiddenException('Cannot manage a more privileged account');
+    }
   }
 
-  /** True when any of the given roles currently carries `release:override`. */
-  private async rolesCarryReleaseOverride(roleIds: string[]): Promise<boolean> {
-    if (roleIds.length === 0) return false;
+  /** DEC-116/P11: owner-only release-exception and audit-export delegation.
+   * A resubmission that leaves authority unchanged is allowed; the lockRoles
+   * caller prevents a concurrent role-grant edit from racing this comparison. */
+  private async assertCanGrantPrivilegedRoles(
+    actor: AccountAccess, beforeRoleIds: string[], afterRoleIds: string[],
+    tx: Prisma.TransactionClient
+  ): Promise<void> {
+    if (actor.isPrimaryAdmin === true) return;
+    for (const code of [RELEASE_OVERRIDE_PERMISSION, AUDIT_EXPORT_PERMISSION]) {
+      const [heldBefore, heldAfter] = await Promise.all([
+        this.rolesCarryPermission(tx, beforeRoleIds, code),
+        this.rolesCarryPermission(tx, afterRoleIds, code),
+      ]);
+      if (heldBefore !== heldAfter) {
+        throw new ForbiddenException(`Only the primary administrator may grant or revoke '${code}' (${code ===
+          RELEASE_OVERRIDE_PERMISSION ? 'release-exception approval authority' : 'audit export authority'}).`);
+      }
+    }
+    // A reserved export role cannot be assigned in a temporarily incomplete
+    // seed state and then gain export later without a primary-admin decision.
+    const exporter = await tx.role.findUnique({ where: { code: AUDIT_EXPORT_ROLE }, select: { id: true } });
+    if (exporter && beforeRoleIds.includes(exporter.id) !== afterRoleIds.includes(exporter.id)) {
+      throw new ForbiddenException('Only the primary administrator may assign or revoke the audit exporter role');
+    }
+    // A delegated user administrator cannot assign themselves (or create a
+    // second account with) roles holding powers beyond their own. lockRoles()
+    // holds SHARE locks while this check and the write commit, so a concurrent
+    // role-permission edit cannot swap in stronger grants after the check.
+    const added = afterRoleIds.filter((id) => !beforeRoleIds.includes(id));
+    if (added.length) {
+      const grants = await tx.rolePermission.findMany({ where: { roleId: { in: added } },
+        select: { permission: { select: { code: true } } } });
+      if (grants.some((grant) => !actor.permissions.includes(grant.permission.code))) {
+        throw new ForbiddenException('Cannot assign roles beyond your own authority');
+      }
+    }
+  }
 
-    // RolePermission has a composite primary key @@id([roleId, permissionId]) and
-    // therefore has NO `id` column — select roleId, which is the column we need.
-    const grant = await this.prisma.rolePermission.findFirst({
-      where: {
-        roleId: { in: roleIds },
-        permission: { code: RELEASE_OVERRIDE_PERMISSION },
-      },
-      select: { roleId: true },
-    });
-    return grant !== null;
+  private async rolesCarryPermission(tx: Prisma.TransactionClient, roleIds: string[], code: string): Promise<boolean> {
+    if (!roleIds.length) return false;
+    // RolePermission has a composite primary key; select roleId, not a non-existent id.
+    return (await tx.rolePermission.findFirst({ where: { roleId: { in: roleIds },
+      permission: { code } }, select: { roleId: true } })) !== null;
+  }
+
+  /** Serialize assignments against role permission changes (locked FOR UPDATE). */
+  private async lockRoles(tx: Prisma.TransactionClient, roleIds: string[]) {
+    const ids = [...new Set(roleIds)].sort();
+    if (ids.length) await tx.$queryRaw`SELECT "id" FROM "Role" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR SHARE`;
   }
 
   /**
@@ -479,26 +451,27 @@ export class UsersService {
       throw new BadRequestException('The target user must be active');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: actor.id },
-        data: { isPrimaryAdmin: false },
-      }),
-      this.prisma.user.update({
-        where: { id: targetUserId },
-        data: { isPrimaryAdmin: true },
-      }),
-    ]);
-
-    await this.audit.record({
-      action: 'user:primary-admin:transfer',
-      entityType: 'User',
-      entityId: targetUserId,
-      actorId: actor.id,
-      actorEmail: actor.email,
-      beforeData: { primaryAdminId: actor.id, primaryAdminEmail: actor.email },
-      afterData: { primaryAdminId: targetUserId, primaryAdminEmail: target.email },
-      metadata: { reason: 'owner succession' },
+    await this.prisma.$transaction(async (tx) => {
+      // Serialize succession against user deactivation and another transfer.
+      // Deterministic lock order avoids a deadlock on two competing successors.
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" IN (${Prisma.join(
+        [actor.id, targetUserId].sort(),
+      )}) ORDER BY "id" FOR UPDATE`;
+      const current = await tx.user.findUnique({ where: { id: actor.id },
+        select: { isPrimaryAdmin: true, isActive: true, deletedAt: true } });
+      const successor = await tx.user.findUnique({ where: { id: targetUserId },
+        select: { isActive: true, deletedAt: true, email: true } });
+      if (!current?.isPrimaryAdmin || !current.isActive || current.deletedAt ||
+        !successor?.isActive || successor.deletedAt) {
+        throw new ForbiddenException('Primary-administrator transfer prerequisites changed');
+      }
+      await tx.user.update({ where: { id: actor.id }, data: { isPrimaryAdmin: false } });
+      await tx.user.update({ where: { id: targetUserId }, data: { isPrimaryAdmin: true } });
+      await this.audit.recordIn(tx, { action: 'user:primary-admin:transfer',
+        entityType: 'User', entityId: targetUserId, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { primaryAdminId: actor.id, primaryAdminEmail: actor.email },
+        afterData: { primaryAdminId: targetUserId, primaryAdminEmail: successor.email },
+        metadata: { reason: 'owner succession' } });
     });
 
     const user = await this.prisma.user.findUnique({
@@ -517,13 +490,6 @@ export class UsersService {
     if (active.length !== roleIds.length) {
       throw new BadRequestException('Cannot assign an inactive role');
     }
-  }
-
-  private async invalidateUserRefreshTokens(userId: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
   }
 
   private mapListItems(items: UserWithRoles[]) {

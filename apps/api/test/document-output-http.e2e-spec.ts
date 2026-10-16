@@ -15,6 +15,7 @@ import { DocumentTemplateController } from '../src/common/infrastructure/templat
 import { DocumentTemplateService } from '../src/common/infrastructure/templates/document-template.service';
 import { DocumentDataService } from '../src/modules/document-output/document-data.service';
 import { DocumentRendererService } from '../src/modules/document-output/document-renderer.service';
+import { AuditService } from '../src/common/infrastructure/audit/audit.service';
 import { CompanySettingsService } from '../src/modules/company-settings/company-settings.service';
 import type { PrismaService } from '../src/prisma/prisma.service';
 
@@ -59,6 +60,7 @@ beforeAll(async () => {
     controllers: [DocumentOutputController, DocumentTemplateController, DocumentAssetsController],
     providers: [
       Reflector,
+      { provide: AuditService, useValue: { record: async () => undefined } },
       { provide: DocumentOutputService, useValue: output },
       { provide: DocumentTemplateService, useValue: {
         list: async () => [], listPage: async () => ({ items: [], total: 0 }),

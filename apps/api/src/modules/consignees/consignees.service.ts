@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { requireOffice } from '../configuration/configuration.policy';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
@@ -75,9 +76,10 @@ export class ConsigneesService {
     return consignee;
   }
 
-  async create(dto: CreateConsigneeDto) {
+  async create(dto: CreateConsigneeDto, actor: AuthenticatedUser) {
     try {
-      return await this.prisma.consignee.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const row = await tx.consignee.create({
         data: {
           code: dto.code.trim(),
           name: dto.name.trim(),
@@ -88,6 +90,13 @@ export class ConsigneesService {
           notes: dto.notes?.trim() || null,
         },
         select,
+        });
+        await this.audit.recordIn(tx, { action: 'consignee.create',
+          entityType: 'Consignee', entityId: row.id,
+          actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(row, ['code', 'name', 'isActive']),
+          metadata: { taxIdPresent: Boolean(row.taxId) } });
+        return row;
       });
     } catch (e) {
       if (
@@ -106,7 +115,7 @@ export class ConsigneesService {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT "id" FROM "consignees" WHERE "id" = ${id} FOR UPDATE`;
         const before = await tx.consignee.findFirst({ where: { id, deletedAt: null },
-          select: { code: true, isActive: true } });
+          select });
         if (!before) throw new NotFoundException('Consignee not found');
         const after = await tx.consignee.update({
         where: { id },
@@ -121,6 +130,12 @@ export class ConsigneesService {
         },
         select,
         });
+        await this.audit.recordIn(tx, { action: 'consignee.update',
+          entityType: 'Consignee', entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, ['code', 'name', 'isActive']),
+          afterData: auditProjection(after, ['code', 'name', 'isActive']),
+          metadata: { contactChanged: before.phone !== after.phone || before.email !== after.email,
+            taxIdChanged: before.taxId !== after.taxId } });
         if (before.isActive !== after.isActive) {
           await this.audit.recordIn(tx, { action: after.isActive ? 'consignee.reactivate' : 'consignee.deactivate',
             entityType: 'Consignee', entityId: id, actorId: actor.id, actorEmail: actor.email,

@@ -118,7 +118,7 @@ async function projectionCases() {
   assert.equal(inv.fields.taxNumber, 'original-TRN');
   const salary = await projectRecordedDocument(fake as unknown as Prisma.TransactionClient, 'salary-slip', 'record-12345');
   const salaryWorkbook = new ExcelJS.Workbook();
-  await salaryWorkbook.xlsx.load(await renderer.render(salary, defaultLayout('salary-slip'), identity, 'xlsx'));
+  await salaryWorkbook.xlsx.load(await renderer.render(salary, defaultLayout('salary-slip'), identity, 'xlsx', owner));
   assert.ok(salaryWorkbook.getWorksheet('Document')!.getRows(1, 30)!
     .flatMap((row) => row.values as unknown[]).includes('-50'), 'negative deductions remain exact spreadsheet text');
   const ledger = await new DocumentDataService(fake as unknown as PrismaService,
@@ -140,13 +140,13 @@ async function main() {
   const verifiedAsset = new DocumentAssetsService({ documentAsset: { findUnique: async () => ({
     kind: 'STAMP', approvedAt, deactivatedAt: retiredAt, isApproved: false,
     storageKey: 'private', sha256: createHash('sha256').update(fixture).digest('hex'),
-  }) } } as unknown as PrismaService, {} as AuditService,
+  }) } } as unknown as PrismaService, { record: async () => undefined } as unknown as AuditService,
   { getFile: async () => fixture } as StorageAdapter);
-  assert.deepEqual(await verifiedAsset.bytes('stamp', 'STAMP', new Date('2026-10-15T12:00:00Z')), fixture,
+  assert.deepEqual(await verifiedAsset.bytes('stamp', 'STAMP', owner, new Date('2026-10-15T12:00:00Z')), fixture,
     'a retired mark is still eligible when approved at actual issuance');
-  await assert.rejects(() => verifiedAsset.bytes('stamp', 'STAMP', new Date('2026-10-10T00:00:00Z')),
+  await assert.rejects(() => verifiedAsset.bytes('stamp', 'STAMP', owner, new Date('2026-10-10T00:00:00Z')),
     NotFoundException, 'the same backdated display date predates artwork approval');
-  await assert.rejects(() => verifiedAsset.bytes('stamp', 'STAMP', new Date('2026-10-17T00:00:00Z')),
+  await assert.rejects(() => verifiedAsset.bytes('stamp', 'STAMP', owner, new Date('2026-10-17T00:00:00Z')),
     NotFoundException, 'a newly issued document cannot select retired artwork');
   assert.equal(DOCUMENT_TYPES.length, 11, 'DEC-099 catalog');
   assert.equal(new Set(DOCUMENT_TYPES).size, 11);
@@ -161,16 +161,16 @@ async function main() {
       stampAssetId: 'asset-stamp', signatureAssetId: 'asset-signature' };
     assert.equal(validateLayout(layout).title.length > 0, true);
     calls.length = 0;
-    const print = await renderer.render(data, layout, identity, 'print');
+    const print = await renderer.render(data, layout, identity, 'print', owner);
     assert.equal(print.subarray(0, 5).toString(), '%PDF-');
     assert.deepEqual(calls, [], `${type}: print must never read company stamp/signature bytes`);
     calls.length = 0;
-    const pdf = await renderer.render(data, layout, identity, 'pdf');
+    const pdf = await renderer.render(data, layout, identity, 'pdf', owner);
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
     assert.deepEqual(calls, ['STAMP', 'SIGNATURE'], `${type}: PDF has only assigned approval marks`);
     assert.match(pdf.toString('latin1'), /\/Subtype\s*\/Image/, 'PDF contains approved images');
     calls.length = 0;
-    const excel = await renderer.render(data, layout, identity, 'xlsx');
+    const excel = await renderer.render(data, layout, identity, 'xlsx', owner);
     assert.equal(excel.subarray(0, 2).toString(), 'PK');
     assert.deepEqual(calls, [], `${type}: Excel omits approval artwork`);
     const book = new ExcelJS.Workbook(); await book.xlsx.load(excel);
@@ -184,9 +184,9 @@ async function main() {
   const sample: DocumentData = { type: 'invoice', id: 'sample-record', number: 'INV-123',
     status: 'DRAFT', effectiveAt: null, issued: false, fields: { number: 'INV-123' }, rows: [] };
   const beforeSwitch = new ExcelJS.Workbook();
-  await beforeSwitch.xlsx.load(await renderer.render(sample, { ...defaultLayout('invoice'), title: 'Version A' }, identity, 'xlsx'));
+  await beforeSwitch.xlsx.load(await renderer.render(sample, { ...defaultLayout('invoice'), title: 'Version A' }, identity, 'xlsx', owner));
   const afterSwitch = new ExcelJS.Workbook();
-  await afterSwitch.xlsx.load(await renderer.render(sample, { ...defaultLayout('invoice'), title: 'Version B' }, identity, 'xlsx'));
+  await afterSwitch.xlsx.load(await renderer.render(sample, { ...defaultLayout('invoice'), title: 'Version B' }, identity, 'xlsx', owner));
   assert.equal(beforeSwitch.getWorksheet('Document')!.getCell('A1').value, 'Version A');
   assert.equal(afterSwitch.getWorksheet('Document')!.getCell('A1').value, 'Version B');
   // Instrument PDFKit's text call, not PDF internals: a long draft must get a
@@ -202,11 +202,11 @@ async function main() {
       status: 'DRAFT', effectiveAt: null, issued: false,
       fields: { number: 'B-1' }, rows: Array.from({ length: 110 }, (_, i) =>
         ({ description: `Line ${i} with several words to use vertical space` })) };
-    await renderer.render(draft, defaultLayout('bill'), identity, 'print');
+    await renderer.render(draft, defaultLayout('bill'), identity, 'print', owner);
     assert.ok(watermarks > 1, 'all draft B/L pages get a DRAFT watermark');
     calls.length = 0;
     await renderer.render(draft, { ...defaultLayout('bill'),
-      stampAssetId: 'asset-stamp', signatureAssetId: 'asset-signature' }, identity, 'pdf');
+      stampAssetId: 'asset-stamp', signatureAssetId: 'asset-signature' }, identity, 'pdf', owner);
     assert.deepEqual(calls, [], 'draft B/L cannot carry issuance approval marks');
   } finally { PDFDocument.prototype.text = originalText; }
   assert.throws(() => validateLayout({ ...defaultLayout('invoice'), externalUrl: 'https://bad.test' }), BadRequestException);
@@ -275,7 +275,7 @@ async function main() {
     templates as unknown as DocumentTemplateService,
     { get: async () => { projected++; throw new Error('Snapshot must replace current projection'); } } as unknown as DocumentDataService,
     { render: async (data: DocumentData, _layout: unknown, snapshotIdentity: typeof identity,
-      _format: string, artworkAt: Date | null) => {
+      _format: string, _actor: AuthenticatedUser, artworkAt: Date | null) => {
       assert.equal(data.fields.party, 'Alice');
       assert.equal(snapshotIdentity.companyName, 'Company at issuance');
       assert.equal(artworkAt?.getTime(), rendered ? undefined : capturedAt.getTime(),

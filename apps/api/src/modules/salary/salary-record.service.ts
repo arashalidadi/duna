@@ -7,6 +7,7 @@ import {
 import { Prisma, SalaryStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
@@ -140,7 +141,7 @@ export class SalaryRecordService {
   // CRUD (DRAFT-only edits)
   // -------------------------------------------------------------------------
 
-  async create(dto: CreateSalaryRecordDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateSalaryRecordDto, actor: AuthenticatedUser) {
     const employee = await this.prisma.employee.findFirst({
       where: { id: dto.employeeId, deletedAt: null },
       select: { id: true, baseSalary: true, currencyCode: true, status: true },
@@ -179,7 +180,7 @@ export class SalaryRecordService {
             ),
           tx,
         });
-        return tx.salaryRecord.create({
+        const created = await tx.salaryRecord.create({
           data: {
             recordNumber,
             employeeId: dto.employeeId,
@@ -191,10 +192,16 @@ export class SalaryRecordService {
             net: new Prisma.Decimal(net),
             currencyCode,
             notes: dto.notes,
-            createdById: actor?.id,
+            createdById: actor.id,
           },
           select: listSelect,
         });
+        await this.audit.recordIn(tx, { action: 'salary_record.create_draft',
+          entityType: 'SalaryRecord', entityId: created.id,
+          actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(created, ['recordNumber', 'employeeId', 'year', 'month',
+            'status', 'base', 'additions', 'deductions', 'net', 'currencyCode']) });
+        return created;
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -206,51 +213,49 @@ export class SalaryRecordService {
     }
   }
 
-  async update(id: string, dto: UpdateSalaryRecordDto) {
-    const existing = await this.assertEditable(id);
-
-    const year = dto.year ?? existing.year;
-    const month = dto.month ?? existing.month;
-    const employeeId =
-      dto.employeeId && dto.employeeId !== existing.employeeId ? dto.employeeId : existing.employeeId;
-
-    if (employeeId !== existing.employeeId) {
-      const employee = await this.prisma.employee.findFirst({
-        where: { id: employeeId, deletedAt: null },
-        select: { id: true },
-      });
-      if (!employee) throw new NotFoundException('Employee not found');
-    }
-    if (year !== existing.year || month !== existing.month || employeeId !== existing.employeeId) {
-      await this.assertNoDuplicate(employeeId, year, month, id);
-    }
-
-    const base = dto.base !== undefined ? Number(dto.base) : Number(existing.base);
-    const additions = dto.additions !== undefined ? Number(dto.additions) : Number(existing.additions);
-    const deductions = dto.deductions !== undefined ? Number(dto.deductions) : Number(existing.deductions);
-    const net = this.computeNet(base, additions, deductions);
-
+  async update(id: string, dto: UpdateSalaryRecordDto, actor: AuthenticatedUser) {
     try {
-      return await this.prisma.salaryRecord.update({
-        where: { id: existing.id },
-        data: {
-          employeeId,
-          year,
-          month,
-          base: new Prisma.Decimal(round2(base)),
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "salary_records" WHERE "id" = ${id} FOR UPDATE`;
+        const before = await tx.salaryRecord.findFirst({ where: { id, deletedAt: null } });
+        if (!before) throw new NotFoundException('Salary record not found');
+        if (before.status !== 'DRAFT') throw new ConflictException('Only DRAFT payslips are editable');
+        const year = dto.year ?? before.year;
+        const month = dto.month ?? before.month;
+        const employeeId = dto.employeeId ?? before.employeeId;
+        if (employeeId !== before.employeeId) {
+          const employee = await tx.employee.findFirst({ where: { id: employeeId, deletedAt: null },
+            select: { id: true } });
+          if (!employee) throw new NotFoundException('Employee not found');
+        }
+        if (year !== before.year || month !== before.month || employeeId !== before.employeeId) {
+          const duplicate = await tx.salaryRecord.findFirst({ where: {
+            employeeId, year, month, id: { not: id },
+          }, select: { id: true } });
+          if (duplicate) throw new ConflictException('A payslip already exists for this employee and month');
+        }
+        const base = dto.base !== undefined ? Number(dto.base) : Number(before.base);
+        const additions = dto.additions !== undefined ? Number(dto.additions) : Number(before.additions);
+        const deductions = dto.deductions !== undefined ? Number(dto.deductions) : Number(before.deductions);
+        const net = this.computeNet(base, additions, deductions);
+        const after = await tx.salaryRecord.update({ where: { id }, data: {
+          employeeId, year, month, base: new Prisma.Decimal(round2(base)),
           additions: new Prisma.Decimal(round2(additions)),
-          deductions: new Prisma.Decimal(round2(deductions)),
-          net: new Prisma.Decimal(net),
-          currencyCode: dto.currencyCode,
-          notes: dto.notes,
-        },
-        select: listSelect,
+          deductions: new Prisma.Decimal(round2(deductions)), net: new Prisma.Decimal(net),
+          currencyCode: dto.currencyCode, notes: dto.notes,
+        }, select: listSelect });
+        const fields = ['employeeId', 'year', 'month', 'base', 'additions',
+          'deductions', 'net', 'currencyCode', 'notes'];
+        await this.audit.recordIn(tx, { action: 'salary_record.update_draft',
+          entityType: 'SalaryRecord', entityId: id,
+          actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+          metadata: { recordNumber: before.recordNumber } });
+        return after;
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException(
-          `A payslip already exists for this employee in ${year}-${String(month).padStart(2, '0')}`,
-        );
+        throw new ConflictException('A payslip already exists for this employee and month');
       }
       throw e;
     }
@@ -279,53 +284,70 @@ export class SalaryRecordService {
   // Lifecycle
   // -------------------------------------------------------------------------
 
-  async approve(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'APPROVED');
+  async approve(id: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
-      const approved = await tx.salaryRecord.update({
-        where: { id },
-        data: { status: 'APPROVED', approvedById: actor?.id, approvedAt: new Date() },
-        select: listSelect,
-      });
-      await captureIssuedDocument(tx, 'salary-slip', id, actor?.id);
-      return approved;
+      const before = await this.lockLive(tx, id);
+      this.assertTransition(before.status, 'APPROVED');
+      const after = await tx.salaryRecord.update({ where: { id }, data: {
+        status: 'APPROVED', approvedById: actor.id, approvedAt: new Date(),
+      }, select: listSelect });
+      await captureIssuedDocument(tx, 'salary-slip', id, actor.id);
+      await this.audit.recordIn(tx, { action: 'salary_record.approve',
+        entityType: 'SalaryRecord', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, approvedById: actor.id, approvedAt: after.approvedAt,
+          net: after.net.toString(), currencyCode: after.currencyCode },
+        metadata: { recordNumber: before.recordNumber } });
+      return after;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
-  /** APPROVED -> PAID. Records the payment fact (method + trace) on the row. */
-  async pay(id: string, dto: PaySalaryRecordDto, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'PAID');
-    return this.prisma.salaryRecord.update({
-      where: { id },
-      data: {
-        status: 'PAID',
-        paidById: actor?.id,
-        paidAt: new Date(),
+  /** APPROVED -> PAID; the payment method and reference are part of the event. */
+  async pay(id: string, dto: PaySalaryRecordDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLive(tx, id);
+      this.assertTransition(before.status, 'PAID');
+      const after = await tx.salaryRecord.update({ where: { id }, data: {
+        status: 'PAID', paidById: actor.id, paidAt: new Date(),
         paymentMethod: (dto.paymentMethod as 'CASH' | 'BANK_TRANSFER' | 'CHEQUE' | 'OTHER') ?? 'BANK_TRANSFER',
         paymentRef: dto.paymentRef,
-      },
-      select: listSelect,
+      }, select: listSelect });
+      await this.audit.recordIn(tx, { action: 'salary_record.pay',
+        entityType: 'SalaryRecord', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, paidById: actor.id, paidAt: after.paidAt,
+          paymentMethod: after.paymentMethod, paymentRef: after.paymentRef,
+          net: after.net.toString(), currencyCode: after.currencyCode },
+        metadata: { recordNumber: before.recordNumber } });
+      return after;
     });
   }
 
-  async cancel(id: string, dto: CancelSalaryRecordDto, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'CANCELLED');
-    if (!dto.cancelReason?.trim()) {
-      throw new BadRequestException('A cancellation reason is required');
-    }
-    return this.prisma.salaryRecord.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason.trim(),
-        cancelledById: actor?.id,
-        cancelledAt: new Date(),
-      },
-      select: listSelect,
+  async cancel(id: string, dto: CancelSalaryRecordDto, actor: AuthenticatedUser) {
+    const reason = dto.cancelReason?.trim();
+    if (!reason) throw new BadRequestException('A cancellation reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLive(tx, id);
+      this.assertTransition(before.status, 'CANCELLED');
+      const after = await tx.salaryRecord.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelReason: reason,
+        cancelledById: actor.id, cancelledAt: new Date(),
+      }, select: listSelect });
+      await this.audit.recordIn(tx, { action: 'salary_record.cancel',
+        entityType: 'SalaryRecord', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, cancelledById: actor.id,
+          cancelledAt: after.cancelledAt, reason },
+        metadata: { recordNumber: before.recordNumber, reason } });
+      return after;
     });
+  }
+
+  private async lockLive(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "salary_records" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.salaryRecord.findFirst({ where: { id, deletedAt: null } });
+    if (!row) throw new NotFoundException('Salary record not found');
+    return row;
   }
 
   // -------------------------------------------------------------------------

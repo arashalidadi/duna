@@ -411,12 +411,8 @@ describe('BillOfLading (e2e)', () => {
       const standaloneIds = createdStandaloneBills.map((b) => b.id);
       await prisma.billOfLadingItem.deleteMany({ where: { billOfLadingId: { in: standaloneIds } } });
       await prisma.billOfLading.deleteMany({ where: { id: { in: standaloneIds } } });
-      // P4-U6: remove audit rows this suite wrote for its own fixture bills
-      // (explicit id filter only — U2 discipline; append-only binds the application,
-      // not test teardown, and these rows would dangle on deleted ids)
-      await prisma.auditLog.deleteMany({
-        where: { entityType: 'BillOfLading', entityId: { in: standaloneIds } },
-      });
+      // P11: audit rows are append-only even in test teardown. Their historical
+      // entity IDs remain inspectable after the disposable business fixtures go.
       await prisma.actualLoadingItem.deleteMany({ where: { actualLoading: { loadListId: { in: loadListIds } } } });
       await prisma.actualLoading.deleteMany({ where: { loadListId: { in: loadListIds } } });
       await prisma.loadListItem.deleteMany({ where: { loadListId: { in: loadListIds } } });

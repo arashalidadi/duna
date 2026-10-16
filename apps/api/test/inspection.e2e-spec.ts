@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 
@@ -930,6 +931,13 @@ describe('Inspection (e2e)', () => {
         .set(auth(adminToken))
         .expect(200);
       expect(detail.body.data.status).toBe('FINALIZED');
+      const audit = await app.get(PrismaService).auditLog.findMany({
+        where: { entityType: 'Inspection', entityId: inspId },
+      });
+      expect(audit.map((row) => row.action)).toEqual(expect.arrayContaining([
+        'inspection.create', 'inspection.booked', 'inspection.done',
+      ]));
+      expect(audit.every((row) => Boolean(row.actorId && row.actorEmail))).toBe(true);
     }, 30000);
   });
 

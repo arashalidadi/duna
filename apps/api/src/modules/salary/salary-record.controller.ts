@@ -47,8 +47,9 @@ export class SalaryRecordController {
 
   @Patch(':id')
   @RequirePermissions('salary:update')
-  update(@Param('id') id: string, @Body() dto: UpdateSalaryRecordDto) {
-    return this.salaryRecords.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateSalaryRecordDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.salaryRecords.update(id, dto, user);
   }
 
   @Delete(':id')

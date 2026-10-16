@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { requireOffice } from '../configuration/configuration.policy';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
@@ -90,9 +91,10 @@ export class AgentsService {
     return agent;
   }
 
-  async create(dto: CreateAgentDto) {
+  async create(dto: CreateAgentDto, actor: AuthenticatedUser) {
     try {
-      return await this.prisma.agent.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const row = await tx.agent.create({
         data: {
           code: dto.code.trim(),
           name: dto.name.trim(),
@@ -103,6 +105,13 @@ export class AgentsService {
           notes: dto.notes?.trim() || null,
         },
         select,
+        });
+        await this.audit.recordIn(tx, { action: 'agent.create',
+          entityType: 'Agent', entityId: row.id,
+          actorId: actor.id, actorEmail: actor.email,
+          afterData: auditProjection(row, ['code', 'name', 'isActive']),
+          metadata: { taxIdPresent: Boolean(row.taxId) } });
+        return row;
       });
     } catch (e) {
       if (
@@ -121,7 +130,7 @@ export class AgentsService {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`SELECT "id" FROM "agents" WHERE "id" = ${id} FOR UPDATE`;
         const before = await tx.agent.findFirst({ where: { id, deletedAt: null },
-          select: { code: true, isActive: true } });
+          select });
         if (!before) throw new NotFoundException('Agent not found');
         const after = await tx.agent.update({ where: { id }, data: {
           name: dto.name?.trim(),
@@ -132,6 +141,12 @@ export class AgentsService {
           notes: dto.notes === undefined ? undefined : dto.notes.trim() || null,
           isActive: dto.isActive,
         }, select });
+        await this.audit.recordIn(tx, { action: 'agent.update',
+          entityType: 'Agent', entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, ['code', 'name', 'isActive']),
+          afterData: auditProjection(after, ['code', 'name', 'isActive']),
+          metadata: { contactChanged: before.phone !== after.phone || before.email !== after.email,
+            taxIdChanged: before.taxId !== after.taxId } });
         if (before.isActive !== after.isActive) {
           await this.audit.recordIn(tx, { action: after.isActive ? 'agent.reactivate' : 'agent.deactivate',
             entityType: 'Agent', entityId: id, actorId: actor.id, actorEmail: actor.email,
@@ -201,7 +216,8 @@ export class AgentsService {
     return buildPaginated(items, total, pagination);
   }
 
-  async createDestination(agentId: string, dto: CreateAgentDestinationDto) {
+  async createDestination(agentId: string, dto: CreateAgentDestinationDto,
+    actor: AuthenticatedUser) {
     const agent = await this.findById(agentId);
     if (!agent.isActive && dto.isActive !== false) {
       throw new ConflictException('Inactive agent cannot receive an active destination');
@@ -213,13 +229,20 @@ export class AgentsService {
       throw new ConflictException('Inactive port cannot be an active destination');
     }
     try {
-      return await this.prisma.agentDestination.create({
+      return await this.prisma.$transaction(async (tx) => {
+        const row = await tx.agentDestination.create({
         data: {
           agentId,
           portId: dto.portId,
           isActive: dto.isActive ?? true,
         },
         select: destinationSelect,
+        });
+        await this.audit.recordIn(tx, { action: 'agent_destination.create',
+          entityType: 'AgentDestination', entityId: row.id,
+          actorId: actor.id, actorEmail: actor.email,
+          afterData: { agentId, portId: row.portId, isActive: row.isActive } });
+        return row;
       });
     } catch (e) {
       if (

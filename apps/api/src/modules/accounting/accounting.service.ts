@@ -225,6 +225,13 @@ export class AccountingService {
               credit: l.credit.toFixed(2), baseDebit: l.baseDebit.toFixed(2), baseCredit: l.baseCredit.toFixed(2),
             })) },
         });
+        if (rate.rateOverrideReason) {
+          await this.audit.recordIn(tx, { action: 'currency_rate.override', entityType: 'GeneralJournal',
+            entityId: journal.id, actorId: actor.id, actorEmail: actor.email,
+            afterData: { currencyCode: dto.currencyCode, baseCurrencyCode: rate.baseCurrencyCode,
+              rate: rate.exchangeRate.toString(), effectiveAt: rate.rateEffectiveAt },
+            metadata: { reason: rate.rateOverrideReason, journalNumber } });
+        }
         return journal;
       });
       return this.journal(saved.id);

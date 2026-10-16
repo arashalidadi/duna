@@ -205,6 +205,12 @@ export class VoucherService {
       } });
       const allocation = await this.allocation.replace(tx, voucher, lines, actor.id, 'Initial allocation', false);
       await this.postings.append(tx, this.postings.voucherSource(voucher), amount, 'POST');
+      if (allocation.active.length) {
+        await this.audit.recordIn(tx, { action: 'voucher.allocate', entityType: 'Voucher',
+          entityId: voucher.id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: [], afterData: allocation.active,
+          metadata: { reason: 'Initial allocation', voucherNumber } });
+      }
       await this.audit.recordIn(tx, { action: 'voucher.post', entityType: 'Voucher', entityId: voucher.id,
         actorId: actor.id, actorEmail: actor.email,
         afterData: { voucherNumber, amount: amount.toFixed(2), currencyCode,
@@ -212,6 +218,13 @@ export class VoucherService {
           rate: rate.exchangeRate.toString(), rateEffectiveAt: rate.rateEffectiveAt,
           rateSource: rate.rateSource, rateOverrideReason: rate.rateOverrideReason,
           allocations: lines, unallocatedAmount: amount.minus(allocation.allocatedAmount).toFixed(2) } });
+      if (rate.rateOverrideReason) {
+        await this.audit.recordIn(tx, { action: 'currency_rate.override', entityType: 'Voucher',
+          entityId: voucher.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { currencyCode, baseCurrencyCode: rate.baseCurrencyCode,
+            rate: rate.exchangeRate.toString(), effectiveAt: rate.rateEffectiveAt },
+          metadata: { reason: rate.rateOverrideReason, voucherNumber } });
+      }
       // Separate catalog outputs for the generic Voucher and its payment/receipt
       // subtype are frozen together, after the allocation rows are committed.
       await captureIssuedDocument(tx, 'voucher', voucher.id, actor.id);

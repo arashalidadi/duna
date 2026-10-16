@@ -256,8 +256,10 @@ describe('configured-document issuance lifecycle, archive and negative bypasses'
     await f.documents.transition(made.id, { to: 'ISSUED', expectedRevision: 2, approvalId: 'approval-1' }, manager);
     const pdf = await f.outputs.render(made.id, 'pdf', manager);
     expect(pdf.bytes.subarray(0, 4).toString()).toBe('%PDF');
-    expect(f.assets.bytes).toHaveBeenCalledWith('stamp-1', 'STAMP', expect.any(Date));
-    expect(f.assets.bytes).toHaveBeenCalledWith('signature-1', 'SIGNATURE', expect.any(Date));
+    expect(f.assets.bytes).toHaveBeenCalledWith('stamp-1', 'STAMP', manager, expect.any(Date),
+      expect.objectContaining({ format: 'pdf', documentNumber: made.number }));
+    expect(f.assets.bytes).toHaveBeenCalledWith('signature-1', 'SIGNATURE', manager, expect.any(Date),
+      expect.objectContaining({ format: 'pdf', documentNumber: made.number }));
     f.assets.bytes.mockClear();
     const print = await f.outputs.render(made.id, 'print', manager);
     expect(print.bytes.subarray(0, 4).toString()).toBe('%PDF');

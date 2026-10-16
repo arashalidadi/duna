@@ -11,6 +11,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../../auth/types';
 import { AuditService } from '../audit/audit.service';
@@ -136,20 +137,17 @@ export class AttachmentService {
       buffer: file.buffer,
     });
 
-    const row = await this.createRow(input, storageKey).catch(async (error: unknown) => {
+    const row = await this.prisma.$transaction(async (tx) => {
+      const saved = await this.createRow(tx, input, storageKey);
+      await this.audit.recordIn(tx, { action: 'attachment.create', entityType: 'FileAttachment',
+        entityId: saved.id, actorId: input.user.id, actorEmail: input.user.email,
+        afterData: { entityType: saved.entityType, entityId: saved.entityId,
+          category: saved.category, size: saved.size.toString() },
+        ipAddress: input.ipAddress ?? null, userAgent: input.userAgent ?? null });
+      return saved;
+    }).catch(async (error: unknown) => {
       await this.storage.deleteFile(storageKey).catch(() => undefined);
       throw error;
-    });
-
-    await this.audit.record({
-      action: 'attachment.create',
-      entityType: 'FileAttachment',
-      entityId: row.id,
-      actorId: input.user.id,
-      actorEmail: input.user.email,
-      afterData: { entityType: row.entityType, entityId: row.entityId, category: row.category, size: row.size },
-      ipAddress: input.ipAddress ?? null,
-      userAgent: input.userAgent ?? null,
     });
     return this.toSummary(row);
   }
@@ -174,12 +172,18 @@ export class AttachmentService {
       }),
       this.prisma.fileAttachment.count({ where }),
     ]);
+    await this.audit.record({ action: 'attachment.list_metadata', entityType: 'FileAttachment',
+      entityId: 'collection', actorId: user.id, actorEmail: user.email,
+      metadata: { entityType: options.entityType ?? null, entityId: options.entityId ?? null,
+        category: options.category ?? null, offset, returned: rows.length } });
     return { items: rows.map((row) => this.toSummary(row)), total };
   }
 
   async getById(user: AuthenticatedUser, id: string): Promise<AttachmentSummary> {
     this.assertIdentityAccess(user);
     const row = await this.findLiveRow(id);
+    await this.audit.record({ action: 'attachment.read_metadata', entityType: 'FileAttachment',
+      entityId: row.id, actorId: user.id, actorEmail: user.email });
     return this.toSummary(row);
   }
 
@@ -264,23 +268,23 @@ export class AttachmentService {
 
   async softDelete(user: AuthenticatedUser, id: string, context: AttachmentRequestContext): Promise<{ id: string }> {
     this.assertIdentityAccess(user);
-    const row = await this.findLiveRow(id);
-    await this.prisma.fileAttachment.update({ where: { id: row.id }, data: { deletedAt: new Date() } });
-    await this.audit.record({
-      action: 'attachment.delete',
-      entityType: 'FileAttachment',
-      entityId: row.id,
-      actorId: user.id,
-      actorEmail: user.email,
-      beforeData: { entityType: row.entityType, entityId: row.entityId, category: row.category },
-      ipAddress: context.ipAddress ?? null,
-      userAgent: context.userAgent ?? null,
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.fileAttachment.findUnique({ where: { id } });
+      if (!row || row.deletedAt) throw new NotFoundException('Attachment not found');
+      const result = await tx.fileAttachment.updateMany({ where: { id, deletedAt: null },
+        data: { deletedAt: new Date() } });
+      if (result.count !== 1) throw new NotFoundException('Attachment not found');
+      await this.audit.recordIn(tx, { action: 'attachment.delete', entityType: 'FileAttachment',
+        entityId: row.id, actorId: user.id, actorEmail: user.email,
+        beforeData: { entityType: row.entityType, entityId: row.entityId, category: row.category },
+        afterData: { deleted: true }, ipAddress: context.ipAddress ?? null,
+        userAgent: context.userAgent ?? null });
+      return { id: row.id };
     });
-    return { id: row.id };
   }
 
-  private async createRow(input: UploadAttachmentInput, storageKey: string) {
-    return this.prisma.fileAttachment.create({
+  private async createRow(tx: Prisma.TransactionClient, input: UploadAttachmentInput, storageKey: string) {
+    return tx.fileAttachment.create({
       data: {
         entityType: input.entityType,
         entityId: input.entityId,

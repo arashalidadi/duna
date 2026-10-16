@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, ManifestStatus, BookingStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
 import { VoucherService } from '../voucher/voucher.service';
 import {
   NumberingService,
@@ -16,6 +17,7 @@ import {
 
 export interface PortalActor {
   id?: string;
+  email?: string;
 }
 
 interface BookingRow {
@@ -96,7 +98,13 @@ export class PortalService {
     private readonly prisma: PrismaService,
     private readonly vouchers: VoucherService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
+
+  private auditActor(actor: PortalActor): { id: string; email: string } {
+    if (!actor.id || !actor.email) throw new ForbiddenException('Authenticated actor required');
+    return { id: actor.id, email: actor.email };
+  }
 
   /** Resolve the portal company for a user; 403 when not linked. */
   /**
@@ -202,9 +210,9 @@ export class PortalService {
     return mapBooking(row);
   }
 
-  async respond(id: string, dto: { decision: 'ACCEPTED' | 'DECLINED'; responseNote?: string }, actor: { id?: string }) {
-    await this.assertStaff(actor as PortalActor);
-    return this.respondBooking(actor as PortalActor, id, dto);
+  async respond(id: string, dto: { decision: 'ACCEPTED' | 'DECLINED'; responseNote?: string }, actor: PortalActor) {
+    await this.assertStaff(actor);
+    return this.respondBooking(actor, id, dto);
   }
 
   async listBookings(query: { page?: number; pageSize?: number; search?: string; status?: string; customerId?: string }, forceCustomerId?: string) {
@@ -264,6 +272,7 @@ export class PortalService {
     notes?: string;
   }) {
     const customerId = await this.portalCustomerIdOf(actor);
+    const principal = this.auditActor(actor);
     await this.validatePorts(dto.originPortId, dto.destinationPortId);
     // Number and booking are created in ONE transaction (DEC-027): concurrent requests get
     // distinct BRK numbers from the row-locked sequence, and a failed insert rolls back the counter.
@@ -284,7 +293,7 @@ export class PortalService {
           ),
         tx,
       });
-      return tx.bookingRequest.create({
+      const created = await tx.bookingRequest.create({
         data: {
           bookingNumber,
           customerId,
@@ -298,32 +307,58 @@ export class PortalService {
         },
         select: bookingSelect,
       });
+      await this.audit.recordIn(tx, { action: 'booking.create', entityType: 'BookingRequest',
+        entityId: created.id, actorId: principal.id, actorEmail: principal.email,
+        afterData: { bookingNumber, customerId, status: created.status,
+          originPortId: created.originPortId, destinationPortId: created.destinationPortId,
+          requestedShipDate: created.requestedShipDate,
+          cargoDescription: created.cargoDescription },
+      });
+      return created;
     });
     return mapBooking(row);
   }
 
   async cancelOwnBooking(actor: PortalActor, id: string) {
     const customerId = await this.portalCustomerIdOf(actor);
-    const row = await this.prisma.bookingRequest.findFirst({ where: { id, deletedAt: null }, select: bookingSelect });
-    if (!row || row.customerId !== customerId) throw new NotFoundException('Booking not found');
-    if (row.status !== 'PENDING') throw new ConflictException('Only PENDING bookings can be cancelled');
-    const updated = await this.prisma.bookingRequest.update({ where: { id }, data: { status: 'CANCELLED' }, select: bookingSelect });
+    const principal = this.auditActor(actor);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "booking_requests" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.bookingRequest.findFirst({ where: { id, deletedAt: null },
+        select: bookingSelect });
+      if (!before || before.customerId !== customerId) throw new NotFoundException('Booking not found');
+      if (before.status !== 'PENDING') throw new ConflictException('Only PENDING bookings can be cancelled');
+      const after = await tx.bookingRequest.update({ where: { id },
+        data: { status: 'CANCELLED' }, select: bookingSelect });
+      await this.audit.recordIn(tx, { action: 'booking.cancel', entityType: 'BookingRequest',
+        entityId: id, actorId: principal.id, actorEmail: principal.email,
+        beforeData: { status: before.status }, afterData: { status: after.status },
+        metadata: { bookingNumber: before.bookingNumber, customerId } });
+      return after;
+    });
     return mapBooking(updated);
   }
 
-  async respondBooking(actor: PortalActor, id: string, dto: { decision: 'ACCEPTED' | 'DECLINED'; responseNote?: string }) {
-    const row = await this.prisma.bookingRequest.findFirst({ where: { id, deletedAt: null }, select: bookingSelect });
-    if (!row) throw new NotFoundException('Booking not found');
-    if (row.status !== 'PENDING') throw new ConflictException('Only PENDING bookings can be responded to');
-    const updated = await this.prisma.bookingRequest.update({
-      where: { id },
-      data: {
-        status: dto.decision,
-        responseNote: dto.responseNote?.trim() || null,
-        handledById: actor.id,
-        handledAt: new Date(),
-      },
-      select: bookingSelect,
+  async respondBooking(actor: PortalActor, id: string,
+    dto: { decision: 'ACCEPTED' | 'DECLINED'; responseNote?: string }) {
+    const principal = this.auditActor(actor);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "booking_requests" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.bookingRequest.findFirst({ where: { id, deletedAt: null },
+        select: bookingSelect });
+      if (!before) throw new NotFoundException('Booking not found');
+      if (before.status !== 'PENDING') throw new ConflictException('Only PENDING bookings can be responded to');
+      const after = await tx.bookingRequest.update({ where: { id }, data: {
+        status: dto.decision, responseNote: dto.responseNote?.trim() || null,
+        handledById: principal.id, handledAt: new Date(),
+      }, select: bookingSelect });
+      await this.audit.recordIn(tx, { action: 'booking.respond', entityType: 'BookingRequest',
+        entityId: id, actorId: principal.id, actorEmail: principal.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, responseNote: after.responseNote,
+          handledById: principal.id, handledAt: after.handledAt },
+        metadata: { bookingNumber: before.bookingNumber, customerId: before.customerId } });
+      return after;
     });
     return mapBooking(updated);
   }

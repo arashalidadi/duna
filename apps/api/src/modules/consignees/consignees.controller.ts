@@ -35,7 +35,7 @@ export class ConsigneesController {
   @RequirePermissions('consignee:create')
   create(@Body() dto: CreateConsigneeDto, @CurrentUser() user: AuthenticatedUser) {
     requireOffice(user, 'consignee:create');
-    return this.consigneesService.create(dto);
+    return this.consigneesService.create(dto, user);
   }
 
   @Patch(':id')

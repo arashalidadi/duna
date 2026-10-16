@@ -311,4 +311,23 @@ describe('Salary (e2e)', () => {
     const draft = await S().get('/api/v1/salary-records?status=DRAFT&employeeId=' + employeeId).set(auth(readerToken)).expect(200);
     expect(draft.body.data.data.some((r: { id: string }) => r.id === recordId)).toBe(false);
   });
+
+  it('Phase 11: payroll and employee mutations have attributable, ordered audit events', async () => {
+    const prisma = app.get(PrismaService);
+    const events = await prisma.auditLog.findMany({ where: { entityType: 'SalaryRecord', entityId: recordId },
+      orderBy: { createdAt: 'asc' } });
+    expect(events.map((row) => row.action)).toEqual(expect.arrayContaining([
+      'salary_record.create_draft', 'salary_record.update_draft',
+      'salary_record.approve', 'salary_record.pay',
+    ]));
+    const pay = events.find((row) => row.action === 'salary_record.pay');
+    expect(pay?.actorEmail).toBe(`sal-py-${randomTag}@shipping.local`);
+    expect(pay?.afterData).toEqual(expect.objectContaining({ status: 'PAID',
+      paymentMethod: 'BANK_TRANSFER', paymentRef: 'TRF-99881' }));
+    const employee = await prisma.auditLog.findMany({ where: { entityType: 'Employee', entityId: employee2Id } });
+    expect(employee.map((row) => row.action)).toEqual(expect.arrayContaining([
+      'employee.create', 'employee.update', 'employee.deactivate',
+    ]));
+    expect(employee.every((row) => !JSON.stringify([row.beforeData, row.afterData]).includes('nationalId'))).toBe(true);
+  });
 });

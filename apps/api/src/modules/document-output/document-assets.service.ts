@@ -55,8 +55,11 @@ export class DocumentAssetsService {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService,
     @Inject(STORAGE_ADAPTER_TOKEN) private readonly storage: StorageAdapter) {}
 
-  async list() {
+  async list(user: AuthenticatedUser) {
     const rows = await this.prisma.documentAsset.findMany({ orderBy: { createdAt: 'desc' }, take: 200 });
+    await this.audit.record({ action: 'document_asset.list_metadata', entityType: 'DocumentAsset',
+      entityId: 'collection', actorId: user.id, actorEmail: user.email,
+      metadata: { returned: rows.length } });
     return rows.map(({ storageKey: _key, ...visible }) => visible);
   }
 
@@ -97,6 +100,9 @@ export class DocumentAssetsService {
 
   async approve(id: string, user: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      // Approval and retirement must read the same locked version that is
+      // audited; otherwise concurrent decisions can log stale states.
+      await tx.$queryRaw`SELECT "id" FROM "DocumentAsset" WHERE "id" = ${id} FOR UPDATE`;
       const before = await tx.documentAsset.findUnique({ where: { id } });
       if (!before) throw new NotFoundException('Company asset not found');
       if (before.deactivatedAt) throw new ConflictException('A retired asset cannot be reapproved; upload a new version');
@@ -111,6 +117,7 @@ export class DocumentAssetsService {
 
   async retire(id: string, user: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "DocumentAsset" WHERE "id" = ${id} FOR UPDATE`;
       const before = await tx.documentAsset.findUnique({ where: { id } });
       if (!before) throw new NotFoundException('Company asset not found');
       if (before.deactivatedAt) return this.publicRow(before);
@@ -137,24 +144,30 @@ export class DocumentAssetsService {
     }
   }
 
-  /** Never exposes a storage key or an unrestricted URL. Historical use requires prior approval. */
-  async bytes(id: string, kind: AssetKind, at?: Date | null): Promise<Buffer> {
+  /** Server-private artwork; every successful byte access is audited before returning it. */
+  async bytes(id: string, kind: AssetKind, actor: AuthenticatedUser, at?: Date | null,
+    source?: { documentType: string; documentNumber: string; format: string }): Promise<Buffer> {
     const asset = await this.prisma.documentAsset.findUnique({ where: { id } });
     if (!asset || asset.kind !== kind || !asset.approvedAt ||
       (at ? asset.approvedAt > at || !!(asset.deactivatedAt && asset.deactivatedAt <= at) :
         !asset.isApproved || !!asset.deactivatedAt)) {
       throw new NotFoundException('Approved artwork not found');
     }
+    let content: Buffer;
     try {
-      const content = await this.storage.getFile(asset.storageKey);
+      content = await this.storage.getFile(asset.storageKey);
       if (createHash('sha256').update(content).digest('hex') !== asset.sha256) {
         throw new ServiceUnavailableException('Company artwork failed integrity verification');
       }
-      return content;
     } catch (error) {
       if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException('Company artwork is not available');
     }
+    // Fail closed: do not release sensitive bytes when the audit insert fails.
+    await this.audit.record({ action: 'document_asset.read', entityType: 'DocumentAsset',
+      entityId: id, actorId: actor.id, actorEmail: actor.email,
+      metadata: { kind, sha256: asset.sha256, source: source ?? null } });
+    return content;
   }
 
   private publicRow<T extends { storageKey: string }>(row: T): Omit<T, 'storageKey'> {

@@ -135,7 +135,7 @@ export class DocumentOutputService {
     // frozen artwork is evaluated at actual issuance (snapshot creation), not
     // the document's display date. Explicit previews use today's approvals.
     const artworkAt = opts.previewVersionId ? null : frozen?.createdAt ?? data.effectiveAt;
-    const bytes = await this.renderer.render(data, layout, identity, format, artworkAt);
+    const bytes = await this.renderer.render(data, layout, identity, format, actor, artworkAt);
     if (!data.issued || opts.previewVersionId) return this.file(type, data.number, format, bytes);
     if (bytes.length > 8 * 1024 * 1024) throw new ConflictException('Rendered output exceeds 8 MiB archive limit');
 

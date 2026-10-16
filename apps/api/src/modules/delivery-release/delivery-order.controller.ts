@@ -59,13 +59,14 @@ export class DeliveryOrderController {
   @RequirePermissions('delivery:create')
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateDeliveryOrderDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.createDelivery(dto, { userId: user.id });
+    return this.service.createDelivery(dto, { userId: user.id, actorEmail: user.email });
   }
 
   @Patch(':id')
   @RequirePermissions('delivery:update')
-  update(@Param('id') id: string, @Body() dto: UpdateDeliveryOrderDto) {
-    return this.service.updateDelivery(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateDeliveryOrderDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateDelivery(id, dto, user);
   }
 
   @Post(':id/cancel')

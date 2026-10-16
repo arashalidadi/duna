@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -97,7 +98,7 @@ export class YardInventoryService {
    * The @@unique(cargoId) constraint is the final guard against duplicate
    * current inventory under concurrency.
    */
-  async place(dto: PlaceCargoDto, actor?: AuthenticatedUser) {
+  async place(dto: PlaceCargoDto, actor: AuthenticatedUser) {
     const { cargoId, yardId } = dto;
 
     const cargo = await this.prisma.cargo.findUnique({
@@ -137,8 +138,8 @@ export class YardInventoryService {
             status: 'IN_YARD',
             locationLabel: dto.locationLabel,
             notes: dto.notes,
-            createdById: actor?.id,
-            updatedById: actor?.id,
+            createdById: actor.id,
+            updatedById: actor.id,
           },
           select: { id: true },
         });
@@ -151,6 +152,12 @@ export class YardInventoryService {
           });
         }
 
+        await this.audit.recordIn(tx, { action: 'yard_inventory.place', entityType: 'YardInventory',
+          entityId: createdId.id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: { cargoStatus: cargo.status },
+          afterData: { cargoId, yardId, portId: yard.portId, status: 'IN_YARD',
+            cargoStatus: cargo.status === 'REGISTERED' ? 'AT_YARD' : cargo.status,
+            locationLabel: dto.locationLabel ?? null } });
         // Re-read so the returned row reflects the updated cargo.status.
         return tx.yardInventory.findUniqueOrThrow({
           where: { id: createdId.id },
@@ -175,43 +182,32 @@ export class YardInventoryService {
    * Moving to a new yard updates yardId + portId (mirror) and validates the
    * target yard. Status transitions are IN_YARD <-> RESERVED.
    */
-  async update(id: string, dto: UpdateInventoryDto, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.yardInventory.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException('Yard inventory record not found');
-    }
-
-    let yardId = dto.yardId ?? existing.yardId;
-    let portId = existing.portId;
-    if (dto.yardId && dto.yardId !== existing.yardId) {
-      const yard = await this.prisma.yard.findUnique({
-        where: { id: dto.yardId },
-        include: { port: { select: { id: true, isActive: true } } },
-      });
-      if (!yard || yard.deletedAt) {
-        throw new NotFoundException('Target yard not found');
+  async update(id: string, dto: UpdateInventoryDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "YardInventory" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.yardInventory.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Yard inventory record not found');
+      let yardId = before.yardId;
+      let portId = before.portId;
+      if (dto.yardId && dto.yardId !== before.yardId) {
+        const yard = await tx.yard.findUnique({ where: { id: dto.yardId },
+          include: { port: { select: { id: true, isActive: true } } } });
+        if (!yard || yard.deletedAt) throw new NotFoundException('Target yard not found');
+        if (!yard.isActive) throw new ConflictException('Inactive yard cannot receive moved inventory');
+        if (!yard.port.isActive) throw new ConflictException('Cannot move cargo: the target yard\'s port is inactive');
+        yardId = yard.id;
+        portId = yard.portId;
       }
-      if (!yard.isActive) {
-        throw new ConflictException('Inactive yard cannot receive moved inventory');
-      }
-      if (!yard.port.isActive) {
-        throw new ConflictException(`Cannot move cargo: the target yard's port is inactive`);
-      }
-      yardId = yard.id;
-      portId = yard.portId;
-    }
-
-    return this.prisma.yardInventory.update({
-      where: { id },
-      data: {
-        yardId,
-        portId,
-        status: dto.status,
-        locationLabel: dto.locationLabel,
-        notes: dto.notes,
-        updatedById: actor?.id,
-      },
-      select,
+      const after = await tx.yardInventory.update({ where: { id }, data: {
+        yardId, portId, status: dto.status, locationLabel: dto.locationLabel,
+        notes: dto.notes, updatedById: actor.id,
+      }, select });
+      const fields = ['yardId', 'portId', 'status', 'locationLabel', 'notes'];
+      await this.audit.recordIn(tx, { action: 'yard_inventory.update', entityType: 'YardInventory',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { cargoId: before.cargoId } });
+      return after;
     });
   }
 

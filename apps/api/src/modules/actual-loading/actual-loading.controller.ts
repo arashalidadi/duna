@@ -52,8 +52,9 @@ export class ActualLoadingController {
 
   @Patch(':id')
   @RequirePermissions('actual_loading:update')
-  update(@Param('id') id: string, @Body() dto: { notes?: string }) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: { notes?: string },
+    @CurrentUser() actor: AuthenticatedUser) {
+    return this.service.update(id, dto, actor);
   }
 
   // -------------------------------------------------------------------------

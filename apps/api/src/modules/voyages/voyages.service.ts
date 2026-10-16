@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, VesselType, VoyageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -104,6 +106,7 @@ export class VoyagesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListVoyageQueryDto) {
@@ -408,7 +411,7 @@ export class VoyagesService {
     }
   }
 
-  async create(dto: CreateVoyageDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateVoyageDto, actor: AuthenticatedUser) {
     // Full desired destination list: primary (leg 1) + optional additional legs.
     // `destinations` = ADDITIONAL destinations beyond destinationPortId.
     const additionalDestinations = dto.destinations ?? [];
@@ -471,7 +474,7 @@ export class VoyagesService {
           );
         }
 
-        return tx.voyage.create({
+        const saved = await tx.voyage.create({
           data: {
             voyageNumber,
             vesselId: dto.vesselId,
@@ -494,6 +497,13 @@ export class VoyagesService {
           },
           select: detailSelect,
         });
+        await this.audit.recordIn(tx, { action: 'voyage.create', entityType: 'Voyage',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { status: saved.status, voyageNumber, vesselId: dto.vesselId,
+            originPortId: dto.originPortId, destinationPortIds: destinationIds,
+            legNumbers: saved.legs.map((leg) => ({ destinationPortId: leg.destinationPortId,
+              voyageNumber: leg.voyageNumber })) } });
+        return saved;
       });
     } catch (e) {
       if (
@@ -506,10 +516,10 @@ export class VoyagesService {
     }
   }
 
-  async update(id: string, dto: UpdateVoyageDto) {
+  async update(id: string, dto: UpdateVoyageDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.voyage.findUnique({
       where: { id },
-      select: { id: true, status: true },
+      select: { id: true, status: true, updatedAt: true },
     });
     if (!existing) {
       throw new NotFoundException('Voyage not found');
@@ -621,12 +631,33 @@ export class VoyagesService {
       notes: dto.notes,
     };
 
+    // Route reads above are outside the write transaction. Reject a concurrent
+    // edit under a row lock rather than auditing or persisting a stale leg plan.
+    const lock = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT "id" FROM "Voyage" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.voyage.findUnique({ where: { id } });
+      if (!before || before.updatedAt.getTime() !== existing.updatedAt.getTime()) {
+        throw new ConflictException('Voyage changed during the edit; reload and retry');
+      }
+      return before;
+    };
+    const write = async (tx: Prisma.TransactionClient, before: NonNullable<Awaited<ReturnType<typeof lock>>>) => {
+      const after = await tx.voyage.update({ where: { id }, data: updateData, select: detailSelect });
+      const fields = Object.keys(dto).filter((key) => key !== 'destinations');
+      await this.audit.recordIn(tx, { action: 'voyage.update', entityType: 'Voyage',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { ...auditProjection(before, fields),
+          ...(desiredDestinations ? { destinationPortIds: currentLegs.filter((leg) => !leg.deletedAt)
+            .sort((a, b) => a.legNumber - b.legNumber).map((leg) => leg.destinationPortId) } : {}) },
+        afterData: { ...auditProjection(after, fields),
+          ...(desiredDestinations ? { destinationPortIds: desiredDestinations,
+            legNumbers: after.legs.map((leg) => ({ destinationPortId: leg.destinationPortId,
+              voyageNumber: leg.voyageNumber })) } : {}) },
+        metadata: { voyageNumber: after.voyageNumber, fields: Object.keys(dto) } });
+      return after;
+    };
     if (!desiredDestinations) {
-      return this.prisma.voyage.update({
-        where: { id },
-        data: updateData,
-        select: detailSelect,
-      });
+      return this.prisma.$transaction(async (tx) => write(tx, await lock(tx)));
     }
     if (!legVesselId) {
       throw new Error('Leg vessel was not resolved for a route change');
@@ -636,6 +667,7 @@ export class VoyagesService {
     // --- Leg sync (DRAFT only): keep / revive / add / soft-remove ---
     // One transaction: new numbers, leg rows and the voyage update commit or roll back together.
     return this.prisma.$transaction(async (tx) => {
+      const before = await lock(tx);
       const activeByPort = new Map(
         currentLegs.filter((leg) => leg.deletedAt === null).map((leg) => [leg.destinationPortId, leg]),
       );
@@ -691,15 +723,33 @@ export class VoyagesService {
         }
       }
 
-      return tx.voyage.update({
-        where: { id },
-        data: updateData,
-        select: detailSelect,
-      });
+      return write(tx, before);
     });
   }
 
-  async schedule(id: string, dto: ScheduleVoyageDto) {
+  private async transition(id: string, to: VoyageStatus, actor: AuthenticatedUser,
+    data: Prisma.VoyageUpdateInput = {}, expectedVesselId?: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Voyage" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.voyage.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Voyage not found');
+      this.assertTransition(before.status, to);
+      if (expectedVesselId && before.vesselId !== expectedVesselId) {
+        throw new ConflictException('Voyage vessel changed during scheduling; reload and retry');
+      }
+      const after = await tx.voyage.update({ where: { id }, data: { status: to, ...data },
+        select: detailSelect });
+      const fields = ['status', ...Object.keys(data).filter((key) => key !== 'status')];
+      await this.audit.recordIn(tx, { action: `voyage.${to.toLowerCase()}`,
+        entityType: 'Voyage', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { voyageNumber: after.voyageNumber,
+          ...(to === 'CANCELLED' ? { reason: after.cancelReason } : {}) } });
+      return after;
+    });
+  }
+
+  async schedule(id: string, dto: ScheduleVoyageDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.voyage.findUnique({
       where: { id },
       select: { id: true, status: true, vesselId: true },
@@ -722,71 +772,22 @@ export class VoyagesService {
 
     await this.assertNoOverlap(existing.vesselId, departure, arrival);
 
-    return this.prisma.voyage.update({
-      where: { id },
-      data: {
-        status: 'SCHEDULED',
-        plannedDepartureAt: departure,
-        plannedArrivalAt: arrival,
-        notes: dto.notes,
-      },
-      select: detailSelect,
-    });
+    return this.transition(id, 'SCHEDULED', actor,
+      { plannedDepartureAt: departure, plannedArrivalAt: arrival, notes: dto.notes }, existing.vesselId);
   }
 
-  async start(id: string) {
-    const existing = await this.prisma.voyage.findUnique({
-      where: { id },
-      select: { id: true, status: true },
-    });
-    if (!existing) {
-      throw new NotFoundException('Voyage not found');
-    }
-    this.assertTransition(existing.status, 'IN_PROGRESS');
-
-    return this.prisma.voyage.update({
-      where: { id },
-      data: { status: 'IN_PROGRESS' },
-      select: detailSelect,
-    });
+  async start(id: string, actor: AuthenticatedUser) {
+    return this.transition(id, 'IN_PROGRESS', actor);
   }
 
-  async complete(id: string) {
-    const existing = await this.prisma.voyage.findUnique({
-      where: { id },
-      select: { id: true, status: true },
-    });
-    if (!existing) {
-      throw new NotFoundException('Voyage not found');
-    }
-    this.assertTransition(existing.status, 'COMPLETED');
-
-    return this.prisma.voyage.update({
-      where: { id },
-      data: { status: 'COMPLETED' },
-      select: detailSelect,
-    });
+  async complete(id: string, actor: AuthenticatedUser) {
+    return this.transition(id, 'COMPLETED', actor);
   }
 
-  async cancel(id: string, cancelReason: string) {
-    const existing = await this.prisma.voyage.findUnique({
-      where: { id },
-      select: { id: true, status: true },
-    });
-    if (!existing) {
-      throw new NotFoundException('Voyage not found');
-    }
-    this.assertTransition(existing.status, 'CANCELLED');
+  async cancel(id: string, cancelReason: string, actor: AuthenticatedUser) {
     const reason = cancelReason?.trim();
-    if (!reason) {
-      throw new BadRequestException('A cancellation reason is required');
-    }
-
-    return this.prisma.voyage.update({
-      where: { id },
-      data: { status: 'CANCELLED', cancelReason: reason },
-      select: detailSelect,
-    });
+    if (!reason) throw new BadRequestException('A cancellation reason is required');
+    return this.transition(id, 'CANCELLED', actor, { cancelReason: reason });
   }
 
   private assertTransition(current: VoyageStatus, target: VoyageStatus) {

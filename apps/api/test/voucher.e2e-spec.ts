@@ -3,6 +3,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 
@@ -238,6 +239,28 @@ describe('Vouchers & Ledger (e2e)', () => {
 
     const inv = await request(app.getHttpServer()).get(`/api/v1/invoices/${invoiceId}`).set(auth(adminToken)).expect(200);
     expect(Number(inv.body.data.paidAmount)).toBe(400);
+  });
+
+  it('audits the posted voucher, its initial allocation and the invoice FX exception', async () => {
+    const db = app.get(PrismaService);
+    const voucherEvents = await db.auditLog.findMany({
+      where: { entityType: 'Voucher', entityId: rcp1Id },
+      orderBy: { timestamp: 'asc' },
+    });
+    const posted = voucherEvents.find((event) => event.action === 'voucher.post');
+    expect(posted?.actorEmail).toBe(admin.email);
+    expect(posted?.afterData).toMatchObject({ amount: '400.00', currencyCode: 'USD' });
+    const allocation = voucherEvents.find((event) => event.action === 'voucher.allocate');
+    expect(allocation?.actorEmail).toBe(admin.email);
+    expect(allocation?.afterData).toEqual(expect.arrayContaining([
+      expect.objectContaining({ invoiceId }),
+    ]));
+    const fx = await db.auditLog.findFirst({ where: {
+      entityType: 'Invoice', entityId: aedInvoiceId, action: 'currency_rate.override',
+    } });
+    expect(fx?.actorEmail).toBe(admin.email);
+    expect(fx?.metadata).toMatchObject({ reason: `Isolated voucher E2E FX ${tag}` });
+    expect(fx?.afterData).toMatchObject({ currencyCode: 'AED', rate: '0.27' });
   });
 
   it('rejects settlement of a DRAFT invoice (409)', async () => {

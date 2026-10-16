@@ -35,6 +35,10 @@ export interface AuthenticatedUser {
  */
 export const RELEASE_OVERRIDE_PERMISSION = 'release:override';
 
+/** P11: export of the entire audit trail is an owner-delegated, explicit grant. */
+export const AUDIT_EXPORT_PERMISSION = 'audit:export';
+export const AUDIT_EXPORT_ROLE = 'AUDIT_EXPORTER';
+
 /**
  * Semantics for how multiple required permissions are evaluated by
  * PermissionsGuard. 'AND' requires all; 'OR' requires at least one.

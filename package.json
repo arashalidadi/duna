@@ -51,7 +51,12 @@
     "db:phase10:postflight": "tsx apps/api/scripts/preflight-phase10.ts --after",
     "db:seed:phase10:permissions": "tsx apps/api/scripts/seed-phase10-permissions.ts",
     "db:seed:phase10:ports": "tsx apps/api/scripts/seed-phase10-ports.ts",
-    "test:phase10:migration": "node apps/api/scripts/test-phase10-migration.cjs"
+    "test:phase10:migration": "node apps/api/scripts/test-phase10-migration.cjs",
+    "check:phase11:authz": "node scripts/check-phase11-authz.mjs",
+    "db:seed:phase11:permissions": "tsx apps/api/scripts/seed-phase11-permissions.ts",
+    "db:phase11:roles:preflight": "tsx apps/api/scripts/phase11-audit-roles.ts --preflight",
+    "db:phase11:roles:grant": "tsx apps/api/scripts/phase11-audit-roles.ts --grant",
+    "db:phase11:roles:verify": "tsx apps/api/scripts/phase11-audit-roles.ts --verify"
   },
   "devDependencies": {
     "@prisma/client": "^5.22.0",

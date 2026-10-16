@@ -3,6 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import type { DocumentIdentity } from '../company-settings/company-settings.service';
+import type { AuthenticatedUser } from '../../common/auth/types';
 import { DocumentAssetsService } from './document-assets.service';
 import { type DocumentData, type DocumentFormat, type DocumentLayout,
   type HeaderField, type LineField } from './document-layout';
@@ -33,20 +34,22 @@ export class DocumentRendererService {
   constructor(private readonly assets: DocumentAssetsService) {}
 
   async render(data: DocumentData, layout: DocumentLayout,
-    identity: DocumentIdentity | null, format: DocumentFormat,
+    identity: DocumentIdentity | null, format: DocumentFormat, actor: AuthenticatedUser,
     artworkAt: Date | null = data.issued ? data.effectiveAt : null): Promise<Buffer> {
     if (format === 'xlsx') return this.excel(data, layout, identity);
     if (data.rows.length > 600) {
       throw new BadRequestException('PDF over 600 lines; narrow the ledger date range or use Excel');
     }
     // Company marks are intentionally NEVER loaded, embedded or serialized in Print/Excel.
+    const source = { documentType: data.type, documentNumber: data.number, format };
     const letterhead = layout.letterheadAssetId
-      ? await this.assets.bytes(layout.letterheadAssetId, 'LETTERHEAD', artworkAt) : null;
-    const logo = layout.logoAssetId ? await this.assets.bytes(layout.logoAssetId, 'LOGO', artworkAt) : null;
+      ? await this.assets.bytes(layout.letterheadAssetId, 'LETTERHEAD', actor, artworkAt, source) : null;
+    const logo = layout.logoAssetId
+      ? await this.assets.bytes(layout.logoAssetId, 'LOGO', actor, artworkAt, source) : null;
     const stamp = format === 'pdf' && data.issued && layout.stampAssetId
-      ? await this.assets.bytes(layout.stampAssetId, 'STAMP', artworkAt) : null;
+      ? await this.assets.bytes(layout.stampAssetId, 'STAMP', actor, artworkAt, source) : null;
     const signature = format === 'pdf' && data.issued && layout.signatureAssetId
-      ? await this.assets.bytes(layout.signatureAssetId, 'SIGNATURE', artworkAt) : null;
+      ? await this.assets.bytes(layout.signatureAssetId, 'SIGNATURE', actor, artworkAt, source) : null;
 
     const font = join(dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf', 'DejaVuSans.ttf');
     return new Promise<Buffer>((resolve, reject) => {

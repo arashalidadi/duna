@@ -13,6 +13,7 @@ import { allocateInvoiceNumber } from './invoice-number';
 import { ExchangeRateService } from '../finance/exchange-rate.service';
 import { CustomerPostingService } from '../finance/customer-posting.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { recomputeInvoiceTax } from './invoice-tax';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
 import { FieldConfigService } from '../configuration/field-config.service';
@@ -260,7 +261,7 @@ export class InvoiceService {
    * preferred — it carries the manifest's voyage). Phase 3: B/Ls and Jobs may be
    * given as lists (DEC-105, DEC-071); the single billOfLadingId still works.
    */
-  async create(dto: CreateInvoiceDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateInvoiceDto, actor: AuthenticatedUser) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: dto.customerId, deletedAt: null },
       select: { id: true },
@@ -303,7 +304,13 @@ export class InvoiceService {
         });
         await this.replaceBillLinks(tx, invoice.id, anchors.billOfLadingIds);
         await this.replaceJobLinks(tx, invoice.id, jobIds);
-        return tx.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: detailSelect });
+        const after = await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: detailSelect });
+        await this.audit.recordIn(tx, { action: 'invoice.create', entityType: 'Invoice',
+          entityId: invoice.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { status: after.status, invoiceNumber, customerId: after.customerId,
+            currencyCode: after.currencyCode, billOfLadingIds: anchors.billOfLadingIds,
+            jobIds, manifestId: anchors.manifestId } });
+        return after;
       });
     } catch (e) {
       if (
@@ -321,7 +328,7 @@ export class InvoiceService {
    * discountAmount) recompute the derived totals. A header taxRate is applied to every
    * line (bulk default, kept for compatibility); per-line rates are set with updateItem.
    */
-  async update(id: string, dto: UpdateInvoiceDto) {
+  async update(id: string, dto: UpdateInvoiceDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -359,6 +366,9 @@ export class InvoiceService {
     const trnValue = dto.trn !== undefined ? dto.trn?.trim() || null : undefined;
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "invoices" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.invoice.findUnique({ where: { id }, select: detailSelect });
+      this.assertEditable(before, 'edited');
       await tx.invoice.update({
         where: { id },
         data: {
@@ -398,23 +408,38 @@ export class InvoiceService {
         });
       }
       await recomputeInvoiceTax(tx, id);
-      return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const after = await tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const fields = [...Object.keys(dto).filter((key) => !['billOfLadingIds', 'jobIds'].includes(key)),
+        'subtotal', 'taxAmount', 'totalAmount', 'billOfLadingId', 'manifestId', 'voyageId'];
+      await this.audit.recordIn(tx, { action: 'invoice.update_draft', entityType: 'Invoice',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { ...auditProjection(before!, fields),
+          billOfLadingIds: before!.billLinks.map((link) => link.billOfLadingId),
+          jobIds: before!.jobLinks.map((link) => link.jobId) },
+        afterData: { ...auditProjection(after, fields),
+          billOfLadingIds: after.billLinks.map((link) => link.billOfLadingId),
+          jobIds: after.jobLinks.map((link) => link.jobId) },
+        metadata: { fields: Object.keys(dto), invoiceNumber: after.invoiceNumber } });
+      return after;
     });
   }
 
   /** Soft delete. DRAFT only — issued invoices are audit records. */
-  async remove(id: string) {
-    const existing = await this.prisma.invoice.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "invoices" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.invoice.findUnique({ where: { id }, select: detailSelect });
+      this.assertEditable(before, 'deleted');
+      const after = await tx.invoice.update({ where: { id }, data: { deletedAt: new Date() },
+        select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'invoice.delete_draft', entityType: 'Invoice',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before!.status, invoiceNumber: before!.invoiceNumber,
+          totalAmount: before!.totalAmount },
+        afterData: { deletedAt: after.deletedAt },
+        metadata: { invoiceNumber: after.invoiceNumber } });
+      return after;
     });
-    this.assertEditable(existing, 'deleted');
-
-    await this.prisma.invoice.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-    return this.prisma.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
   }
 
   // -------------------------------------------------------------------------
@@ -425,7 +450,7 @@ export class InvoiceService {
    * Add a line (DRAFT only). amount = quantity x unitPrice, server-side. The line VAT rate
    * defaults to the header rate when omitted (existing single-rate clients are unchanged).
    */
-  async addItem(id: string, dto: AddInvoiceItemDto) {
+  async addItem(id: string, dto: AddInvoiceItemDto, actor: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true, taxRate: true },
@@ -441,7 +466,9 @@ export class InvoiceService {
     const taxRate = dto.taxRate ?? Number(invoice.taxRate);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.invoiceItem.create({
+      await tx.$queryRaw`SELECT "id" FROM "invoices" WHERE "id" = ${id} FOR UPDATE`;
+      this.assertEditable(await tx.invoice.findUnique({ where: { id } }), 'modified');
+      const item = await tx.invoiceItem.create({
         data: {
           invoiceId: id,
           sequence,
@@ -454,12 +481,16 @@ export class InvoiceService {
         },
       });
       await recomputeInvoiceTax(tx, id);
+      await this.audit.recordIn(tx, { action: 'invoice.item.add', entityType: 'Invoice',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: auditProjection(item, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount', 'taxRate', 'notes']) });
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
   /** Update a line (DRAFT only). amount maintained server-side; taxRate only when given. */
-  async updateItem(id: string, itemId: string, dto: UpdateInvoiceItemDto) {
+  async updateItem(id: string, itemId: string, dto: UpdateInvoiceItemDto, actor: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -478,7 +509,11 @@ export class InvoiceService {
     const unitPrice = dto.unitPrice !== undefined ? dto.unitPrice : Number(item.unitPrice);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.invoiceItem.update({
+      await tx.$queryRaw`SELECT "id" FROM "invoices" WHERE "id" = ${id} FOR UPDATE`;
+      this.assertEditable(await tx.invoice.findUnique({ where: { id } }), 'modified');
+      const before = await tx.invoiceItem.findFirst({ where: { id: itemId, invoiceId: id } });
+      if (!before) throw new NotFoundException('Invoice item not found');
+      const after = await tx.invoiceItem.update({
         where: { id: itemId },
         data: {
           ...(dto.description !== undefined ? { description: dto.description } : {}),
@@ -490,12 +525,17 @@ export class InvoiceService {
         },
       });
       await recomputeInvoiceTax(tx, id);
+      const fields = ['description', 'quantity', 'unitPrice', 'amount', 'taxRate', 'notes'];
+      await this.audit.recordIn(tx, { action: 'invoice.item.update', entityType: 'Invoice',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { itemId } });
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
   /** Remove a line (DRAFT only) and recompute totals. */
-  async removeItem(id: string, itemId: string) {
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -511,8 +551,16 @@ export class InvoiceService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "invoices" WHERE "id" = ${id} FOR UPDATE`;
+      this.assertEditable(await tx.invoice.findUnique({ where: { id } }), 'modified');
+      const before = await tx.invoiceItem.findFirst({ where: { id: itemId, invoiceId: id } });
+      if (!before) throw new NotFoundException('Invoice item not found');
       await tx.invoiceItem.delete({ where: { id: itemId } });
       await recomputeInvoiceTax(tx, id);
+      await this.audit.recordIn(tx, { action: 'invoice.item.remove', entityType: 'Invoice',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount', 'taxRate', 'notes']), metadata: { itemId } });
       return tx.invoice.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -564,6 +612,13 @@ export class InvoiceService {
           rateEffectiveAt: rate.rateEffectiveAt, rateSource: rate.rateSource,
           rateOverrideReason: rate.rateOverrideReason },
       });
+      if (rate.rateOverrideReason) {
+        await this.audit.recordIn(tx, { action: 'currency_rate.override', entityType: 'Invoice',
+          entityId: id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { currencyCode: existing.currencyCode, baseCurrencyCode: rate.baseCurrencyCode,
+            rate: rate.exchangeRate.toString(), effectiveAt: rate.rateEffectiveAt },
+          metadata: { reason: rate.rateOverrideReason, invoiceNumber: issued.invoiceNumber } });
+      }
       await captureIssuedDocument(tx, 'invoice', id, actor.id);
       return issued;
     });

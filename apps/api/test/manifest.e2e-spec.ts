@@ -301,9 +301,7 @@ describe('Manifest (e2e)', () => {
         where: { billOfLading: { id: { in: createdBillIds } } },
       });
       await prisma.billOfLading.deleteMany({ where: { id: { in: createdBillIds } } });
-      await prisma.auditLog.deleteMany({
-        where: { entityType: 'BillOfLading', entityId: { in: createdBillIds } },
-      });
+      // Audit history is append-only even when its disposable B/L fixture is removed.
       // Reverse dependency order.
       await prisma.manifestItem.deleteMany({ where: { manifest: { voyageId: { in: voyageIds } } } });
       await prisma.manifest.deleteMany({ where: { voyageId: { in: voyageIds } } });

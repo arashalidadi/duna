@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { NumberingService } from '../../common/infrastructure/numbering/numbering.service';
 import { CreateRevisionDto } from './dto/bill.dto';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { captureIssuedDocument } from '../document-output/document-issue-snapshot';
@@ -310,7 +311,7 @@ export class BillService {
    * Both modes allocate a per-destination number `BOL-{DEST}-YYMM-#####` via
    * NumberingService (ADR-045 decision 5, P4-U3) and create in DRAFT.
    */
-  async create(dto: CreateBillDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateBillDto, actor: AuthenticatedUser) {
     if (dto.manifestId && dto.voyageId) {
       throw new BadRequestException(
         'Provide either manifestId (legacy transitional input) or voyageId, not both',
@@ -329,7 +330,7 @@ export class BillService {
   }
 
   /** Legacy transitional path — unchanged behaviour; retires at P4-U7. */
-  private async createFromManifest(dto: CreateBillDto, actor?: AuthenticatedUser) {
+  private async createFromManifest(dto: CreateBillDto, actor: AuthenticatedUser) {
     const manifest = await this.prisma.manifest.findUnique({
       where: { id: dto.manifestId },
       select: {
@@ -384,7 +385,8 @@ export class BillService {
     for (let attempt = 1; ; attempt += 1) {
       const billNumber = await this.allocateBillNumber(destinationPortId);
       try {
-        return await this.prisma.billOfLading.create({
+        return await this.prisma.$transaction(async (tx) => {
+          const row = await tx.billOfLading.create({
           data: {
             billNumber,
           manifestId: dto.manifestId,
@@ -406,9 +408,15 @@ export class BillService {
           goodsDescription: dto.goodsDescription,
           shipmentMarks: dto.shipmentMarks,
             notes: dto.notes,
-            createdById: actor?.id,
+            createdById: actor.id,
           },
           select: detailSelect,
+          });
+          await this.audit.recordIn(tx, { action: 'bill.create', entityType: 'BillOfLading',
+            entityId: row.id, actorId: actor.id, actorEmail: actor.email,
+            afterData: { billNumber: row.billNumber, status: row.status,
+              voyageId: row.voyageId, manifestId: row.manifestId } });
+          return row;
         });
       } catch (e) {
         if (
@@ -444,7 +452,7 @@ export class BillService {
    * (Phase-2 masters), else derived from the selected cargo lines — never a manifest.
    * Item snapshots default from cargo/loading facts. Totals computed from the lines.
    */
-  private async createFromCargo(dto: CreateBillDto, actor?: AuthenticatedUser) {
+  private async createFromCargo(dto: CreateBillDto, actor: AuthenticatedUser) {
     const voyage = await this.prisma.voyage.findUnique({
       where: { id: dto.voyageId! },
       select: {
@@ -487,7 +495,8 @@ export class BillService {
     for (let attempt = 1; ; attempt += 1) {
       const billNumber = await this.allocateBillNumber(voyage.destinationPortId);
       try {
-        return await this.prisma.billOfLading.create({
+        return await this.prisma.$transaction(async (tx) => {
+          const row = await tx.billOfLading.create({
           data: {
             billNumber,
             manifestId: null,
@@ -509,7 +518,7 @@ export class BillService {
             goodsDescription: dto.goodsDescription,
             shipmentMarks: dto.shipmentMarks,
             notes: dto.notes,
-            createdById: actor?.id,
+            createdById: actor.id,
             totalPackages,
             totalGrossWeight: new Prisma.Decimal(totalGrossWeight.toFixed(3)),
             totalVolume: new Prisma.Decimal(totalVolume.toFixed(3)),
@@ -527,6 +536,12 @@ export class BillService {
             },
           },
           select: detailSelect,
+          });
+          await this.audit.recordIn(tx, { action: 'bill.create', entityType: 'BillOfLading',
+            entityId: row.id, actorId: actor.id, actorEmail: actor.email,
+            afterData: { billNumber: row.billNumber, status: row.status,
+              voyageId: row.voyageId, cargoIds } });
+          return row;
         });
       } catch (e) {
         if (
@@ -638,7 +653,7 @@ export class BillService {
   /**
    * Update B/L header fields. Only DRAFT bills may be edited.
    */
-  async update(id: string, dto: UpdateBillDto) {
+  async update(id: string, dto: UpdateBillDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -648,7 +663,11 @@ export class BillService {
     if (dto.consigneeId) await this.assertLiveParty('consignee', dto.consigneeId, false);
 
     try {
-      return await this.prisma.billOfLading.update({
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockBill(tx, id);
+        const before = await tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
+        await this.assertEditable(before, 'edited');
+        const updated = await tx.billOfLading.update({
       where: { id },
       data: {
         ...(dto.billType !== undefined ? { billType: dto.billType as BlType } : {}),
@@ -671,6 +690,13 @@ export class BillService {
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
         select: detailSelect,
+        });
+        const fields = Object.keys(dto);
+        await this.audit.recordIn(tx, { action: 'bill.update', entityType: 'BillOfLading',
+          entityId: id, actorId: actor.id, actorEmail: actor.email,
+          beforeData: auditProjection(before, fields),
+          afterData: auditProjection(updated, fields), metadata: { fields } });
+        return updated;
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
@@ -686,19 +712,25 @@ export class BillService {
    * Soft delete a B/L. Only DRAFT bills may be deleted; issued and cancelled
    * documents are preserved for audit.
    */
-  async remove(id: string) {
+  async remove(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
     });
     await this.assertEditable(existing, 'deleted');
 
-    await this.prisma.billOfLading.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      const changed = await tx.billOfLading.updateMany({ where: { id, status: 'DRAFT', deletedAt: null },
+        data: { deletedAt: new Date() } });
+      if (changed.count !== 1) throw new ConflictException('Bill changed during draft deletion');
+      const row = await tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'bill.delete_draft', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { deletedAt: null, status: existing!.status },
+        afterData: { deletedAt: row.deletedAt, status: row.status },
+        metadata: { billNumber: row.billNumber } });
+      return row;
     });
-
-    return this.prisma.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
   }
 
   // -------------------------------------------------------------------------
@@ -711,7 +743,7 @@ export class BillService {
    * the line is not already claimed by another live (non-cancelled,
    * non-deleted) B/L. Snapshots packages/type/weight from the manifest line.
    */
-  async addItem(id: string, dto: AddBillItemDto) {
+  async addItem(id: string, dto: AddBillItemDto, actor: AuthenticatedUser) {
     const bill = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, manifestId: true, voyageId: true, deletedAt: true },
@@ -739,7 +771,7 @@ export class BillService {
       });
       line.sequence = (maxSeq._max.sequence ?? 0) + 1;
       return this.prisma.$transaction(async (tx) => {
-        await tx.billOfLadingItem.create({
+        const created = await tx.billOfLadingItem.create({
           data: {
             billOfLadingId: id,
             cargoId: line.cargoId,
@@ -754,6 +786,9 @@ export class BillService {
           },
         });
         await this.recomputeTotals(tx, id);
+        await this.audit.recordIn(tx, { action: 'bill.item.add', entityType: 'BillOfLading',
+          entityId: id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { itemId: created.id, cargoId: created.cargoId, sequence: created.sequence } });
         return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
       });
     }
@@ -806,7 +841,7 @@ export class BillService {
     const sequence = (maxSeq._max.sequence ?? 0) + 1;
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.billOfLadingItem.create({
+      const created = await tx.billOfLadingItem.create({
         data: {
           billOfLadingId: id,
           manifestItemId: dto.manifestItemId!, // narrow: legacy branch guarantees presence
@@ -823,12 +858,16 @@ export class BillService {
         },
       });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'bill.item.add', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: { itemId: created.id, manifestItemId: created.manifestItemId,
+          cargoId: created.cargoId, sequence: created.sequence } });
       return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
   /** Update a B/L line (document text + figures). DRAFT only. */
-  async updateItem(id: string, itemId: string, dto: UpdateBillItemDto) {
+  async updateItem(id: string, itemId: string, dto: UpdateBillItemDto, actor: AuthenticatedUser) {
     const bill = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -844,7 +883,8 @@ export class BillService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.billOfLadingItem.update({
+      const before = await tx.billOfLadingItem.findUniqueOrThrow({ where: { id: itemId } });
+      const updated = await tx.billOfLadingItem.update({
         where: { id: itemId },
         data: {
           ...(dto.goodsDescription !== undefined ? { goodsDescription: dto.goodsDescription } : {}),
@@ -860,12 +900,17 @@ export class BillService {
         },
       });
       await this.recomputeTotals(tx, id);
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'bill.item.update', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(updated, fields),
+        metadata: { itemId, fields } });
       return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
   /** Remove a B/L line and recompute totals. DRAFT only. */
-  async removeItem(id: string, itemId: string) {
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
     const bill = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -881,8 +926,12 @@ export class BillService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.billOfLadingItem.delete({ where: { id: itemId } });
+      const removed = await tx.billOfLadingItem.delete({ where: { id: itemId } });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'bill.item.remove', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { itemId, cargoId: removed.cargoId, sequence: removed.sequence },
+        afterData: { removed: true }, metadata: { itemId } });
       return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -1043,7 +1092,7 @@ export class BillService {
    * ManifestItem.blNumber with the B/L number and freezes the document (now at
    * APPROVED). Any other source state -> 409 from the transition table.
    */
-  async issue(id: string, actor?: AuthenticatedUser) {
+  async issue(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: {
@@ -1070,7 +1119,7 @@ export class BillService {
       throw new BadRequestException('Cannot issue a B/L with no cargo lines');
     }
 
-    return this.approveCore(existing, actor);
+    return this.approveCore(existing, actor, 'bill.issue');
   }
 
   /**
@@ -1081,7 +1130,7 @@ export class BillService {
    * lines are stamped when the bill reaches APPROVED. Guarded by bill:issue (same
    * operational permission as the alias; no new permission codes in this unit).
    */
-  async finalize(id: string) {
+  async finalize(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, status: true, deletedAt: true },
@@ -1097,6 +1146,9 @@ export class BillService {
       const changed = await tx.billOfLading.updateMany({ where: { id, status: 'DRAFT', deletedAt: null },
         data: { status: 'FINAL' } });
       if (changed.count !== 1) throw new ConflictException('Bill changed during finalization');
+      await this.audit.recordIn(tx, { action: 'bill.finalize', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing.status }, afterData: { status: 'FINAL' } });
       return tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -1105,7 +1157,7 @@ export class BillService {
    * FINAL -> APPROVED (P4-U4): the explicit edge behind the issue alias, with the
    * identical stamp/freeze semantics (shared approveCore). Guarded by bill:issue.
    */
-  async approve(id: string, actor?: AuthenticatedUser) {
+  async approve(id: string, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: {
@@ -1124,7 +1176,7 @@ export class BillService {
     if (existing._count.items === 0) {
       throw new BadRequestException('Cannot approve a B/L with no cargo lines');
     }
-    return this.approveCore(existing, actor);
+    return this.approveCore(existing, actor, 'bill.approve');
   }
 
   /** Shared APPROVED write used by both the issue alias and the explicit approve edge. */
@@ -1132,9 +1184,11 @@ export class BillService {
     existing: {
       id: string;
       billNumber: string;
+      status: BlStatus;
       dateOfIssue: Date | null;
     },
-    actor?: AuthenticatedUser,
+    actor: AuthenticatedUser,
+    action: 'bill.issue' | 'bill.approve',
   ) {
     const id = existing.id;
     return this.prisma.$transaction(async (tx) => {
@@ -1156,24 +1210,26 @@ export class BillService {
         });
       }
 
-      const approved = await tx.billOfLading.update({
-        where: { id },
-        data: {
-          // issued-equivalent state per ADR-046 ruling 1 (alias lands DRAFT|FINAL -> APPROVED)
-          status: 'APPROVED',
-          issuedAt: new Date(),
-          issuedById: actor?.id,
-          dateOfIssue: existing.dateOfIssue ?? new Date(),
-        },
-        select: detailSelect,
+      const changed = await tx.billOfLading.updateMany({
+        where: { id, status: existing.status, deletedAt: null },
+        data: { status: 'APPROVED', issuedAt: new Date(), issuedById: actor.id,
+          dateOfIssue: existing.dateOfIssue ?? new Date() },
       });
-      await captureIssuedDocument(tx, 'bill', id, actor?.id);
+      if (changed.count !== 1) throw new ConflictException('Bill changed during approval');
+      const approved = await tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await captureIssuedDocument(tx, 'bill', id, actor.id);
+      await this.audit.recordIn(tx, { action, entityType: 'BillOfLading', entityId: id,
+        actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing.status }, afterData: { status: 'APPROVED',
+          issuedById: actor.id, issuedAt: approved.issuedAt },
+        metadata: { billNumber: existing.billNumber,
+          viaFinal: action === 'bill.issue' && existing.status === 'DRAFT' } });
       return approved;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
 
   /** DRAFT|FINAL -> CANCELLED (ADR-046 ruling 1). Reason required. Releases the manifest lines. */
-  async cancel(id: string, dto: CancelBillDto, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: CancelBillDto, actor: AuthenticatedUser) {
     const existing = await this.prisma.billOfLading.findUnique({
       where: { id },
       select: { id: true, billNumber: true, status: true, deletedAt: true },
@@ -1202,16 +1258,19 @@ export class BillService {
         });
       }
 
-      return tx.billOfLading.update({
-        where: { id },
-        data: {
-          status: 'CANCELLED',
-          cancelReason: dto.cancelReason.trim(),
-          cancelledAt: new Date(),
-          cancelledById: actor?.id,
-        },
-        select: detailSelect,
+      const changed = await tx.billOfLading.updateMany({
+        where: { id, status: existing.status, deletedAt: null },
+        data: { status: 'CANCELLED', cancelReason: dto.cancelReason.trim(),
+          cancelledAt: new Date(), cancelledById: actor.id },
       });
+      if (changed.count !== 1) throw new ConflictException('Bill changed during cancellation');
+      const cancelled = await tx.billOfLading.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'bill.cancel', entityType: 'BillOfLading',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: existing.status },
+        afterData: { status: 'CANCELLED', cancelReason: dto.cancelReason.trim() },
+        metadata: { billNumber: existing.billNumber, reason: dto.cancelReason.trim() } });
+      return cancelled;
     });
   }
 
@@ -1220,9 +1279,9 @@ export class BillService {
   // -------------------------------------------------------------------------
 
   /**
-   * GET /bills/:id/audit (bill:read): the bill's ADR-010 trail, newest first.
-   * Powers the "release record" display (there is no releasedAt column — the audit
-   * row IS the record, per ADR-045/046) and gives the gate a read-back path.
+   * GET /bills/:id/audit (bill:read): only the release-record summary. The
+   * complete before/after audit history requires audit:read via GET /audit;
+   * bill:read alone must not disclose privileged audit payloads.
    */
   async auditTrail(id: string) {
     const bill = await this.prisma.billOfLading.findUnique({
@@ -1232,7 +1291,10 @@ export class BillService {
     if (!bill || bill.deletedAt) {
       throw new NotFoundException('Bill of Lading not found');
     }
-    return this.audit.forEntity('BillOfLading', id);
+    const trail = await this.audit.forEntity('BillOfLading', id, { action: 'bill:release' });
+    return { total: trail.total,
+      items: trail.items.map((row) => ({ action: row.action, actorEmail: row.actorEmail,
+        timestamp: row.timestamp })) };
   }
 
   /**
@@ -1438,9 +1500,13 @@ export class BillService {
       },
     });
     await tx.billOfLading.update({
-      where: { id: row.id },
-      data: { revision: revisionNumber + 1 },
+      where: { id: row.id }, data: { revision: revisionNumber + 1 },
     });
+    await this.audit.recordIn(tx, { action: 'bill.revision.freeze',
+      entityType: 'BillOfLading', entityId: row.id, actorId: actor.id,
+      actorEmail: actor.email, beforeData: { revision: revisionNumber },
+      afterData: { revision: revisionNumber + 1, revisionId: created.id },
+      metadata: { note, snapshotId: created.id } });
     return created;
   }
 
@@ -1553,7 +1619,11 @@ export class BillService {
           });
         }
         await this.recomputeTotals(tx, id);
-
+        await this.audit.recordIn(tx, { action: 'bill.revision.restore',
+          entityType: 'BillOfLading', entityId: id, actorId: actor.id,
+          actorEmail: actor.email, beforeData: { revision: bill.revision },
+          afterData: { restoredFromRevision: n },
+          metadata: { sourceRevisionId: target.id } });
         return tx.billOfLading.findUnique({ where: { id }, select: detailSelect });
       });
     } catch (e) {

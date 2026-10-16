@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, ProformaStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { recomputeInvoiceTax } from '../invoice/invoice-tax';
@@ -97,6 +99,7 @@ export class ProformaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -154,7 +157,7 @@ export class ProformaService {
     return proforma;
   }
 
-  async create(dto: CreateProformaDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateProformaDto, actor: AuthenticatedUser) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: dto.customerId, deletedAt: null },
       select: { id: true },
@@ -219,10 +222,15 @@ export class ProformaService {
           await this.recomputeTotals(tx, created.id);
         }
 
-        return tx.proforma.findUniqueOrThrow({
-          where: { id: created.id },
-          select: detailSelect,
-        });
+        const after = await tx.proforma.findUniqueOrThrow({ where: { id: created.id },
+          select: detailSelect });
+        await this.audit.recordIn(tx, { action: 'proforma.create', entityType: 'Proforma',
+          entityId: after.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { status: after.status, proformaNumber, customerId: after.customerId,
+            currencyCode: after.currencyCode, totalAmount: after.totalAmount,
+            items: after.items.map((item) => auditProjection(item, ['id', 'sequence',
+              'description', 'quantity', 'unitPrice', 'amount'])) } });
+        return after;
       });
     } catch (e) {
       if (
@@ -236,9 +244,12 @@ export class ProformaService {
   }
 
   /** DRAFT-only header edits; money fields recompute derived totals. */
-  async update(id: string, dto: UpdateProformaDto) {
-    await this.assertEditable(id);
+  async update(id: string, dto: UpdateProformaDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.proforma.findUnique({ where: { id } });
+      if (!before || before.deletedAt) throw new NotFoundException('Proforma not found');
+      if (before.status !== 'DRAFT') throw new ConflictException('Only draft proformas can be edited');
       await tx.proforma.update({
         where: { id },
         data: {
@@ -257,27 +268,42 @@ export class ProformaService {
         },
       });
       await this.recomputeTotals(tx, id);
-      return tx.proforma.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const after = await tx.proforma.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const fields = [...Object.keys(dto), 'subtotal', 'taxAmount', 'totalAmount'];
+      await this.audit.recordIn(tx, { action: 'proforma.update_draft', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { proformaNumber: after.proformaNumber, fields: Object.keys(dto) } });
+      return after;
     });
   }
 
   /** Soft-delete: DRAFT only (issued quotes are part of the audit trail). */
-  async remove(id: string) {
-    await this.assertEditable(id);
-    await this.prisma.proforma.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.proforma.findUnique({ where: { id } });
+      if (!before || before.deletedAt) throw new NotFoundException('Proforma not found');
+      if (before.status !== 'DRAFT') throw new ConflictException('Only draft proformas can be deleted');
+      await tx.proforma.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'proforma.delete_draft', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, proformaNumber: before.proformaNumber,
+          totalAmount: before.totalAmount }, afterData: { deleted: true } });
+      return { deleted: true };
     });
-    return { deleted: true };
   }
 
   // -------------------------------------------------------------------------
   // Line items (DRAFT only)
   // -------------------------------------------------------------------------
 
-  async addItem(id: string, dto: AddProformaItemDto) {
-    await this.assertEditable(id);
+  async addItem(id: string, dto: AddProformaItemDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.proforma.findUnique({ where: { id } });
+      if (!current || current.deletedAt) throw new NotFoundException('Proforma not found');
+      if (current.status !== 'DRAFT') throw new ConflictException('Only draft proformas can be edited');
       const last = await tx.proformaItem.findFirst({
         where: { proformaId: id },
         orderBy: { sequence: 'desc' },
@@ -286,7 +312,7 @@ export class ProformaService {
       const sequence = (last?.sequence ?? 0) + 1;
       const qty = dto.quantity ?? 1;
       const unitPrice = Number(dto.unitPrice);
-      await tx.proformaItem.create({
+      const item = await tx.proformaItem.create({
         data: {
           proformaId: id,
           sequence,
@@ -297,22 +323,28 @@ export class ProformaService {
         },
       });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'proforma.item.add', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: auditProjection(item, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount']) });
       return tx.proforma.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
-  async updateItem(id: string, itemId: string, dto: UpdateProformaItemDto) {
-    await this.assertEditable(id);
+  async updateItem(id: string, itemId: string, dto: UpdateProformaItemDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.proforma.findUnique({ where: { id } });
+      if (!current || current.deletedAt) throw new NotFoundException('Proforma not found');
+      if (current.status !== 'DRAFT') throw new ConflictException('Only draft proformas can be edited');
       const item = await tx.proformaItem.findFirst({
         where: { id: itemId, proformaId: id },
-        select: { id: true, quantity: true, unitPrice: true },
       });
       if (!item) throw new NotFoundException('Proforma item not found');
 
       const qty = dto.quantity ?? item.quantity;
       const unitPrice = dto.unitPrice !== undefined ? Number(dto.unitPrice) : Number(item.unitPrice);
-      await tx.proformaItem.update({
+      const after = await tx.proformaItem.update({
         where: { id: itemId },
         data: {
           ...(dto.description !== undefined ? { description: dto.description } : {}),
@@ -322,20 +354,29 @@ export class ProformaService {
         },
       });
       await this.recomputeTotals(tx, id);
+      const fields = ['description', 'quantity', 'unitPrice', 'amount'];
+      await this.audit.recordIn(tx, { action: 'proforma.item.update', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(item, fields), afterData: auditProjection(after, fields),
+        metadata: { itemId } });
       return tx.proforma.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
-  async removeItem(id: string, itemId: string) {
-    await this.assertEditable(id);
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
-      const item = await tx.proformaItem.findFirst({
-        where: { id: itemId, proformaId: id },
-        select: { id: true },
-      });
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const current = await tx.proforma.findUnique({ where: { id } });
+      if (!current || current.deletedAt) throw new NotFoundException('Proforma not found');
+      if (current.status !== 'DRAFT') throw new ConflictException('Only draft proformas can be edited');
+      const item = await tx.proformaItem.findFirst({ where: { id: itemId, proformaId: id } });
       if (!item) throw new NotFoundException('Proforma item not found');
       await tx.proformaItem.delete({ where: { id: itemId } });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'proforma.item.remove', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(item, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount']), metadata: { itemId } });
       return tx.proforma.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -344,54 +385,47 @@ export class ProformaService {
   // Lifecycle
   // -------------------------------------------------------------------------
 
-  async issue(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.proforma.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true, issueDate: true, validUntil: true, _count: { select: { items: true } } },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Proforma not found');
-    }
-    this.assertTransition(existing.status, 'ISSUED');
-    if (existing._count.items === 0) {
-      throw new BadRequestException('Cannot issue a proforma with no lines');
-    }
-
-    return this.prisma.proforma.update({
-      where: { id },
-      data: {
-        status: 'ISSUED',
-        issuedAt: new Date(),
-        issuedById: actor?.id,
-        issueDate: existing.issueDate ?? new Date(),
-      },
-      select: detailSelect,
+  async issue(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.proforma.findUnique({ where: { id },
+        select: { status: true, deletedAt: true, issueDate: true, _count: { select: { items: true } } } });
+      if (!before || before.deletedAt) throw new NotFoundException('Proforma not found');
+      this.assertTransition(before.status, 'ISSUED');
+      if (!before._count.items) throw new BadRequestException('Cannot issue a proforma with no lines');
+      const after = await tx.proforma.update({ where: { id }, data: {
+        status: 'ISSUED', issuedAt: new Date(), issuedById: actor.id,
+        issueDate: before.issueDate ?? new Date(),
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'proforma.issue', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, issuedAt: after.issuedAt,
+          issuedById: after.issuedById, proformaNumber: after.proformaNumber } });
+      return after;
     });
   }
 
   /** DRAFT|ISSUED -> CANCELLED. Reason required. Terminal. */
-  async cancel(id: string, dto: CancelProformaDto, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.proforma.findUnique({
-      where: { id },
-      select: { id: true, status: true, deletedAt: true },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Proforma not found');
-    }
-    this.assertTransition(existing.status, 'CANCELLED');
-    if (!dto.cancelReason?.trim()) {
-      throw new BadRequestException('A cancellation reason is required');
-    }
-
-    return this.prisma.proforma.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason.trim(),
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
-      },
-      select: detailSelect,
+  async cancel(id: string, dto: CancelProformaDto, actor: AuthenticatedUser) {
+    if (!dto.cancelReason?.trim()) throw new BadRequestException('A cancellation reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.proforma.findUnique({ where: { id },
+        select: { status: true, deletedAt: true, proformaNumber: true } });
+      if (!before || before.deletedAt) throw new NotFoundException('Proforma not found');
+      this.assertTransition(before.status, 'CANCELLED');
+      const after = await tx.proforma.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelReason: dto.cancelReason.trim(),
+        cancelledAt: new Date(), cancelledById: actor.id,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'proforma.cancel', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, reason: after.cancelReason,
+          cancelledAt: after.cancelledAt, cancelledById: after.cancelledById },
+        metadata: { proformaNumber: after.proformaNumber, reason: after.cancelReason } });
+      return after;
     });
   }
 
@@ -405,45 +439,22 @@ export class ProformaService {
    * DRAFT or ISSUED (customer may accept before the quote is formally issued),
    * never from CANCELLED.
    */
-  async convert(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.prisma.proforma.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        proformaNumber: true,
-        status: true,
-        deletedAt: true,
-        linkedInvoiceId: true,
-        currencyCode: true,
-        title: true,
-        description: true,
-        issueDate: true,
-        validUntil: true,
-        taxRate: true,
-        discountAmount: true,
-        notes: true,
-        customerId: true,
-      },
-    });
-    if (!existing || existing.deletedAt) {
-      throw new NotFoundException('Proforma not found');
-    }
-    if (existing.linkedInvoiceId) {
-      throw new ConflictException('Proforma already converted to an invoice');
-    }
-    if (existing.status === 'CANCELLED') {
-      throw new ConflictException('Cannot convert a cancelled proforma');
-    }
-
-    const items = await this.prisma.proformaItem.findMany({
-      where: { proformaId: id },
-      orderBy: { sequence: 'asc' },
-    });
-    if (items.length === 0) {
-      throw new BadRequestException('Cannot convert a proforma with no lines');
-    }
-
+  async convert(id: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "proformas" WHERE "id" = ${id} FOR UPDATE`;
+      const existing = await tx.proforma.findUnique({ where: { id },
+        select: { id: true, proformaNumber: true, status: true, deletedAt: true,
+          linkedInvoiceId: true, currencyCode: true, title: true, description: true,
+          issueDate: true, validUntil: true, taxRate: true, discountAmount: true,
+          notes: true, customerId: true } });
+      if (!existing || existing.deletedAt) throw new NotFoundException('Proforma not found');
+      if (existing.linkedInvoiceId) throw new ConflictException('Proforma already converted to an invoice');
+      if (existing.status === 'CANCELLED') throw new ConflictException('Cannot convert a cancelled proforma');
+      const items = await tx.proformaItem.findMany({
+        where: { proformaId: id }, orderBy: { sequence: 'asc' },
+      });
+      if (!items.length) throw new BadRequestException('Cannot convert a proforma with no lines');
+
       // INV family is shared with the invoice module, so both paths draw from one counter.
       const req = periodicSequenceRequest('INVOICE', new Date());
       const { sequence: invoiceNumber } = await this.numbering.allocateNumber({
@@ -506,7 +517,14 @@ export class ProformaService {
         where: { id },
         select: detailSelect,
       });
-
+      await this.audit.recordIn(tx, { action: 'proforma.convert', entityType: 'Proforma',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { linkedInvoiceId: null }, afterData: { linkedInvoiceId: invoice.id },
+        metadata: { proformaNumber: existing.proformaNumber, invoiceNumber } });
+      await this.audit.recordIn(tx, { action: 'invoice.create_from_proforma', entityType: 'Invoice',
+        entityId: invoice.id, actorId: actor.id, actorEmail: actor.email,
+        afterData: { status: 'DRAFT', invoiceNumber, totalAmount: computed.total.toFixed(2),
+          sourceProformaId: id } });
       return {
         proforma,
         invoice: {

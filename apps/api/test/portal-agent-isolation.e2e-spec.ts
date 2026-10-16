@@ -302,7 +302,7 @@ describe('Portal document isolation on an expressly confirmed real PostgreSQL te
     const { url, name } = portalIsolationTestDatabase(process.env);
     prisma = new PrismaClient({ datasources: { db: { url } } });
     await prisma.$connect();
-    const rows = await prisma.$queryRaw<{ name: string }[]>`SELECT current_database() AS name`;
+    const rows = await prisma.$queryRaw<{ name: string }[]>`SELECT current_database()::text AS name`;
     if (rows.length !== 1 || rows[0].name !== name) {
       throw new Error(
         'Connected database does not match the confirmed test name; no fixture was written'

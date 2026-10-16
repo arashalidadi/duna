@@ -7,6 +7,7 @@ import {
 import { Prisma, QuotationStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -176,7 +177,7 @@ export class QuotationService {
   // CRUD (DRAFT-only edits)
   // -------------------------------------------------------------------------
 
-  async create(dto: CreateQuotationDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateQuotationDto, actor: AuthenticatedUser) {
     const customer = await this.prisma.customer.findFirst({
       where: { id: dto.customerId, deletedAt: null },
       select: { id: true },
@@ -221,7 +222,7 @@ export class QuotationService {
             ),
           tx,
         });
-        return tx.quotation.create({
+        const saved = await tx.quotation.create({
         data: {
           quotationNumber,
           customerId: dto.customerId,
@@ -241,6 +242,14 @@ export class QuotationService {
         },
         select: detailSelect,
         });
+        await this.audit.recordIn(tx, { action: 'quotation.create', entityType: 'Quotation',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { status: saved.status, quotationNumber,
+            customerId: saved.customerId, currencyCode: saved.currencyCode,
+            totalAmount: saved.totalAmount,
+            items: saved.items.map((item) => auditProjection(item, ['id', 'sequence',
+              'description', 'quantity', 'unitPrice', 'amount'])) } });
+        return saved;
       });
     } catch (e) {
       if (
@@ -253,10 +262,10 @@ export class QuotationService {
     }
   }
 
-  async update(id: string, dto: UpdateQuotationDto) {
-    const existing = await this.assertEditable(id);
-
+  async update(id: string, dto: UpdateQuotationDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const existing = await this.lockQuotation(tx, id);
+      if (existing.status !== 'DRAFT') throw new ConflictException('Only DRAFT quotations are editable');
       await tx.quotation.update({
         where: { id: existing.id },
         data: {
@@ -271,7 +280,13 @@ export class QuotationService {
         },
       });
       await this.recomputeTotals(tx, id);
-      return tx.quotation.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const after = await tx.quotation.findUniqueOrThrow({ where: { id }, select: detailSelect });
+      const fields = [...Object.keys(dto), 'subtotal', 'taxAmount', 'totalAmount'];
+      await this.audit.recordIn(tx, { action: 'quotation.update_draft', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(existing, fields), afterData: auditProjection(after, fields),
+        metadata: { quotationNumber: after.quotationNumber, fields: Object.keys(dto) } });
+      return after;
     });
   }
 
@@ -298,9 +313,10 @@ export class QuotationService {
   // Line items (DRAFT only)
   // -------------------------------------------------------------------------
 
-  async addItem(id: string, dto: AddQuotationItemDto) {
-    await this.assertEditable(id);
+  async addItem(id: string, dto: AddQuotationItemDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const quotation = await this.lockQuotation(tx, id);
+      if (quotation.status !== 'DRAFT') throw new ConflictException('Only DRAFT quotations are editable');
       const last = await tx.quotationItem.aggregate({
         where: { quotationId: id },
         _max: { sequence: true },
@@ -317,25 +333,26 @@ export class QuotationService {
           amount: new Prisma.Decimal((quantity * unitPrice).toFixed(2)),
           notes: dto.notes,
         },
-        select: { id: true },
       });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'quotation.item.add', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: auditProjection(created, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount', 'notes']) });
       return tx.quotation.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
-  async updateItem(id: string, itemId: string, dto: UpdateQuotationItemDto) {
-    await this.assertEditable(id);
-    await this.findItemOrThrow(id, itemId);
+  async updateItem(id: string, itemId: string, dto: UpdateQuotationItemDto, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const quotation = await this.lockQuotation(tx, id);
+      if (quotation.status !== 'DRAFT') throw new ConflictException('Only DRAFT quotations are editable');
+      const before = await tx.quotationItem.findFirst({ where: { id: itemId, quotationId: id } });
+      if (!before) throw new NotFoundException('Quotation line not found');
       // Merge partial fields over current values, then write amount atomically.
-      const current = await tx.quotationItem.findUniqueOrThrow({
-        where: { id: itemId },
-        select: { quantity: true, unitPrice: true },
-      });
-      const quantity = dto.quantity ?? current.quantity;
-      const unitPrice = dto.unitPrice !== undefined ? Number(dto.unitPrice) : Number(current.unitPrice);
-      await tx.quotationItem.update({
+      const quantity = dto.quantity ?? before.quantity;
+      const unitPrice = dto.unitPrice !== undefined ? Number(dto.unitPrice) : Number(before.unitPrice);
+      const after = await tx.quotationItem.update({
         where: { id: itemId },
         data: {
           description: dto.description,
@@ -346,16 +363,27 @@ export class QuotationService {
         },
       });
       await this.recomputeTotals(tx, id);
+      const fields = ['description', 'quantity', 'unitPrice', 'amount', 'notes'];
+      await this.audit.recordIn(tx, { action: 'quotation.item.update', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { itemId } });
       return tx.quotation.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
 
-  async removeItem(id: string, itemId: string) {
-    await this.assertEditable(id);
-    await this.findItemOrThrow(id, itemId);
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const quotation = await this.lockQuotation(tx, id);
+      if (quotation.status !== 'DRAFT') throw new ConflictException('Only DRAFT quotations are editable');
+      const before = await tx.quotationItem.findFirst({ where: { id: itemId, quotationId: id } });
+      if (!before) throw new NotFoundException('Quotation line not found');
       await tx.quotationItem.delete({ where: { id: itemId } });
       await this.recomputeTotals(tx, id);
+      await this.audit.recordIn(tx, { action: 'quotation.item.remove', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, ['id', 'sequence', 'description', 'quantity',
+          'unitPrice', 'amount', 'notes']), metadata: { itemId } });
       return tx.quotation.findUniqueOrThrow({ where: { id }, select: detailSelect });
     });
   }
@@ -365,70 +393,78 @@ export class QuotationService {
   // -------------------------------------------------------------------------
 
   /** DRAFT -> SENT. At least one line required; stamps sentAt/sentBy. */
-  async send(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'SENT');
-    if (existing._count.items === 0) {
-      throw new BadRequestException('Cannot send a quotation with no lines');
-    }
-    return this.prisma.quotation.update({
-      where: { id },
-      data: {
-        status: 'SENT',
-        sentAt: new Date(),
-        sentById: actor?.id,
-        issueDate: existing.issueDate ?? new Date(),
-      },
-      select: detailSelect,
+  async send(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockQuotation(tx, id);
+      this.assertTransition(before.status, 'SENT');
+      if (!before._count.items) throw new BadRequestException('Cannot send a quotation with no lines');
+      const after = await tx.quotation.update({ where: { id }, data: {
+        status: 'SENT', sentAt: new Date(), sentById: actor.id,
+        issueDate: before.issueDate ?? new Date(),
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'quotation.send', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, sentAt: after.sentAt,
+          sentById: after.sentById, quotationNumber: after.quotationNumber } });
+      return after;
     });
   }
 
   /** SENT -> ACCEPTED (customer said yes; conversion unlocks). */
-  async accept(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'ACCEPTED');
-    return this.prisma.quotation.update({
-      where: { id },
-      data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedById: actor?.id },
-      select: detailSelect,
+  async accept(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockQuotation(tx, id);
+      this.assertTransition(before.status, 'ACCEPTED');
+      const after = await tx.quotation.update({ where: { id },
+        data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedById: actor.id },
+        select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'quotation.accept', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, acceptedAt: after.acceptedAt,
+          acceptedById: after.acceptedById, quotationNumber: after.quotationNumber } });
+      return after;
     });
   }
 
   /** SENT -> REJECTED with a reason. Terminal. */
-  async reject(id: string, dto: RejectQuotationDto, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'REJECTED');
-    if (!dto.rejectReason?.trim()) {
-      throw new BadRequestException('A rejection reason is required');
-    }
-    return this.prisma.quotation.update({
-      where: { id },
-      data: {
-        status: 'REJECTED',
-        rejectReason: dto.rejectReason.trim(),
-        rejectedAt: new Date(),
-        rejectedById: actor?.id,
-      },
-      select: detailSelect,
+  async reject(id: string, dto: RejectQuotationDto, actor: AuthenticatedUser) {
+    if (!dto.rejectReason?.trim()) throw new BadRequestException('A rejection reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockQuotation(tx, id);
+      this.assertTransition(before.status, 'REJECTED');
+      const after = await tx.quotation.update({ where: { id }, data: {
+        status: 'REJECTED', rejectReason: dto.rejectReason.trim(),
+        rejectedAt: new Date(), rejectedById: actor.id,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'quotation.reject', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, rejectedAt: after.rejectedAt,
+          rejectedById: after.rejectedById, reason: after.rejectReason },
+        metadata: { quotationNumber: after.quotationNumber, reason: after.rejectReason } });
+      return after;
     });
   }
 
   /** DRAFT|SENT -> CANCELLED with a reason. Terminal. */
-  async cancel(id: string, dto: CancelQuotationDto, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    this.assertTransition(existing.status, 'CANCELLED');
-    if (!dto.cancelReason?.trim()) {
-      throw new BadRequestException('A cancellation reason is required');
-    }
-    return this.prisma.quotation.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        cancelReason: dto.cancelReason.trim(),
-        cancelledAt: new Date(),
-        cancelledById: actor?.id,
-      },
-      select: detailSelect,
+  async cancel(id: string, dto: CancelQuotationDto, actor: AuthenticatedUser) {
+    if (!dto.cancelReason?.trim()) throw new BadRequestException('A cancellation reason is required');
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockQuotation(tx, id);
+      this.assertTransition(before.status, 'CANCELLED');
+      const after = await tx.quotation.update({ where: { id }, data: {
+        status: 'CANCELLED', cancelReason: dto.cancelReason.trim(),
+        cancelledAt: new Date(), cancelledById: actor.id,
+      }, select: detailSelect });
+      await this.audit.recordIn(tx, { action: 'quotation.cancel', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, cancelledAt: after.cancelledAt,
+          cancelledById: after.cancelledById, reason: after.cancelReason },
+        metadata: { quotationNumber: after.quotationNumber, reason: after.cancelReason } });
+      return after;
     });
   }
 
@@ -437,21 +473,21 @@ export class QuotationService {
    * totals recomputed server-side from the copied lines; linkedProformaId
    * unique stamp is the double-conversion guard.
    */
-  async convert(id: string, actor?: AuthenticatedUser) {
-    const existing = await this.assertExists(id);
-    if (existing.status !== 'ACCEPTED') {
-      throw new ConflictException('Only an ACCEPTED quotation can be converted');
-    }
-    if (existing.linkedProformaId) {
-      throw new ConflictException('This quotation has already been converted to a proforma');
-    }
-
-    const src = await this.prisma.quotation.findUniqueOrThrow({
-      where: { id },
-      select: { items: { select: { sequence: true, description: true, quantity: true, unitPrice: true, notes: true } } },
-    });
-
+  async convert(id: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
+      const existing = await this.lockQuotation(tx, id);
+      if (existing.status !== 'ACCEPTED') {
+        throw new ConflictException('Only an ACCEPTED quotation can be converted');
+      }
+      if (existing.linkedProformaId) {
+        throw new ConflictException('This quotation has already been converted to a proforma');
+      }
+      const src = await tx.quotation.findUniqueOrThrow({
+        where: { id }, select: { items: { select: {
+          sequence: true, description: true, quantity: true, unitPrice: true, notes: true,
+        } } },
+      });
+
       // PRF family is shared with proforma create, so both paths draw from one counter.
       const proformaReq = periodicSequenceRequest('PROFORMA', new Date());
       const { sequence: proformaNumber } = await this.numbering.allocateNumber({
@@ -505,7 +541,14 @@ export class QuotationService {
         data: { linkedProformaId: proforma.id },
         select: detailSelect,
       });
-
+      await this.audit.recordIn(tx, { action: 'quotation.convert', entityType: 'Quotation',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { linkedProformaId: null }, afterData: { linkedProformaId: proforma.id },
+        metadata: { quotationNumber: quotation.quotationNumber, proformaNumber } });
+      await this.audit.recordIn(tx, { action: 'proforma.create_from_quotation', entityType: 'Proforma',
+        entityId: proforma.id, actorId: actor.id, actorEmail: actor.email,
+        afterData: { status: refreshed.status, proformaNumber,
+          totalAmount: refreshed.totalAmount, sourceQuotationId: id } });
       return { quotation, proforma: refreshed };
     });
   }
@@ -523,6 +566,15 @@ export class QuotationService {
       tax: new Prisma.Decimal(tax.toFixed(2)),
       total: new Prisma.Decimal(total.toFixed(2)),
     };
+  }
+
+  /** Serializes document edits, status decisions and one-time conversion. */
+  private async lockQuotation(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "quotations" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.quotation.findUnique({ where: { id },
+      include: { _count: { select: { items: true } } } });
+    if (!row || row.deletedAt) throw new NotFoundException('Quotation not found');
+    return row;
   }
 
   private assertTransition(from: QuotationStatus, to: QuotationStatus) {

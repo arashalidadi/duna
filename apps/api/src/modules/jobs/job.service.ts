@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { Prisma, JobStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { NotificationWorkerService } from '../notifications/notification-worker.service';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
@@ -119,7 +121,8 @@ function flattenDetail(j: Record<string, unknown>) {
 @Injectable()
 export class JobService {
   constructor(private readonly prisma: PrismaService,
-    private readonly notifications: NotificationWorkerService) {}
+    private readonly notifications: NotificationWorkerService,
+    private readonly audit: AuditService) {}
 
   // -------------------------------------------------------------------------
   // Queries
@@ -203,7 +206,7 @@ export class JobService {
     return links.map((l) => l.invoice);
   }
 
-  async create(dto: CreateJobDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateJobDto, actor: AuthenticatedUser) {
     if (dto.customerId) {
       const customer = await this.prisma.customer.findFirst({ where: { id: dto.customerId, deletedAt: null }, select: { id: true } });
       if (!customer) throw new BadRequestException('Customer not found');
@@ -215,7 +218,8 @@ export class JobService {
 
     const jobNumber = await this.generateJobNumber();
     try {
-      const job = await this.prisma.job.create({
+      const job = await this.prisma.$transaction(async (tx) => {
+        const saved = await tx.job.create({
         data: {
           jobNumber,
           title: dto.title,
@@ -225,7 +229,7 @@ export class JobService {
           voyageId: dto.voyageId,
           currencyCode: dto.currencyCode ?? 'USD',
           notes: dto.notes,
-          createdById: actor?.id,
+          createdById: actor.id,
           items: dto.items?.length
             ? {
                 create: dto.items.map((it) => ({
@@ -240,6 +244,14 @@ export class JobService {
             : undefined,
         },
         select: detailSelect,
+        });
+        await this.audit.recordIn(tx, { action: 'job.create', entityType: 'Job',
+          entityId: saved.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { jobNumber: saved.jobNumber, status: saved.status,
+            customerId: saved.customerId, voyageId: saved.voyageId,
+            currencyCode: saved.currencyCode,
+            items: saved.items.map((item) => auditProjection(item, ['id', 'kind', 'category', 'amount'])) } });
+        return saved;
       });
       return flattenDetail(job);
     } catch (e) {
@@ -250,7 +262,7 @@ export class JobService {
     }
   }
 
-  async update(id: string, dto: UpdateJobDto) {
+  async update(id: string, dto: UpdateJobDto, actor: AuthenticatedUser) {
     const existing = await this.assertExists(id);
     if (existing.status !== 'DRAFT' && existing.status !== 'OPEN') {
       throw new ConflictException('Only DRAFT or OPEN jobs can be edited');
@@ -264,7 +276,12 @@ export class JobService {
       if (!voyage) throw new BadRequestException('Voyage not found');
     }
 
-    const job = await this.prisma.job.update({
+    const job = await this.prisma.$transaction(async (tx) => {
+      const before = await this.lockJob(tx, id);
+      if (before.status !== 'DRAFT' && before.status !== 'OPEN') {
+        throw new ConflictException('Only DRAFT or OPEN jobs can be edited');
+      }
+      const after = await tx.job.update({
       where: { id },
       data: {
         ...(dto.title !== undefined ? { title: dto.title } : {}),
@@ -276,13 +293,20 @@ export class JobService {
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
       },
       select: detailSelect,
+      });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'job.update', entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { jobNumber: after.jobNumber, fields } });
+      return after;
     });
     return flattenDetail(job);
   }
 
   /** Status and durable notification event are committed atomically. A row lock
    * prevents concurrent transitions from claiming the same previous status. */
-  private async transition(id: string, to: JobStatus, actor?: AuthenticatedUser,
+  private async transition(id: string, to: JobStatus, actor: AuthenticatedUser,
     extra?: Prisma.JobUpdateInput) {
     return this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT "id" FROM "jobs" WHERE "id" = ${id} FOR UPDATE`;
@@ -294,83 +318,115 @@ export class JobService {
       const after = await tx.job.update({ where: { id }, data: { status: to, ...extra },
         select: detailSelect });
       await this.notifications.jobTransitionIn(tx, id, before.status, to, at);
+      await this.audit.recordIn(tx, { action: `job.${to.toLowerCase()}`, entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status },
+        afterData: { status: after.status, completedAt: after.completedAt,
+          cancelledAt: after.cancelledAt, cancelReason: after.cancelReason },
+        metadata: { jobNumber: after.jobNumber, reason: after.cancelReason } });
       return flattenDetail(after);
     });
   }
 
-  async start(id: string, actor?: AuthenticatedUser) {
+  async start(id: string, actor: AuthenticatedUser) {
     return this.transition(id, 'OPEN', actor);
   }
 
-  async complete(id: string, actor?: AuthenticatedUser) {
+  async complete(id: string, actor: AuthenticatedUser) {
     return this.transition(id, 'COMPLETED', actor,
-      { completedBy: actor ? { connect: { id: actor.id } } : undefined, completedAt: new Date() });
+      { completedBy: { connect: { id: actor.id } }, completedAt: new Date() });
   }
 
-  async cancel(id: string, dto: { cancelReason: string }, actor?: AuthenticatedUser) {
+  async cancel(id: string, dto: { cancelReason: string }, actor: AuthenticatedUser) {
+    const reason = dto.cancelReason?.trim();
+    if (!reason) throw new BadRequestException('A cancellation reason is required');
     return this.transition(id, 'CANCELLED', actor,
-      { cancelledBy: actor ? { connect: { id: actor.id } } : undefined,
-        cancelledAt: new Date(), cancelReason: dto.cancelReason });
+      { cancelledBy: { connect: { id: actor.id } },
+        cancelledAt: new Date(), cancelReason: reason });
   }
 
-  async remove(id: string) {
-    const existing = await this.assertExists(id);
-    if (existing.status !== 'DRAFT') {
-      throw new ConflictException('Only DRAFT jobs can be deleted');
-    }
-    await this.prisma.job.update({ where: { id }, data: { deletedAt: new Date() } });
-    return { id, deleted: true };
+  async remove(id: string, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockJob(tx, id);
+      if (before.status !== 'DRAFT') throw new ConflictException('Only DRAFT jobs can be deleted');
+      await tx.job.update({ where: { id }, data: { deletedAt: new Date() } });
+      await this.audit.recordIn(tx, { action: 'job.delete_draft', entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, jobNumber: before.jobNumber },
+        afterData: { deleted: true } });
+      return { id, deleted: true };
+    });
   }
 
   // -------------------------------------------------------------------------
   // Items (editable while DRAFT|OPEN)
   // -------------------------------------------------------------------------
 
-  async addItem(id: string, dto: JobItemInputDto) {
-    const job = await this.assertItemsEditable(id);
-    await this.prisma.jobCostItem.create({
-      data: {
-        jobId: job.id,
-        kind: dto.kind,
-        category: dto.category,
-        description: dto.description,
-        amount: dec(dto.amount),
-        itemDate: dto.itemDate ? new Date(dto.itemDate) : new Date(),
-        notes: dto.notes,
-      },
+  async addItem(id: string, dto: JobItemInputDto, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const job = await this.lockJob(tx, id);
+      if (!['DRAFT', 'OPEN'].includes(job.status)) throw new ConflictException('Cost items are frozen');
+      const item = await tx.jobCostItem.create({ data: {
+        jobId: job.id, kind: dto.kind, category: dto.category,
+        description: dto.description, amount: dec(dto.amount),
+        itemDate: dto.itemDate ? new Date(dto.itemDate) : new Date(), notes: dto.notes,
+      } });
+      await this.audit.recordIn(tx, { action: 'job.item.add', entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        afterData: auditProjection(item, ['id', 'kind', 'category', 'description',
+          'amount', 'itemDate', 'notes']), metadata: { jobNumber: job.jobNumber } });
     });
     return this.findById(id);
   }
 
-  async updateItem(id: string, itemId: string, dto: UpdateJobItemDto) {
-    await this.assertItemsEditable(id);
-    const item = await this.prisma.jobCostItem.findFirst({ where: { id: itemId, jobId: id }, select: { id: true } });
-    if (!item) throw new NotFoundException('Cost item not found on this job');
-    await this.prisma.jobCostItem.update({
-      where: { id: itemId },
-      data: {
+  async updateItem(id: string, itemId: string, dto: UpdateJobItemDto, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const job = await this.lockJob(tx, id);
+      if (!['DRAFT', 'OPEN'].includes(job.status)) throw new ConflictException('Cost items are frozen');
+      const before = await tx.jobCostItem.findFirst({ where: { id: itemId, jobId: id } });
+      if (!before) throw new NotFoundException('Cost item not found on this job');
+      const after = await tx.jobCostItem.update({ where: { id: itemId }, data: {
         ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
         ...(dto.category !== undefined ? { category: dto.category } : {}),
         ...(dto.description !== undefined ? { description: dto.description } : {}),
         ...(dto.amount !== undefined ? { amount: dec(dto.amount) } : {}),
         ...(dto.itemDate !== undefined ? { itemDate: dto.itemDate ? new Date(dto.itemDate) : null } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
-      },
+      } });
+      const fields = Object.keys(dto);
+      await this.audit.recordIn(tx, { action: 'job.item.update', entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { jobNumber: job.jobNumber, itemId } });
     });
     return this.findById(id);
   }
 
-  async removeItem(id: string, itemId: string) {
-    await this.assertItemsEditable(id);
-    const item = await this.prisma.jobCostItem.findFirst({ where: { id: itemId, jobId: id }, select: { id: true } });
-    if (!item) throw new NotFoundException('Cost item not found on this job');
-    await this.prisma.jobCostItem.delete({ where: { id: itemId } });
+  async removeItem(id: string, itemId: string, actor: AuthenticatedUser) {
+    await this.prisma.$transaction(async (tx) => {
+      const job = await this.lockJob(tx, id);
+      if (!['DRAFT', 'OPEN'].includes(job.status)) throw new ConflictException('Cost items are frozen');
+      const before = await tx.jobCostItem.findFirst({ where: { id: itemId, jobId: id } });
+      if (!before) throw new NotFoundException('Cost item not found on this job');
+      await tx.jobCostItem.delete({ where: { id: itemId } });
+      await this.audit.recordIn(tx, { action: 'job.item.remove', entityType: 'Job',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, ['id', 'kind', 'category', 'amount', 'itemDate']),
+        metadata: { jobNumber: job.jobNumber, itemId } });
+    });
     return this.findById(id);
   }
 
   // -------------------------------------------------------------------------
   // Helpers
   // -------------------------------------------------------------------------
+
+  private async lockJob(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "jobs" WHERE "id" = ${id} FOR UPDATE`;
+    const row = await tx.job.findFirst({ where: { id, deletedAt: null } });
+    if (!row) throw new NotFoundException('Job not found');
+    return row;
+  }
 
   private async assertExists(id: string) {
     const existing = await this.prisma.job.findFirst({ where: { id, deletedAt: null }, select: { id: true, status: true } });

@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { InspectionStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../common/infrastructure/audit/audit.service';
+import { auditProjection } from '../../common/infrastructure/audit/audit-change';
 import { buildPaginated, parsePagination } from '../../common/utils/pagination.util';
 import { AuthenticatedUser } from '../../common/auth/types';
 import {
@@ -87,6 +89,7 @@ export class InspectionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: NumberingService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(query: ListInspectionQueryDto) {
@@ -150,7 +153,7 @@ export class InspectionService {
    * state to PENDING. Rejects if the cargo does not exist, is soft-deleted, is
    * cancelled, or already has a PENDING inspection (only one pending at a time).
    */
-  async create(dto: CreateInspectionDto, actor?: AuthenticatedUser) {
+  async create(dto: CreateInspectionDto, actor: AuthenticatedUser) {
     const cargo = await this.prisma.cargo.findUnique({
       where: { id: dto.cargoId },
       select: { id: true, status: true, deletedAt: true },
@@ -173,7 +176,7 @@ export class InspectionService {
     }
 
     const inspectorName =
-      dto.inspectorName?.trim() || actor?.email?.split('@')[0] || 'Unnamed inspector';
+      dto.inspectorName?.trim() || actor.email?.split('@')[0] || 'Unnamed inspector';
 
     // Number and record are created in ONE transaction (DEC-027): concurrent creates get
     // distinct INS numbers from the row-locked sequence, and a failed insert rolls back the counter.
@@ -200,13 +203,13 @@ export class InspectionService {
             inspectionNumber,
             cargoId: dto.cargoId,
             inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : new Date(),
-            inspectorId: actor?.id,
+            inspectorId: actor.id,
             inspectorName,
             findings: dto.findings,
             condition: dto.condition,
             verificationNotes: dto.verificationNotes,
             remarks: dto.remarks,
-            createdById: actor?.id,
+            createdById: actor.id,
           },
           select: createSelect,
         });
@@ -214,6 +217,11 @@ export class InspectionService {
         await tx.cargo.update({
           where: { id: dto.cargoId },
           data: { inspectionStatus: 'PENDING' },
+        });
+        await this.audit.recordIn(tx, { action: 'inspection.create', entityType: 'Inspection',
+          entityId: inspection.id, actorId: actor.id, actorEmail: actor.email,
+          afterData: { inspectionNumber, cargoId: dto.cargoId, status: inspection.status,
+            inspectionDate: inspection.inspectionDate, inspectorName, condition: dto.condition },
         });
 
         return inspection;
@@ -235,161 +243,74 @@ export class InspectionService {
    * Edit a non-finalized (PENDING or BOOKED) inspection's details.
    * DONE/FAILED/NEEDS_REINSPECTION inspections are immutable.
    */
-  async update(id: string, dto: UpdateInspectionDto, _actor?: AuthenticatedUser) {
-    const existing = await this.prisma.inspection.findUnique({
-      where: { id },
-      select: { id: true, status: true },
-    });
-    if (!existing) {
-      throw new NotFoundException('Inspection not found');
-    }
-    if (existing.status !== 'PENDING' && existing.status !== 'BOOKED') {
-      throw new ConflictException('Only a pending or booked inspection can be edited');
-    }
-
-    return this.prisma.inspection.update({
-      where: { id },
-      data: {
+  async update(id: string, dto: UpdateInspectionDto, actor: AuthenticatedUser) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Inspection" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.inspection.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Inspection not found');
+      if (before.status !== 'PENDING' && before.status !== 'BOOKED') {
+        throw new ConflictException('Only a pending or booked inspection can be edited');
+      }
+      const after = await tx.inspection.update({ where: { id }, data: {
         inspectionDate: dto.inspectionDate ? new Date(dto.inspectionDate) : undefined,
-        inspectorName: dto.inspectorName,
-        findings: dto.findings,
-        condition: dto.condition,
-        verificationNotes: dto.verificationNotes,
-        remarks: dto.remarks,
-      },
-      select: createSelect,
+        inspectorName: dto.inspectorName, findings: dto.findings,
+        condition: dto.condition, verificationNotes: dto.verificationNotes, remarks: dto.remarks,
+      }, select: createSelect });
+      const fields = ['inspectionDate', 'inspectorName', 'findings', 'condition', 'verificationNotes', 'remarks'];
+      await this.audit.recordIn(tx, { action: 'inspection.update', entityType: 'Inspection',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: auditProjection(before, fields), afterData: auditProjection(after, fields),
+        metadata: { inspectionNumber: before.inspectionNumber, cargoId: before.cargoId } });
+      return after;
     });
   }
 
-  /**
-   * Book. Transitions PENDING → BOOKED.
-   */
-  async book(id: string, actor?: AuthenticatedUser) {
-    const inspection = await this.prisma.inspection.findUnique({
-      where: { id },
-      select: { id: true, status: true, cargoId: true },
+  private async transition(id: string, status: InspectionStatus, actor: AuthenticatedUser,
+    reason?: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "Inspection" WHERE "id" = ${id} FOR UPDATE`;
+      const before = await tx.inspection.findUnique({ where: { id } });
+      if (!before) throw new NotFoundException('Inspection not found');
+      this.assertTransition(before.status, status);
+      const now = new Date();
+      await tx.inspection.update({ where: { id }, data: {
+        status,
+        ...(status === 'BOOKED' || status === 'DONE'
+          ? { approvedById: actor.id, approvedAt: now }
+          : { rejectedById: actor.id, rejectedAt: now }),
+        ...(status === 'FAILED' ? { rejectionReason: reason } : {}),
+      } });
+      if (status !== 'BOOKED') {
+        await tx.cargo.update({ where: { id: before.cargoId }, data: {
+          inspectionStatus: status === 'NEEDS_REINSPECTION' ? 'PENDING' : status,
+        } });
+      }
+      await this.audit.recordIn(tx, { action: `inspection.${status.toLowerCase()}`,
+        entityType: 'Inspection', entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, rejectionReason: before.rejectionReason },
+        afterData: { status, reason: reason ?? null, decidedById: actor.id, decidedAt: now },
+        metadata: { cargoId: before.cargoId, inspectionNumber: before.inspectionNumber,
+          ...(reason ? { reason } : {}) } });
     });
-    if (!inspection) {
-      throw new NotFoundException('Inspection not found');
-    }
-    this.assertTransition(inspection.status, 'BOOKED');
-
-    await this.prisma.$transaction([
-      this.prisma.inspection.update({
-        where: { id },
-        data: {
-          status: 'BOOKED',
-          approvedById: actor?.id,
-          approvedAt: new Date(),
-        },
-      }),
-    ]);
-
     return this.findById(id);
   }
 
-  /**
-   * Done. Transitions PENDING→BOOKED→DONE or BOOKED→DONE.
-   * Sets the cargo's current readiness to DONE — the authoritative rule
-   * for load-list eligibility.
-   */
-  async done(id: string, actor?: AuthenticatedUser) {
-    const inspection = await this.prisma.inspection.findUnique({
-      where: { id },
-      select: { id: true, status: true, cargoId: true },
-    });
-    if (!inspection) {
-      throw new NotFoundException('Inspection not found');
-    }
-    this.assertTransition(inspection.status, 'DONE');
-
-    await this.prisma.$transaction([
-      this.prisma.inspection.update({
-        where: { id },
-        data: {
-          status: 'DONE',
-          approvedById: actor?.id,
-          approvedAt: new Date(),
-        },
-      }),
-      this.prisma.cargo.update({
-        where: { id: inspection.cargoId },
-        data: { inspectionStatus: 'DONE' },
-      }),
-    ]);
-
-    return this.findById(id);
+  async book(id: string, actor: AuthenticatedUser) {
+    return this.transition(id, 'BOOKED', actor);
   }
 
-  /**
-   * Fail. Transitions PENDING→FAILED or BOOKED→FAILED.
-   * Sets the cargo's current readiness to FAILED.
-   * Requires a rejection reason.
-   */
-  async fail(id: string, dto: RejectInspectionDto, actor?: AuthenticatedUser) {
-    const inspection = await this.prisma.inspection.findUnique({
-      where: { id },
-      select: { id: true, status: true, cargoId: true },
-    });
-    if (!inspection) {
-      throw new NotFoundException('Inspection not found');
-    }
-    this.assertTransition(inspection.status, 'FAILED');
+  async done(id: string, actor: AuthenticatedUser) {
+    return this.transition(id, 'DONE', actor);
+  }
 
+  async fail(id: string, dto: RejectInspectionDto, actor: AuthenticatedUser) {
     const reason = dto.rejectionReason?.trim();
-    if (!reason) {
-      throw new BadRequestException('A rejection reason is required');
-    }
-
-    await this.prisma.$transaction([
-      this.prisma.inspection.update({
-        where: { id },
-        data: {
-          status: 'FAILED',
-          rejectionReason: reason,
-          rejectedById: actor?.id,
-          rejectedAt: new Date(),
-        },
-      }),
-      this.prisma.cargo.update({
-        where: { id: inspection.cargoId },
-        data: { inspectionStatus: 'FAILED' },
-      }),
-    ]);
-
-    return this.findById(id);
+    if (!reason) throw new BadRequestException('A rejection reason is required');
+    return this.transition(id, 'FAILED', actor, reason);
   }
 
-  /**
-   * NeedsRe inspection. Transitions FAILED → NEEDS_REINSPECTION.
-   * Sets the cargo's current readiness back to PENDING for a new cycle.
-   */
-  async needsReInspection(id: string, actor?: AuthenticatedUser) {
-    const inspection = await this.prisma.inspection.findUnique({
-      where: { id },
-      select: { id: true, status: true, cargoId: true },
-    });
-    if (!inspection) {
-      throw new NotFoundException('Inspection not found');
-    }
-    this.assertTransition(inspection.status, 'NEEDS_REINSPECTION');
-
-    await this.prisma.$transaction([
-      this.prisma.inspection.update({
-        where: { id },
-        data: {
-          status: 'NEEDS_REINSPECTION',
-          rejectedById: actor?.id,
-          rejectedAt: new Date(),
-        },
-      }),
-      this.prisma.cargo.update({
-        where: { id: inspection.cargoId },
-        data: { inspectionStatus: 'PENDING' },
-      }),
-    ]);
-
-    return this.findById(id);
+  async needsReInspection(id: string, actor: AuthenticatedUser) {
+    return this.transition(id, 'NEEDS_REINSPECTION', actor);
   }
 
   /**

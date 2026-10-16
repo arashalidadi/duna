@@ -2,6 +2,9 @@ import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common'
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { Prisma } from '@prisma/client';
 import { STORAGE_ADAPTER_TOKEN } from '../storage/storage.token';
+import type { AuthenticatedUser } from '../../auth/types';
+import { auditExportWindow, MAX_AUDIT_EXPORT_ROWS, renderAuditCsv } from './audit-export';
+import type { AuditExportQueryDto } from './dto/audit-export-query.dto';
 import type { StorageAdapter } from '../storage/storage-adapter.interface';
 import type {
   AuditContext,
@@ -213,6 +216,46 @@ export class AuditService {
     ]);
 
     return { items: items as AuditLogRecord[], total };
+  }
+
+  /**
+   * P11: separately permissioned, logged, deterministic CSV export. Reading a
+   * page and recording who prepared it commit together; there is no unlogged
+   * successful read and a failed audit insert does not return sensitive rows.
+   */
+  async exportCsv(filters: AuditExportQueryDto, actor: AuthenticatedUser,
+    request: { ipAddress?: string | null; userAgent?: string | null }) {
+    const range = auditExportWindow(filters.from, filters.to);
+    const limit = filters.limit ?? 500;
+    const offset = filters.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_AUDIT_EXPORT_ROWS ||
+      !Number.isSafeInteger(offset) || offset < 0 || offset > 2147483647) {
+      throw new BadRequestException('Invalid audit export page');
+    }
+    // Never interpolate filters into SQL. Timestamp + unique ID gives a stable
+    // order; the fixed past time window excludes new writes during pagination.
+    const where: Prisma.AuditLogWhereInput = {
+      timestamp: { gte: range.from, lte: range.to },
+      ...(filters.action ? { action: filters.action } : {}),
+      ...(filters.entityType ? { entityType: filters.entityType } : {}),
+      ...(filters.entityId ? { entityId: filters.entityId } : {}),
+      ...(filters.actorId ? { actorId: filters.actorId } : {}),
+    };
+    return this.prisma.$transaction(async (tx) => {
+      const batch = await tx.auditLog.findMany({ where, select: this.selectAll,
+        orderBy: [{ timestamp: 'asc' }, { id: 'asc' }], skip: offset, take: limit + 1 });
+      const rows = batch.slice(0, limit);
+      const hasMore = batch.length > limit;
+      await this.recordIn(tx, { action: 'audit.export', entityType: 'AuditLog',
+        entityId: 'export', actorId: actor.id, actorEmail: actor.email,
+        metadata: { from: range.from.toISOString(), to: range.to.toISOString(),
+          filters: { action: filters.action ?? null, entityType: filters.entityType ?? null,
+            entityId: filters.entityId ?? null, actorId: filters.actorId ?? null },
+          offset, preparedRows: rows.length, hasMore },
+        ipAddress: request.ipAddress ?? null, userAgent: request.userAgent ?? null });
+      return { csv: renderAuditCsv(rows as AuditLogRecord[]), hasMore,
+        nextOffset: hasMore ? offset + rows.length : null };
+    });
   }
 
   async byTimeRange(

@@ -92,7 +92,7 @@ export class ConfigDocumentOutputService {
       snapshot.identity = company;
     }
     const bytes = format === 'xlsx' ? await this.excel(snapshot)
-      : await this.pdf(snapshot, format, !!frozen);
+      : await this.pdf(snapshot, format, !!frozen, actor);
     if (!frozen) return this.file(source.typeCode, source.row.number, format, bytes);
     if (bytes.length > 8 * 1024 * 1024) throw new ConflictException('Output exceeds the archive limit');
     try {
@@ -133,15 +133,20 @@ export class ConfigDocumentOutputService {
     if (row.documentType !== `CUSTOM:${source.typeCode}`) throw new ForbiddenException('Archive type mismatch');
     return this.file(source.typeCode, source.row.number, row.format as Format, this.verified(row));
   }
-  private async pdf(source: Snapshot, format: 'pdf' | 'print', issued: boolean): Promise<Buffer> {
+  private async pdf(source: Snapshot, format: 'pdf' | 'print', issued: boolean,
+    actor: AuthenticatedUser): Promise<Buffer> {
     const layout = source.layout;
     const at = issued ? new Date(source.issuedAt) : null;
+    const context = { documentType: `CUSTOM:${source.definitionVersionId}`,
+      documentNumber: source.number, format };
     // Print has NO stamp or signature; the PDF gets only approved artwork.
     const [letterhead, logo, stamp, signature] = await Promise.all([
-      layout.letterheadAssetId ? this.assets.bytes(layout.letterheadAssetId, 'LETTERHEAD', at) : null,
-      layout.logoAssetId ? this.assets.bytes(layout.logoAssetId, 'LOGO', at) : null,
-      format === 'pdf' && issued && layout.stampAssetId ? this.assets.bytes(layout.stampAssetId, 'STAMP', at) : null,
-      format === 'pdf' && issued && layout.signatureAssetId ? this.assets.bytes(layout.signatureAssetId, 'SIGNATURE', at) : null,
+      layout.letterheadAssetId ? this.assets.bytes(layout.letterheadAssetId, 'LETTERHEAD', actor, at, context) : null,
+      layout.logoAssetId ? this.assets.bytes(layout.logoAssetId, 'LOGO', actor, at, context) : null,
+      format === 'pdf' && issued && layout.stampAssetId
+        ? this.assets.bytes(layout.stampAssetId, 'STAMP', actor, at, context) : null,
+      format === 'pdf' && issued && layout.signatureAssetId
+        ? this.assets.bytes(layout.signatureAssetId, 'SIGNATURE', actor, at, context) : null,
     ]);
     const font = join(dirname(require.resolve('dejavu-fonts-ttf/package.json')), 'ttf', 'DejaVuSans.ttf');
     return new Promise<Buffer>((resolve, reject) => {

@@ -38,7 +38,7 @@ export class AgentsController {
   @RequirePermissions('agent:create')
   create(@Body() dto: CreateAgentDto, @CurrentUser() user: AuthenticatedUser) {
     requireOffice(user, 'agent:create');
-    return this.agentsService.create(dto);
+    return this.agentsService.create(dto, user);
   }
 
   @Patch(':id')
@@ -78,7 +78,7 @@ export class AgentsController {
     @CurrentUser() user: AuthenticatedUser
   ) {
     requireOffice(user, 'agent:update');
-    return this.agentsService.createDestination(id, dto);
+    return this.agentsService.createDestination(id, dto, user);
   }
 
   @Patch(':id/destinations/:destinationId')

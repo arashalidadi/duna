@@ -63,14 +63,15 @@ export class BillController {
 
   @Patch(':id')
   @RequirePermissions('bill:update')
-  update(@Param('id') id: string, @Body() dto: UpdateBillDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateBillDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.update(id, dto, user);
   }
 
   @Delete(':id')
   @RequirePermissions('bill:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user);
   }
 
   // -------------------------------------------------------------------------
@@ -79,20 +80,23 @@ export class BillController {
 
   @Post(':id/items')
   @RequirePermissions('bill:update')
-  addItem(@Param('id') id: string, @Body() dto: AddBillItemDto) {
-    return this.service.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: AddBillItemDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.addItem(id, dto, user);
   }
 
   @Patch(':id/items/:itemId')
   @RequirePermissions('bill:update')
-  updateItem(@Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdateBillItemDto) {
-    return this.service.updateItem(id, itemId, dto);
+  updateItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @Body() dto: UpdateBillItemDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateItem(id, itemId, dto, user);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('bill:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.service.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.service.removeItem(id, itemId, user);
   }
 
   // -------------------------------------------------------------------------
@@ -144,8 +148,8 @@ export class BillController {
   @Post(':id/finalize')
   @HttpCode(200)
   @RequirePermissions('bill:issue')
-  finalize(@Param('id') id: string) {
-    return this.service.finalize(id);
+  finalize(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.finalize(id, user);
   }
 
   @Post(':id/approve')

@@ -49,8 +49,8 @@ export class QuotationController {
 
   @Patch(':id')
   @RequirePermissions('quotation:update')
-  update(@Param('id') id: string, @Body() dto: UpdateQuotationDto) {
-    return this.quotations.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateQuotationDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.quotations.update(id, dto, actor);
   }
 
   @Delete(':id')
@@ -114,8 +114,8 @@ export class QuotationController {
   @Post(':id/items')
   @HttpCode(200)
   @RequirePermissions('quotation:update')
-  addItem(@Param('id') id: string, @Body() dto: AddQuotationItemDto) {
-    return this.quotations.addItem(id, dto);
+  addItem(@Param('id') id: string, @Body() dto: AddQuotationItemDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.quotations.addItem(id, dto, actor);
   }
 
   @Patch(':id/items/:itemId')
@@ -124,13 +124,14 @@ export class QuotationController {
     @Param('id') id: string,
     @Param('itemId') itemId: string,
     @Body() dto: UpdateQuotationItemDto,
+    @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.quotations.updateItem(id, itemId, dto);
+    return this.quotations.updateItem(id, itemId, dto, actor);
   }
 
   @Delete(':id/items/:itemId')
   @RequirePermissions('quotation:update')
-  removeItem(@Param('id') id: string, @Param('itemId') itemId: string) {
-    return this.quotations.removeItem(id, itemId);
+  removeItem(@Param('id') id: string, @Param('itemId') itemId: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.quotations.removeItem(id, itemId, actor);
   }
 }
