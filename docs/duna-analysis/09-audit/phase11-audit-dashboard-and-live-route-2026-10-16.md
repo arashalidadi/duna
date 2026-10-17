@@ -2,6 +2,8 @@
 
 **Status (2026-10-16): Phase 11 code is locally verified; live acceptance is NOT complete. Phase 12 is on hold pending this report and the owner's separate explicit approval.** This report supplements the earlier [inspect/apply/verify runbook](phase11-live-server-inspect-apply-verify-2026-10-16.md); it does not authorize re-running Stage 2 or any database-changing step.
 
+**2026-10-17 supersession:** the build/output-path cause of the owner-reported export 404 is now reproduced. The historical results below remain historical; use the new [root-cause status report](phase11-root-cause-fix-2026-10-17.md) and [ordered operations runbook](phase11-operations-runbook.md). The 2026-10-16 follow-up commands are withdrawn because they predate the now-resolved database-name discrepancy and guarded launcher. No live post-fix acceptance has occurred.
+
 ## What was actually found
 
 - **Missing dashboard page/menu: confirmed product omission.** Before this change there was no `apps/web/src/app/[locale]/(dashboard)/audit/page.tsx`, no `/audit` entry in `NAV_SECTIONS`, and no Audit translations. The sidebar/overview only render configured navigation items the user may read. A direct dashboard Audit URL therefore had no page; an owner could browse the API but could not find a corresponding screen.
@@ -41,33 +43,8 @@ Owner-reported earlier workflow evidence from `b69c8e4`: Stage 1 reviewed digest
 
 No migration, seed, grant, role change, destructive test, owner export or production DB write was run from this workspace. Do not run E2E against `duna_seed_test`; an isolated test database is required for any writing test. The local API typecheck/native-engine limitation recorded in the earlier runbook has not been reclassified as a successful API build.
 
-## Owner-server follow-up — inspect first; no database-changing repeats
+## Superseding owner-server follow-up (2026-10-17)
 
-Work only in `~/shipping-dashboard/new-erp` on `arena/be9b4e5b-duna`. Review and deploy the commit in this report via the existing approved deployment procedure, preserving local edits. **Do not** run Stage 2, migrate, seed, grant, reset or restart PostgreSQL. The repository's `scripts/start-api.sh` contains a hard-coded `/home/arash/...` path; the owner-reported API cwd is `/home/duna/...`. Do **not** invoke that launcher on this host without verifying/correcting its actual manager/path. `scripts/restart-apps-only.sh --check` is a non-stopping preflight, not authority to restart an unmanaged API.
+**Do not execute the previous 2026-10-16 follow-up steps.** The launcher no longer contains a hard-coded home path or shell-sources `.env`; root `pnpm build:api` retains its explicit client generation step (not a migration); the owner has now confirmed `duna_seed_test` but actual server identity must still be verified *before* any API switch/DB-backed check; and the authentic anonymous 200/401/401 check belongs *after* active DB-session proof. Follow the [current operations runbook](phase11-operations-runbook.md) in its stated order. Historical 200/401/404 remains an unresolved owner-runtime failure until independently rechecked after the repair.
 
-1. **Before restarting or making an authenticated export:** identify the actual listener/PID without printing process arguments or environment, then run the anonymous, no-export-window route probe:
-
-   ```sh
-   cd ~/shipping-dashboard/new-erp
-   git branch --show-current && git rev-parse HEAD && git status --short
-   ss -ltnp '( sport = :3101 )'  # identify the listener PID; do not print its environment
-   node scripts/check-phase11-audit-routes.mjs 3101
-   ```
-
-   Expected: health **200**, anonymous browse **401**, anonymous export **401**. An export **404** before authentication is a **deployed route gap** (not an ordinary-user denial). Compare the process PID/cwd, actual built `apps/api/dist/src/common/infrastructure/audit/audit.controller.js`, build time and source; rebuild **only as necessary** (`pnpm build:api` generates a Prisma client but does not migrate data), restart **only with the confirmed existing manager**, then run the same anonymous probe once more. If the probe is 401 but an ordinary user's exact direct API URL still returns 404, check routing/rewrites, process target and sanitized response status; stop rather than inventing a policy success. Deploy the new web build with the web's actual manager (`pnpm build:web` for a production Next build). Do not blindly restart both services just for this test.
-
-2. **Independent effective DB identity, without exposing URLs/passwords:** after establishing the current API PID from port 3101, `node scripts/check-phase11-process-db-identity.mjs <API_PID>` compares the **process-start environment** against only the reviewed `shipping_runtime_p11 @ 127.0.0.1:5432/duna_seed_test (public)` identity and never prints credentials. `EXPECTED STARTUP ENV` is stronger than inspecting today's `.env`, but still **not** proof of the active Prisma connection; `UNPROVEN` or `MISMATCH` must not be accepted. A DBA with an already approved, private PostgreSQL read-only session can correlate the API PID's established local TCP **source port** from `ss -Htnp state established '( dport = :5432 )'` with `pg_stat_activity.client_port`, and check `usename`, `datname`, `client_addr` and `backend_type`. For example, inside that authorized SQL session (replace the integer with a port actually observed for the API PID):
-
-   ```sql
-   SELECT client_port, usename, datname, client_addr, backend_type
-   FROM pg_stat_activity
-   WHERE client_port = <observed_api_source_port>;
-   ```
-
-   If Docker NAT remaps ports, permissions hide a PID/session, or the pool has no matching socket, **mark the result inconclusive** and get DBA-assisted, process-to-session evidence; do not change privileges or infer success from `.env` or a standalone `psql current_user` for a different process. Never share raw `DATABASE_URL`, `/proc/<pid>/environ`, bearer tokens or log lines containing secrets.
-
-3. **Only after the live anonymous export route returns 401 and the running target is identified:** use the owner's already-authorized, non-exporting ordinary account for **one** direct GET to `/api/v1/audit/export` with a valid bounded past UTC window. Expected **403**, not 404; do not repeat if still 404. Then make **one** authorized owner export GET (expected **200**, `text/csv`, pagination headers and one new `audit.export` event); discard CSV content privately, do not post rows or tokens. The ordinary check must happen first, and the owner's CSV GET must not be retried reflexively. No second owner browse is needed just to replay the earlier 200.
-
-4. Inspect the **actual** API/web process-manager logs privately from the restart window for startup failures, route-not-found, permission denials vs 500s, DB grant/auth errors and whether the single export was recorded. Share **sanitized conclusions/statuses only**. If role, route, or logs are wrong, stop and use the owner's reviewed API-only rollback process; do not alter DB ownership or target. Once the owner reports the independent DB connection identity, anonymous 401, ordinary 403, one owner 200 CSV/event, web page/menu rendering and clean post-restart logs, review this Phase 11 report for signoff.
-
-**Phase 12 must not begin until the owner separately and explicitly approves it after reviewing the Phase 11 final report.**
+**Phase 12 must not begin until the owner separately and explicitly approves it after reviewing the Phase 11 final report and live evidence.**

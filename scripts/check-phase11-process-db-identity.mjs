@@ -9,7 +9,12 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export function classifyProcessDbEnvironment(environ) {
+export function classifyProcessDbEnvironment(environ, approvedDbName) {
+  // Owner explicitly confirmed duna_seed_test after the conflicting newer
+  // spelling. Require the exact approved name on every operational invocation.
+  if (approvedDbName !== 'duna_seed_test') {
+    return 'UNRESOLVED: set the explicitly approved duna_seed_test name before this check';
+  }
   const matches = environ
     .toString('utf8')
     .split('\0')
@@ -26,13 +31,15 @@ export function classifyProcessDbEnvironment(environ) {
     const expected =
       ['postgresql:', 'postgres:'].includes(url.protocol) &&
       decodeURIComponent(url.username) === 'shipping_runtime_p11' &&
+      url.password.length > 0 &&
       url.hostname === '127.0.0.1' &&
       url.port === '5432' &&
-      decodeURIComponent(url.pathname) === '/duna_seed_test' &&
+      decodeURIComponent(url.pathname) === `/${approvedDbName}` &&
+      url.searchParams.getAll('schema').length <= 1 &&
       (url.searchParams.get('schema') ?? 'public') === 'public';
     return expected
-      ? 'EXPECTED STARTUP ENV: shipping_runtime_p11 @ 127.0.0.1:5432/duna_seed_test (public)'
-      : 'MISMATCH: startup connection target/DB role differs from the reviewed Phase 11 target (values suppressed)';
+      ? `EXPECTED STARTUP ENV: shipping_runtime_p11 @ 127.0.0.1:5432/${approvedDbName} (public)`
+      : 'MISMATCH: startup connection target/DB role differs from the explicitly approved Phase 11 target (values suppressed)';
   } catch {
     return 'UNPROVEN: startup DATABASE_URL could not be decoded';
   }
@@ -40,12 +47,21 @@ export function classifyProcessDbEnvironment(environ) {
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const pid = Number(process.argv[2]);
-  if (!Number.isSafeInteger(pid) || pid <= 0) {
+  const approvedDbName = process.env.PHASE11_APPROVED_DB_NAME;
+  if (approvedDbName !== 'duna_seed_test') {
+    console.error(
+      'STOP: owner confirmed duna_seed_test. Set PHASE11_APPROVED_DB_NAME=duna_seed_test after verifying the existing server inventory. No DB accessed.'
+    );
+    process.exitCode = 1;
+  } else if (!Number.isSafeInteger(pid) || pid <= 0) {
     console.error('Provide the actual running API PID (positive integer).');
     process.exitCode = 1;
   } else {
     try {
-      const status = classifyProcessDbEnvironment(readFileSync(`/proc/${pid}/environ`));
+      const status = classifyProcessDbEnvironment(
+        readFileSync(`/proc/${pid}/environ`),
+        approvedDbName
+      );
       console.log(status);
       console.log(
         'This observes process startup environment only, NOT the active DB session. ' +

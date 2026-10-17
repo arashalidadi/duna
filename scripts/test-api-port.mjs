@@ -69,13 +69,20 @@ test('the command-line resolver uses the required default and preserves explicit
   }
 });
 
-test('start, status and stop scripts all resolve the configured API port through the shared helper', () => {
-  for (const name of ['start-dev.sh', 'status-dev.sh', 'stop-dev.sh']) {
-    assert.match(
-      read(`scripts/${name}`),
-      /API_PORT="\$\(node "\$REPO_ROOT\/scripts\/dev-api-port\.mjs"\)"/
-    );
+test('all app wrappers delegate to the same fail-closed listener/port inspector', () => {
+  for (const name of ['start-dev.sh', 'status-dev.sh', 'stop-dev.sh', 'restart-apps-only.sh']) {
+    assert.match(read(`scripts/${name}`), /scripts\/phase11-apps\.mjs/);
+    assert.doesNotMatch(read(`scripts/${name}`), /docker\s|pg_ctl\s|killall\s|pkill\s/);
   }
+  const manager = read('scripts/phase11-apps.mjs');
+  assert.match(manager, /resolveApiPort\(process\.env, apiDotenvSource\(root\)\)/);
+  assert.match(read('scripts/dev-api-port.mjs'), /apiDotenvSource\(repo\)/);
+  assert.match(manager, /listenerPids\(result\.stdout, port\)/);
+  assert.match(manager, /process\.kill\(initial\.pid, 'SIGTERM'\)/);
+  assert.doesNotMatch(
+    manager,
+    /process\.kill\(\s*-|process\.kill\([^\n]*'SIGKILL'\)|spawnSync\('docker'/
+  );
 });
 
 test('frontend requests remain same-origin on port 3000 and Docker remains PostgreSQL-only', () => {

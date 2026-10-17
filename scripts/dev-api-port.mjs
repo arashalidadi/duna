@@ -1,6 +1,6 @@
 // Read only the API port; do not execute .env as shell code or print secrets.
-import fs from 'node:fs';
 import path from 'node:path';
+import { apiDotenvSource } from './check-phase11-api-target.mjs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
@@ -18,7 +18,5 @@ export function resolveApiPort(env = {}, dotenvSource = '') {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const envFile = path.join(repo, '.env');
-  const source = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
-  console.log(resolveApiPort(process.env, source));
+  console.log(resolveApiPort(process.env, apiDotenvSource(repo)));
 }

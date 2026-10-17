@@ -8,7 +8,7 @@ const startup = (url) =>
   Buffer.from(`OTHER=irrelevant\0DATABASE_URL=${url}\0ACCESS_TOKEN=other-secret\0`);
 
 test('process startup identity is checked without printing credentials or unrelated env', () => {
-  const result = classifyProcessDbEnvironment(startup(expected));
+  const result = classifyProcessDbEnvironment(startup(expected), 'duna_seed_test');
   assert.match(result, /^EXPECTED STARTUP ENV/);
   assert.ok(!/secret-sentinel|ACCESS_TOKEN|other-secret|DATABASE_URL=/.test(result));
 });
@@ -20,19 +20,36 @@ test('wrong role, database, host and schema fail closed with values suppressed',
     expected.replace('127.0.0.1', 'localhost'),
     expected.replace('schema=public', 'schema=private'),
   ]) {
-    const result = classifyProcessDbEnvironment(startup(wrong));
+    const result = classifyProcessDbEnvironment(startup(wrong), 'duna_seed_test');
     assert.match(result, /^MISMATCH/);
     assert.ok(!/secret-sentinel|DATABASE_URL=|duna_seed_test1/.test(result));
   }
 });
 
 test('dotenv loaded after exec or duplicated startup setting is explicitly unproven', () => {
-  assert.match(classifyProcessDbEnvironment(Buffer.from('OTHER=x\0')), /^UNPROVEN/);
+  assert.match(
+    classifyProcessDbEnvironment(Buffer.from('OTHER=x\0'), 'duna_seed_test'),
+    /^UNPROVEN/
+  );
   assert.match(
     classifyProcessDbEnvironment(
-      Buffer.from(`DATABASE_URL=${expected}\0DATABASE_URL=${expected}\0`)
+      Buffer.from(`DATABASE_URL=${expected}\0DATABASE_URL=${expected}\0`),
+      'duna_seed_test'
     ),
     /^UNPROVEN/
   );
-  assert.match(classifyProcessDbEnvironment(startup('not a URL')), /^UNPROVEN/);
+  assert.match(classifyProcessDbEnvironment(startup('not a URL'), 'duna_seed_test'), /^UNPROVEN/);
+});
+
+test('only owner-confirmed duna_seed_test is accepted; other names are never silently selected', () => {
+  assert.match(classifyProcessDbEnvironment(startup(expected)), /^UNRESOLVED/);
+  assert.match(classifyProcessDbEnvironment(startup(expected), 'duna_seed_test1'), /^UNRESOLVED/);
+  assert.match(classifyProcessDbEnvironment(startup(expected), 'dna_seed_test'), /^UNRESOLVED/);
+  assert.match(
+    classifyProcessDbEnvironment(
+      startup(expected.replace('duna_seed_test', 'dna_seed_test')),
+      'duna_seed_test'
+    ),
+    /^MISMATCH/
+  );
 });

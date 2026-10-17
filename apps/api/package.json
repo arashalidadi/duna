@@ -4,9 +4,9 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "dev": "nest start --watch",
-    "build": "nest build",
-    "start": "node dist/src/main.js",
+    "dev": "pnpm run build && pnpm run start",
+    "build": "node ../../scripts/check-api-build.mjs begin && nest build && node ../../scripts/check-api-build.mjs finish",
+    "start": "bash ../../scripts/start-api.sh",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config test/jest-e2e.cjs",
     "test:watch": "jest --watch",
