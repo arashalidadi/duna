@@ -20,6 +20,8 @@
     "build:web": "pnpm --filter @shipping/web build",
     "build:api": "pnpm db:generate && pnpm --filter @shipping/config --filter @shipping/shared run build && pnpm --filter @shipping/api build",
     "check:api:build": "node scripts/check-api-build.mjs verify",
+    "phase12:apply": "node scripts/phase12/server-workflow.cjs apply",
+    "phase12:test": "node scripts/phase12/server-workflow.cjs test",
     "start": "pnpm run start -r",
     "lint": "pnpm -r run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
