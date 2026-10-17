@@ -2308,6 +2308,23 @@ model ReleaseOrder {
   @@map("release_orders")
 }
 
+// Phase 12. No durations are seeded: legal/accounting periods and lawful basis
+// must be supplied by compliance. A policy never authorises physical deletion;
+// dependency, legal-hold, historical-output and audit checks remain mandatory.
+model RetentionPolicy {
+  scope                 String   @id @db.VarChar(40)
+  minimumDays           Int?
+  archiveAfterDays      Int?
+  secureDeleteAfterDays Int?
+  authority             String?  @db.VarChar(500)
+  lawfulBasis           String?  @db.VarChar(500)
+  updatedById           String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("RetentionPolicy")
+}
+
 enum LetterDirection {
   INCOMING
   OUTGOING
@@ -2343,6 +2360,7 @@ model Letter {
   sentAt       DateTime?       @map("sentAt")
   archivedById String?         @map("archivedById")
   archivedAt   DateTime?       @map("archivedAt")
+  archivedFromStatus LetterStatus? @map("archivedFromStatus") // Phase 12: exact reopening target
   createdById  String?         @map("createdById")
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt

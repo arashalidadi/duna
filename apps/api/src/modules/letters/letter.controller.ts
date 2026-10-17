@@ -1,10 +1,16 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { CurrentUser } from '../../common/auth/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/auth/decorators/require-permissions.decorator';
 import { AuthenticatedUser } from '../../common/auth/types';
 import { LetterService } from './letter.service';
 import { CreateLetterDto, ListLetterQueryDto, UpdateLetterDto } from './dto/letter.dto';
+
+class ArchiveReasonDto {
+  @IsOptional() @IsString() @MinLength(10) @MaxLength(500)
+  reason?: string;
+}
 
 @ApiTags('letters')
 @Controller('letters')
@@ -66,8 +72,9 @@ export class LetterController {
   @Post(':id/archive')
   @HttpCode(200)
   @RequirePermissions('letter:archive')
-  @ApiOperation({ summary: 'Archive a SENT or RECEIVED letter (terminal)' })
-  archive(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.letters.archive(id, user);
+  @ApiOperation({ summary: 'Archive a letter; preserves history and allows authorised, reasoned reopening' })
+  archive(@Param('id') id: string, @Body() dto: ArchiveReasonDto,
+    @CurrentUser() user: AuthenticatedUser) {
+    return this.letters.archive(id, user, dto?.reason);
   }
 }

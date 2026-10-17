@@ -16,7 +16,7 @@ const GROUPS = Object.freeze({
     DocumentTemplate DocumentTemplateVersion DocumentAsset VoyageCostCategory SavedReport
     ConfigOptionList ConfigOption ConfigField ConfigFieldValue ConfigDocumentType ConfigDocument
     ConfigWorkflow ConfigApproval NotificationRule NotificationEvent NotificationInbox
-    NotificationDelivery`,
+    NotificationDelivery RetentionPolicy`,
   SI: `CargoIntakeDocument BillOfLadingRevision VoucherAmountAdjustment CustomerPosting
     JournalLine AuditLog DocumentTemplateAssignment DocumentIssuedSnapshot DocumentRenderedOutput
     VoyageCost ExpenseInputTax CustomerStatementIssue ConfigFieldRevision ConfigFieldValueRevision
@@ -125,7 +125,7 @@ function reviewedPlan(root) {
     byTable[table] = Object.fromEntries(Object.entries(OPS).map(([letter, op]) =>
       [op, planned.get(model).has(letter)]));
   }
-  if (Object.keys(byTable).length !== 93 ||
+  if (Object.keys(byTable).length !== 94 ||
     JSON.stringify(byTable.AuditLog) !== JSON.stringify({ SELECT: true, INSERT: true, UPDATE: false, DELETE: false })) {
     throw new Error('AuditLog or reviewed table count changed; stop for review');
   }

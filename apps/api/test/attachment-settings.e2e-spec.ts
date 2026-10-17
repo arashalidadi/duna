@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { signAttachmentToken } from '../src/common/infrastructure/attachment/attachment-url';
@@ -17,7 +18,9 @@ import { signAttachmentToken } from '../src/common/infrastructure/attachment/att
  *  - ATTACHMENT_URL_SECRET: at least 32 characters. The test signs an expired token with it.
  *  - ATTACHMENT_IDENTITY_CAPTURE_ENABLED=true. Identity capture is OFF by default in production
  *    until the retention period and lawful basis are recorded (OQ-12). Set this only for a
- *    test or disposable environment.
+ *    test or disposable environment. Phase 12 also requires a previously approved,
+ *    test-only IDENTITY_DOCUMENT retention policy (minimumDays, authority, lawfulBasis).
+ *    This suite only READS that policy; it never invents or overwrites one.
  *
  * DATA: creates a customer, a RECEIPT voucher, two test users and two roles with a `tag` suffix,
  * and uploads test files into ATTACHMENT_STORAGE_DIR. Soft-deletes the one attachment it creates.
@@ -80,6 +83,12 @@ describe('Attachments and company settings Phase 4 (e2e)', () => {
     app.useGlobalFilters(new HttpExceptionFilter());
     app.useGlobalInterceptors(new TransformInterceptor());
     await app.init();
+    const policy = await app.get(PrismaService).retentionPolicy.findUnique({
+      where: { scope: 'IDENTITY_DOCUMENT' },
+    });
+    if (!policy?.minimumDays || !policy.authority || !policy.lawfulBasis) {
+      throw new Error('Configure an approved test-only IDENTITY_DOCUMENT retention policy before this e2e suite; no period is assumed');
+    }
 
     const login = await api().post('/api/v1/auth/login').send(admin).expect(200);
     adminToken = login.body.data.accessToken as string;

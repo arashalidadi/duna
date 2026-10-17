@@ -106,6 +106,14 @@ export class AttachmentService {
         'Identity document capture is disabled until the retention period and lawful basis are recorded'
       );
     }
+    // DEC-118: enabling a feature flag alone is insufficient. The actual
+    // compliance period, authority and lawful basis must be stored and audited.
+    const retention = await this.prisma.retentionPolicy.findUnique({
+      where: { scope: 'IDENTITY_DOCUMENT' },
+    });
+    if (!retention?.minimumDays || !retention.authority || !retention.lawfulBasis) {
+      throw new ForbiddenException('Identity retention period and lawful basis are not configured');
+    }
     if (!ATTACHMENT_ENTITY_TYPES.includes(input.entityType)) {
       throw new BadRequestException('Unsupported entity type');
     }

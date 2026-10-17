@@ -155,6 +155,9 @@ export function Sidebar({
     items: section.items.filter(
       (item) =>
         (!item.requiredPermission || hasPermission(item.requiredPermission)) &&
+        (!item.officeOnly || !(
+          hasPermission('portal:access') && !hasPermission('dashboard:read')
+        )) &&
         (item.href || !implementedLabels.has(item.labelKey)) &&
         (collapsed || nav(item.labelKey).toLocaleLowerCase().includes(query.toLocaleLowerCase()))
     ),

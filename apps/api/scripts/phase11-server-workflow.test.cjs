@@ -87,9 +87,9 @@ function context(state, options = {}) {
   return { d, output, calls };
 }
 
-test('93 source-reviewed models mapped to exactly 93 operational tables, no journal/table wildcard', () => {
-  assert.equal(modelsInSchema(ROOT).size, 93);
-  assert.equal(Object.keys(plan).length, 93);
+test('94 source-reviewed models mapped to exactly 94 operational tables, no journal/table wildcard', () => {
+  assert.equal(modelsInSchema(ROOT).size, 94);
+  assert.equal(Object.keys(plan).length, 94);
   assert.equal(plan.Permission.INSERT, false); // deployment-only seed uses owner
   assert.equal(plan.AuditLog.SELECT, true);
   assert.equal(plan.AuditLog.INSERT, true);
@@ -129,7 +129,7 @@ test('catalog read assessment detects Phase 11-only pending migration, drift, ro
   assert.deepEqual(a.issues, []);
   assert.deepEqual(a.migration.pending, [TARGET.migration]);
   assert.equal(a.seed.complete, false);
-  assert.equal(a.missing.tables.length, 93 + 1); // one exporter AuditLog grant
+  assert.equal(a.missing.tables.length, 94 + 1); // one exporter AuditLog grant
   const drift = structuredClone(s);
   drift.history[0].checksum = 'tampered';
   assert.match(migrationStatus(drift, ROOT).issues.join(' '), /checksum differs/);

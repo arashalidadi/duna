@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,7 +18,8 @@ import { CreateLetterDto, ListLetterQueryDto, UpdateLetterDto } from './dto/lett
 // Correspondence register (Phase 17, ADR-037).
 //   INCOMING letters are created directly as RECEIVED.
 //   OUTGOING letters: DRAFT -> SENT (send freezes content).
-//   SENT | RECEIVED -> ARCHIVED (terminal).
+//   DRAFT | SENT | RECEIVED -> ARCHIVED (manual); only SENT/RECEIVED auto.
+//   Reasoned reopening restores prior status without bypassing DRAFT-only edits.
 // Content edits are DRAFT-only. Replies thread via replyToId (no limit).
 // ---------------------------------------------------------------------------
 const LETTER_TRANSITIONS: Record<LetterStatus, LetterStatus[]> = {
@@ -311,27 +313,132 @@ export class LetterService {
     }
   }
 
-  /** SENT | RECEIVED -> ARCHIVED. */
-  async archive(id: string, actor: AuthenticatedUser) {
+  /** Manual archive retains the pre-existing permission/route. Never deletes data. */
+  async archive(id: string, actor: AuthenticatedUser, reason = 'Manual archive') {
+    if (actor.portalAgentId || actor.portalCustomerId) {
+      throw new ForbiddenException('Company archive is restricted to office users');
+    }
+    const note = reason.trim();
+    if (note.length < 10 || note.length > 500) throw new BadRequestException('Archive reason must be 10–500 characters');
+    return this.archiveWith(id, actor.id, actor.email, note, 'MANUAL');
+  }
+
+  /** Only a configured, already issued/received, sufficiently old letter qualifies. */
+  async archiveAutomatic(id: string) {
+    return this.archiveWith(id, 'system:phase12-archive', 'system:phase12-archive',
+      'Configured automatic letter archive', 'AUTOMATIC');
+  }
+
+  private async archiveWith(id: string, actorId: string, actorEmail: string, reason: string,
+    mode: 'MANUAL' | 'AUTOMATIC') {
     return this.prisma.$transaction(async (tx) => {
+      if (mode === 'AUTOMATIC') {
+        // Serialize against a concurrent retention-policy change. Both code
+        // paths then evaluate the same committed criterion before any write.
+        await tx.$queryRaw`SELECT 1 AS locked FROM
+          (SELECT pg_advisory_xact_lock(120012, hashtext('LETTER'))) AS guard`;
+      }
       const before = await this.lockLetter(tx, id);
       this.assertTransition(before.status, 'ARCHIVED');
+      if (mode === 'AUTOMATIC') {
+        const policy = await tx.retentionPolicy.findUnique({ where: { scope: 'LETTER' } });
+        if (!policy?.archiveAfterDays || !['SENT', 'RECEIVED'].includes(before.status)) {
+          throw new ConflictException('Automatic archive is not configured or letter is ineligible');
+        }
+        const cutoff = Date.now() - policy.archiveAfterDays * 86400000;
+        if ([before.letterDate, before.createdAt, before.sentAt].some((value) =>
+          value && value.getTime() > cutoff)) {
+          throw new ConflictException('Letter is not old enough for the current archive criterion');
+        }
+      }
       const after = await tx.letter.update({ where: { id },
-        data: { status: 'ARCHIVED', archivedById: actor.id, archivedAt: new Date() },
-        select: listSelect });
+        data: { status: 'ARCHIVED', archivedById: mode === 'MANUAL' ? actorId : null,
+          archivedAt: new Date(), archivedFromStatus: before.status }, select: listSelect });
       await this.audit.recordIn(tx, { action: 'letter.archive', entityType: 'Letter',
-        entityId: id, actorId: actor.id, actorEmail: actor.email,
-        beforeData: { status: before.status },
+        entityId: id, actorId, actorEmail, beforeData: { status: before.status },
         afterData: { status: after.status, archivedAt: after.archivedAt,
-          archivedById: after.archivedById }, metadata: { letterNumber: after.letterNumber } });
+          archivedById: after.archivedById },
+        metadata: { letterNumber: after.letterNumber, reason, mode } });
       return flatten(after);
     });
+  }
+
+  /** Reopening restores the recorded pre-archive state, not an editable draft by default. */
+  async reopen(id: string, reason: string, actor: AuthenticatedUser) {
+    if (actor.portalAgentId || actor.portalCustomerId) {
+      throw new ForbiddenException('Company archive is restricted to office users');
+    }
+    const note = reason?.trim();
+    if (!note || note.length < 10 || note.length > 500) {
+      throw new BadRequestException('A reopening reason of 10–500 characters is required');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const before = await this.lockLetter(tx, id);
+      if (before.status !== 'ARCHIVED') throw new ConflictException('Only an archived letter can be reopened');
+      const last = await tx.auditLog.findFirst({ where: { entityType: 'Letter', entityId: id,
+        action: 'letter.archive' }, orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+        select: { beforeData: true } });
+      const prior = before.archivedFromStatus ??
+        (last?.beforeData as { status?: unknown } | null)?.status;
+      // Pre-Phase-12 records may have no recorded prior status. Infer
+      // conservatively from direction/sent stamp and disclose the history gap.
+      const fallback = before.direction === 'INCOMING' ? 'RECEIVED' : before.sentAt ? 'SENT' : 'DRAFT';
+      const status = prior === 'DRAFT' || prior === 'SENT' || prior === 'RECEIVED' ? prior : fallback;
+      if ((status === 'RECEIVED') !== (before.direction === 'INCOMING') ||
+          (status === 'SENT' && !before.sentAt) || (status === 'DRAFT' && before.sentAt)) {
+        throw new ConflictException('Archived status history is inconsistent; manual review required');
+      }
+      const after = await tx.letter.update({ where: { id },
+        data: { status, archivedAt: null, archivedById: null, archivedFromStatus: null }, select: listSelect });
+      await this.audit.recordIn(tx, { action: 'letter.reopen', entityType: 'Letter',
+        entityId: id, actorId: actor.id, actorEmail: actor.email,
+        beforeData: { status: before.status, archivedAt: before.archivedAt,
+          archivedById: before.archivedById }, afterData: { status: after.status },
+        metadata: { letterNumber: after.letterNumber, reason: note, historyGap: !last } });
+      return flatten(after);
+    });
+  }
+
+  async archiveHistory(id: string, query: { page?: number; pageSize?: number } = {}) {
+    await this.findById(id);
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 100;
+    if (!Number.isInteger(page) || page < 1 || page > 1000000 || !Number.isInteger(pageSize) ||
+        pageSize < 1 || pageSize > 100) throw new BadRequestException('Invalid archive history page');
+    const where = { entityType: 'Letter', entityId: id,
+      action: { in: ['letter.archive', 'letter.reopen'] } };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.auditLog.findMany({ where, select: {
+        id: true, action: true, timestamp: true, actorId: true, actorEmail: true,
+        beforeData: true, afterData: true, metadata: true },
+      orderBy: [{ timestamp: 'desc' }, { id: 'desc' }],
+      skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    return { items, total, page, pageSize, hasMore: total > page * pageSize };
   }
 
   async remove(id: string, actor: AuthenticatedUser) {
     return this.prisma.$transaction(async (tx) => {
       const before = await this.lockLetter(tx, id);
       if (before.status !== 'DRAFT') throw new ConflictException('Only DRAFT letters can be deleted');
+      if (before.archivedFromStatus) throw new ConflictException('Archived letters cannot be deleted');
+      const retention = await tx.retentionPolicy.findUnique({ where: { scope: 'LETTER' } });
+      if (retention?.minimumDays &&
+          Math.max(before.createdAt.getTime(), before.letterDate.getTime()) >
+            Date.now() - retention.minimumDays * 86400000) {
+        throw new ConflictException('Configured letter retention minimum has not elapsed');
+      }
+      const [archived, replies, attachments, issued, rendered] = await Promise.all([
+        tx.auditLog.count({ where: { entityType: 'Letter', entityId: id, action: 'letter.archive' } }),
+        tx.letter.count({ where: { replyToId: id } }),
+        tx.fileAttachment.count({ where: { entityType: 'Letter', entityId: id } }),
+        tx.documentIssuedSnapshot.count({ where: { documentType: 'letter', recordId: id } }),
+        tx.documentRenderedOutput.count({ where: { documentType: 'letter', recordId: id } }),
+      ]);
+      if (archived || replies || attachments || issued || rendered) {
+        throw new ConflictException('Archived or dependent letters cannot be deleted');
+      }
       await tx.letter.update({ where: { id }, data: { deletedAt: new Date() } });
       await this.audit.recordIn(tx, { action: 'letter.delete_draft', entityType: 'Letter',
         entityId: id, actorId: actor.id, actorEmail: actor.email,

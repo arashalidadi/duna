@@ -33,6 +33,7 @@ import { ProformaModule } from './modules/proforma/proforma.module';
 import { QuotationModule } from './modules/quotation/quotation.module';
 import { SalaryModule } from './modules/salary/salary.module';
 import { LettersModule } from './modules/letters/letters.module';
+import { ArchiveModule } from './modules/archive/archive.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { JwtAuthGuard } from './common/auth/guards/jwt-auth.guard';
 import { ShippersModule } from './modules/shippers/shippers.module';
@@ -89,6 +90,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     QuotationModule,
     SalaryModule,
     LettersModule,
+    ArchiveModule,
     JobsModule,
     // Phase 2 master data (party model)
     ShippersModule,

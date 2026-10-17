@@ -8,6 +8,7 @@ const sourceDir = path.resolve('apps/api/src');
 const permissionFiles = [
   'prisma/seed/core.ts', 'prisma/seed/phase9-permissions.ts',
   'prisma/seed/phase10-permissions.ts', 'prisma/seed/phase11-permissions.ts',
+  'prisma/seed/phase12-permissions.ts',
 ];
 const errors = [];
 const matrix = [];

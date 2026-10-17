@@ -1,5 +1,6 @@
 import {
   Anchor,
+  Archive,
   Banknote,
   Bell,
   BellRing,
@@ -46,6 +47,8 @@ export interface NavItem {
   description?: string;
   /** Only show this nav item if the current user holds this permission. */
   requiredPermission?: string;
+  /** Hide office-only pages from accounts signed in through the external portal. */
+  officeOnly?: boolean;
   children?: NavItem[];
 }
 
@@ -359,6 +362,12 @@ export const NAV_SECTIONS: NavSection[] = [
         status: 'implemented',
         description: 'Official correspondence register',
         requiredPermission: 'letter:read',
+      },
+      {
+        labelKey: 'archive', href: '/archive', icon: Archive,
+        status: 'implemented', description: 'Permission-scoped correspondence archive and retention',
+        requiredPermission: 'letter:read',
+        officeOnly: true,
       },
     ],
   },

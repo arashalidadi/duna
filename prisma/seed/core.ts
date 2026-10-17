@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { phase9Permissions } from './phase9-permissions';
 import { phase10Permissions } from './phase10-permissions';
 import { AUDIT_EXPORT_ROLE, phase11Permissions, seedPhase11Permissions } from './phase11-permissions';
+import { phase12Permissions, Phase12PermissionConflict } from './phase12-permissions';
 
 /**
  * Phase 1 (A3) — REQUIRED seed data.
@@ -280,8 +281,17 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   { code: 'job:cancel', module: 'jobs', action: 'cancel' },
 ];
 
+  // Check reserved Phase 12 vocabulary BEFORE generic upserts can relabel it.
+  // This seed is for fresh installs only; the existing owner database uses the
+  // guarded incremental Phase 12 seed, not the full core/demo seed.
+  for (const spec of phase12Permissions) {
+    const prior = await prisma.permission.findUnique({ where: { code: spec.code } });
+    if (prior && (prior.module !== spec.module || prior.action !== spec.action)) {
+      throw new Phase12PermissionConflict(`Conflicting ${spec.code} permission; manual review required`);
+    }
+  }
   const createdPermissions: Record<string, string> = {};
-  for (const p of permissionSeed) {
+  for (const p of [...permissionSeed, ...phase12Permissions]) {
     const record = await prisma.permission.upsert({
       where: { code: p.code },
       update: { module: p.module, action: p.action },
@@ -375,7 +385,9 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
   // by any decision: ADMIN is the system administrator and receives every other
   // catalogue permission, including these two. Managers and other roles still get only
   // what the administrator assigns.
-  const EXPLICIT_GRANT_ONLY = new Set<string>(['release:override', 'audit:export']);
+  const EXPLICIT_GRANT_ONLY = new Set<string>([
+    'release:override', 'audit:export', 'backup:manage', 'backup:restore', 'archive:delete',
+  ]);
 
   for (const [code, permissionId] of Object.entries(createdPermissions)) {
     if (EXPLICIT_GRANT_ONLY.has(code)) {

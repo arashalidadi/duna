@@ -1,6 +1,8 @@
 // Letter — official correspondence register (Phase 17).
 // Direction: INCOMING (received as RECEIVED) or OUTGOING (DRAFT -> SENT).
-// ARCHIVED reachable from SENT|RECEIVED. Replies thread via replyToId.
+// ARCHIVED reachable manually from DRAFT|SENT|RECEIVED; the configured
+// automatic criterion only selects SENT|RECEIVED. Reasoned reopening restores
+// the prior status. Replies thread via replyToId.
 
 export const LetterDirectionValues = ['INCOMING', 'OUTGOING'] as const;
 export type LetterDirection = (typeof LetterDirectionValues)[number];
