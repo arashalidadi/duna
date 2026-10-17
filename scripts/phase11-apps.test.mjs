@@ -165,7 +165,16 @@ test('the actual listener carries the attested startup fingerprint; later on-dis
     process.env.API_PORT = String(fixture.port);
     mkdirSync(join(root, 'logs'));
     writeFileSync(join(root, 'logs/api.pid'), `${fixture.child.pid}\n`);
-    assert.equal(inspectService('api', root).build, 'current');
+    // A listener callback can precede the next kernel ss snapshot. Wait for
+    // that snapshot, but never relax the exact PID/entry/build checks.
+    let status;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      status = inspectService('api', root);
+      if (status.state === 'managed') break;
+      await pause(25);
+    }
+    assert.equal(status.state, 'managed', JSON.stringify(status));
+    assert.equal(status.build, 'current');
     assert.equal(attestRunningApi(fixture.child.pid, root).build, 'current');
     put('apps/api/dist/src/main.js', serverSource + '\n// changed since process start');
     assert.equal(inspectService('api', root).build, 'unverified-or-stale');
