@@ -5,12 +5,36 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
-const { StageFailure, inspectLine, safeDbResult, prechangeApproval, offlineCommands,
-  workflow, applicationManager, verifyWebArchive, readOnlyRoutes } = require('./server-workflow.cjs');
+const { StageFailure, inspectLine, safeDbResult, dbFailureHint, prechangeApproval, offlineCommands,
+  workflow, needsInstall, applicationManager, verifyWebArchive, readOnlyRoutes } = require('./server-workflow.cjs');
 const runtime='postgresql://shipping_runtime_p11:runtime-secret@127.0.0.1:5432/duna_seed_test?schema=public';
 const owner='postgresql://shipping:owner-secret@127.0.0.1:5432/duna_seed_test?schema=public';
 const inspect=`PHASE12_DB_INSPECT_PASS: PG16 erp-postgres correlation; journal owner=shipping; pending Phase 12=1; owner journal grant needed=false; permissions=0/7; digest=${'a'.repeat(64)}`;
 const dbMarker='PHASE12_DB_VERIFY_PASS: checksum/history, RetentionPolicy structure, three protective triggers, seven Phase 12 permission codes (reserved actions ungranted), runtime read-only identity/privileges; configured archive criteria=0; configured deletion thresholds=0. No policy/schedule set by this command.';
+test('one-command dependency preflight installs the new isolated PG16 fixture when missing', () => {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'phase12-deps-'));
+  try {
+    for (const name of ['node_modules/.bin/prisma','node_modules/.bin/tsx',
+      'apps/api/node_modules/.bin/nest','apps/web/node_modules/.bin/next']) {
+      const file=path.join(dir,name);fs.mkdirSync(path.dirname(file),{recursive:true});
+      fs.writeFileSync(file,'');
+    }
+    assert.equal(needsInstall(dir),true);
+    const fixture=path.join(dir,'apps/api/node_modules/pglite-pg16/package.json');
+    fs.mkdirSync(path.dirname(fixture),{recursive:true});fs.writeFileSync(fixture,'{}');
+    assert.equal(needsInstall(dir),false);
+  } finally { fs.rmSync(dir,{recursive:true,force:true}); }
+});
+test('bounded catalog mismatch survives the outer redactor; raw credentials never do', () => {
+  const diagnostic='Phase 12 catalog differs: RetentionPolicy column createdAt position/type/precision/nullability; RetentionPolicy column updatedAt position/type/precision/nullability. Catalog check is read-only; stop before any further write';
+  assert(diagnostic.length>210,'old outer limit concealed the timestamp diagnosis');
+  assert.equal(dbFailureHint(`PHASE12_DB_FAIL: ${diagnostic}`,''),diagnostic);
+  for (const unsafe of ['postgresql://shipping:secret@127.0.0.1:5432/duna_seed_test',
+    'password=secret','token=secret','secret: visible']) {
+    assert.equal(dbFailureHint(`PHASE12_DB_FAIL: ${unsafe}`,''),null);
+  }
+  assert.equal(dbFailureHint('raw Prisma stderr: connection failed',''),null);
+});
 test('inspection marker identifies idempotent/no-op vs required writes; backup prerequisite never guessed', () => {
   assert.equal(inspectLine(inspect).needsWrite,true);
   assert.equal(inspectLine(inspect.replace('pending Phase 12=1','pending Phase 12=0')
@@ -30,6 +54,7 @@ test('apply uses owner only for DB, checks/restarts only apps AFTER verification
       MIGRATOR_DATABASE_URL:env.MIGRATOR_DATABASE_URL,
       RUNTIME_DATABASE_URL:env.RUNTIME_DATABASE_URL,
       PGPASSFILE:env.PGPASSFILE,
+      PHASE12_INSPECTION_DIGEST:env.PHASE12_INSPECTION_DIGEST,
       PHASE12_PRECHANGE_BACKUP_ATTESTED:env.PHASE12_PRECHANGE_BACKUP_ATTESTED}});
     if (bin==='pnpm' && args.join(' ')==='--version') return '9.15.9\n';
     if (bin==='systemctl' && args.includes('MainPID')) return '12345\n';
@@ -38,6 +63,7 @@ test('apply uses owner only for DB, checks/restarts only apps AFTER verification
     return 'PASS\n';
   };
   const options={run,env:{DATABASE_URL:runtime,MIGRATOR_DATABASE_URL:owner,
+    PHASE12_INSPECTION_DIGEST:'b'.repeat(64), // stale shell input cannot authorize apply
     PGPASSFILE:'/protected/owner-passfile',
     PHASE12_PRECHANGE_BACKUP_ATTESTED:'I_HAVE_RESTORED_PRECHANGE_BACKUP'},
     containerInspect:()=>({environment:{POSTGRES_USER:'shipping'}}),
@@ -66,7 +92,10 @@ test('apply uses owner only for DB, checks/restarts only apps AFTER verification
         cmd.args[2]==='apps/api/scripts/phase12-db-deploy.ts') {
       assert.equal(cmd.env.DATABASE_URL,owner);
       assert.equal(cmd.env.RUNTIME_DATABASE_URL,runtime);
+      assert.equal(cmd.env.PHASE12_INSPECTION_DIGEST,
+        cmd.args.at(-1)==='apply' ? 'a'.repeat(64) : undefined);
     } else {
+      assert.equal(cmd.env.PHASE12_INSPECTION_DIGEST,undefined);
       assert.notEqual(cmd.env.DATABASE_URL,owner);
       assert.equal(cmd.env.MIGRATOR_DATABASE_URL,undefined);
       assert.equal(cmd.env.PGPASSFILE,undefined);
@@ -118,6 +147,7 @@ test('test plan includes static/mocks/authorization/legacy regression, isolated 
   assert.match(commands,/prisma validate/);
   assert.match(commands,/test-phase12-archive\.ts/);
   assert.match(commands,/test-phase12-http\.ts/);
+  assert.match(commands,/test-phase12-catalog\.cjs/);
   assert.match(commands,/check:phase11:authz/);
   assert.match(commands,/check:seed-safety/);
   assert.match(commands,/check:api:build/);

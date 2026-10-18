@@ -11,6 +11,7 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { ArchiveController, ArchiveHistoryQueryDto } from '../src/modules/archive/archive.controller';
 import { ArchiveService } from '../src/modules/archive/archive.service';
+import { UpdateRetentionPolicyDto } from '../src/modules/archive/dto/retention-policy.dto';
 import { LetterController } from '../src/modules/letters/letter.controller';
 import { LetterService } from '../src/modules/letters/letter.service';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -79,6 +80,8 @@ test('protected archive HTTP lifecycle: configured auto + manual, history pages,
   Reflect.defineMetadata('design:paramtypes', [LetterService], LetterController);
   Reflect.defineMetadata('design:paramtypes', [String, ArchiveHistoryQueryDto, Object],
     ArchiveController.prototype, 'history');
+  Reflect.defineMetadata('design:paramtypes', [String, UpdateRetentionPolicyDto, Object],
+    ArchiveController.prototype, 'policy');
   const letters = new LetterService(db as unknown as PrismaService, audit as unknown as AuditService);
   const archive = new ArchiveService(db as unknown as PrismaService, audit as unknown as AuditService, letters);
   const module = await Test.createTestingModule({ controllers: [ArchiveController, LetterController],
@@ -114,6 +117,12 @@ test('protected archive HTTP lifecycle: configured auto + manual, history pages,
     await api().post(`/api/v1/letters/${row.id}/archive`).set('x-test-role', 'portal')
       .send({ reason: 'Portal must not archive company letters' }).expect(403);
     await api().get(`${url}/policies`).set('x-test-role', 'reader').expect(403);
+    const validation = await api().patch(`${url}/policies/LETTER`).set('x-test-role', 'owner')
+      .send({ minimumDays: 'not-a-number' }).expect(400);
+    assert.equal(validation.body.success, false);
+    assert.equal(validation.body.error.statusCode, 400);
+    assert(Array.isArray(validation.body.error.message), 'Nest validation errors are an array');
+    assert.match(validation.body.error.message.join('; '), /minimumDays/);
     await api().patch(`${url}/policies/LETTER`).set('x-test-role', 'owner')
       .send({ archiveAfterDays: 2 }).expect(400);
     await api().patch(`${url}/policies/LETTER`).set('x-test-role', 'owner')

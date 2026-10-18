@@ -11,16 +11,21 @@ const { DbStop } = require('./db-policy.cjs');
 const ROOT = path.resolve(__dirname, '../..');
 class StageFailure extends Error {}
 function stop(message) { throw new StageFailure(message); }
+function dbFailureHint(stdout, stderr) {
+  // Fixed-label catalog diagnostics can exceed 210 characters for TWO bad
+  // columns. Keep a bounded allowlist: never surface raw driver/Prisma output.
+  const line = `${stdout || ''}\n${stderr || ''}`.split(/\r?\n/)
+    .find((row) => row.startsWith('PHASE12_DB_FAIL: '));
+  const safe = line?.slice('PHASE12_DB_FAIL: '.length);
+  return safe && /^[\w\s.,;:'()\/=-]{5,512}$/.test(safe) &&
+    !/postgres(?:ql)?:\/\/|@[^\s]+:5432|(?:password|secret|token|authorization)\s*[=:]/i.test(safe)
+    ? safe : null;
+}
 function execute(bin, args, env = process.env, timeout = 600000, cwd = ROOT) {
   const result = spawnSync(bin, args, { cwd, env, encoding: 'utf8',
     stdio: ['ignore','pipe','pipe'], timeout, maxBuffer: 16 * 1024 * 1024 });
   if (result.error || result.status !== 0) {
-    // The only details allowed through are our own fixed-string DB errors.
-    const line = (result.stdout + '\n' + result.stderr).split(/\r?\n/)
-      .find((row) => row.startsWith('PHASE12_DB_FAIL: '));
-    const safe = line?.slice('PHASE12_DB_FAIL: '.length);
-    const hint = safe && /^[\w\s.,;:'()\/=-]{5,210}$/.test(safe) &&
-      !/postgres(?:ql)?:\/\/|@[^\s]+:5432|token=/i.test(safe) ? safe : null;
+    const hint = dbFailureHint(result.stdout, result.stderr);
     stop(`${bin} ${args.slice(0, 3).join(' ')} exited ${result.status ?? 'abnormally'}; ` +
       (hint || 'protected child output withheld; inspect this stage and its file without disclosing credentials'));
   }
@@ -37,7 +42,8 @@ function toolchain(run = execute) {
 }
 function needsInstall(root = ROOT) {
   return !['node_modules/.bin/prisma','node_modules/.bin/tsx',
-    'apps/api/node_modules/.bin/nest','apps/web/node_modules/.bin/next'].every((name) =>
+    'apps/api/node_modules/.bin/nest','apps/api/node_modules/pglite-pg16/package.json',
+    'apps/web/node_modules/.bin/next'].every((name) =>
       fs.existsSync(path.join(root, name)));
 }
 function codeReview(root = ROOT, run = execute) {
@@ -48,8 +54,12 @@ function codeReview(root = ROOT, run = execute) {
   // stashed/reset/cleaned, staged, overwritten or used as an excuse to block.
   const paths = ['prisma/migrations','prisma/schema.prisma','prisma/seed/phase12-permissions.ts',
     'apps/api/scripts/phase12-db-deploy.ts','apps/api/scripts/seed-phase12-permissions.ts',
-    'apps/api/src/modules/archive','apps/web/src/app/[locale]/(dashboard)/archive',
-    'apps/web/next.config.mjs','apps/web/tsconfig.json','scripts/phase12','package.json'];
+    'apps/api/scripts/test-phase12-catalog.cjs','apps/api/scripts/test-phase12-http.ts',
+    'apps/api/package.json','apps/api/src/modules/archive','apps/web/src/app/[locale]/(dashboard)/archive',
+    'apps/web/src/app/api/v1/[...path]/route.ts','apps/web/src/lib/api/client.ts',
+    'apps/web/scripts/test-phase12-policy-client.ts',
+    'apps/web/package.json','apps/web/next.config.mjs','apps/web/tsconfig.json',
+    'scripts/phase12','package.json','pnpm-lock.yaml'];
   const diff = spawnSync('git', ['diff','--quiet','HEAD','--',...paths],
     { cwd:root, stdio:'ignore', timeout:10000 });
   const extra = run('git',['ls-files','--others','--exclude-standard','--',...paths]);
@@ -141,6 +151,8 @@ function offlineCommands(mode) {
       ...fs.readdirSync(path.join(ROOT,'scripts/phase12'))
         .filter((name) => /\.test\.(?:cjs|mjs)$/.test(name))
         .map((name) => `scripts/phase12/${name}`)]],
+    ['Phase 12 isolated PostgreSQL 16 migration catalog', 'apps/api/scripts/test-phase12-catalog.cjs',
+      'node', ['--test','apps/api/scripts/test-phase12-catalog.cjs']],
     ['Archive/audit Nest HTTP and service tests', 'apps/api/scripts/test-phase12-http.ts', 'pnpm',
       ['exec','tsx','--test','apps/api/scripts/test-phase12-archive.ts',
         'apps/api/scripts/test-phase12-http.ts']],
@@ -283,6 +295,7 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
       POSTGRES_USER: _containerUser, POSTGRES_PASSWORD: _containerPassword,
       POSTGRES_PASSWORD_FILE: _containerSecretFile,
       PHASE12_PRECHANGE_BACKUP_ATTESTED: _prechange,
+      PHASE12_INSPECTION_DIGEST: _oldDigest,
       PHASE12_MIGRATION_APPROVAL: _approval, ...safeEnv } = env;
     const runtimeEnv = { ...safeEnv, DATABASE_URL:urls.runtime, PHASE11_APPROVED_DB_NAME:'duna_seed_test',
       PHASE12_EXPECTED_DB:'duna_seed_test', SEED_DEMO_DATA:'false' };
@@ -290,7 +303,7 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
     await stage('Reviewed Phase 12 source; unrelated files preserved',
       'scripts/phase12/server-workflow.cjs', () => review(root, run));
     if (installCheck(root)) await stage('Frozen dependencies (no install hooks or DB writes)',
-      'pnpm-lock.yaml', () => run('pnpm',['install','--frozen-lockfile','--ignore-scripts'],runtimeEnv));
+      'pnpm-lock.yaml', () => run('pnpm',['install','--frozen-lockfile','--ignore-scripts','--prod=false'],runtimeEnv));
     for (const [label,file,bin,args] of commands(mode)) {
       const nextEnv = { ...runtimeEnv,
         ...(label === 'Archive/audit Nest HTTP and service tests' ?
@@ -320,7 +333,11 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
       const attestation = await stage('Verified pre-change recovery prerequisite',
         'scripts/phase12/server-workflow.cjs', () =>
           approval(env,state.needsWrite));
+      // The owner process must re-read the *same* reviewed catalog plan before
+      // any journal grant, migration or seed. A manual intervention between
+      // inspect and apply is a STOP, never a silently broadened approval.
       const authorized = { ...dbEnv, PHASE12_MIGRATION_APPROVAL:'I_APPROVE_ADDITIVE_PHASE12_MIGRATION',
+        PHASE12_INSPECTION_DIGEST:state.digest,
         PHASE12_PRECHANGE_BACKUP_ATTESTED:attestation };
       const deployed = await stage('Conditional owner migration and seven-code incremental seed',
         'apps/api/scripts/phase12-db-deploy.ts', () => safeDbResult(run('pnpm',
@@ -372,6 +389,6 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
 if (require.main === module) {
   workflow(process.argv[2]).catch(() => { process.exitCode=1; });
 }
-module.exports = { StageFailure, toolchain, needsInstall, codeReview, inspectLine, safeDbResult,
+module.exports = { StageFailure, toolchain, needsInstall, codeReview, dbFailureHint, inspectLine, safeDbResult,
   prechangeApproval, applicationManager, offlineCommands, activationCheck,
   verifyWebArchive, readOnlyRoutes, workflow };

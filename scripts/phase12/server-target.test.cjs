@@ -17,6 +17,11 @@ test('real runtime DATABASE_URL remains separate from migration-owner connection
   assert.throws(()=>exactUrl(owner,'shipping_runtime_p11'),DbStop);
   assert.deepEqual(connections({DATABASE_URL:runtime,MIGRATOR_DATABASE_URL:owner},root,container),
     {owner,runtime});
+  // Supplying RUNTIME_DATABASE_URL alongside an owner DATABASE_URL does NOT
+  // replace the actual API runtime DATABASE_URL; this mistaken invocation
+  // failed the owner's credential preflight without touching a DB.
+  assert.throws(() => connections({DATABASE_URL:owner,RUNTIME_DATABASE_URL:runtime,
+    MIGRATOR_DATABASE_URL:owner},root,container),DbStop);
   assert.equal(connections({DATABASE_URL:runtime},root,container).owner,
     'postgresql://shipping:docker-secret@127.0.0.1:5432/duna_seed_test?schema=public');
   assert.throws(()=>connections({DATABASE_URL:runtime},root,{environment:{POSTGRES_USER:'postgres'}}),DbStop);
@@ -27,6 +32,11 @@ test('real runtime DATABASE_URL remains separate from migration-owner connection
     assert.throws(()=>exactUrl(url,'shipping_runtime_p11'),DbStop);
 });
 test('reads an existing dotenv/pgpass as data, never executes or prints it', () => {
+  const template=path.join(root,'.env.example');
+  fs.writeFileSync(template,`DATABASE_URL=${runtime}\n`);
+  assert.throws(() => connections({MIGRATOR_DATABASE_URL:owner},root,container),DbStop,
+    'a template is not an actual runtime credential');
+  fs.unlinkSync(template);
   const file=path.join(root,'.env');
   fs.writeFileSync(file,`# comment\nDATABASE_URL='${owner}'\nMIGRATOR_DATABASE_URL="${owner}"\nOTHERS=ignored\n`,{mode:0o600});
   assert.equal(envFile(file).MIGRATOR_DATABASE_URL,owner);
@@ -34,6 +44,14 @@ test('reads an existing dotenv/pgpass as data, never executes or prints it', () 
   fs.writeFileSync(file,`DATABASE_URL=${runtime}\nDATABASE_URL=${owner}\n`);
   assert.throws(()=>envFile(file),DbStop);
   fs.unlinkSync(file);
+  const apiFile=path.join(root,'apps/api/.env');
+  fs.mkdirSync(path.dirname(apiFile),{recursive:true});
+  fs.writeFileSync(apiFile,`DATABASE_URL=${runtime}\n`);
+  fs.writeFileSync(file,`DATABASE_URL=${owner}\n`);
+  assert.equal(connections({DATABASE_URL:runtime},root,container).owner,
+    'postgresql://shipping:docker-secret@127.0.0.1:5432/duna_seed_test?schema=public',
+    'the first file defining DATABASE_URL is runtime, so a later owner value is not selected');
+  fs.unlinkSync(apiFile);fs.unlinkSync(file);
   const passfile=path.join(root,'pgpass');
   fs.writeFileSync(passfile,'127.0.0.1:5432:duna_seed_test:shipping:has\\:colon\n',{mode:0o600});
   assert.equal(pgpassPassword(passfile),'has:colon');

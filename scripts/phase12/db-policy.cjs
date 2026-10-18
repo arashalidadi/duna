@@ -12,9 +12,11 @@ const POLICY_COLUMNS = Object.freeze([
   ['archiveAfterDays', 'integer', -1, false], ['secureDeleteAfterDays', 'integer', -1, false],
   ['authority', 'character varying', 504, false],
   ['lawfulBasis', 'character varying', 504, false], ['updatedById', 'text', -1, true],
-  // pg_attribute.atttypmod stores TIMESTAMP(3) as precision + 4.
-  ['createdAt', 'timestamp without time zone', 7, true],
-  ['updatedAt', 'timestamp without time zone', 7, true],
+  // PostgreSQL 16 pg_attribute.atttypmod stores TIMESTAMP(3) as 3, unlike
+  // varchar(40), whose typmod is 40 + VARHDRSZ (44). Verified by executing
+  // the reviewed migration in an isolated PostgreSQL 16 catalog fixture.
+  ['createdAt', 'timestamp without time zone', 3, true],
+  ['updatedAt', 'timestamp without time zone', 3, true],
 ]);
 const POLICY_CONSTRAINTS = Object.freeze([
   'RetentionPolicy_pkey', 'RetentionPolicy_scope_check', 'RetentionPolicy_archive_check',
@@ -51,31 +53,62 @@ function checkStructure(who, applied) {
     }
     return;
   }
-  if (!who.retentionExists || who.letterColumnPresent !== true || who.letterColumn !== true ||
-      columns.length !== POLICY_COLUMNS.length ||
-      POLICY_COLUMNS.some(([name, type, modifier, required], i) =>
-        columns[i]?.name !== name || columns[i].type !== type ||
-        columns[i].modifier !== modifier || columns[i].required !== required) ||
-      constraints.length !== POLICY_CONSTRAINTS.length ||
-      POLICY_CONSTRAINTS.some((name) => !constraints.some((row) =>
-        row.name === name && row.validated === true)) ||
-      who.retentionTriggers !== 2 || who.letterGuard !== 1 ||
-      functions.length !== 2 || functions.some((row) =>
-        row.owner !== 'shipping' || row.securityDefiner !== false ||
-        !row.config?.includes('search_path=pg_catalog') ||
-        !/RAISE EXCEPTION/.test(row.definition)) ||
-      !functions.some((row) => row.name === 'phase12_protect_retention_policy' &&
-        /NEW\."minimumDays" < OLD\."minimumDays"/.test(row.definition)) ||
-      !functions.some((row) => row.name === 'phase12_protect_archived_letter' &&
-        /OLD\."archivedFromStatus" IS NOT NULL/.test(row.definition)) ||
-      triggers.length !== 3 || triggers.some((row) => row.enabled !== 'A' || row.internal) ||
-      !triggers.some((row) => row.name === 'phase12_retention_no_reduction' &&
-        row.table === 'RetentionPolicy' && /BEFORE (?:UPDATE OR DELETE|DELETE OR UPDATE)/.test(row.definition)) ||
-      !triggers.some((row) => row.name === 'phase12_retention_no_truncate' &&
-        row.table === 'RetentionPolicy' && /BEFORE TRUNCATE/.test(row.definition)) ||
-      !triggers.some((row) => row.name === 'phase12_letter_no_archive_delete_bypass' &&
-        row.table === 'letters' && /BEFORE UPDATE OF "deletedAt"/.test(row.definition))) {
-    stop('RetentionPolicy columns/constraints/functions or protective letter/policy triggers differ');
+  // Report only fixed, reviewed catalog labels, never raw pg_get_functiondef,
+  // arbitrary identifiers, policy row values, URLs or password-bearing errors.
+  const issues = [];
+  if (!who.retentionExists) issues.push('RetentionPolicy table missing');
+  if (who.letterColumnPresent !== true || who.letterColumn !== true) {
+    issues.push('letters archivedFromStatus column/type/nullability');
+  }
+  if (columns.length !== POLICY_COLUMNS.length) issues.push('RetentionPolicy column count');
+  for (const [index, [name, type, modifier, required]] of POLICY_COLUMNS.entries()) {
+    const actual = columns[index];
+    if (actual?.name !== name || actual.type !== type ||
+        actual.modifier !== modifier || actual.required !== required) {
+      issues.push(`RetentionPolicy column ${name} position/type/precision/nullability`);
+    }
+  }
+  if (constraints.length !== POLICY_CONSTRAINTS.length) issues.push('RetentionPolicy constraint count');
+  for (const name of POLICY_CONSTRAINTS) {
+    if (!constraints.some((row) => row.name === name && row.validated === true)) {
+      issues.push(`RetentionPolicy constraint ${name} missing/unvalidated`);
+    }
+  }
+  if (who.retentionTriggers !== 2) issues.push('RetentionPolicy ENABLE ALWAYS trigger count');
+  if (who.letterGuard !== 1) issues.push('letters ENABLE ALWAYS archive guard');
+  if (functions.length !== 2) issues.push('Phase 12 protection function count');
+  if (functions.some((row) => row.owner !== 'shipping' || row.securityDefiner !== false ||
+      !row.config?.includes('search_path=pg_catalog') ||
+      typeof row.definition !== 'string' || !/RAISE EXCEPTION/.test(row.definition))) {
+    issues.push('Phase 12 protection function owner/security/search_path/body');
+  }
+  if (!functions.some((row) => row.name === 'phase12_protect_retention_policy' &&
+      /NEW\."minimumDays" < OLD\."minimumDays"/.test(row.definition))) {
+    issues.push('Phase 12 retention-floor protection body');
+  }
+  if (!functions.some((row) => row.name === 'phase12_protect_archived_letter' &&
+      /OLD\."archivedFromStatus" IS NOT NULL/.test(row.definition))) {
+    issues.push('Phase 12 archived-letter protection body');
+  }
+  if (triggers.length !== 3) issues.push('Phase 12 protection trigger count');
+  if (triggers.some((row) => row.enabled !== 'A' || row.internal)) {
+    issues.push('Phase 12 trigger enablement/internals');
+  }
+  if (!triggers.some((row) => row.name === 'phase12_retention_no_reduction' &&
+      row.table === 'RetentionPolicy' &&
+      /BEFORE (?:UPDATE OR DELETE|DELETE OR UPDATE)/.test(row.definition))) {
+    issues.push('Phase 12 RetentionPolicy update/delete trigger');
+  }
+  if (!triggers.some((row) => row.name === 'phase12_retention_no_truncate' &&
+      row.table === 'RetentionPolicy' && /BEFORE TRUNCATE/.test(row.definition))) {
+    issues.push('Phase 12 RetentionPolicy truncate trigger');
+  }
+  if (!triggers.some((row) => row.name === 'phase12_letter_no_archive_delete_bypass' &&
+      row.table === 'letters' && /BEFORE UPDATE OF "deletedAt"/.test(row.definition))) {
+    issues.push('Phase 12 letters deletion-guard trigger');
+  }
+  if (issues.length) {
+    stop(`Phase 12 catalog differs: ${issues.slice(0, 3).join('; ')}${issues.length > 3 ? '; further mismatches' : ''}. Catalog check is read-only; stop before any further write`);
   }
 }
 function assess(snapshot, local, mode) {
@@ -152,5 +185,15 @@ function digest(snapshot, local, head) {
     rights: snapshot.rights, history: snapshot.history, permissions: snapshot.permissions, local });
   return createHash('sha256').update(text).digest('hex');
 }
+function reviewedApply(snapshot, local, head, approvedDigest) {
+  if (typeof approvedDigest !== 'string' || !/^[a-f0-9]{64}$/.test(approvedDigest)) {
+    stop('Reviewed Phase 12 inspection digest required before any DB write');
+  }
+  const state = assess(snapshot, local, 'apply');
+  if (digest(snapshot, local, head) !== approvedDigest) {
+    stop(`Reviewed Phase 12 inspection became stale (migration recorded=${state.migrationApplied}; permissions=${state.permissionCodes}/7); no apply write attempted; inspect again`);
+  }
+  return state;
+}
 module.exports = { DbStop, TARGET, CODES, POLICY_COLUMNS, POLICY_CONSTRAINTS,
-  checkUrl, checkStructure, assess, digest };
+  checkUrl, checkStructure, assess, digest, reviewedApply };

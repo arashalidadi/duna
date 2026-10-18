@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { DbStop, TARGET, CODES, POLICY_COLUMNS, POLICY_CONSTRAINTS,
-  checkUrl, assess, digest } = require('./db-policy.cjs');
+  checkUrl, assess, digest, reviewedApply } = require('./db-policy.cjs');
 const local = [
   { name: '20261016110000_phase11_audit_append_only', sha256: '1'.repeat(64) },
   { name: TARGET, sha256: '2'.repeat(64) },
@@ -84,12 +84,15 @@ test('shipping owner alone may obtain minimum journal grant if postgres owns it'
   short.who.journalOwner='someone-else';
   assert.throws(()=>assess(short,local,'apply'),DbStop);
 });
-test('PostgreSQL catalog typmods match reviewed SQL: varchar length + 4; timestamp precision + 4', () => {
+test('reviewed SQL expects PostgreSQL 16 catalog typmods: varchar length + 4, timestamp precision directly', () => {
   const sql=fs.readFileSync(path.join(__dirname,'../../prisma/migrations',TARGET,'migration.sql'),'utf8');
   assert.match(sql,/"scope" varchar\(40\)/);
   assert.match(sql,/"createdAt" TIMESTAMP\(3\)/);
+  assert.match(sql,/"updatedAt" TIMESTAMP\(3\)/);
   assert.deepEqual(POLICY_COLUMNS.filter(([name])=>['scope','createdAt','updatedAt'].includes(name))
-    .map(([name,,modifier])=>[name,modifier]),[['scope',44],['createdAt',7],['updatedAt',7]]);
+    .map(([name,,modifier])=>[name,modifier]),[['scope',44],['createdAt',3],['updatedAt',3]]);
+  // The additional isolated PostgreSQL 16 fixture executes the SQL and reads
+  // pg_attribute itself; this check alone would not detect a wrong assumption.
 });
 test('structure and secure-retention state are verified without modifying a production record', () => {
   const base = fixture(true);
@@ -118,6 +121,41 @@ test('structure and secure-retention state are verified without modifying a prod
   assert.throws(()=>assess(orphan,local,'apply'),DbStop);
   const accidental=fixture();accidental.permissions=[{code:'archive:create',module:'archive',action:'create'}];
   assert.throws(()=>assess(accidental,local,'apply'),DbStop);
+});
+test('catalog errors identify the safe mismatched object without echoing raw catalog definitions', () => {
+  const bad = fixture(true);
+  bad.who.policyColumns[7].modifier = 7;
+  bad.who.policyColumns[8].modifier = 7;
+  bad.who.phase12Functions[0].definition = 'private: do not display';
+  assert.throws(() => assess(bad, local, 'verify'), (error) =>
+    error instanceof DbStop &&
+    /RetentionPolicy column createdAt position\/type\/precision\/nullability/.test(error.message) &&
+    /RetentionPolicy column updatedAt position\/type\/precision\/nullability/.test(error.message) &&
+    /Phase 12 protection function owner\/security\/search_path\/body/.test(error.message) &&
+    !error.message.includes('private: do not display'));
+  const disabled = fixture(true);
+  disabled.who.phase12Triggers[0].enabled = 'D';
+  assert.throws(() => assess(disabled, local, 'verify'),
+    /Phase 12 trigger enablement\/internals/);
+});
+test('apply refuses a stale approved inspection when migration/seed or catalog changes', () => {
+  const head='a'.repeat(40);
+  const inspected=fixture();
+  const approved=digest(inspected,local,head);
+  assert.deepEqual(reviewedApply(inspected,local,head,approved).pending,[TARGET]);
+  const manuallyCompleted=fixture(true);
+  assert.throws(() => reviewedApply(manuallyCompleted,local,head,approved),
+    /inspection became stale \(migration recorded=true; permissions=7\/7\); no apply write attempted/);
+  const changed=structuredClone(inspected);changed.who.archiveCriteria=1;
+  assert.throws(() => reviewedApply(changed,local,head,approved),
+    /inspection became stale/);
+  assert.throws(() => reviewedApply(inspected,local,'b'.repeat(40),approved),
+    /inspection became stale/);
+  assert.throws(() => reviewedApply(inspected,local,head,'x'.repeat(64)),
+    /inspection digest required/);
+  const partial=fixture(true);partial.permissions.pop();
+  assert.throws(() => reviewedApply(partial,local,head,approved),
+    /Partial Phase 12 permission seed/);
 });
 test('review hash changes with DB catalog/head and contains no URL/secret', () => {
   const a=fixture(), head='a'.repeat(40);

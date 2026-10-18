@@ -7,7 +7,7 @@ import { PrismaClient } from '@prisma/client';
 // This entry point is the DB stage of pnpm phase12:apply / phase12:test.
 // Its owner URL comes ONLY through a private child environment. Raw driver,
 // Docker, Prisma and subprocess messages (which may contain URLs) are hidden.
-const { checkUrl, assess, digest, DbStop, TARGET } = require('../../../scripts/phase12/db-policy.cjs');
+const { checkUrl, assess, digest, reviewedApply, DbStop, TARGET } = require('../../../scripts/phase12/db-policy.cjs');
 const { inspectContainer, inspectSession, dockerQuery, journalGrantSql } =
   require('../../../scripts/phase12/server-target.cjs');
 const ROOT = resolve(__dirname, '../../..');
@@ -15,9 +15,13 @@ const migrationRoot = join(ROOT, 'prisma/migrations');
 const STAGES = ['inspect', 'apply', 'verify'];
 const REVIEWED = ['prisma/migrations', 'prisma/schema.prisma',
   'prisma/seed/phase12-permissions.ts', 'apps/api/scripts/phase12-db-deploy.ts',
-  'apps/api/scripts/seed-phase12-permissions.ts', 'apps/api/src/modules/archive',
-  'apps/web/src/app/[locale]/(dashboard)/archive', 'apps/web/next.config.mjs',
-  'apps/web/tsconfig.json', 'scripts/phase12', 'package.json'];
+  'apps/api/scripts/seed-phase12-permissions.ts', 'apps/api/scripts/test-phase12-catalog.cjs',
+  'apps/api/scripts/test-phase12-http.ts', 'apps/api/package.json', 'apps/api/src/modules/archive',
+  'apps/web/src/app/[locale]/(dashboard)/archive', 'apps/web/src/app/api/v1/[...path]/route.ts',
+  'apps/web/src/lib/api/client.ts',
+  'apps/web/scripts/test-phase12-policy-client.ts', 'apps/web/package.json',
+  'apps/web/next.config.mjs', 'apps/web/tsconfig.json', 'scripts/phase12',
+  'package.json', 'pnpm-lock.yaml'];
 function git(args: string[]) {
   const result = spawnSync('git', args, { cwd: ROOT, encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'], timeout: 10000 });
@@ -47,6 +51,7 @@ function child(args: string[], label: string, timeout = 240000) {
   // Do not expose the restricted runtime credential or backup attestation to them.
   const { RUNTIME_DATABASE_URL: _runtime, MIGRATOR_DATABASE_URL: _migrator,
     PHASE12_PRECHANGE_BACKUP_ATTESTED: _backupApproval,
+    PHASE12_INSPECTION_DIGEST: _inspection,
     PHASE12_MIGRATION_APPROVAL: _migrationApproval, ...childEnv } = process.env;
   const result = spawnSync('pnpm', ['exec', ...args], {
     cwd: ROOT, env: { ...childEnv, PHASE12_EXPECTED_DB: 'duna_seed_test',
@@ -305,6 +310,14 @@ async function main() {
             process.env.PHASE12_PRECHANGE_BACKUP_ATTESTED !== 'I_HAVE_RESTORED_PRECHANGE_BACKUP')) {
         throw new DbStop('Explicit additive migration and existing recoverable pre-change backup attestation required before any DB write');
       }
+      // The operator approved the inspect plan, not a future plan inferred from
+      // a stale pending/permission count. Re-read under the verified owner and
+      // runtime connections before the first journal grant, migration or seed.
+      if (!process.env.PHASE12_INSPECTION_DIGEST) {
+        throw new DbStop('Reviewed Phase 12 inspection digest required before any DB write');
+      }
+      current = await snapshot(db, container);
+      state = reviewedApply(current, local, head, process.env.PHASE12_INSPECTION_DIGEST);
       if (state.journalNeedsGrant) {
         await grantJournal(db, container, current, local);
         current = await snapshot(db, container);

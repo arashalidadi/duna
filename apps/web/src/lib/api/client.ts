@@ -57,24 +57,35 @@ function bearerHeaders(): Record<string, string> {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // FormData bodies (file uploads) must not carry a JSON Content-Type; the browser sets the boundary.
   const isForm = typeof FormData !== 'undefined' && init?.body instanceof FormData;
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-      ...bearerHeaders(),
-      ...(init?.headers ?? {}),
-    },
-    next: { revalidate: 0 },
-    cache: 'no-store',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+        ...bearerHeaders(),
+        ...(init?.headers ?? {}),
+      },
+      next: { revalidate: 0 },
+      cache: 'no-store',
+    });
+  } catch {
+    // Never display a fetch exception: it may include internal URL details.
+    throw new ApiError(0, 'No HTTP response from API');
+  }
 
   const body = (await res.json().catch(() => null)) as ApiResult<T> | null;
 
   if (!res.ok || !body?.success) {
     const error = body && !body.success ? body.error : undefined;
+    // Nest ValidationPipe sends string[] messages. Previously these became
+    // "Request failed", hiding validation details and the actual HTTP status.
+    const messages = typeof error?.message === 'string' ? [error.message] :
+      Array.isArray(error?.message) ? error.message.filter((item): item is string =>
+        typeof item === 'string' && item.trim().length > 0).slice(0, 3) : [];
     throw new ApiError(
-      error?.statusCode ?? res.status,
-      typeof error?.message === 'string' ? error.message : 'Request failed',
+      res.status, // transport status, even if a malformed body claims something else
+      messages.length ? messages.join('; ') : `Request failed (HTTP ${res.status})`,
       error?.details
     );
   }
