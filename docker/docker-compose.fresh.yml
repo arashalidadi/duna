@@ -1,0 +1,129 @@
+# Isolated NEW-server installation only. Never reuse the fixed development DB
+# compose file or the owner-host Phase 11/12 database commands here.
+name: duna-fresh-${DUNA_FRESH_INSTANCE:?}
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DUNA_PG_SUPER_PASSWORD:?}
+      POSTGRES_DB: ${DUNA_FRESH_DATABASE:?}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    # No host port. Neither this DB nor the API can connect to a host DB by default.
+
+  api:
+    image: duna-fresh-${DUNA_FRESH_INSTANCE:?}:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.fresh
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: '3101'
+      API_CORS_ORIGINS: http://127.0.0.1:3000
+      DATABASE_URL: ${DUNA_RUNTIME_DATABASE_URL:?}
+      AUTH_JWT_SECRET: ${DUNA_AUTH_JWT_SECRET:?}
+      AUTH_JWT_REFRESH_SECRET: ${DUNA_AUTH_REFRESH_SECRET:?}
+      ATTACHMENT_STORAGE_DIR: /var/lib/duna/attachments
+      ATTACHMENT_URL_SECRET: ${DUNA_ATTACHMENT_URL_SECRET:?}
+      ATTACHMENT_IDENTITY_CAPTURE_ENABLED: 'false'
+    volumes:
+      - attachments:/var/lib/duna/attachments
+    command: ['node', 'apps/api/dist/src/main.js']
+    healthcheck:
+      test: ['CMD', 'node', 'scripts/fresh/healthcheck.cjs', 'api']
+      interval: 10s
+      timeout: 6s
+      retries: 18
+      start_period: 15s
+
+  web:
+    image: duna-fresh-${DUNA_FRESH_INSTANCE:?}:local
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: /api/v1
+      API_INTERNAL_URL: http://api:3101
+    ports:
+      - '127.0.0.1:3000:3000'
+    command: ['pnpm', '--filter', '@shipping/web', 'start']
+    healthcheck:
+      test: ['CMD', 'node', 'scripts/fresh/healthcheck.cjs', 'web']
+      interval: 10s
+      timeout: 6s
+      retries: 18
+      start_period: 15s
+
+  # One-shot owner role, NOT the durable API role. Never publish its URL.
+  migrator:
+    profiles: ['install']
+    image: duna-fresh-${DUNA_FRESH_INSTANCE:?}:local
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DUNA_OWNER_DATABASE_URL:?}
+      DUNA_FRESH_DATABASE: ${DUNA_FRESH_DATABASE:?}
+      SEED_ADMIN_EMAIL: ${DUNA_ADMIN_EMAIL:?}
+      SEED_ADMIN_PASSWORD: ${DUNA_ADMIN_PASSWORD:?}
+      SEED_DEMO_DATA: 'false'
+      DUNA_FRESH_SEED: '1'
+    command: ['node', 'scripts/fresh/verify-db.cjs', 'migrations']
+
+  # Only `pnpm test:integration` activates this in-memory, unexposed fixture.
+  test-db:
+    profiles: ['tests']
+    image: postgres:16-alpine
+    restart: 'no'
+    environment:
+      POSTGRES_USER: shipping
+      POSTGRES_PASSWORD: ${DUNA_TEST_PASSWORD:?}
+      POSTGRES_DB: duna_fresh_integration_test
+      PGDATA: /var/lib/postgresql/data/pgdata
+    tmpfs:
+      - /var/lib/postgresql/data:rw,nosuid,nodev,size=1g
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U shipping -d duna_fresh_integration_test']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  integration:
+    profiles: ['tests']
+    image: duna-fresh-${DUNA_FRESH_INSTANCE:?}:local
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: test
+      API_HOST: 0.0.0.0
+      API_PORT: '3101'
+      API_CORS_ORIGINS: http://127.0.0.1:3000
+      DATABASE_URL: ${DUNA_TEST_DATABASE_URL:?}
+      DUNA_FRESH_DATABASE: duna_fresh_integration_test
+      SEED_ADMIN_EMAIL: admin@duna-fresh-tests.invalid
+      SEED_ADMIN_PASSWORD: ${DUNA_TEST_ADMIN_PASSWORD:?}
+      SEED_DEMO_DATA: 'false'
+      DUNA_FRESH_SEED: '1'
+      AUTH_JWT_SECRET: ${DUNA_AUTH_JWT_SECRET:?}
+      AUTH_JWT_REFRESH_SECRET: ${DUNA_AUTH_REFRESH_SECRET:?}
+      ATTACHMENT_IDENTITY_CAPTURE_ENABLED: 'false'
+    command: ['node', 'scripts/fresh/integration-run.cjs']
+
+volumes:
+  postgres_data:
+  attachments:

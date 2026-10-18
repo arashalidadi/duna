@@ -49,6 +49,16 @@ docs/                 Architecture & project documentation
 - pnpm >= 9
 - PostgreSQL 16 (local, or via Docker)
 
+## New server (empty database only)
+
+After installing Node/pnpm and a boot-enabled Docker Engine with Compose, prepare
+an owner-controlled private `.env.fresh.local` from `.env.fresh.example`, then run
+`pnpm run setup:fresh`. This **isolated new-server** stack checks the target,
+builds/tests API and Web, provisions PG16, deploys committed migrations, seeds
+non-demo reference/admin data, starts durable services and probes Web/API at
+http://127.0.0.1:3000/. It is **not** an existing-installation upgrade.
+See [the complete fresh-install runbook](docs/fresh-server-install.md) before use.
+
 ## Quick start
 
 ### Option A — Start/Stop (detached, survives shell closure)

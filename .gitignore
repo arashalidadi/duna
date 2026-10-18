@@ -22,3 +22,6 @@ test-results/
 
 # Portable local backups and audit evidence; download separately, never publish
 /.handoff/
+
+# Fresh-install state and private local configuration (not application source)
+/.fresh-setup/

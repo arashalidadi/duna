@@ -1,0 +1,22 @@
+# Fresh-install image shared by the two durable services and the one-shot
+# migrator. No .env, owner-host data, credentials or development DB is copied.
+FROM node:22-bookworm
+RUN npm install --global pnpm@9.15.9
+ENV NEXT_TELEMETRY_DISABLED=1
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY packages/ packages/
+COPY prisma/ prisma/
+COPY scripts/ scripts/
+COPY apps/ apps/
+RUN pnpm install --frozen-lockfile
+RUN pnpm db:generate && pnpm exec prisma validate && \
+    pnpm --filter @shipping/config --filter @shipping/shared run build
+# An offline test gate before any database migration or seed.
+RUN pnpm test:fast && pnpm check:phase11:authz && \
+    pnpm --filter @shipping/api typecheck && pnpm --filter @shipping/web typecheck
+RUN pnpm build:api && pnpm check:api:build && pnpm build:web
+RUN mkdir -p /var/lib/duna/attachments && \
+    chown node:node /var/lib/duna/attachments && chmod 0700 /var/lib/duna/attachments && \
+    chown -R node:node /app/apps/web/.next
+USER node

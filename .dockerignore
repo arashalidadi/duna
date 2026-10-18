@@ -1,0 +1,21 @@
+# A fresh build must never ingest host secrets, live data, Git history or
+# generated local outputs, even if a Dockerfile COPY is broadened later.
+.git
+.gitignore
+.env*
+**/.env*
+.fresh-setup
+**/.fresh-setup
+**/node_modules
+**/dist
+**/build
+**/.next
+**/coverage
+**/test-results
+**/playwright-report
+**/*.log
+**/*.pid
+docs
+docs-gap
+.handoff
+infra

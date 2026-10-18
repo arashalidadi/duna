@@ -23,6 +23,14 @@ export interface SeedCoreResult {
 }
 
 export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
+  // Fresh-install mode must never reach the historical development fallback
+  // after reference writes. Reject missing credentials BEFORE the first upsert;
+  // this flag is supplied only by the isolated new-server installer.
+  if (process.env.DUNA_FRESH_SEED === '1' &&
+      (!process.env.SEED_ADMIN_EMAIL?.trim() || !process.env.SEED_ADMIN_PASSWORD ||
+        process.env.SEED_ADMIN_PASSWORD.length < 16 || process.env.SEED_DEMO_DATA === 'true')) {
+    throw new Error('Fresh structural seed requires explicit admin credentials and non-demo mode');
+  }
 
   // ==========================================================================
   // Currencies
