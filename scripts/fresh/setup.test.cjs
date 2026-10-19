@@ -22,7 +22,7 @@ const {
   assertNoProjectResources,
 } = require('./setup.cjs');
 const { quoteId, checkCatalog, grantStatements } = require('./grants.cjs');
-const { assertDatabaseUrl, expectedMigrations, checkMigrationHistory } = require('./verify-db.cjs');
+const { assertDatabaseUrl, expectedMigrations, checkMigrationHistory, EXPECTED_MIGRATION_NAMES } = require('./verify-db.cjs');
 const { checkReadOnly, checkAdmin } = require('./smoke.cjs');
 const { reviewedPlan } = require('../../apps/api/scripts/phase11-runtime-privileges.cjs');
 
@@ -225,7 +225,7 @@ test('reviewed 94-table plan and sequence catalog never grant journal, audit mut
 
 test('committed migration journal checks exact checksums and rejects missing, drift and rollback', () => {
   const expected = expectedMigrations();
-  assert.ok(expected.length >= 48);
+  assert.deepEqual(expected.map((row) => row.name), [...EXPECTED_MIGRATION_NAMES]);
   const rows = expected.map((row) => ({ ...row, finished: true, rolledBack: false }));
   assert.doesNotThrow(() => checkMigrationHistory(expected, rows));
   assert.throws(() => checkMigrationHistory(expected, rows.slice(1)));

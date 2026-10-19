@@ -82,9 +82,28 @@ function expectedMigrations(root = ROOT) {
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
+/**
+ * The repository ships a squashed migration history: an init baseline, the
+ * ALTER TYPE ... ADD VALUE boundary PostgreSQL requires in its own
+ * transaction, and the post-lifecycle baseline. The former count floor (48) was
+ * a crude proxy for "history is complete"; the exact set is checked now, so a
+ * deleted or renamed migration is caught by name. Adding a migration means
+ * adding its name here — a deliberate, reviewable change.
+ */
+const EXPECTED_MIGRATION_NAMES = Object.freeze([
+  '20260901000000_init_baseline',
+  '20261004000000_bl_lifecycle_enum',
+  '20261004000001_post_lifecycle_baseline',
+]);
 function checkMigrationHistory(expected, rows) {
-  if (expected.length < 48 || rows.length !== expected.length) {
-    throw new Error('Migration journal is incomplete or contains unknown entries');
+  if (
+    expected.map((row) => row.name).join('\n') !== EXPECTED_MIGRATION_NAMES.join('\n') ||
+    rows.length !== expected.length
+  ) {
+    throw new Error(
+      'Migration journal is incomplete or contains unknown entries; expected exactly: ' +
+        EXPECTED_MIGRATION_NAMES.join(', ')
+    );
   }
   const known = new Map(expected.map((row) => [row.name, row.checksum]));
   if (
@@ -240,6 +259,7 @@ module.exports = {
   assertDatabaseUrl,
   assertDatabaseIdentity,
   expectedMigrations,
+  EXPECTED_MIGRATION_NAMES,
   checkMigrationHistory,
   verifyMigrations,
   verifySeed,

@@ -123,10 +123,10 @@ current migrations already applied); no separate confirmation variable is needed
 From the repository root run `pnpm db:seed:demo`. It opt-in creates sample Agents,
 portal accounts, destinations, bookings, manifests, B/Ls, Release Orders,
 a Delivery Order with a Ports-master name snapshot, and a statement invoice.
-It does not call `scripts/seed-portal-demo.mjs`. That older API script is not a
-Phase 5 fixture source: it creates a Customer-linked login, not an Agent master
-or scoped Release Orders, and its manifest reassignment uses a Customer ID.
-Use `pnpm db:seed:demo` for the current portal setup.
+The older API-driven portal seed script has been removed: it was never a Phase 5
+fixture source (it created a Customer-linked login instead of an Agent master or
+scoped Release Orders, and its manifest reassignment used a Customer ID).
+`pnpm db:seed:demo` is the only portal setup path.
 
 At `/{locale}/login`, sign in as:
 
@@ -170,7 +170,10 @@ this project's required API default**, not just a temporary workaround. The web 
   PostgreSQL, generated Prisma client or required secrets. See
   [backend connection audit](docs/ops/backend-connection-audit.md).
 - The legacy detached scripts require a provisioned standalone database. In Arena, use managed
-  preview processes bound to `0.0.0.0` rather than those detached scripts.
+  preview processes bound to `0.0.0.0` rather than those detached scripts. The complete Arena
+  sandbox bring-up (local Prisma engine mirror, npm-provisioned PostgreSQL 16, sandbox databases
+  and test fixtures) is documented in
+  [Arena sandbox runtime](docs/ops/arena-sandbox-runtime.md) with `scripts/arena/prepare.sh`.
 
 For the production environment matrix, recovery instructions and exact non-force push/PR steps,
 see [publication handoff](docs/ops/publication-handoff.md). Arena preview authentication is not a

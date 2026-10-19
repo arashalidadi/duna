@@ -8,7 +8,7 @@ const { randomBytes } = require('node:crypto');
 const { PGlite } = require('../../apps/api/node_modules/pglite-pg16');
 const { ROOT } = require('./config.cjs');
 const { bootstrapSql } = require('./setup.cjs');
-const { expectedMigrations } = require('./verify-db.cjs');
+const { expectedMigrations, EXPECTED_MIGRATION_NAMES } = require('./verify-db.cjs');
 const { checkCatalog, grantStatements } = require('./grants.cjs');
 const { reviewedPlan } = require('../../apps/api/scripts/phase11-runtime-privileges.cjs');
 
@@ -75,7 +75,7 @@ test(
         users: false,
       });
       assert.equal(tables.length, 95);
-      assert.ok(migrations.length >= 48);
+      assert.deepEqual(migrations.map((m) => m.name), [...EXPECTED_MIGRATION_NAMES]);
     } finally {
       await db.close();
     }

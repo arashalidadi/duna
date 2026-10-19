@@ -342,7 +342,8 @@ export async function seedCore(prisma: PrismaClient): Promise<SeedCoreResult> {
     },
   });
 
-  // Existing portal role from scripts/seed-portal-demo.mjs, now installed with
+  // The portal role once installed by the removed API-driven portal seed script,
+  // now installed with
   // the normal reference/configuration seed. It grants portal access and
   // booking submission only — never office-desk or financial permissions.
   const portalRole = await prisma.role.upsert({
