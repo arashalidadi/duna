@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { CurrentUser, LoginResponse, RefreshResponse } from '@shipping/shared';
-import { api, ApiError, setAccessToken, getAccessToken } from '@/lib/api/client';
+import { api, ApiError, setAccessToken } from '@/lib/api/client';
 
 /** Shape returned by GET /auth/me. */
 interface MeResponse {
@@ -56,9 +56,6 @@ async function resolveSessionRequest(): Promise<{
   user: CurrentUser;
   permissions: string[];
 } | null> {
-  const access = getAccessToken();
-  if (!access) return null;
-
   async function me(): Promise<MeResponse | null> {
     try {
       return await api.get<MeResponse>('/auth/me');
@@ -71,6 +68,11 @@ async function resolveSessionRequest(): Promise<{
     }
   }
 
+  // /auth/me is attempted even without a locally stored access token: hosted
+  // previews can strip the bearer header and block iframe storage, in which case
+  // the same-origin proxy re-attaches the token from its httpOnly cookie. One
+  // unauthenticated request that answers 401 is the price of restoring the
+  // session after a reload instead of forcing a re-login.
   const fresh = await me();
   if (fresh) return fresh;
 
@@ -153,7 +155,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     const refreshToken = readRefreshToken();
     try {
-      if (refreshToken) await api.post('/auth/logout', { refreshToken });
+      // Always call the endpoint, even without a locally stored refresh token:
+      // the same-origin proxy clears its httpOnly token cookies on this route,
+      // and a rejected call must not leave them behind.
+      await api.post('/auth/logout', refreshToken ? { refreshToken } : {});
     } catch {
       /* best-effort: revocation failure must not block a local logout */
     } finally {

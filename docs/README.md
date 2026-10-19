@@ -21,6 +21,7 @@ Verified counts at the time of writing: **32 API modules · 52 Prisma models · 
 | **What the tests did** | [`duna-analysis/09-audit/phase-1-testing.md`](duna-analysis/09-audit/phase-1-testing.md) — executed / failed / not-run, and how to run the server-side tests |
 | **Incidents** | [`duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md`](duna-analysis/09-audit/INCIDENT-2026-10-12-isprimaryadmin.md) — missing `User.isPrimaryAdmin` column |
 | **Deploying a migration** | [`duna-analysis/09-audit/phase-1-deployment-runbook.md`](duna-analysis/09-audit/phase-1-deployment-runbook.md) — pre-flight, apply, verify, rollback |
+| **Running the stack in an Arena sandbox** | [`ops/arena-sandbox-runtime.md`](ops/arena-sandbox-runtime.md) — local Prisma engine mirror, npm-provisioned PostgreSQL 16, sandbox databases, gated e2e fixtures (`scripts/arena/`) |
 | **Which suites need seed data** | [`duna-analysis/09-audit/seed-dependency-inventory.md`](duna-analysis/09-audit/seed-dependency-inventory.md) — the P0 deliverable Phase 1 depended on |
 | **Structure and request/response conventions** | [`architecture.md`](architecture.md), [`api.md`](api.md) |
 | **Data model** | [`database-schema.md`](database-schema.md) |

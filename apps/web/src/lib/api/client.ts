@@ -51,7 +51,11 @@ export class ApiError extends Error {
 
 function bearerHeaders(): Record<string, string> {
   const token = getAccessToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Sent on two channels on purpose. Some hosting proxies drop `Authorization`
+  // and a cross-site preview iframe may have no usable cookie storage; the
+  // same-origin proxy accepts either channel and forwards one bearer header
+  // upstream, so the API contract itself does not change.
+  return token ? { Authorization: `Bearer ${token}`, 'X-Access-Token': token } : {};
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
