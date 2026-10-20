@@ -307,13 +307,13 @@ jobs:
           state=".fresh-setup/$instance.json"
           if [ -e "$state" ]; then
             echo "[deploy] Updating existing installation to ${revision:0:12}; no reset or fresh seed"
-            pnpm setup --upgrade
+            pnpm run setup -- --upgrade
           else
             echo "[deploy] Installing new isolated instance from ${revision:0:12}"
-            pnpm setup
+            pnpm run setup
           fi
-          pnpm setup --health
-          pnpm setup --status
+          pnpm run setup -- --health
+          pnpm run setup -- --status
           if [ "$(id -u)" -eq 0 ]; then
             bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
           else
