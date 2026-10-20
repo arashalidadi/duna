@@ -40,6 +40,26 @@ if command -v docker >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && comma
   fi
 fi
 
+# A previous bootstrap attempt may have left our Docker .list beside an
+# existing deb822 .sources entry. Remove only that duplicate before the first
+# apt update; conflicting Signed-By values make apt abort before it can repair.
+DOCKER_SOURCES=
+for source in /etc/apt/sources.list.d/*.sources; do
+  [ -f "$source" ] || continue
+  if grep -Eqi 'URIs:[[:space:]]*https?://download\.docker\.com/linux/' "$source"; then
+    DOCKER_SOURCES=$source
+    if ! grep -Eqi 'Signed-By:[[:space:]]*/etc/apt/keyrings/docker\.asc([[:space:]]|$)' "$source"; then
+      echo 'Existing Docker deb822 source uses an unexpected Signed-By key; refusing to change APT trust implicitly' >&2
+      exit 1
+    fi
+    if [ -f /etc/apt/sources.list.d/docker.list ] && \
+      grep -q 'download.docker.com/linux/' /etc/apt/sources.list.d/docker.list; then
+      as_root rm -f /etc/apt/sources.list.d/docker.list
+    fi
+    break
+  fi
+done
+
 # No host packages are removed or upgraded. Docker's signed APT repository is
 # pinned to its published primary-key fingerprint before APT can trust it.
 as_root apt-get update -qq
@@ -51,11 +71,12 @@ curl -fsSL https://download.docker.com/linux/${ID}/gpg -o "$key_tmp"
 actual=$(gpg --show-keys --with-colons "$key_tmp" 2>/dev/null | awk -F: '$1 == "fpr" {print $10; exit}')
 expected=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 [ "$actual" = "$expected" ] || { echo 'Docker APT signing-key fingerprint mismatch' >&2; exit 1; }
-gpg --dearmor < "$key_tmp" | as_root tee /etc/apt/keyrings/docker.gpg >/dev/null
-as_root chmod 0644 /etc/apt/keyrings/docker.gpg
+as_root install -m 0644 "$key_tmp" /etc/apt/keyrings/docker.asc
 arch=$(dpkg --print-architecture)
-printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/%s %s stable\n' "$arch" "$ID" "$CODENAME" |
-  as_root tee /etc/apt/sources.list.d/docker.list >/dev/null
+if [ -z "$DOCKER_SOURCES" ]; then
+  printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' "$arch" "$ID" "$CODENAME" |
+    as_root tee /etc/apt/sources.list.d/docker.list >/dev/null
+fi
 as_root apt-get update -qq
 as_root apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin nginx certbot
 as_root systemctl enable --now docker nginx
