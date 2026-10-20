@@ -1,6 +1,9 @@
 # Fresh-install image shared by the two durable services and the one-shot
 # migrator. No .env, owner-host data, credentials or development DB is copied.
 FROM node:22-bookworm
+# The offline test gate spawns API PID-fixture processes and inspects their
+# listeners via ss, like the GitHub CI runner image does.
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends iproute2 procps && rm -rf /var/lib/apt/lists/*
 RUN npm install --global pnpm@9.15.9
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
@@ -8,13 +11,17 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY packages/ packages/
 COPY prisma/ prisma/
 COPY scripts/ scripts/
+COPY docker/ docker/
 COPY apps/ apps/
 RUN pnpm install --frozen-lockfile
-RUN pnpm db generate && pnpm exec prisma validate && \
+RUN pnpm db generate && \
+    DATABASE_URL="postgresql://build-placeholder:5432/none?schema=public" pnpm exec prisma validate && \
     pnpm --filter @shipping/config --filter @shipping/shared run build
 # An offline test gate before any database migration or seed.
-RUN pnpm test && pnpm check && \
-    pnpm --filter @shipping/api typecheck
+RUN pnpm test && pnpm --filter @shipping/api typecheck
+# The build contract verifies the produced API/Web artefacts, so the
+# verification follows the build (the audit-route probe needs a live API and is
+# therefore pnpm-check-based, run against the deployed process, not at image build).
 RUN pnpm build && node scripts/check-api-build.mjs verify
 RUN mkdir -p /var/lib/duna/attachments && \
     chown node:node /var/lib/duna/attachments && chmod 0700 /var/lib/duna/attachments && \

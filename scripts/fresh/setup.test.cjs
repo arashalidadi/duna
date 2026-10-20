@@ -316,7 +316,10 @@ test('Compose/Dockerfile isolate new PG16, runtime role and offline build; histo
   assert.match(compose, /DATABASE_URL: \$\{DUNA_OWNER_DATABASE_URL:\?\}/);
   assert.match(compose, /tmpfs:/);
   assert.match(image, /pnpm install --frozen-lockfile/);
-  assert.match(image, /RUN pnpm test && pnpm check/);
+  // The offline build gate runs the unit contracts and the API typecheck;
+  // pnpm check's audit-route probe needs the deployed API process and is
+  // covered by the runtime smoke pass, not by the image build.
+  assert.match(image, /RUN pnpm test && pnpm --filter @shipping\/api typecheck/);
   assert.ok(fs.existsSync(path.join(ROOT, 'docker/docker-compose.dev.yml')));
   assert.ok(fs.existsSync(path.join(ROOT, 'scripts/phase12/server-workflow.cjs')));
 });
