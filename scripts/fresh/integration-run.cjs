@@ -2,8 +2,8 @@
 
 const { spawnSync } = require('node:child_process');
 const { PrismaClient } = require('@prisma/client');
-const { TEST_DATABASE, OWNER_ROLE } = require('./config.cjs');
-const { assertDatabaseIdentity, verifyMigrations, verifySeed } = require('./verify-db.cjs');
+const { TEST_DATABASE, OWNER_ROLE } = require('./setup.cjs');
+const { assertDatabaseIdentity, verifyMigrations, verifySeed } = require('./setup.cjs');
 
 function run(args, label, timeout = 600_000) {
   const result = spawnSync('pnpm', args, {

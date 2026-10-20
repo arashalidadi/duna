@@ -16,7 +16,7 @@ export async function downloadAuditCsv(
   const response = await fetch(`${api.baseUrl}${path}`, {
     method: 'GET',
     cache: 'no-store',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'X-Access-Token': token },
   });
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null);

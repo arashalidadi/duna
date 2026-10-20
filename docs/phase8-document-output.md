@@ -1,6 +1,6 @@
 # Phase 8 — document templates and output (2026-10-15)
 
-This implements the **revised**, decision-backed Phase 8 in `docs/duna-analysis/09-audit/initial-roadmap.md` (§P8), not the old Customer 360 plan. The specification in `duna-analysis` is unchanged.
+This implements the **revised**, decision-backed Phase 8 in `docs/source-material/project-audit.md` (§P8), not the old Customer 360 plan. The specification in `duna-analysis` is unchanged.
 
 ## Delivered
 

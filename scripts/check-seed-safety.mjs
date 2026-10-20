@@ -2,12 +2,12 @@
 /**
  * Phase 1 (acceptance A3) — seed-safety guard.
  *
- * A3 requires that `pnpm db:seed` on a fresh database creates ZERO cargo,
+ * A3 requires that `pnpm db seed` on a fresh database creates ZERO cargo,
  * customers, vessels, voyages or load lists. The seed cannot always be executed
  * in every environment (it needs a database), so this check enforces the
  * property statically and fails loudly if the separation is undone.
  *
- * Run: pnpm check:seed-safety
+ * Run: pnpm check
  */
 import fs from 'node:fs';
 import path from 'node:path';

@@ -107,14 +107,14 @@ client using shared types from `@shipping/shared`.
 > **current implementation** from **target design**.
 >
 > - **IMPLEMENTED (unverified)** means the code exists and the paths were read, but the test suite could
->   not be executed in this environment — see `docs/duna-analysis/09-audit/README.md` §4.
+>   not be executed in this environment — see `docs/source-material/project-audit.md` §4.
 > - **NOT IMPLEMENTED** means no module directory exists under `apps/api/src/modules/`.
 >
 > Verified counts: **32 API modules**, **52 Prisma models**, **32 enums**, **35 web pages**,
 > **161 seeded permission codes** across **34 modules** (the `audit` module was added 2026-10-12
 > for DEC-044…048 / DEC-116 audit review).
 
-> **Update 2026-10-12 (Phase 1, additive).** The suites were executed in a sandbox on 2026-10-12: 22/22 suites and 403/403 tests on a fresh database with the required seed (sandbox WASM engine, not the native engine). "IMPLEMENTED (unverified)" remains accurate for the native-engine server run, which is still pending. See [`duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md`](duna-analysis/09-audit/e2e-sandbox-run-2026-10-12.md).
+> **Update 2026-10-12 (Phase 1, additive).** The suites were executed in a sandbox on 2026-10-12: 22/22 suites and 403/403 tests on a fresh database with the required seed (sandbox WASM engine, not the native engine). "IMPLEMENTED (unverified)" remains accurate for the native-engine server run, which is still pending. See [`source-material/project-audit.md`]source-material/project-audit.md).
 
 | Bounded context | Modules on disk | Current status |
 | --- | --- | --- |

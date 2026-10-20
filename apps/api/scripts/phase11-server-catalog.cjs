@@ -6,7 +6,11 @@
 const TARGET = Object.freeze({
   database: 'duna_seed_test', owner: 'shipping', runtime: 'shipping_runtime_p11',
   exporter: 'shipping_audit_export_p11', port: 5432, pgMajor: 16,
-  migration: '20261016110000_phase11_audit_append_only',
+  // The reviewed Phase 11 append-only audit DDL now lives in the squashed
+  // post-lifecycle baseline (the 49 per-phase migrations were consolidated into
+  // three; see prisma/migrations). The guard keeps its meaning: exactly one
+  // reviewed migration may be pending, and it must be this one.
+  migration: '20261004000001_post_lifecycle_baseline',
 });
 const TABLE_OPS = Object.freeze(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER']);
 const SEQUENCE_OPS = Object.freeze(['USAGE', 'SELECT', 'UPDATE']);

@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 
-// This entry point is the DB stage of pnpm phase12:apply / phase12:test.
+// This entry point is the DB stage of `node scripts/duna.mjs phase12 apply|test`.
 // Its owner URL comes ONLY through a private child environment. Raw driver,
 // Docker, Prisma and subprocess messages (which may contain URLs) are hidden.
 const { checkUrl, assess, digest, reviewedApply, DbStop, TARGET } = require('../../../scripts/phase12/db-policy.cjs');

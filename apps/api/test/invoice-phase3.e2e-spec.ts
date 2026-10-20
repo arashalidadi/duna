@@ -14,7 +14,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
  * CompanySettings.invoiceCorrectionApprovalRequired and restores the previous value.
  *
  * Not covered here: the migration backfill on pre-existing data. That is verified by applying
- * the migration to a database holding legacy rows (see docs/duna-analysis/09-audit/phase-3-invoice-tax-correction.md).
+ * the migration to a database holding legacy rows (see docs/source-material/project-audit.md).
  */
 describe('Invoice Phase 3 (e2e)', () => {
   let app: INestApplication;

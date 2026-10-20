@@ -179,7 +179,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     }
     if (process.stdin.isTTY)
       throw new Error(
-        'Use scripts/check-phase11-authorized.sh; tokens must arrive via private stdin, never argv or environment'
+        'Use: node scripts/duna.mjs phase11 authorized; tokens must arrive via private stdin, never argv or environment'
       );
     const tokens = [];
     let input = '';

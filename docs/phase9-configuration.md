@@ -1,6 +1,6 @@
 # Phase 9 — Configuration and extensibility
 
-The implemented boundary follows `docs/duna-analysis/09-audit/initial-roadmap.md`, DEC-029…036 and DEC-059…063. Phase 10 notifications, port cleanup and data-hygiene work are **not** part of this change.
+The implemented boundary follows `docs/source-material/project-audit.md`, DEC-029…036 and DEC-059…063. Phase 10 notifications, port cleanup and data-hygiene work are **not** part of this change.
 
 ## Available capabilities
 

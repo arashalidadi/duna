@@ -1,3 +1,13 @@
+/**
+ * Fresh-install contracts: the installer's own units (config parsing, grants, smoke, bootstrap SQL) and the migration-replay check against an isolated PostgreSQL 16 fixture.
+ *
+ * Merged on 2026-10-20 from 2 files. Every original file keeps its own
+ * block scope below, so its declarations cannot collide with another file's and no
+ * assertion was rewritten. Run it with: node --test scripts/fresh/setup.test.cjs
+ */
+
+// ---- scripts/fresh/setup.test.cjs (8 tests) ----
+{
 'use strict';
 
 const test = require('node:test');
@@ -12,7 +22,7 @@ const {
   composeEnvironment,
   ROOT,
   TEST_DATABASE,
-} = require('./config.cjs');
+} = require('./setup.cjs');
 const {
   sqlLiteral,
   bootstrapSql,
@@ -21,9 +31,9 @@ const {
   composeArgs,
   assertNoProjectResources,
 } = require('./setup.cjs');
-const { quoteId, checkCatalog, grantStatements } = require('./grants.cjs');
-const { assertDatabaseUrl, expectedMigrations, checkMigrationHistory } = require('./verify-db.cjs');
-const { checkReadOnly, checkAdmin } = require('./smoke.cjs');
+const { quoteId, checkCatalog, grantStatements } = require('./setup.cjs');
+const { assertDatabaseUrl, expectedMigrations, checkMigrationHistory, EXPECTED_MIGRATION_NAMES } = require('./setup.cjs');
+const { checkReadOnly, checkAdmin } = require('./setup.cjs');
 const { reviewedPlan } = require('../../apps/api/scripts/phase11-runtime-privileges.cjs');
 
 function valid() {
@@ -225,7 +235,7 @@ test('reviewed 94-table plan and sequence catalog never grant journal, audit mut
 
 test('committed migration journal checks exact checksums and rejects missing, drift and rollback', () => {
   const expected = expectedMigrations();
-  assert.ok(expected.length >= 48);
+  assert.deepEqual(expected.map((row) => row.name), [...EXPECTED_MIGRATION_NAMES]);
   const rows = expected.map((row) => ({ ...row, finished: true, rolledBack: false }));
   assert.doesNotThrow(() => checkMigrationHistory(expected, rows));
   assert.throws(() => checkMigrationHistory(expected, rows.slice(1)));
@@ -292,7 +302,96 @@ test('Compose/Dockerfile isolate new PG16, runtime role and offline build; histo
   assert.match(compose, /DATABASE_URL: \$\{DUNA_OWNER_DATABASE_URL:\?\}/);
   assert.match(compose, /tmpfs:/);
   assert.match(image, /pnpm install --frozen-lockfile/);
-  assert.match(image, /RUN pnpm test:fast/);
+  assert.match(image, /RUN pnpm test && pnpm check/);
   assert.ok(fs.existsSync(path.join(ROOT, 'docker/docker-compose.dev.yml')));
   assert.ok(fs.existsSync(path.join(ROOT, 'scripts/phase12/server-workflow.cjs')));
 });
+}
+
+// ---- scripts/fresh/migration-replay.test.cjs (1 tests) ----
+{
+'use strict';
+
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { randomBytes } = require('node:crypto');
+const { PGlite } = require('../../apps/api/node_modules/pglite-pg16');
+const { ROOT } = require('./setup.cjs');
+const { bootstrapSql } = require('./setup.cjs');
+const { expectedMigrations, EXPECTED_MIGRATION_NAMES } = require('./setup.cjs');
+const { checkCatalog, grantStatements } = require('./setup.cjs');
+const { reviewedPlan } = require('../../apps/api/scripts/phase11-runtime-privileges.cjs');
+
+test(
+  'all committed SQL migrations replay on isolated in-memory PG16; fresh role grants remain narrow',
+  { timeout: 90_000 },
+  async () => {
+    const db = new PGlite(); // no dataDir, no TCP socket, never the owner/application DB
+    try {
+      const [{ server_version_num: version }] = (await db.query('SHOW server_version_num')).rows;
+      assert.match(version, /^16\d{4}$/);
+      const [{ name }] = (await db.query('SELECT current_database()::text AS name')).rows;
+      // Execute the SAME new-instance role/ownership transaction before replay;
+      // fixture secrets live only in memory and are never printed or saved.
+      await db.exec(
+        bootstrapSql({
+          FRESH_DATABASE_NAME: name,
+          FRESH_DB_OWNER_PASSWORD: randomBytes(32).toString('base64url'),
+          FRESH_DB_RUNTIME_PASSWORD: randomBytes(32).toString('base64url'),
+        })
+      );
+      await db.exec('SET ROLE shipping;');
+      const migrations = expectedMigrations();
+      for (const { name } of migrations) {
+        await db.exec(
+          fs.readFileSync(path.join(ROOT, 'prisma/migrations', name, 'migration.sql'), 'utf8')
+        );
+      }
+      // Prisma migrate deploy owns this journal, not an application model.
+      await db.exec('CREATE TABLE public._prisma_migrations (migration_name text);');
+      const plan = reviewedPlan(ROOT);
+      const tables = (
+        await db.query(`SELECT c.relname::text AS name,
+        pg_get_userbyid(c.relowner)::text AS owner FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public' AND c.relkind IN ('r','p')`)
+      ).rows;
+      const sequences = (
+        await db.query(`SELECT seq.relname::text AS name,
+        pg_get_userbyid(seq.relowner)::text AS owner, tab.relname::text AS "table"
+        FROM pg_class seq JOIN pg_namespace n ON n.oid = seq.relnamespace
+        LEFT JOIN pg_depend dep ON dep.objid = seq.oid AND dep.classid = 'pg_class'::regclass
+          AND dep.refclassid = 'pg_class'::regclass AND dep.deptype IN ('a','i')
+        LEFT JOIN pg_class tab ON tab.oid = dep.refobjid
+        WHERE n.nspname = 'public' AND seq.relkind = 'S'`)
+      ).rows;
+      const required = checkCatalog(plan, tables, sequences, []);
+      for (const statement of grantStatements(plan, required)) await db.exec(statement + ';');
+      const [rights] = (
+        await db.query(`SELECT
+        has_table_privilege('shipping_runtime_p11', 'public."AuditLog"', 'SELECT') AS read,
+        has_table_privilege('shipping_runtime_p11', 'public."AuditLog"', 'INSERT') AS write,
+        has_table_privilege('shipping_runtime_p11', 'public."AuditLog"', 'UPDATE') AS mutate,
+        has_table_privilege('shipping_runtime_p11', 'public._prisma_migrations', 'SELECT') AS journal,
+        has_table_privilege('shipping_audit_export_p11', 'public."AuditLog"', 'SELECT') AS export,
+        has_table_privilege('shipping_audit_export_p11', 'public."User"', 'SELECT') AS users`)
+      ).rows;
+      assert.deepEqual(rights, {
+        read: true,
+        write: true,
+        mutate: false,
+        journal: false,
+        export: true,
+        users: false,
+      });
+      assert.equal(tables.length, 95);
+      assert.deepEqual(migrations.map((m) => m.name), [...EXPECTED_MIGRATION_NAMES]);
+    } finally {
+      await db.close();
+    }
+  }
+);
+}
+

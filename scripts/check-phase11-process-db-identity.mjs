@@ -46,7 +46,10 @@ export function classifyProcessDbEnvironment(environ, approvedDbName) {
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  const pid = Number(process.argv[2]);
+  // Positional PID, or PHASE11_API_PID: `pnpm check` is a chain of
+  // commands, and pnpm appends extra arguments to the last one only, so the
+  // PID must also be settable through the environment.
+  const pid = Number(process.argv[2] ?? process.env.PHASE11_API_PID);
   const approvedDbName = process.env.PHASE11_APPROVED_DB_NAME;
   if (approvedDbName !== 'duna_seed_test') {
     console.error(

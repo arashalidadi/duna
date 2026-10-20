@@ -136,7 +136,7 @@ function offlineCommands(mode) {
     ['API typecheck', 'apps/api/src', 'pnpm', ['--filter','@shipping/api','typecheck']],
     ...(mode === 'apply' ? [['API build', 'apps/api/src', 'pnpm',
       ['--filter','@shipping/api','build']]] : []),
-    ['Canonical API artifact', 'scripts/check-api-build.mjs', 'pnpm', ['check:api:build']],
+    ['Canonical API artifact', 'scripts/check-api-build.mjs', process.execPath, ['scripts/check-api-build.mjs','verify']],
     ['Phase 12 operation script types', 'apps/api/scripts/phase12-db-deploy.ts', 'pnpm',
       ['exec','tsc','--noEmit','--module','commonjs','--target','ES2021',
         '--moduleResolution','node','--esModuleInterop','--skipLibCheck','--strict',
@@ -160,15 +160,15 @@ function offlineCommands(mode) {
       ['--filter','@shipping/api','exec','jest','--config','test/jest-e2e.cjs',
         '--testRegex','.*\\.unit-spec\\.ts$','--runInBand']],
     ['Phase 11 database-grant contracts', 'apps/api/scripts/phase11-server-workflow.test.cjs',
-      'pnpm',['test:phase11:server:unit']],
+      process.execPath,['scripts/duna.mjs','phase11','server:unit']],
     ['Phase 10 isolated legacy migration fixture', 'apps/api/scripts/test-phase10-migration.cjs',
-      'pnpm',['test:phase10:migration']],
+      process.execPath,['scripts/duna.mjs','db','migration:test']],
     ['Phase 11 audit regression (mocks only)', 'apps/api/scripts/test-phase11-audit-guard.ts',
-      'pnpm',['test:phase11:audit:unit']],
+      process.execPath,['scripts/duna.mjs','phase11','audit:unit']],
     ['HTTP authorization inventory', 'scripts/check-phase11-authz.mjs',
-      'pnpm',['check:phase11:authz']],
+      process.execPath,['scripts/check-phase11-authz.mjs']],
     ['No demo/sample-data seed path', 'scripts/check-seed-safety.mjs',
-      'pnpm',['check:seed-safety']],
+      process.execPath,['scripts/check-seed-safety.mjs']],
   ];
   return commands;
 }
@@ -264,7 +264,7 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
   commands = offlineCommands, managerFactory = applicationManager,
   approval = prechangeApproval, activations = activationCheck, routes = readOnlyRoutes,
   output = console.log, env = process.env, root = ROOT } = {}) {
-  if (!['apply','test'].includes(mode)) stop('Use pnpm phase12:apply or pnpm phase12:test');
+  if (!['apply','test'].includes(mode)) stop('Use: node scripts/duna.mjs phase12 apply|test');
   const results=[];
   const pass = (label, detail = '') => {
     results.push({ label, outcome:'PASS' });
@@ -348,8 +348,8 @@ async function workflow(mode, { run = execute, containerInspect = inspectContain
           ['exec','tsx','apps/api/scripts/phase12-db-deploy.ts','verify'],dbEnv)));
       output(verified);
       await stage('Restart only the existing API and web services',
-        manager.kind === 'repo' ? 'scripts/restart-apps-only.sh' : 'systemd', () =>
-          manager.kind === 'repo' ? run('bash',['scripts/restart-apps-only.sh','apps'],runtimeEnv,180000) :
+        manager.kind === 'repo' ? 'node scripts/duna.mjs restart apps' : 'systemd', () =>
+          manager.kind === 'repo' ? run(process.execPath,['scripts/duna.mjs','restart','apps'],runtimeEnv,180000) :
             run('systemctl',['restart',...manager.units],runtimeEnv,180000));
       await stage('Running API PID/startup runtime role',
         'scripts/check-phase11-process-db-identity.mjs', () => {

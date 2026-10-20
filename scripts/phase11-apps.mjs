@@ -5,6 +5,7 @@
  * query or unconditional kill; unknown listeners/PIDs are a hard stop.
  */
 import { spawn, spawnSync } from 'node:child_process';
+import { apiStartupEnv } from './duna.mjs';
 import {
   closeSync,
   existsSync,
@@ -87,28 +88,25 @@ function processInfo(pid) {
 }
 
 export function matchesManagedProcess(info, name, root = repo) {
-  if (
-    !info ||
-    info.state === 'Z' ||
-    info.exe !== realpathSync(process.execPath) ||
-    info.args.length < 2
-  )
-    return false;
+  if (!info || info.state === 'Z' || info.exe !== realpathSync(process.execPath)) return false;
   const cwd = resolve(root, name === 'api' ? 'apps/api' : 'apps/web');
   if (info.cwd !== cwd) return false;
-  const entry =
-    name === 'api'
-      ? resolve(root, 'apps/api/dist/src/main.js')
-      : resolve(root, 'apps/web/node_modules/next/dist/bin/next');
-  if (resolve(cwd, info.args[1]) !== entry) return false;
-  // A Web process owned by this manager must be a direct Next dev process,
-  // not a pnpm/nest/shell wrapper with a differently owned listener.
-  if (
-    name === 'web' &&
-    JSON.stringify(info.args.slice(2)) !== JSON.stringify(['dev', '-p', '3000', '-H', '0.0.0.0'])
-  )
+  if (name === 'api') {
+    if (info.args.length < 2) return false;
+    return resolve(cwd, info.args[1]) === resolve(root, 'apps/api/dist/src/main.js');
+  }
+  // `next start` renames its own process title to "next-server (vX)", so its argv
+  // is no longer readable. The port owner, cwd and executable are still checked,
+  // and the listener must still descend from the PID this manager recorded.
+  if (info.args.length === 1 && /^next-server \(v[0-9]/.test(info.args[0])) return true;
+  if (info.args.length < 2) return false;
+  if (resolve(cwd, info.args[1]) !== resolve(root, 'apps/web/node_modules/next/dist/bin/next'))
     return false;
-  return true;
+  // A Web process owned by this manager must be a direct Next process, not a
+  // pnpm/nest/shell wrapper with a differently owned listener.
+  const mode = process.env.DUNA_WEB_MODE === 'development' ? 'dev' : 'start';
+  return JSON.stringify(info.args.slice(2)) ===
+    JSON.stringify([mode, '-p', '3000', '-H', '0.0.0.0']);
 }
 
 function descendedFrom(pid, ancestor) {
@@ -135,6 +133,7 @@ function processBuildFingerprint(pid) {
 function pidFile(root, name) {
   return join(root, 'logs', `${name}.pid`);
 }
+
 function readPid(root, name) {
   const contents = readFileSync(pidFile(root, name), 'utf8');
   if (!/^[1-9][0-9]*\n?$/.test(contents))
@@ -217,7 +216,10 @@ export function inspectService(name, root = repo) {
 }
 
 function format(status) {
-  const entry = status.name === 'api' ? 'apps/api/dist/src/main.js' : 'Next dev';
+  const entry =
+    status.name === 'api'
+      ? 'apps/api/dist/src/main.js'
+      : `Next ${process.env.DUNA_WEB_MODE === 'development' ? 'dev' : 'start'}`;
   return (
     `[${status.name}] ${status.state} port=${status.port}` +
     (status.pid ? ` pid=${status.pid}` : '') +
@@ -336,13 +338,22 @@ async function startOne(name, root) {
   try {
     writeSync(claim, 'PENDING\n');
     const fd = openSync(join(logDir, `${name}.log`), 'a', 0o600);
-    const command = name === 'api' ? 'bash' : process.execPath;
+    const command = process.execPath;
+    // The API must be spawned directly: the PID file has to name the real
+    // process, and the build digest has to sit in *its* startup environment.
+    const apiStartup = name === 'api' ? apiStartupEnv() : null;
+    if (apiStartup && !apiStartup.ok) {
+      closeSync(claim);
+      throw new Error('API pre-start verification failed; see the messages above');
+    }
     const args =
       name === 'api'
-        ? [join(root, 'scripts/start-api.sh')]
+        ? [apiStartup.entry]
         : [
             join(root, 'apps/web/node_modules/next/dist/bin/next'),
-            'dev',
+            // `pnpm start` serves the production build that `pnpm setup` made;
+            // `pnpm dev` keeps the development server with on-demand compiling.
+            process.env.DUNA_WEB_MODE === 'development' ? 'dev' : 'start',
             '-p',
             '3000',
             '-H',
@@ -353,7 +364,7 @@ async function startOne(name, root) {
         cwd: join(root, `apps/${name}`),
         detached: true,
         stdio: ['ignore', fd, fd],
-        env: process.env,
+        env: apiStartup ? { ...process.env, ...apiStartup.env } : process.env,
       });
     } finally {
       closeSync(fd);

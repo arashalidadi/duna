@@ -1,7 +1,7 @@
 /**
  * Record a dated E2E measurement on the owner's development/test database.
  *
- * Run: pnpm test:e2e-baseline
+ * Run: node scripts/duna.mjs e2e-baseline record
  *
  * Prerequisites: dependencies built, DATABASE_URL and auth env configured, and
  * the schema and required reference seed already present. Inspect the database
@@ -103,7 +103,7 @@ const exitCode = result.status;
 const verdict = exitCode === 0 ? '**All suites passed.**' : `**Failures present** (exit code ${exitCode}).`;
 const report = `# e2e baseline — ${date}
 
-**Recorded ${new Date().toISOString()}** by \`pnpm test:e2e-baseline\`.
+**Recorded ${new Date().toISOString()}** by \`node scripts/duna.mjs e2e-baseline record\`.
 
 A real E2E measurement (the historical \`403/403\` figure in \`initial-roadmap.md:74\` was unverified).
 

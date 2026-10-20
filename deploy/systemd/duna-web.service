@@ -1,0 +1,29 @@
+[Unit]
+Description=Duna ERP dashboard (Next.js production server)
+Documentation=https://github.com/arashalidadi/duna
+After=network-online.target duna-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@APP_DIR@/apps/web
+EnvironmentFile=@APP_DIR@/apps/web/.env.local
+# Production build only. `next start` requires apps/web/.next, which
+# `pnpm build` produces; it renames its own process title to
+# "next-server (vX)", which is expected.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=0.0.0.0
+Environment=NEXT_TELEMETRY_DISABLED=1
+ExecStart=@NODE@ @APP_DIR@/apps/web/node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

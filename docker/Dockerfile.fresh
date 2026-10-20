@@ -10,12 +10,12 @@ COPY prisma/ prisma/
 COPY scripts/ scripts/
 COPY apps/ apps/
 RUN pnpm install --frozen-lockfile
-RUN pnpm db:generate && pnpm exec prisma validate && \
+RUN pnpm db generate && pnpm exec prisma validate && \
     pnpm --filter @shipping/config --filter @shipping/shared run build
 # An offline test gate before any database migration or seed.
-RUN pnpm test:fast && pnpm check:phase11:authz && \
-    pnpm --filter @shipping/api typecheck && pnpm --filter @shipping/web typecheck
-RUN pnpm build:api && pnpm check:api:build && pnpm build:web
+RUN pnpm test && pnpm check && \
+    pnpm --filter @shipping/api typecheck
+RUN pnpm build && node scripts/check-api-build.mjs verify
 RUN mkdir -p /var/lib/duna/attachments && \
     chown node:node /var/lib/duna/attachments && chmod 0700 /var/lib/duna/attachments && \
     chown -R node:node /app/apps/web/.next

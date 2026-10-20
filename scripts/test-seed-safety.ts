@@ -1,17 +1,17 @@
 /**
  * Phase 1 — runtime seed-safety test (acceptance A3 + the P1 testing row).
  *
- * The static guard (`pnpm check:seed-safety`) proves the seed *modules* are
+ * The static guard (`pnpm check`) proves the seed *modules* are
  * separated. This script proves the behaviour, by actually running the seed and
  * inspecting the database:
  *
- *   1. `pnpm db:seed` with SEED_DEMO_DATA unset creates ZERO cargo, customers,
+ *   1. `pnpm db seed` with SEED_DEMO_DATA unset creates ZERO cargo, customers,
  *      vessels, voyages and load lists.                              (acceptance A3)
  *   2. Running it a second time changes nothing.                        (idempotency)
  *   3. The required administrator setup survives both runs: the admin account,
  *      its ADMIN role, and exactly one primary administrator.   (must not regress)
  *
- * Run:  pnpm test:seed-safety
+ * Run:  pnpm exec tsx scripts/test-seed-safety.ts
  *
  * ---------------------------------------------------------------------------
  * PREREQUISITES — read before running
@@ -52,7 +52,7 @@ if (!testUrl) {
       '',
       '  createdb duna_seed_test',
       '  DATABASE_URL=postgresql://localhost:5432/duna_seed_test npx prisma migrate deploy',
-      '  SEED_TEST_DATABASE_URL=postgresql://localhost:5432/duna_seed_test pnpm test:seed-safety',
+      '  SEED_TEST_DATABASE_URL=postgresql://localhost:5432/duna_seed_test pnpm exec tsx scripts/test-seed-safety.ts',
       '',
     ].join('\n')
   );

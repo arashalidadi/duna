@@ -1,6 +1,9 @@
 'use strict';
 const { createHash } = require('node:crypto');
-const TARGET = '20261017120000_phase12_archive_retention';
+// The 49 original migrations were squashed into a three-file baseline on
+// 2026-10-19. The Phase 12 archive/retention DDL now lives in the post-lifecycle
+// baseline, so that is the migration this workflow gates on.
+const TARGET = '20261004000001_post_lifecycle_baseline';
 const CODES = Object.freeze([
   ['archive:create', 'archive', 'create'], ['archive:reopen', 'archive', 'reopen'],
   ['archive:delete', 'archive', 'delete'], ['retention:read', 'retention', 'read'],
@@ -143,9 +146,12 @@ function assess(snapshot, local, mode) {
     }
     completed.add(row.name);
   }
-  if (!completed.has('20261016110000_phase11_audit_append_only')) {
-    stop('Previously approved audit migration is absent; Phase 12 cannot write');
-  }
+  // The Phase 11 append-only audit protection used to be its own migration and
+  // is now part of TARGET. The prerequisite it expressed - everything already
+  // approved is applied before Phase 12 writes - is enforced by the pending
+  // check below, which only ever allows TARGET itself to be outstanding. The
+  // protection's own content is asserted in workflow.test.cjs.
+  if (!known.has(TARGET)) stop('Phase 12 target migration is missing from the reviewed set');
   const pending = local.filter((m) => !completed.has(m.name)).map((m) => m.name);
   if (pending.some((name) => name !== TARGET)) stop('Unrelated migration is pending; no Phase 12 write allowed');
   const applied = completed.has(TARGET);

@@ -5,7 +5,7 @@
  * only. Nothing here extends capture to unrelated documents.
  *
  * Technical defaults below (MIME allow-list, size cap) are proposals pending owner
- * confirmation; see docs/duna-analysis/09-audit/phase-4-settings-attachments.md §3.
+ * confirmation; see docs/source-material/project-audit.md §3.
  */
 
 export const ATTACHMENT_ENTITY_TYPES = ['VOUCHER', 'SALARY_RECORD'] as const;

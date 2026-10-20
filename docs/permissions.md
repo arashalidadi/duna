@@ -31,7 +31,7 @@ Permission codes follow `module:action`. A role is **active** when `deletedAt IS
 > **Note on my own earlier error:** an interim audit note recorded "160 codes / 35 modules". The module
 > figure was wrong — it conflated the **35 web pages** with permission modules. The verified count was
 > **33 modules** and is now **34** after the `audit` module was added (2026-10-12). Corrections are
-> recorded in `docs/duna-analysis/09-audit/README.md` §5.
+> recorded in `docs/source-material/project-audit.md` §5.
 
 ### Modules seeded as at Phase 2 (13 of 34) — historical subset
 
@@ -74,7 +74,7 @@ Notes:
 
 ### All 33 seeded permission modules (verified 2026-10-11)
 
-> *Update 2026-10-12 (additive):* this list was recorded on 2026-10-11 and is kept as recorded. The verified count on 2026-10-12 is **34 module values** — the `audit` module was added in commit `66628c3` on 2026-10-12. See [`duna-analysis/09-audit/verified-figures-2026-10-12.md`](duna-analysis/09-audit/verified-figures-2026-10-12.md).
+> *Update 2026-10-12 (additive):* this list was recorded on 2026-10-11 and is kept as recorded. The verified count on 2026-10-12 is **34 module values** — the `audit` module was added in commit `66628c3` on 2026-10-12. See [`source-material/project-audit.md`]source-material/project-audit.md).
 
 `actual_loading` · `agent` · `auth` · `bill` · `cargo` · `consignee` · `currency` · `customer` ·
 `dashboard` · `delivery` · `discharge` · `inspection` · `invoice` · `jobs` · `ledger` · `letters` ·
@@ -95,7 +95,7 @@ Notes:
 | Company settings | `setting:*` | P4 |
 
 A full proposed permission-code list for these areas is in
-`docs/duna-analysis/09-audit/target-security-audit-reporting.md` §7.
+`docs/source-material/project-audit.md` §7.
 
 ## Authorization flow (implemented)
 

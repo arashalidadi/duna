@@ -6,7 +6,7 @@
  * `pageSize` above MAX_PAGE_SIZE is answered with **HTTP 400** (the API's global
  * ValidationPipe rejects it; it does not clamp).
  *
- * Run: pnpm test:pagination   (from the repository root)
+ * Run: pnpm exec tsx apps/web/scripts/test-pagination.ts
  */
 import http from 'node:http';
 import assert from 'node:assert/strict';

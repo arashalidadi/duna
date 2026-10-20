@@ -25,3 +25,6 @@ test-results/
 
 # Fresh-install state and private local configuration (not application source)
 /.fresh-setup/
+
+# Arena sandbox tooling and disposable database state (binaries, pgdata, logs)
+/.arena-tools/

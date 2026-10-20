@@ -1,0 +1,33 @@
+[Unit]
+Description=Duna ERP API (NestJS, /api/v1)
+Documentation=https://github.com/arashalidadi/duna
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@APP_DIR@/apps/api
+EnvironmentFile=@ENV_FILE@
+# The API's own config factory reads the repository .env without overriding
+# this unit's environment. NODE_ENV is deliberately left to the environment
+# file; builds must never inherit NODE_ENV=development (Next refuses to
+# prerender with a non-standard value).
+#
+# This runs the built entry point directly rather than `pnpm start-api`: that
+# dispatcher path enforces the Phase 11 approved target (role
+# shipping_runtime_p11, database duna_seed_test, loopback 5432), which is a
+# sandbox/Phase-11 constraint and not this deployment's database identity.
+ExecStart=@NODE@ @APP_DIR@/apps/api/dist/src/main.js
+Restart=on-failure
+RestartSec=5
+# Attachments are identity documents: the directory is private to this user.
+ReadWritePaths=@ATTACHMENT_DIR@
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

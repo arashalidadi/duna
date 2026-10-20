@@ -190,8 +190,8 @@ export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promi
   console.log('  Phase 7 sample data seeded: vessel, voyage, 3 cargo (approved/pending/rejected), inspections, 1 load list');
 
   // Phase 5 / Agent Portal demo records are opt-in along with the other
-  // fabricated business data. Portal setup is atomic and does not depend on
-  // the separate, older API-driven scripts/seed-portal-demo.mjs script.
+  // fabricated business data. Portal setup is atomic and self-contained; the
+  // older API-driven portal seed script has been removed.
   await seedPortalDemo(prisma, demoCtx);
 }
 

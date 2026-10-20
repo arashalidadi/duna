@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm run build && pnpm run start",
     "build": "node ../../scripts/check-api-build.mjs begin && nest build && node ../../scripts/check-api-build.mjs finish",
-    "start": "bash ../../scripts/start-api.sh",
+    "start": "node ../../scripts/duna.mjs start-api",
     "lint": "eslint \"src/**/*.ts\"",
     "test": "jest --config test/jest-e2e.cjs",
     "test:watch": "jest --watch",

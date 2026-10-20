@@ -6,7 +6,7 @@ The user's previous interim port request was incorrect. **3101 is required**, wh
 and PostgreSQL 5432 remain unchanged. The loader, proxy, examples, CLI resolver and current
 instructions have been corrected; history is labeled rather than rewritten. Do not push, open a
 PR or merge until the user reviews this correction and explicitly approves publication. Do not
-resume preview backend/login experiments. [Complete file-by-file audit](ops/api-port-correction.md)
+resume preview backend/login experiments. [Complete file-by-file audit]operations.md)
 is authoritative for this correction, its fresh checks, remaining historical references and
 shallow-aware recovery archive. Earlier publication/login directives below are superseded.
 
@@ -16,7 +16,7 @@ The user has explicitly removed the Arena-login prerequisite. Stop preview backe
 and real-login attempts. Preserve the existing redesign, port configuration and regression tests;
 prepare a non-force branch publication and PR to `ai-test`, without merging. Current production
 environment variables and exact next-session GitHub commands are in
-`docs/ops/publication-handoff.md`; it supersedes login-first conditions in historical entries.
+`docs/operations.md`; it supersedes login-first conditions in historical entries.
 This closed session cannot access GitHub, so do not claim a push or PR exists. The latest recovery
 archive must contain the final committed work and shallow-aware restoration instructions.
 
@@ -34,7 +34,7 @@ The production preview was restarted after the build; server-side acceptance rem
 - Actual API startup exited 1 with **missing DATABASE_URL** before listening. Both JWT secrets and PostgreSQL/runtime connection are also absent. Prisma Client import fails; fresh engine generation remains download-blocked.
 - Account existence/password validity cannot be determined without the database. No account/password changes or seed were performed. Supplied credentials were not added to tracked files.
 - Fresh web typecheck/lint/guards, browser **22/22**, config **10/10**, and port tests **7/7** pass. Existing validated production build remains live; it was not rebuilt because application source is unchanged. Mocked UI passes are not real-login success.
-- Publication is still blocked by both the requested real-login gate and the closed session's GitHub restrictions. Full evidence and prerequisites: `docs/ops/admin-login-verification.md`.
+- Publication is still blocked by both the requested real-login gate and the closed session's GitHub restrictions. Full evidence and prerequisites: `docs/operations.md`.
 
 ## Latest port/publication resumption — 2026-10-09
 
@@ -42,7 +42,7 @@ The production preview was restarted after the build; server-side acceptance rem
 - Historical, superseded change: the inconsistent 3001 API fallback and 3101 proxy/scripts/examples were aligned to the user's then-stated **3010**. That request was incorrect and has been withdrawn; **3101 is now required**. Browser requests remain same-origin `/api/v1`.
 - Fresh passes: web typecheck/lint/guards/build (108 pages), **22/22 browser tests**, shared/config build/typechecks, **10/10 config tests**, **7/7 port/script tests**. Real health still 502; API/database are absent. Prisma's matching native-engine checksum download is restricted; API build fails on missing generated types. No real credentials/DB workflows verified.
 - Backup restore testing found this checkout is shallow: bundle verification alone was insufficient. Include saved shallow-boundary metadata with the bundle; isolated import with metadata passes fsck and reproduces the tree. Download the final recovery archive separately, not as source in Git.
-- GitHub still disabled in this closed session. Neither target remote ref is cached. No live ancestry/ai-test comparison, push or PR creation claimed; PR body prepared only. See `docs/ops/backend-connection-audit.md` and `docs/ui/pr-ai-test.md` for safe next-session instructions.
+- GitHub still disabled in this closed session. Neither target remote ref is cached. No live ancestry/ai-test comparison, push or PR creation claimed; PR body prepared only. See `docs/operations.md` and `docs/ui.md` for safe next-session instructions.
 
 ## Current continuation audit — 2026-10-09
 
@@ -954,7 +954,7 @@ Fix (requires sudo — not available in this session): add a `listen 443 ssl`
 vhost for `dashboard.3ree.eu.cc` reusing the wildcard cert at
 `/etc/letsencrypt/live/3ree.eu.cc/` (already trusted, auto-renewed via the
 systemd `certbot.timer`), same upstream/proxy headers as :80. Ready-to-apply
-patch + commands: `docs/ops/https-dashboard.3ree.eu.cc.md`. Optional later:
+patch + commands: `docs/operations.md`. Optional later:
 HTTP→HTTPS 301. No app/auth/DB changes needed. Panel untouched.
 
 ## Pre-Phase 7 — Runtime & Database Persistence

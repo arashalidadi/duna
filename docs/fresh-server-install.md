@@ -140,8 +140,8 @@ review and explicitly authorize a recovery from known evidence; no recovery
 or successful restore is implied by the existence of tooling.
 
 For an **existing installation**, use its separately approved, target-verified
-runbooks, e.g. [Phase 11 operations](duna-analysis/09-audit/phase11-operations-runbook.md)
-and [Phase 12 operations](duna-analysis/09-audit/phase12-operations-runbook.md).
+runbooks, e.g. [Phase 11 operations]source-material/project-audit.md)
+and [Phase 12 operations]source-material/project-audit.md).
 `pnpm phase12:apply` is an owner-guarded Phase 12 operation, **not** a generic
 upgrade command; `prisma migrate deploy`/`db:seed` must not be applied blindly
 to an existing business database. The prior owner-reported Phase 12 27-stage
