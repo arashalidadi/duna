@@ -1,106 +1,32 @@
-name: install
-
-# One standard Duna installation path: from a fresh server to a fully running
-# dashboard, managed entirely by GitHub Actions. The operator provides only
-# the server connection details and server-specific secrets in GitHub
-# Settings → Secrets and variables → Actions; the workflow itself provisions
-# the database and its users/roles/passwords, runs migrations and seed,
-# installs dependencies, builds the API and dashboard, starts the services
-# and runs the final health checks. No manual database, no manual .env file
-# on the server, and no manual install steps are required.
-#
-# The server-side work is the repository's own isolated fresh installer
-# (scripts/fresh/setup.cjs = `pnpm setup`), run over SSH on the target host.
-#
-# Required GitHub secrets and variables are documented in deploy/README.md.
+name: Install and deploy Duna
 
 on:
   push:
-    branches:
-      - arena/8f399c78-duna
+    branches: [arena/8f399c78-duna]
   workflow_dispatch:
-    inputs:
-      force:
-        description: "Install even if no deploy-relevant files changed"
-        type: boolean
-        default: false
 
 concurrency:
-  group: install-${{ github.ref }}
+  group: duna-production-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
-env:
-  BRANCH: arena/8f399c78-duna
-
 jobs:
-  # -----------------------------------------------------------------------
-  # 1. Decide whether this push can affect a running installation.
-  # -----------------------------------------------------------------------
-  changes:
-    name: Detect install-relevant changes
-    runs-on: ubuntu-latest
-    outputs:
-      runtime: ${{ steps.filter.outputs.runtime }}
-      reason: ${{ steps.decide.outputs.reason }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          # Anything the installed application or its installation depends on.
-          filters: |
-            runtime:
-              - 'apps/**'
-              - 'packages/**'
-              - 'prisma/**'
-              - 'scripts/**'
-              - 'deploy/**'
-              - 'docker/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - '.env.example'
-              - '.env.fresh.example'
-              - '.env.production.example'
-              - 'tsconfig*.json'
-              - '.github/workflows/install.yml'
-
-      - id: decide
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "reason=manual dispatch" >> "$GITHUB_OUTPUT"
-          elif [ "${{ inputs.force }}" = "true" ]; then
-            echo "reason=forced" >> "$GITHUB_OUTPUT"
-          elif [ "${{ steps.filter.outputs.runtime }}" = "true" ]; then
-            echo "reason=install-relevant paths changed" >> "$GITHUB_OUTPUT"
-          else
-            echo "reason=only non-runtime paths changed" >> "$GITHUB_OUTPUT"
-          fi
-          echo "runtime=${{ steps.filter.outputs.runtime }}" >> "$GITHUB_OUTPUT"
-
-  # -----------------------------------------------------------------------
-  # 2. Prove the branch is installable (runs on every push).
-  # -----------------------------------------------------------------------
   verify:
-    name: Typecheck, test, build
+    name: Verify before changing the server
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ env.BRANCH }}
+          ref: ${{ github.sha }}
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9.15.9
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -108,8 +34,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate the Prisma client
+      - name: Generate Prisma client
         run: pnpm db generate
+
+      - name: Build internal workspace packages
+        run: pnpm --filter @shipping/config --filter @shipping/shared run build
 
       - name: Typecheck
         run: pnpm typecheck
@@ -117,155 +46,302 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Unit and contract tests
+      - name: Tests
         run: pnpm test
 
-      # NODE_ENV must not leak into the Next build; a non-standard value makes
-      # Next refuse to prerender /404, /500 and /_not-found.
-      - name: Build
+      - name: Production builds
         run: pnpm build
         env:
           NODE_ENV: ""
 
-      - name: Verify the built artefacts exist
+      - name: Verify build outputs
         run: |
           test -f apps/api/dist/src/main.js
           test -d apps/web/.next
-          echo "artefacts present"
+          echo "API and dashboard build artefacts verified for ${GITHUB_SHA}"
 
-  # -----------------------------------------------------------------------
-  # 3. Install on the target server (SSH). Runs the repository's own
-  #    isolated fresh installer; secrets are transferred only into the
-  #    server's private mode-0600 .env.fresh.local, never printed here.
-  # -----------------------------------------------------------------------
-  install:
-    name: Install on the target server
+  deploy:
+    name: Provision or safely update the server
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-    needs: [changes, verify]
+    timeout-minutes: 120
+    needs: verify
     environment:
       name: production
-    if: needs.changes.outputs.runtime == 'true' || github.event.inputs.force == 'true'
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_ENABLED: ${{ vars.DEPLOY_ENABLED }}
+      DEPLOY_HOSTNAME: ${{ vars.DEPLOY_HOSTNAME }}
+      TLS_EMAIL: ${{ vars.TLS_EMAIL }}
+      DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
+      FRESH_INSTANCE_ID: ${{ secrets.FRESH_INSTANCE_ID }}
+      FRESH_DATABASE_NAME: ${{ secrets.FRESH_DATABASE_NAME }}
+      FRESH_NEW_SERVER_ACK: ${{ secrets.FRESH_NEW_SERVER_ACK }}
+      FRESH_DB_SUPER_PASSWORD: ${{ secrets.FRESH_DB_SUPER_PASSWORD }}
+      FRESH_DB_OWNER_PASSWORD: ${{ secrets.FRESH_DB_OWNER_PASSWORD }}
+      FRESH_DB_RUNTIME_PASSWORD: ${{ secrets.FRESH_DB_RUNTIME_PASSWORD }}
+      FRESH_ADMIN_EMAIL: ${{ secrets.FRESH_ADMIN_EMAIL }}
+      FRESH_ADMIN_PASSWORD: ${{ secrets.FRESH_ADMIN_PASSWORD }}
+      FRESH_AUTH_JWT_SECRET: ${{ secrets.FRESH_AUTH_JWT_SECRET }}
+      FRESH_AUTH_REFRESH_SECRET: ${{ secrets.FRESH_AUTH_REFRESH_SECRET }}
+      FRESH_ATTACHMENT_URL_SECRET: ${{ secrets.FRESH_ATTACHMENT_URL_SECRET }}
     steps:
-      - name: Require deployment configuration
+      - name: Check whether deployment settings are configured
+        id: configuration
+        shell: bash
         run: |
-          : "${DEPLOY_HOST:?Secret DEPLOY_HOST is not set}"
-          : "${DEPLOY_USER:?Secret DEPLOY_USER is not set}"
-          : "${DEPLOY_PATH:?Variable DEPLOY_PATH is not set}"
-          : "${FRESH_INSTANCE_ID:?Secret FRESH_INSTANCE_ID is not set}"
-          : "${FRESH_DATABASE_NAME:?Secret FRESH_DATABASE_NAME is not set}"
-          : "${FRESH_NEW_SERVER_ACK:?Secret FRESH_NEW_SERVER_ACK is not set}"
-          : "${FRESH_DB_SUPER_PASSWORD:?Secret FRESH_DB_SUPER_PASSWORD is not set}"
-          : "${FRESH_DB_OWNER_PASSWORD:?Secret FRESH_DB_OWNER_PASSWORD is not set}"
-          : "${FRESH_DB_RUNTIME_PASSWORD:?Secret FRESH_DB_RUNTIME_PASSWORD is not set}"
-          : "${FRESH_ADMIN_EMAIL:?Secret FRESH_ADMIN_EMAIL is not set}"
-          : "${FRESH_ADMIN_PASSWORD:?Secret FRESH_ADMIN_PASSWORD is not set}"
-          : "${FRESH_AUTH_JWT_SECRET:?Secret FRESH_AUTH_JWT_SECRET is not set}"
-          : "${FRESH_AUTH_REFRESH_SECRET:?Secret FRESH_AUTH_REFRESH_SECRET is not set}"
-          : "${FRESH_ATTACHMENT_URL_SECRET:?Secret FRESH_ATTACHMENT_URL_SECRET is not set}"
-          echo "Install ${GITHUB_SHA::7} as ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH} (${FRESH_DATABASE_NAME})"
-
-      - name: Install the deploy key
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          if [ -n "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" ]; then
-            printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          else
-            ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          fi
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Install Duna on the server
-        env:
-          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
-          FRESH_INSTANCE_ID: ${{ secrets.FRESH_INSTANCE_ID }}
-          FRESH_DATABASE_NAME: ${{ secrets.FRESH_DATABASE_NAME }}
-          FRESH_NEW_SERVER_ACK: ${{ secrets.FRESH_NEW_SERVER_ACK }}
-          FRESH_DB_SUPER_PASSWORD: ${{ secrets.FRESH_DB_SUPER_PASSWORD }}
-          FRESH_DB_OWNER_PASSWORD: ${{ secrets.FRESH_DB_OWNER_PASSWORD }}
-          FRESH_DB_RUNTIME_PASSWORD: ${{ secrets.FRESH_DB_RUNTIME_PASSWORD }}
-          FRESH_ADMIN_EMAIL: ${{ secrets.FRESH_ADMIN_EMAIL }}
-          FRESH_ADMIN_PASSWORD: ${{ secrets.FRESH_ADMIN_PASSWORD }}
-          FRESH_AUTH_JWT_SECRET: ${{ secrets.FRESH_AUTH_JWT_SECRET }}
-          FRESH_AUTH_REFRESH_SECRET: ${{ secrets.FRESH_AUTH_REFRESH_SECRET }}
-          FRESH_ATTACHMENT_URL_SECRET: ${{ secrets.FRESH_ATTACHMENT_URL_SECRET }}
-        run: |
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<REMOTE
           set -Eeuo pipefail
-          export DEPLOY_PATH="${DEPLOY_PATH:-/opt/duna}"
-          export BRANCH="${BRANCH}"
-          export REPO_URL="${REPO_URL}"
-          export FRESH_INSTANCE_ID="${FRESH_INSTANCE_ID}"
-          export FRESH_DATABASE_NAME="${FRESH_DATABASE_NAME}"
-          export FRESH_NEW_SERVER_ACK="${FRESH_NEW_SERVER_ACK}"
-          export FRESH_DB_SUPER_PASSWORD="${FRESH_DB_SUPER_PASSWORD}"
-          export FRESH_DB_OWNER_PASSWORD="${FRESH_DB_OWNER_PASSWORD}"
-          export FRESH_DB_RUNTIME_PASSWORD="${FRESH_DB_RUNTIME_PASSWORD}"
-          export FRESH_ADMIN_EMAIL="${FRESH_ADMIN_EMAIL}"
-          export FRESH_ADMIN_PASSWORD="${FRESH_ADMIN_PASSWORD}"
-          export FRESH_AUTH_JWT_SECRET="${FRESH_AUTH_JWT_SECRET}"
-          export FRESH_AUTH_REFRESH_SECRET="${FRESH_AUTH_REFRESH_SECRET}"
-          export FRESH_ATTACHMENT_URL_SECRET="${FRESH_ATTACHMENT_URL_SECRET}"
-
-          # 1. Source tree: clone fresh or hard-update to the branch.
-          if [ ! -d "$DEPLOY_PATH/.git" ]; then
-            echo "[install] cloning $REPO_URL ($BRANCH) into $DEPLOY_PATH"
-            mkdir -p "$(dirname "$DEPLOY_PATH")"
-            git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_PATH"
+          if [ "${DEPLOY_ENABLED:-}" != true ]; then
+            echo 'Deployment skipped: set the explicit opt-in variable DEPLOY_ENABLED=true only after reviewing the target settings.'
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_HOSTNAME TLS_EMAIL DEPLOY_SSH_PRIVATE_KEY DEPLOY_SSH_KNOWN_HOSTS \
+            FRESH_INSTANCE_ID FRESH_DATABASE_NAME FRESH_NEW_SERVER_ACK \
+            FRESH_DB_SUPER_PASSWORD FRESH_DB_OWNER_PASSWORD FRESH_DB_RUNTIME_PASSWORD \
+            FRESH_ADMIN_EMAIL FRESH_ADMIN_PASSWORD FRESH_AUTH_JWT_SECRET \
+            FRESH_AUTH_REFRESH_SECRET FRESH_ATTACHMENT_URL_SECRET; do
+            [ -n "${!name:-}" ] || missing+=("$name")
+          done
+          if ((${#missing[@]})); then
+            echo 'Deployment skipped: configure the required GitHub Actions settings before connecting to the server.'
+            printf 'Missing setting name: %s\n' "${missing[@]}"
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
           else
-            echo "[install] updating $DEPLOY_PATH to $BRANCH"
-            git -C "$DEPLOY_PATH" remote set-url origin "$REPO_URL"
-            git -C "$DEPLOY_PATH" fetch --prune origin "$BRANCH"
-            git -C "$DEPLOY_PATH" checkout --force "$BRANCH"
-            git -C "$DEPLOY_PATH" reset --hard "origin/$BRANCH"
-            git -C "$DEPLOY_PATH" clean -ffd -e .env.fresh.local -e node_modules
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
           fi
 
-          # 2. pnpm 9 (the installer itself refuses to install OS packages).
-          if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm -v 2>/dev/null | cut -d. -f1)" != "9" ]; then
-            echo "[install] installing pnpm 9"
-            npm install --global pnpm@9.15.9 >/dev/null
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.configuration.outputs.ready == 'true'
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Validate settings and create a private transfer file
+        if: steps.configuration.outputs.ready == 'true'
+        id: private-config
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_PATH DEPLOY_PORT DEPLOY_HOSTNAME TLS_EMAIL \
+            DEPLOY_SSH_PRIVATE_KEY DEPLOY_SSH_KNOWN_HOSTS \
+            FRESH_INSTANCE_ID FRESH_DATABASE_NAME FRESH_NEW_SERVER_ACK \
+            FRESH_DB_SUPER_PASSWORD FRESH_DB_OWNER_PASSWORD FRESH_DB_RUNTIME_PASSWORD \
+            FRESH_ADMIN_EMAIL FRESH_ADMIN_PASSWORD FRESH_AUTH_JWT_SECRET \
+            FRESH_AUTH_REFRESH_SECRET FRESH_ATTACHMENT_URL_SECRET; do
+            if [ -z "${!name:-}" ]; then echo "Required GitHub setting is missing: $name" >&2; exit 1; fi
+          done
+          [[ "$DEPLOY_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo 'DEPLOY_HOST must be a DNS name or IPv4 address' >&2; exit 1; }
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*\$?$ ]] || { echo 'Invalid DEPLOY_USER' >&2; exit 1; }
+          [[ "$FRESH_INSTANCE_ID" =~ ^[a-z][a-z0-9-]{3,19}$ ]] || { echo 'Invalid FRESH_INSTANCE_ID' >&2; exit 1; }
+          [[ "$GITHUB_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo 'Invalid repository identifier' >&2; exit 1; }
+          [[ "$DEPLOY_PATH" =~ ^/[A-Za-z0-9._/-]+$ && "$DEPLOY_PATH" != *..* && "$DEPLOY_PATH" != *//* ]] || { echo 'DEPLOY_PATH must be a clean absolute path' >&2; exit 1; }
+          [[ "$DEPLOY_PATH" != / ]] || { echo 'DEPLOY_PATH cannot be /' >&2; exit 1; }
+          [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] && (( DEPLOY_PORT >= 1 && DEPLOY_PORT <= 65535 )) || { echo 'DEPLOY_PORT must be between 1 and 65535' >&2; exit 1; }
+          [[ "$DEPLOY_HOSTNAME" =~ ^([a-z0-9]+(-[a-z0-9]+)*\.)+[a-z]{2,63}$ && ${#DEPLOY_HOSTNAME} -le 253 ]] || { echo 'DEPLOY_HOSTNAME must be a lowercase fully qualified DNS name' >&2; exit 1; }
+          [[ "$TLS_EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63}$ ]] || { echo 'TLS_EMAIL must be a valid contact email' >&2; exit 1; }
+
+          umask 077
+          config_file="$RUNNER_TEMP/duna-fresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.env"
+          python3 - "$config_file" <<'PY'
+          import os, pathlib, sys
+          keys = (
+              'FRESH_INSTANCE_ID', 'FRESH_DATABASE_NAME', 'FRESH_NEW_SERVER_ACK',
+              'FRESH_DB_SUPER_PASSWORD', 'FRESH_DB_OWNER_PASSWORD', 'FRESH_DB_RUNTIME_PASSWORD',
+              'FRESH_ADMIN_EMAIL', 'FRESH_ADMIN_PASSWORD', 'FRESH_AUTH_JWT_SECRET',
+              'FRESH_AUTH_REFRESH_SECRET', 'FRESH_ATTACHMENT_URL_SECRET',
+          )
+          config = {key: os.environ[key] for key in keys}
+          for key, value in config.items():
+              if not value or '\n' in value or '\r' in value or '\0' in value or value != value.strip():
+                  raise SystemExit(f'{key} must be nonempty, trimmed and contain no line breaks')
+          import re
+          if not re.fullmatch(r'[a-z][a-z0-9-]{3,19}', config['FRESH_INSTANCE_ID']):
+              raise SystemExit('Invalid FRESH_INSTANCE_ID')
+          if not re.fullmatch(r'duna_fresh_[a-z0-9]{3,24}', config['FRESH_DATABASE_NAME']):
+              raise SystemExit('Invalid FRESH_DATABASE_NAME')
+          if config['FRESH_NEW_SERVER_ACK'] != 'NEW_EMPTY_SERVER:' + config['FRESH_DATABASE_NAME']:
+              raise SystemExit('FRESH_NEW_SERVER_ACK must exactly name FRESH_DATABASE_NAME')
+          email = config['FRESH_ADMIN_EMAIL']
+          if len(email) > 200 or email != email.lower() or not re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', email):
+              raise SystemExit('FRESH_ADMIN_EMAIL must be a lowercase email address')
+          secret_keys = ('FRESH_DB_SUPER_PASSWORD', 'FRESH_DB_OWNER_PASSWORD',
+              'FRESH_DB_RUNTIME_PASSWORD', 'FRESH_ADMIN_PASSWORD', 'FRESH_AUTH_JWT_SECRET',
+              'FRESH_AUTH_REFRESH_SECRET', 'FRESH_ATTACHMENT_URL_SECRET')
+          for key in secret_keys:
+              value = config[key]
+              minimum = 16 if key == 'FRESH_ADMIN_PASSWORD' else 32
+              if len(value) < minimum or any(ord(ch) < 32 or ord(ch) == 127 for ch in value) or value[:1] in ('"', "'"):
+                  raise SystemExit(f'{key} does not meet the installer secret requirements')
+          if len({config[key] for key in secret_keys}) != len(secret_keys):
+              raise SystemExit('All FRESH_* passwords and signing secrets must be distinct')
+          values = [f'{key}={config[key]}' for key in keys]
+          path = pathlib.Path(sys.argv[1])
+          path.write_text('\n'.join(values) + '\n', encoding='utf-8')
+          path.chmod(0o600)
+          PY
+          echo "config_file=$config_file" >> "$GITHUB_OUTPUT"
+
+      - name: Install SSH key and verify the pinned host key
+        if: steps.configuration.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/duna_deploy_key"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/duna_known_hosts"
+          chmod 600 "$HOME/.ssh/duna_deploy_key" "$HOME/.ssh/duna_known_hosts"
+          if [ "$DEPLOY_PORT" = 22 ]; then host_pattern="$DEPLOY_HOST"; else host_pattern="[$DEPLOY_HOST]:$DEPLOY_PORT"; fi
+          ssh-keygen -F "$host_pattern" -f "$HOME/.ssh/duna_known_hosts" >/dev/null || {
+            echo 'Pinned DEPLOY_SSH_KNOWN_HOSTS has no entry for DEPLOY_HOST/DEPLOY_PORT' >&2; exit 1;
+          }
+          ssh-keygen -y -P '' -f "$HOME/.ssh/duna_deploy_key" >/dev/null
+
+      - name: Transfer the exact verified source archive
+        if: steps.configuration.outputs.ready == 'true'
+        shell: bash
+        env:
+          CONFIG_FILE: ${{ steps.private-config.outputs.config_file }}
+        run: |
+          set -Eeuo pipefail
+          ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ConnectTimeout=20)
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          repo="${GITHUB_REPOSITORY}"
+
+          ssh "${ssh_opts[@]}" "$target" "bash -s -- '$DEPLOY_PATH' '$repo' '$FRESH_INSTANCE_ID' '$DEPLOY_USER'" <<'REMOTE'
+          set -Eeuo pipefail
+          path=$1
+          repo=$2
+          instance=$3
+          user=$4
+          marker="$path/.duna-managed"
+          expected="$repo:$instance"
+          if [ ! -e "$path" ]; then
+            parent=$(dirname "$path")
+            if [ -w "$parent" ]; then
+              mkdir -p -- "$path"
+            else
+              sudo -n install -d -m 0750 -o "$user" -g "$(id -gn "$user")" -- "$path"
+            fi
           fi
-          command -v node >/dev/null 2>&1 || { echo "[install] Node.js >=20 must be installed by the operator" >&2; exit 1; }
-
-          # 3. Private fresh-install configuration on the server: mode 0600,
-          #    owned by the deploy user, never committed, never printed.
-          cat > "$DEPLOY_PATH/.env.fresh.local" <<ENV
-          FRESH_INSTANCE_ID=${FRESH_INSTANCE_ID}
-          FRESH_DATABASE_NAME=${FRESH_DATABASE_NAME}
-          FRESH_NEW_SERVER_ACK=${FRESH_NEW_SERVER_ACK}
-          FRESH_DB_SUPER_PASSWORD=${FRESH_DB_SUPER_PASSWORD}
-          FRESH_DB_OWNER_PASSWORD=${FRESH_DB_OWNER_PASSWORD}
-          FRESH_DB_RUNTIME_PASSWORD=${FRESH_DB_RUNTIME_PASSWORD}
-          FRESH_ADMIN_EMAIL=${FRESH_ADMIN_EMAIL}
-          FRESH_ADMIN_PASSWORD=${FRESH_ADMIN_PASSWORD}
-          FRESH_AUTH_JWT_SECRET=${FRESH_AUTH_JWT_SECRET}
-          FRESH_AUTH_REFRESH_SECRET=${FRESH_AUTH_REFRESH_SECRET}
-          FRESH_ATTACHMENT_URL_SECRET=${FRESH_ATTACHMENT_URL_SECRET}
-          ENV
-          chmod 600 "$DEPLOY_PATH/.env.fresh.local"
-
-          # 4. The full install: dependency installation, Prisma client
-          #    generation, offline tests, API/Web image build, isolated PG16
-          #    provisioning, database users/roles and passwords, migrations,
-          #    structural seed with the initial administrator, runtime grants,
-          #    service startup and authenticated smoke tests.
-          cd "$DEPLOY_PATH"
-          pnpm setup
-
-          # 5. Read-only confirmation of the installed state.
-          pnpm setup --health
+          [ -d "$path" ] && [ ! -L "$path" ] && [ -w "$path" ] || { echo 'Deploy path must be a non-symlink writable directory for DEPLOY_USER' >&2; exit 1; }
+          if [ -e "$marker" ]; then
+            [ -f "$marker" ] && [ ! -L "$marker" ] || { echo 'Invalid Duna ownership marker' >&2; exit 1; }
+            IFS= read -r actual < "$marker"
+            [ "$actual" = "$expected" ] || { echo 'Deploy path belongs to a different repository/install; refusing' >&2; exit 1; }
+          else
+            if find "$path" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+              echo 'Deploy path is not empty and has no Duna ownership marker; refusing to overwrite it' >&2
+              exit 1
+            fi
+            (umask 077; printf '%s\n' "$expected" > "$marker")
+          fi
           REMOTE
 
-      - name: Report the installed commit
-        if: always()
+          git archive --format=tar "$GITHUB_SHA" |
+            ssh "${ssh_opts[@]}" "$target" "mkdir -p -- '$DEPLOY_PATH' && tar --no-same-owner -xf - -C '$DEPLOY_PATH'"
+
+          # The private config is streamed byte-for-byte over the already pinned
+          # SSH connection. No secret is interpolated into a shell command or
+          # remote script. Existing installed secrets cannot silently rotate.
+          cat "$CONFIG_FILE" | ssh "${ssh_opts[@]}" "$target" "umask 077; cat > '$DEPLOY_PATH/.env.fresh.local.incoming'"
+          ssh "${ssh_opts[@]}" "$target" "bash -s -- '$DEPLOY_PATH'" <<'REMOTE'
+          set -Eeuo pipefail
+          path=$1
+          config="$path/.env.fresh.local"
+          temporary="$path/.env.fresh.local.incoming"
+          chmod 600 "$temporary"
+          if [ -e "$config" ]; then
+            if ! cmp -s "$config" "$temporary"; then
+              rm -f "$temporary"
+              echo 'Fresh-install settings differ from the installed values; refusing implicit credential rotation' >&2
+              exit 1
+            fi
+            rm -f "$temporary"
+          else
+            mv "$temporary" "$config"
+          fi
+          REMOTE
+
+      - name: Install required host runtime (first run only as needed)
+        if: steps.configuration.outputs.ready == 'true'
+        shell: bash
         run: |
-          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" \
-            "git -C ${DEPLOY_PATH:-/opt/duna} log -1 --pretty='installed %h %s (%cd)' --date=iso" \
-            || echo "could not read the installed revision"
+          set -Eeuo pipefail
+          ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ConnectTimeout=20)
+          ssh "${ssh_opts[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "if [ \"\$(id -u)\" -eq 0 ]; then bash '$DEPLOY_PATH/scripts/fresh/bootstrap-host.sh' '$DEPLOY_USER'; else sudo -n bash '$DEPLOY_PATH/scripts/fresh/bootstrap-host.sh' '$DEPLOY_USER'; fi"
+
+      - name: Fresh install or protected update, then health check
+        if: steps.configuration.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
+            -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ConnectTimeout=20)
+          ssh "${ssh_opts[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "bash -s -- '$DEPLOY_PATH' '$FRESH_INSTANCE_ID' '$GITHUB_SHA' '$DEPLOY_HOSTNAME' '$TLS_EMAIL'" <<'REMOTE'
+          set -Eeuo pipefail
+          path=$1
+          instance=$2
+          revision=$3
+          hostname=$4
+          tls_email=$5
+          export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+          cd "$path"
+          [ -f .env.fresh.local ] && [ ! -L .env.fresh.local ] || { echo 'Private install configuration is missing or unsafe' >&2; exit 1; }
+          [ "$(stat -c '%a' .env.fresh.local)" = 600 ] || { echo 'Private install configuration must be mode 0600' >&2; exit 1; }
+          state=".fresh-setup/$instance.json"
+          if [ -e "$state" ]; then
+            echo "[deploy] Updating existing installation to ${revision:0:12}; no reset or fresh seed"
+            pnpm setup --upgrade
+          else
+            echo "[deploy] Installing new isolated instance from ${revision:0:12}"
+            pnpm setup
+          fi
+          pnpm setup --health
+          pnpm setup --status
+          if [ "$(id -u)" -eq 0 ]; then
+            bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+          else
+            sudo -n bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+          fi
+          printf 'DEPLOY_PASS revision=%s\n' "$revision"
+          REMOTE
+
+      - name: Verify public HTTPS dashboard and database health
+        if: steps.configuration.outputs.ready == 'true'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 \
+            "https://${DEPLOY_HOSTNAME}/fa/login" -o /dev/null
+          curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 5 --max-time 20 \
+            "https://${DEPLOY_HOSTNAME}/api/v1/health" |
+            python3 -c 'import json,sys; d=json.load(sys.stdin); assert d.get("status")=="ok" and d.get("database",{}).get("status")=="up"'
+          echo "HTTPS_PASS https://${DEPLOY_HOSTNAME}/fa/login and proxied API/database health"
+
+      - name: Remove temporary runner credentials
+        if: always() && steps.configuration.outputs.ready == 'true'
+        shell: bash
+        env:
+          CONFIG_FILE: ${{ steps.private-config.outputs.config_file }}
+        run: |
+          rm -f "$HOME/.ssh/duna_deploy_key" "$HOME/.ssh/duna_known_hosts"
+          if [ -n "${CONFIG_FILE:-}" ]; then
+            rm -f "$CONFIG_FILE"
+          fi

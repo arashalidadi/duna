@@ -8,7 +8,7 @@
  * another module's, and the exported surface is unchanged: every name this
  * installer used to export is still exported here.
  *
- * Run it with: pnpm setup [--status|--health|--integration]
+ * Run it with: pnpm setup [--upgrade|--status|--health|--integration]
  */
 'use strict';
 
@@ -679,7 +679,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const net = require('node:net');
 const crypto = require('node:crypto');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { reviewedPlan } = require('../../apps/api/scripts/phase11-runtime-privileges.cjs');
 const {
   ROOT,
@@ -736,6 +736,35 @@ function sqlLiteral(value) {
     throw new Error('Invalid private SQL literal');
   }
   return `'${value.replace(/'/g, "''")}'`;
+}
+function assertNonDestructiveMigration(sql, name = 'pending migration') {
+  const uncommented = sql.replace(/--[^\r\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const destructive = /\bDROP\s+(?:TABLE|SCHEMA|DATABASE)\b|\bTRUNCATE\b|\bDELETE\s+FROM\b|\bALTER\s+TABLE\b[^;]*\bDROP\s+COLUMN\b/i;
+  if (destructive.test(uncommented)) {
+    throw new Error(`Destructive SQL is not auto-deployed (${name}); review and authorize separately`);
+  }
+}
+function assertPendingMigrationsSafe(config, env) {
+  const applied = new Set(
+    psql(
+      config,
+      env,
+      `SELECT migration_name FROM public."_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name;\n`,
+      true
+    ).split('\n').filter(Boolean)
+  );
+  const directory = path.join(ROOT, 'prisma/migrations');
+  const pending = fs.readdirSync(directory, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !applied.has(entry.name))
+    .map((entry) => entry.name)
+    .sort();
+  for (const name of pending) {
+    const sqlFile = path.join(directory, name, 'migration.sql');
+    if (!fs.existsSync(sqlFile)) throw new Error(`Pending migration has no SQL file (${name})`);
+    assertNonDestructiveMigration(fs.readFileSync(sqlFile, 'utf8'), name);
+  }
+  console.log(`[migration safety] PASS ${pending.length} pending migration(s) contain no destructive SQL`);
+  return pending;
 }
 function sqlId(value) {
   if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(value)) throw new Error('Invalid database identifier');
@@ -1004,6 +1033,78 @@ function runIntegration(config, env) {
   if (error) throw error;
 }
 
+async function backupDatabase(config, env) {
+  const directory = path.join(STATE_DIR, 'backups');
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  fs.chmodSync(directory, 0o700);
+  const file = path.join(
+    directory,
+    `${config.FRESH_INSTANCE_ID}-${new Date().toISOString().replace(/[:.]/g, '-')}.dump`
+  );
+  const fd = fs.openSync(file, 'wx', 0o600);
+  const args = composeArgs(config, [
+    'exec', '-T', 'db', 'pg_dump', '-U', 'postgres', '-d', config.FRESH_DATABASE_NAME,
+    '--format=custom',
+  ]);
+  try {
+    await new Promise((resolve, reject) => {
+      const child = spawn('docker', args, { cwd: ROOT, env, stdio: ['ignore', fd, 'ignore'] });
+      child.once('error', reject);
+      child.once('close', (code) =>
+        code === 0 ? resolve() : reject(new Error('Database backup failed; update aborted'))
+      );
+    });
+    fs.fsyncSync(fd);
+    if (fs.fstatSync(fd).size < 32) throw new Error('Database backup is empty; update aborted');
+  } catch (error) {
+    fs.closeSync(fd);
+    fs.rmSync(file, { force: true });
+    throw error;
+  }
+  fs.closeSync(fd);
+  console.log(`[backup] PASS private pre-update database snapshot: ${path.relative(ROOT, file)}`);
+  return file;
+}
+
+async function upgrade(config, env) {
+  const state = loadState(config);
+  if (state.stage !== COMPLETE) {
+    throw new Error('Fresh setup is incomplete; updates are refused and database was not modified');
+  }
+  assertHealthy(config, env);
+  await checkReadOnly();
+  console.log('[upgrade] Existing installation verified; database and persistent volumes will be retained');
+  console.log('[build] Building and testing the candidate image before database changes');
+  docker(config, ['build', 'api'], env, { timeout: 1_800_000 });
+  console.log('[build] PASS image and offline tests');
+  runIntegration(config, env);
+  // Pending migrations that explicitly discard rows/schema are never automatic.
+  assertPendingMigrationsSafe(config, env);
+  // Save a private, complete PostgreSQL snapshot before the first migration.
+  // Never reset, prune, recreate the DB volume, or re-run fresh seed on updates.
+  await backupDatabase(config, env);
+  const migrator = (args, timeout = 900_000) =>
+    docker(config, ['run', '--rm', '-T', '--no-deps', 'migrator', ...args], env, { timeout }, [
+      'install',
+    ]);
+  migrator(['pnpm', 'exec', 'prisma', 'migrate', 'deploy']);
+  migrator(['node', 'scripts/fresh/verify-db.cjs', 'migrations']);
+  console.log('[migrations] PASS committed deploy and checksum/trigger verification');
+  migrator(['node', 'scripts/fresh/grants.cjs']);
+  docker(
+    config,
+    ['run', '--rm', '-T', '--no-deps', 'api', 'node', 'scripts/fresh/verify-db.cjs', 'runtime'],
+    env,
+    { timeout: 120_000 }
+  );
+  docker(config, ['up', '-d', '--wait', '--no-build', 'api', 'web'], env, { timeout: 300_000 });
+  assertHealthy(config, env);
+  await checkReadOnly();
+  console.log('[smoke] PASS Web and database-backed API health; existing records and credentials retained');
+  finishState(config);
+  console.log(`DUNA_UPGRADE_PASS project=${projectName(config)} database=${config.FRESH_DATABASE_NAME}`);
+}
+
 async function install(config, env) {
   await preflight(config, env); // No marker, Docker resource or DB write on failure.
   createState(config); // A failed/partial install is NEVER mistaken for an upgrade.
@@ -1071,16 +1172,17 @@ async function install(config, env) {
 async function main() {
   const mode = process.argv[2] || '--install';
   if (
-    !['--install', '--status', '--health', '--integration'].includes(mode) ||
+    !['--install', '--upgrade', '--status', '--health', '--integration'].includes(mode) ||
     process.argv.length > 3
   ) {
     throw new Error(
-      'Usage: pnpm setup | pnpm setup --status | pnpm setup --health | pnpm setup --integration'
+      'Usage: pnpm setup | pnpm setup --upgrade | pnpm setup --status | pnpm setup --health | pnpm setup --integration'
     );
   }
   const config = loadConfig();
   const env = composeEnvironment(config);
   if (mode === '--install') return install(config, env);
+  if (mode === '--upgrade') return upgrade(config, env);
   const state = loadState(config);
   if (mode === '--status') return status(config, env);
   if (state.stage !== COMPLETE)
@@ -1114,6 +1216,7 @@ MODULES.setup = {
   exec,
   composeArgs,
   sqlLiteral,
+  assertNonDestructiveMigration,
   bootstrapSql,
   assertEmptyCatalog,
   stateRecord,

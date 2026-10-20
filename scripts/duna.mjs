@@ -60,7 +60,8 @@ function stop(message, code = 2) {
  * server and get the dashboard up" path, using the repository's own guarded
  * installer (scripts/fresh/setup.cjs).
  *
- *   node scripts/duna.mjs setup               # install
+ *   node scripts/duna.mjs setup               # install on a new, empty target
+ *   node scripts/duna.mjs setup --upgrade     # guarded, backed-up application update
  *   node scripts/duna.mjs setup --status      # verify an installed target
  *   node scripts/duna.mjs setup --health      # live health pass
  *   node scripts/duna.mjs setup --integration # integration tier
@@ -76,7 +77,7 @@ function setup(rest) {
     console.log('\nNext:\n  pnpm start        # API on :3101 and the dashboard on :3000\n  pnpm status      # verify every listener answers');
     return 0;
   }
-  const known = ['--install', '--status', '--health', '--integration'];
+  const known = ['--install', '--upgrade', '--status', '--health', '--integration'];
   const mode = rest.find((flag) => known.includes(flag)) ?? '--install';
   const bad = rest.find((flag) => flag.startsWith('--') && !known.includes(flag));
   if (bad) stop(`Unknown setup option "${bad}". Expected one of: ${known.join(', ')} or --sandbox`);

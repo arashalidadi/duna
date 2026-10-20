@@ -59,6 +59,20 @@ function text(config) {
   );
 }
 
+test('automatic updates reject destructive pending migrations before touching production data', () => {
+  const { assertNonDestructiveMigration } = require('./setup.cjs');
+  assert.doesNotThrow(() => assertNonDestructiveMigration('ALTER TABLE "Customer" ADD COLUMN "region" TEXT;'));
+  assert.doesNotThrow(() => assertNonDestructiveMigration('-- DROP TABLE ignored\nSELECT 1;'));
+  for (const sql of [
+    'DROP TABLE "Customer";',
+    'ALTER TABLE "Customer" DROP COLUMN "taxId";',
+    'TRUNCATE TABLE "Invoice";',
+    'DELETE FROM "Customer";',
+  ]) {
+    assert.throws(() => assertNonDestructiveMigration(sql), /Destructive SQL is not auto-deployed/);
+  }
+});
+
 test('fresh config requires explicit NEW EMPTY target, separate strong secrets and only known keys', () => {
   assert.deepEqual(parseConfig(text(valid())), valid());
   for (const change of [
