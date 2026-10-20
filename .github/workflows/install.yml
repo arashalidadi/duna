@@ -1,0 +1,271 @@
+name: install
+
+# One standard Duna installation path: from a fresh server to a fully running
+# dashboard, managed entirely by GitHub Actions. The operator provides only
+# the server connection details and server-specific secrets in GitHub
+# Settings → Secrets and variables → Actions; the workflow itself provisions
+# the database and its users/roles/passwords, runs migrations and seed,
+# installs dependencies, builds the API and dashboard, starts the services
+# and runs the final health checks. No manual database, no manual .env file
+# on the server, and no manual install steps are required.
+#
+# The server-side work is the repository's own isolated fresh installer
+# (scripts/fresh/setup.cjs = `pnpm setup`), run over SSH on the target host.
+#
+# Required GitHub secrets and variables are documented in deploy/README.md.
+
+on:
+  push:
+    branches:
+      - arena/8f399c78-duna
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Install even if no deploy-relevant files changed"
+        type: boolean
+        default: false
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  BRANCH: arena/8f399c78-duna
+
+jobs:
+  # -----------------------------------------------------------------------
+  # 1. Decide whether this push can affect a running installation.
+  # -----------------------------------------------------------------------
+  changes:
+    name: Detect install-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      runtime: ${{ steps.filter.outputs.runtime }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Anything the installed application or its installation depends on.
+          filters: |
+            runtime:
+              - 'apps/**'
+              - 'packages/**'
+              - 'prisma/**'
+              - 'scripts/**'
+              - 'deploy/**'
+              - 'docker/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.env.example'
+              - '.env.fresh.example'
+              - '.env.production.example'
+              - 'tsconfig*.json'
+              - '.github/workflows/install.yml'
+
+      - id: decide
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "reason=manual dispatch" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.force }}" = "true" ]; then
+            echo "reason=forced" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.filter.outputs.runtime }}" = "true" ]; then
+            echo "reason=install-relevant paths changed" >> "$GITHUB_OUTPUT"
+          else
+            echo "reason=only non-runtime paths changed" >> "$GITHUB_OUTPUT"
+          fi
+          echo "runtime=${{ steps.filter.outputs.runtime }}" >> "$GITHUB_OUTPUT"
+
+  # -----------------------------------------------------------------------
+  # 2. Prove the branch is installable (runs on every push).
+  # -----------------------------------------------------------------------
+  verify:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate the Prisma client
+        run: pnpm db generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit and contract tests
+        run: pnpm test
+
+      # NODE_ENV must not leak into the Next build; a non-standard value makes
+      # Next refuse to prerender /404, /500 and /_not-found.
+      - name: Build
+        run: pnpm build
+        env:
+          NODE_ENV: ""
+
+      - name: Verify the built artefacts exist
+        run: |
+          test -f apps/api/dist/src/main.js
+          test -d apps/web/.next
+          echo "artefacts present"
+
+  # -----------------------------------------------------------------------
+  # 3. Install on the target server (SSH). Runs the repository's own
+  #    isolated fresh installer; secrets are transferred only into the
+  #    server's private mode-0600 .env.fresh.local, never printed here.
+  # -----------------------------------------------------------------------
+  install:
+    name: Install on the target server
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: [changes, verify]
+    environment:
+      name: production
+    if: needs.changes.outputs.runtime == 'true' || github.event.inputs.force == 'true'
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+    steps:
+      - name: Require deployment configuration
+        run: |
+          : "${DEPLOY_HOST:?Secret DEPLOY_HOST is not set}"
+          : "${DEPLOY_USER:?Secret DEPLOY_USER is not set}"
+          : "${DEPLOY_PATH:?Variable DEPLOY_PATH is not set}"
+          : "${FRESH_INSTANCE_ID:?Secret FRESH_INSTANCE_ID is not set}"
+          : "${FRESH_DATABASE_NAME:?Secret FRESH_DATABASE_NAME is not set}"
+          : "${FRESH_NEW_SERVER_ACK:?Secret FRESH_NEW_SERVER_ACK is not set}"
+          : "${FRESH_DB_SUPER_PASSWORD:?Secret FRESH_DB_SUPER_PASSWORD is not set}"
+          : "${FRESH_DB_OWNER_PASSWORD:?Secret FRESH_DB_OWNER_PASSWORD is not set}"
+          : "${FRESH_DB_RUNTIME_PASSWORD:?Secret FRESH_DB_RUNTIME_PASSWORD is not set}"
+          : "${FRESH_ADMIN_EMAIL:?Secret FRESH_ADMIN_EMAIL is not set}"
+          : "${FRESH_ADMIN_PASSWORD:?Secret FRESH_ADMIN_PASSWORD is not set}"
+          : "${FRESH_AUTH_JWT_SECRET:?Secret FRESH_AUTH_JWT_SECRET is not set}"
+          : "${FRESH_AUTH_REFRESH_SECRET:?Secret FRESH_AUTH_REFRESH_SECRET is not set}"
+          : "${FRESH_ATTACHMENT_URL_SECRET:?Secret FRESH_ATTACHMENT_URL_SECRET is not set}"
+          echo "Install ${GITHUB_SHA::7} as ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH} (${FRESH_DATABASE_NAME})"
+
+      - name: Install the deploy key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          if [ -n "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" ]; then
+            printf '%s\n' "${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Install Duna on the server
+        env:
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}.git
+          FRESH_INSTANCE_ID: ${{ secrets.FRESH_INSTANCE_ID }}
+          FRESH_DATABASE_NAME: ${{ secrets.FRESH_DATABASE_NAME }}
+          FRESH_NEW_SERVER_ACK: ${{ secrets.FRESH_NEW_SERVER_ACK }}
+          FRESH_DB_SUPER_PASSWORD: ${{ secrets.FRESH_DB_SUPER_PASSWORD }}
+          FRESH_DB_OWNER_PASSWORD: ${{ secrets.FRESH_DB_OWNER_PASSWORD }}
+          FRESH_DB_RUNTIME_PASSWORD: ${{ secrets.FRESH_DB_RUNTIME_PASSWORD }}
+          FRESH_ADMIN_EMAIL: ${{ secrets.FRESH_ADMIN_EMAIL }}
+          FRESH_ADMIN_PASSWORD: ${{ secrets.FRESH_ADMIN_PASSWORD }}
+          FRESH_AUTH_JWT_SECRET: ${{ secrets.FRESH_AUTH_JWT_SECRET }}
+          FRESH_AUTH_REFRESH_SECRET: ${{ secrets.FRESH_AUTH_REFRESH_SECRET }}
+          FRESH_ATTACHMENT_URL_SECRET: ${{ secrets.FRESH_ATTACHMENT_URL_SECRET }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<REMOTE
+          set -Eeuo pipefail
+          export DEPLOY_PATH="${DEPLOY_PATH:-/opt/duna}"
+          export BRANCH="${BRANCH}"
+          export REPO_URL="${REPO_URL}"
+          export FRESH_INSTANCE_ID="${FRESH_INSTANCE_ID}"
+          export FRESH_DATABASE_NAME="${FRESH_DATABASE_NAME}"
+          export FRESH_NEW_SERVER_ACK="${FRESH_NEW_SERVER_ACK}"
+          export FRESH_DB_SUPER_PASSWORD="${FRESH_DB_SUPER_PASSWORD}"
+          export FRESH_DB_OWNER_PASSWORD="${FRESH_DB_OWNER_PASSWORD}"
+          export FRESH_DB_RUNTIME_PASSWORD="${FRESH_DB_RUNTIME_PASSWORD}"
+          export FRESH_ADMIN_EMAIL="${FRESH_ADMIN_EMAIL}"
+          export FRESH_ADMIN_PASSWORD="${FRESH_ADMIN_PASSWORD}"
+          export FRESH_AUTH_JWT_SECRET="${FRESH_AUTH_JWT_SECRET}"
+          export FRESH_AUTH_REFRESH_SECRET="${FRESH_AUTH_REFRESH_SECRET}"
+          export FRESH_ATTACHMENT_URL_SECRET="${FRESH_ATTACHMENT_URL_SECRET}"
+
+          # 1. Source tree: clone fresh or hard-update to the branch.
+          if [ ! -d "$DEPLOY_PATH/.git" ]; then
+            echo "[install] cloning $REPO_URL ($BRANCH) into $DEPLOY_PATH"
+            mkdir -p "$(dirname "$DEPLOY_PATH")"
+            git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_PATH"
+          else
+            echo "[install] updating $DEPLOY_PATH to $BRANCH"
+            git -C "$DEPLOY_PATH" remote set-url origin "$REPO_URL"
+            git -C "$DEPLOY_PATH" fetch --prune origin "$BRANCH"
+            git -C "$DEPLOY_PATH" checkout --force "$BRANCH"
+            git -C "$DEPLOY_PATH" reset --hard "origin/$BRANCH"
+            git -C "$DEPLOY_PATH" clean -ffd -e .env.fresh.local -e node_modules
+          fi
+
+          # 2. pnpm 9 (the installer itself refuses to install OS packages).
+          if ! command -v pnpm >/dev/null 2>&1 || [ "$(pnpm -v 2>/dev/null | cut -d. -f1)" != "9" ]; then
+            echo "[install] installing pnpm 9"
+            npm install --global pnpm@9.15.9 >/dev/null
+          fi
+          command -v node >/dev/null 2>&1 || { echo "[install] Node.js >=20 must be installed by the operator" >&2; exit 1; }
+
+          # 3. Private fresh-install configuration on the server: mode 0600,
+          #    owned by the deploy user, never committed, never printed.
+          cat > "$DEPLOY_PATH/.env.fresh.local" <<ENV
+          FRESH_INSTANCE_ID=${FRESH_INSTANCE_ID}
+          FRESH_DATABASE_NAME=${FRESH_DATABASE_NAME}
+          FRESH_NEW_SERVER_ACK=${FRESH_NEW_SERVER_ACK}
+          FRESH_DB_SUPER_PASSWORD=${FRESH_DB_SUPER_PASSWORD}
+          FRESH_DB_OWNER_PASSWORD=${FRESH_DB_OWNER_PASSWORD}
+          FRESH_DB_RUNTIME_PASSWORD=${FRESH_DB_RUNTIME_PASSWORD}
+          FRESH_ADMIN_EMAIL=${FRESH_ADMIN_EMAIL}
+          FRESH_ADMIN_PASSWORD=${FRESH_ADMIN_PASSWORD}
+          FRESH_AUTH_JWT_SECRET=${FRESH_AUTH_JWT_SECRET}
+          FRESH_AUTH_REFRESH_SECRET=${FRESH_AUTH_REFRESH_SECRET}
+          FRESH_ATTACHMENT_URL_SECRET=${FRESH_ATTACHMENT_URL_SECRET}
+          ENV
+          chmod 600 "$DEPLOY_PATH/.env.fresh.local"
+
+          # 4. The full install: dependency installation, Prisma client
+          #    generation, offline tests, API/Web image build, isolated PG16
+          #    provisioning, database users/roles and passwords, migrations,
+          #    structural seed with the initial administrator, runtime grants,
+          #    service startup and authenticated smoke tests.
+          cd "$DEPLOY_PATH"
+          pnpm setup
+
+          # 5. Read-only confirmation of the installed state.
+          pnpm setup --health
+          REMOTE
+
+      - name: Report the installed commit
+        if: always()
+        run: |
+          ssh -i ~/.ssh/deploy_key "${DEPLOY_USER}@${DEPLOY_HOST}" \
+            "git -C ${DEPLOY_PATH:-/opt/duna} log -1 --pretty='installed %h %s (%cd)' --date=iso" \
+            || echo "could not read the installed revision"

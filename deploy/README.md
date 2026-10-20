@@ -1,209 +1,140 @@
-# Deploying Duna ERP
+# Deploying Duna — one standard install path
 
-This directory holds everything needed to run Duna ERP on a real server, plus
-the GitHub Actions workflow that keeps it updated from the
-`arena/5c597eb9-duna` branch.
+## The standard path
 
-```
-deploy/
-  install-server.sh        idempotent installer / updater / repair tool
-  healthcheck.sh           read-only probe of a running instance
-  systemd/duna-api.service NestJS unit (loopback :3101)
-  systemd/duna-web.service Next.js unit (:3000)
-  nginx/duna.conf          TLS reverse proxy to the dashboard
-```
+There is exactly one supported way to install Duna on a server: the **isolated
+fresh install**, implemented by the repository's own installer
+(`scripts/fresh/setup.cjs`, run as `pnpm setup`), orchestrated from start to
+finish by GitHub Actions (`.github/workflows/install.yml`).
 
-Nothing here re-implements the application. The installer calls the
-repository's own commands — `pnpm install`, `pnpm db deploy`, `pnpm db seed`,
-`pnpm build` — so the deployed result is exactly what the test suite verifies.
+What the workflow does, without any manual steps on the server:
 
----
+1. **Verify** — installs dependencies, generates the Prisma client, runs
+   typecheck, lint, the unit/contract test suite and the API + web builds,
+   and asserts the built artefacts exist.
+2. **Install over SSH** — clones/updates the repository on the target server,
+   writes the private fresh-install configuration (mode 0600, deploy user
+   only) from GitHub Secrets, then runs `pnpm setup`, which:
+   - provisions an isolated PostgreSQL 16 (Docker Compose project owned by
+     the install, no host port published),
+   - creates the database, the database users/roles and their passwords
+     (schema owner, runtime API role, NOLOGIN audit-export role),
+   - applies every committed migration with checksum verification and the
+     append-only audit triggers,
+   - runs the structural, non-demo seed (currencies, permissions, roles,
+     company settings, initial primary administrator — no fabricated
+     business data),
+   - applies the reviewed per-table/runtime grants,
+   - builds and starts the API and dashboard services, and
+   - runs the final smoke checks: public pages, database-backed API health,
+     initial-admin login, authenticated account and permission reads through
+     the web proxy.
+3. **Confirm** — `pnpm setup --health` reports the installed state.
 
-## 1. Server prerequisites
+The operator never creates a database, never writes an `.env` file on the
+server, and never runs install steps by hand.
 
-| Requirement | Why |
+## What the operator provides on the target server
+
+| Item | Requirement |
 | --- | --- |
-| Node.js ≥ 20 (22 tested) | The API and Next.js builds run on it |
-| pnpm 9 (the installer installs it) | Workspace package manager |
-| PostgreSQL 16 reachable on loopback | `prisma/migrations` targets PG16 |
-| `git`, `curl`, `systemd`, `nginx` | Source, probes, services, TLS |
-| Passwordless `sudo` for `systemctl` and writing `/etc/systemd/system` | The units run as services, not as the deploy user's shell |
+| OS user | a deploy user able to `git clone`, run `pnpm`/`docker` and write to the deploy path |
+| Node.js | ≥ 20 (installed by the operator; the installer does not touch OS packages) |
+| pnpm | 9.x (bootstrapped automatically if missing or the wrong major version) |
+| Docker | Engine with Compose plugin v2.20+, daemon enabled at boot (`systemctl is-enabled docker` = enabled) |
+| Network | outbound to GitHub, the npm registry, Docker image registries; the Prisma client is generated inside the isolated build image |
+| Port | `127.0.0.1:3000` free (the dashboard is published only on loopback) |
+| Target | a new, empty server/database; the installer refuses to adopt an existing database |
 
-The installer deliberately does **not** install Node.js itself: distribution
-policy for that varies too much, and a deployment tool that silently rewrites
-system packages is a worse problem than the one it solves.
+The installer checks all of the above and stops before creating anything if a
+check fails. A reverse proxy/TLS, mail delivery, backups and externally
+accessible hosting are separate operator decisions and are not part of this
+path.
 
-## 2. One-time server setup
+## Required GitHub configuration
 
-```bash
-# as the deploy user, on the server
-sudo mkdir -p /opt/duna && sudo chown "$USER" /opt/duna
-git clone --branch arena/5c597eb9-duna https://github.com/arashalidadi/duna.git /opt/duna
-cd /opt/duna
+Create these in **Settings → Secrets and variables → Actions** (repository
+level). Real values are generated locally with a password manager and are
+never committed, logged or documented here.
 
-cp .env.production.example .env
-chmod 600 .env
-$EDITOR .env          # real DATABASE_URL, real JWT secrets, real admin account
+### Secrets
 
-mkdir -p apps/web && cp apps/web/.env.example apps/web/.env.local
-chmod 600 apps/web/.env.local
-```
+| Secret | Description | Generated per install with |
+| --- | --- | --- |
+| `DEPLOY_HOST` | target server address | — |
+| `DEPLOY_USER` | deploy account on the server | — |
+| `DEPLOY_SSH_PRIVATE_KEY` | passphraseless deploy key (public half installed on the server) | `ssh-keygen -t ed25519` |
+| `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan -H <host>` output (optional) | — |
+| `FRESH_INSTANCE_ID` | unique lowercase install id, 4–20 chars | `openssl rand -hex 6` |
+| `FRESH_DATABASE_NAME` | dedicated `duna_fresh_` + 3–24 lowercase alphanumerics | chosen by operator |
+| `FRESH_NEW_SERVER_ACK` | `NEW_EMPTY_SERVER:<FRESH_DATABASE_NAME>` | derived from the database name |
+| `FRESH_DB_SUPER_PASSWORD` | PostgreSQL bootstrap password (≥32 chars) | `openssl rand -base64 48` |
+| `FRESH_DB_OWNER_PASSWORD` | schema owner role password (≥32 chars) | `openssl rand -base64 48` |
+| `FRESH_DB_RUNTIME_PASSWORD` | API runtime role password (≥32 chars) | `openssl rand -base64 48` |
+| `FRESH_ADMIN_EMAIL` | initial administrator email (lowercase) | — |
+| `FRESH_ADMIN_PASSWORD` | initial administrator password (≥16 chars) | `openssl rand -base64 24` |
+| `FRESH_AUTH_JWT_SECRET` | access-token signing secret (≥32 chars) | `openssl rand -base64 48` |
+| `FRESH_AUTH_REFRESH_SECRET` | refresh-token signing secret (≥32 chars) | `openssl rand -base64 48` |
+| `FRESH_ATTACHMENT_URL_SECRET` | download-link signing secret (≥32 chars) | `openssl rand -base64 48` |
 
-`.env` must never be committed; only `.env.production.example` is tracked.
+All `FRESH_*` values are distinct from one another (the installer enforces
+this). Every secret is written only to the server's private
+`.env.fresh.local` (mode 0600, owned by the deploy user) and is never
+printed by the workflow or the installer.
 
-`apps/web/.env.local` keeps browser traffic same-origin:
+### Variables
 
-```
-NEXT_PUBLIC_API_URL=/api/v1
-API_INTERNAL_URL=http://127.0.0.1:3101
-```
+| Variable | Description | Example |
+| --- | --- | --- |
+| `DEPLOY_PATH` | install directory on the server | `/opt/duna` |
+| `DEPLOY_HOSTNAME` | public hostname (informational only) | `duna.example.com` |
 
-`NEXT_PUBLIC_API_URL` is inlined into the browser bundle at build time, so it
-must be correct **before** `pnpm build` runs.
+### Workflow triggers
 
-## 3. Install
+- Push to `arena/8f399c78-duna` installs when deploy-relevant files changed
+  (`apps/`, `packages/`, `prisma/`, `scripts/`, `deploy/`, `docker/`,
+  lockfiles, env examples, tsconfig files, the workflow itself).
+- `workflow_dispatch` with `force = true` installs regardless of changed
+  paths.
 
-```bash
-export DUNA_ADMIN_DATABASE_URL='postgresql://postgres:…@127.0.0.1:5432/postgres'
-bash deploy/install-server.sh --check     # read-only diagnosis first
-bash deploy/install-server.sh --install
-```
+## Retired
 
-`--check` changes nothing and exits 1 if the host cannot be deployed to. It
-verifies the toolchain, the source tree, the environment file (including that
-no shipped placeholder survived), database reachability, both build artefacts,
-and the running services.
+The previous `deploy.yml` workflow (which targeted the `arena/5c597eb9-duna`
+branch, expected a host-provisioned PostgreSQL and a manually written
+`.env`) and `deploy/install-server.sh` are retired from the standard path.
+`deploy/install-server.sh` is retained only as a reference tool for existing
+host-PostgreSQL installations; new installations use the path above.
 
-`--install` then:
+## Sandbox validation (this session, 2026-10-20)
 
-1. installs pnpm if it is missing or the wrong major version;
-2. clones or hard-updates `$APP_DIR` to `arena/5c597eb9-duna`;
-3. refuses to continue while `.env` still holds a placeholder secret;
-4. creates the database if absent and applies `prisma/migrations`;
-5. seeds **reference data only** — `SEED_DEMO_DATA=false` is forced, so no
-   fabricated business records can reach production;
-6. builds with `NODE_ENV` unset (see the build trap below);
-7. installs and restarts both systemd units;
-8. runs the health probe and fails the deployment if it does not pass.
+The complete install core was executed for real in the sandbox (embedded
+PostgreSQL 16 cluster, sandbox-only Prisma engine mirror since
+binaries.prisma.sh is unreachable from the sandbox):
 
-Re-running `--install` on a healthy server is a normal update, not a reinstall.
-
-### The build trap
-
-`.env.example` ships `NODE_ENV=development`. If a build inherits it, Next.js
-refuses to prerender `/404`, `/500` and `/_not-found` and the build fails with
-an error that does not mention `NODE_ENV`. The installer sources the
-environment file and then explicitly unsets `NODE_ENV` before building; the API
-still reads the file at runtime.
-
-### If the previous install failed
-
-`--install` is written to repair rather than assume a clean host. It handles the
-failures that actually occur:
-
-| Symptom | What the installer does |
+| Stage | Result |
 | --- | --- |
-| Dirty tree or detached HEAD from an interrupted deploy | `checkout --force` + `reset --hard origin/<branch>`, preserving `.env` and `node_modules` |
-| Missing `node_modules` after a failed `pnpm install` | reinstalls with `--frozen-lockfile` |
-| Half-built `.next` | rebuilds |
-| Orphan process holding :3000 or :3101 | the units own those ports; `systemctl restart` replaces them |
-| Database provisioned from the pre-squash migration history | see below |
+| `pnpm install --frozen-lockfile` | passed |
+| `pnpm db generate` | passed |
+| `pnpm db deploy` (migrations on PG16) | passed |
+| `pnpm db seed` (structural, non-demo, primary admin) | passed |
+| `pnpm typecheck` (all workspaces) | passed |
+| `pnpm lint` | passed (0 errors) |
+| `pnpm test` (full fast suite) | passed |
+| `pnpm build` (API + web, 141 pages) | passed |
+| API health (`/api/v1/health`, database up) | passed, direct and via web proxy |
+| Web login page (`/fa/login`) | passed, HTTP 200 |
+| Admin login via web proxy → `/auth/me` → `/permissions/all` | passed; primary admin, `audit:read` present |
+| Unauthenticated dashboard access | served the login page; no business data leaked |
 
-**Migration re-baselining.** The branch squashes 49 accumulated migrations into
-a three-file baseline. A database provisioned *before* that squash still lists
-all 49 names in `_prisma_migrations`, so `prisma migrate deploy` refuses to
-apply the new baseline. This is the most likely cause of a failed re-install
-over an existing database. The fix rewrites only that journal:
+Not executable in this sandbox and therefore **not** executed here: the
+Docker-based fresh installer (`pnpm setup`), systemd service installation,
+host PostgreSQL provisioning, and the GitHub Actions workflow run itself.
+The verify-job equivalent above ran locally and passed; the install job runs
+the identical repository commands on the target server.
 
-```bash
-DUNA_ACK_REBASELINE=I_UNDERSTOOD_JOURNAL_ONLY \
-  bash deploy/install-server.sh --install --rebaseline-migrations
-```
+## Running it
 
-No table data is touched. Without both the flag and the acknowledgement the
-installer stops and explains why.
-
-## 4. Services and proxy
-
-- `duna-api` runs `node apps/api/dist/src/main.js` on `127.0.0.1:3101`. It runs
-  the built entry point directly rather than `pnpm start-api`: that dispatcher
-  path enforces the Phase 11 approved target (role `shipping_runtime_p11`,
-  database `duna_seed_test`, loopback 5432), which is a sandbox constraint, not
-  this deployment's database identity.
-- `duna-web` runs `next start -H 0.0.0.0 -p 3000` with `NODE_ENV=production`.
-  The process renames its own title to `next-server (vX)`; that is normal.
-- `nginx` terminates TLS and proxies to `:3000` only. `/api/v1` reaches the API
-  through the Next same-origin proxy, so `:3101` is never published and
-  `API_CORS_ORIGINS` needs only the public origin.
-
-Set `X-Forwarded-Proto $scheme` in nginx (the shipped config does) or the
-application will not mark its cookies `Secure`.
-
-## 5. Health
-
-```bash
-bash deploy/healthcheck.sh          # APP_DIR-relative, read-only
-systemctl status duna-api duna-web
-journalctl -u duna-api -u duna-web -n 100 --no-pager
-```
-
-The probe checks both listeners, `GET /api/v1/health`, the login page, the
-same-origin proxy path, and — importantly — that an unauthenticated business
-route is rejected with 401/403 rather than served.
-
-## 6. The GitHub Actions workflow
-
-`.github/workflows/deploy.yml` (workflow name: **deploy**) triggers on
-`push` to `arena/5c597eb9-duna` and on `workflow_dispatch`.
-
-Three jobs:
-
-1. **changes** — `dorny/paths-filter` decides whether the push touched anything
-   the running application depends on (`apps/`, `packages/`, `prisma/`,
-   `scripts/`, `deploy/`, `docker/`, `package.json`, `pnpm-lock.yaml`,
-   `pnpm-workspace.yaml`, the env examples, `tsconfig*.json`, the workflow
-   itself). A documentation-only push stops here, so docs work never restarts
-   production.
-2. **verify** — always runs: install, `prisma generate`, `pnpm typecheck`,
-   `pnpm lint`, `pnpm test`, `pnpm build` with `NODE_ENV` emptied, then asserts
-   `apps/api/dist/src/main.js` and `apps/web/.next` exist.
-3. **deploy** — only when `changes.runtime == 'true'` (or a forced dispatch)
-   and `verify` passed. Installs the SSH deploy key, uploads `deploy/`, runs
-   `deploy/install-server.sh --install` over SSH, then runs the health probe.
-   A failed health check fails the run, so a broken deployment cannot pass
-   silently.
-
-`concurrency: deploy-${{ github.ref }}` with `cancel-in-progress: false`
-serialises deployments instead of racing them.
-
-### Required repository settings
-
-These must be created in the GitHub UI; a workflow cannot create its own
-secrets.
-
-**Settings → Secrets and variables → Actions → Secrets**
-
-| Name | Value |
-| --- | --- |
-| `DEPLOY_HOST` | server address |
-| `DEPLOY_USER` | the deploy account |
-| `DEPLOY_SSH_PRIVATE_KEY` | private key, no passphrase |
-| `DEPLOY_SSH_KNOWN_HOSTS` | `ssh-keyscan <host>` output (optional; without it the first connection records the host key unverified) |
-| `DUNA_ADMIN_DATABASE_URL` | administrative PostgreSQL URL for DDL |
-
-**Settings → Secrets and variables → Actions → Variables**
-
-| Name | Value |
-| --- | --- |
-| `DEPLOY_PATH` | `/opt/duna` |
-| `DEPLOY_HOSTNAME` | public hostname, for the environment URL |
-
-**Settings → Environments → New environment → `production`** — the `deploy` job
-runs inside it, which is where required reviewers and deployment protection
-rules belong.
-
-**Deploy key:** generate a dedicated keypair, add the public half to the
-repository as a read-only deploy key (or to the deploy account's
-`~/.ssh/authorized_keys`), and store only the private half in
-`DEPLOY_SSH_PRIVATE_KEY`. Do not reuse a personal key, and never paste a
-password into a workflow, a secret, or a chat message.
+Push to `arena/8f399c78-duna`, or trigger `workflow_dispatch` from the
+GitHub Actions "Install" workflow. After a successful run, sign in at
+`https://<DEPLOY_HOSTNAME>/fa/login` (or `http://<DEPLOY_HOST>:3000/fa/login`
+on loopback) with `FRESH_ADMIN_EMAIL` / `FRESH_ADMIN_PASSWORD`.

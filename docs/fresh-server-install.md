@@ -123,6 +123,19 @@ API/Web/admin acceptance have not been run**. A capable new server must verify
 those stages and emit its own `FRESH_SETUP_PASS`. These limits do not overturn
 the owner's previously reported 27-stage Phase 12 PASS.
 
+## GitHub Actions orchestration
+
+This same fresh-install path is the single standard installation path and is
+orchestrated on real servers by `.github/workflows/install.yml`: the workflow
+verifies the branch (install, generate, typecheck, lint, tests, build), then
+connects to the target server over SSH, writes the private
+`.env.fresh.local` (mode 0600) from GitHub Secrets, runs `pnpm setup` and
+confirms the result with `pnpm setup --health`. The operator provides only
+the server connection details and server-specific secrets in GitHub Settings
+→ Secrets and variables → Actions; no database, `.env` file or install step
+is created manually. Required secrets and variables are listed in
+deploy/README.md.
+
 ## Failure, upgrade and recovery boundary
 
 A failure prints `FRESH_SETUP_STOP`, suppresses third-party output that might
