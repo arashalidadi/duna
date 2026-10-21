@@ -51,7 +51,8 @@ systemctl reload nginx
 # Do not try to issue a certificate before the webroot challenge can be served.
 # certbot is idempotent and keeps a valid certificate until it nears expiry.
 certbot certonly --webroot --webroot-path /var/www/certbot \
-  --domain "$DOMAIN" --email "$EMAIL" --agree-tos --non-interactive --keep-until-expiring
+  --cert-name duna-managed --domain "$DOMAIN" --email "$EMAIL" \
+  --agree-tos --non-interactive --keep-until-expiring
 
 render_template deploy/nginx/duna.conf "$AVAILABLE"
 nginx -t >/dev/null

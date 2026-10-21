@@ -288,6 +288,8 @@ jobs:
       - name: Fresh install or protected update, then health check
         if: steps.configuration.outputs.ready == 'true'
         shell: bash
+        env:
+          DUNA_MANAGED_INGRESS: ${{ vars.DUNA_MANAGED_INGRESS }}
         run: |
           set -Eeuo pipefail
           ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
@@ -317,16 +319,20 @@ jobs:
           fi
           node scripts/duna.mjs setup --health
           node scripts/duna.mjs setup --status
-          if [ "$(id -u)" -eq 0 ]; then
-            bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+          if [ "${DUNA_MANAGED_INGRESS:-}" = "true" ]; then
+            if [ "$(id -u)" -eq 0 ]; then
+              bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+            else
+              sudo -n bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+            fi
           else
-            sudo -n bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
+            echo '[ingress] Skipped: the target does not expose the dashboard through managed nginx; public HTTPS verification is also skipped'
           fi
           printf 'DEPLOY_PASS revision=%s\n' "$revision"
           REMOTE
 
       - name: Verify public HTTPS dashboard and database health
-        if: steps.configuration.outputs.ready == 'true'
+        if: steps.configuration.outputs.ready == 'true' && vars.DUNA_MANAGED_INGRESS == 'true'
         timeout-minutes: 5
         shell: bash
         run: |
