@@ -23,6 +23,7 @@
     "test:e2e": "node scripts/duna.mjs test:e2e",
     "check": "node scripts/duna.mjs check",
     "db": "node scripts/duna.mjs db",
+    "db:seed": "pnpm db seed",
     "lint": "node scripts/duna.mjs lint",
     "typecheck": "node scripts/duna.mjs typecheck"
   },
