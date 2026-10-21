@@ -439,14 +439,9 @@ async function main(stage) {
     await db.$disconnect();
   }
 }
-if (require.main === module) {
-  main(process.argv[2]).catch(() => {
-    console.error(
-      'Fresh database verification failed (details suppressed; no repair/reset attempted)'
-    );
-    process.exitCode = 1;
-  });
-}
+// The folded verifyDb CLI block is inert when this single module runs as the
+// installer entry: only the installer's own main() at the bottom runs. The
+// standalone scripts/fresh/verify-db.cjs remains the CLI entry for compose runs.
 MODULES.verifyDb = {
   assertDatabaseUrl,
   assertDatabaseIdentity,
@@ -587,16 +582,8 @@ async function applyGrants() {
     await db.$disconnect();
   }
 }
-
-if (require.main === module) {
-  applyGrants().catch(() => {
-    // Never print Prisma errors: they can include a URL or an SQL statement.
-    console.error(
-      'Fresh runtime privilege stage failed (details suppressed); review catalog and credentials privately'
-    );
-    process.exitCode = 1;
-  });
-}
+// The folded grants CLI block is inert when this single module runs as the
+// installer entry; scripts/fresh/grants.cjs remains the compose-run CLI entry.
 MODULES.grants = { quoteId, checkCatalog, grantStatements, applyGrants };
 }
 
