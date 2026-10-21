@@ -212,6 +212,7 @@ jobs:
           ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
             -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=12
             -o ConnectTimeout=20)
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
           repo="${GITHUB_REPOSITORY}"
@@ -279,6 +280,7 @@ jobs:
           ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
             -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=12
             -o ConnectTimeout=20)
           ssh "${ssh_opts[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "if [ \"\$(id -u)\" -eq 0 ]; then bash '$DEPLOY_PATH/scripts/fresh/bootstrap-host.sh' '$DEPLOY_USER'; else sudo -n bash '$DEPLOY_PATH/scripts/fresh/bootstrap-host.sh' '$DEPLOY_USER'; fi"
@@ -291,6 +293,7 @@ jobs:
           ssh_opts=(-i "$HOME/.ssh/duna_deploy_key" -p "$DEPLOY_PORT"
             -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
             -o UserKnownHostsFile="$HOME/.ssh/duna_known_hosts"
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=12
             -o ConnectTimeout=20)
           ssh "${ssh_opts[@]}" "${DEPLOY_USER}@${DEPLOY_HOST}" \
             "bash -s -- '$DEPLOY_PATH' '$FRESH_INSTANCE_ID' '$GITHUB_SHA' '$DEPLOY_HOSTNAME' '$TLS_EMAIL'" <<'REMOTE'
