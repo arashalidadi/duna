@@ -122,6 +122,12 @@ node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
 if ! command -v pnpm >/dev/null 2>&1 || [[ "$(pnpm --version)" != 9.* ]]; then
   as_root npm install --global pnpm@9.15.9
 fi
+# npm installs pnpm under the Node prefix (the toolchain when node was pulled
+# from the official image); make it resolvable for non-login remote shells.
+pnpm_bin="$(npm prefix -g 2>/dev/null)/bin/pnpm"
+if [ -x "$pnpm_bin" ] && ! command -v pnpm >/dev/null 2>&1; then
+  as_root ln -sfn "$pnpm_bin" /usr/local/bin/pnpm
+fi
 
 # Ensure this ssh session need not rely on stale group membership; workflow opens
 # a new SSH session after bootstrap before it runs Docker-backed setup.
