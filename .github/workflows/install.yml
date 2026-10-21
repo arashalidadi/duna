@@ -310,13 +310,13 @@ jobs:
           state=".fresh-setup/$instance.json"
           if [ -e "$state" ]; then
             echo "[deploy] Updating existing installation to ${revision:0:12}; no reset or fresh seed"
-            pnpm run setup -- --upgrade
+            node scripts/duna.mjs setup --upgrade
           else
             echo "[deploy] Installing new isolated instance from ${revision:0:12}"
-            pnpm run setup
+            node scripts/duna.mjs setup
           fi
-          pnpm run setup -- --health
-          pnpm run setup -- --status
+          node scripts/duna.mjs setup --health
+          node scripts/duna.mjs setup --status
           if [ "$(id -u)" -eq 0 ]; then
             bash scripts/fresh/configure-ingress.sh "$hostname" "$tls_email"
           else
