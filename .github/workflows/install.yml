@@ -2,7 +2,7 @@ name: Install and deploy Duna
 
 on:
   push:
-    branches: [arena/8f399c78-duna]
+    branches: [v*, main]
   workflow_dispatch:
 
 concurrency:
