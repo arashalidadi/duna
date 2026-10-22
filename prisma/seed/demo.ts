@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { seedDocumentDemo } from './documents';
 import type { SeedCoreResult } from './core';
 
 /**
@@ -193,6 +194,12 @@ export async function seedDemo(prisma: PrismaClient, ctx: SeedCoreResult): Promi
   // fabricated business data. Portal setup is atomic and self-contained; the
   // older API-driven portal seed script has been removed.
   await seedPortalDemo(prisma, demoCtx);
+
+  // Phase X — document-shaped fixtures: CARGO MANIFEST DSMAN/KHO-26-006
+  // (voyage 02/26, BARGE - MEHDI 11 + TUG - LAYAN GULF, Hamriya → Khorramshahr,
+  // 45 cargo rows on 32 B/L numbers) and B/L KHS/26-110, mirroring the company's
+  // real documents as clearly-marked DEMO data (names carry an " (DEMO)" mark).
+  await seedDocumentDemo(prisma, demoCtx);
 }
 
 const PORTAL_ROLE_PERMISSIONS = new Set(['portal:access', 'booking:create']);
